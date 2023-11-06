@@ -663,43 +663,23 @@ void SparseMatrix_multiply_vector(SparseMatrix A, double *v, double **res) {
   switch (A->type){
   case MATRIX_TYPE_REAL:
     a = A->a;
-    if (v){
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += a[j]*v[ja[j]];
-	}
-      }
-    } else {
-      /* v is assumed to be all 1's */
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += a[j];
-	}
+    assert(v != NULL);
+    if (!u) u = gv_calloc((size_t)m, sizeof(double));
+    for (i = 0; i < m; i++){
+      u[i] = 0.;
+      for (j = ia[i]; j < ia[i+1]; j++){
+	u[i] += a[j]*v[ja[j]];
       }
     }
     break;
   case MATRIX_TYPE_INTEGER:
     ai = A->a;
-    if (v){
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += ai[j]*v[ja[j]];
-	}
-      }
-    } else {
-      /* v is assumed to be all 1's */
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += ai[j];
-	}
+    assert(v != NULL);
+    if (!u) u = gv_calloc((size_t)m, sizeof(double));
+    for (i = 0; i < m; i++){
+      u[i] = 0.;
+      for (j = ia[i]; j < ia[i+1]; j++){
+	u[i] += ai[j]*v[ja[j]];
       }
     }
     break;
