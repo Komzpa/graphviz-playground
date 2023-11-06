@@ -304,20 +304,6 @@ static SparseMatrix SparseMatrix_realloc(SparseMatrix A, size_t nz) {
   return A;
 }
 
-SparseMatrix SparseMatrix_new(int m, int n, size_t nz, int type, int format) {
-  /* return a sparse matrix skeleton with row dimension m and storage nz. If nz == 0, 
-     only row pointers are allocated */
-  SparseMatrix A;
-  size_t sz;
-
-  sz = size_of_matrix_type(type);
-  A = SparseMatrix_init(m, n, type, sz, format);
-
-  if (nz > 0) SparseMatrix_alloc(A, nz);
-  return A;
-
-}
-
 /// a generalized version of `SparseMatrix_new`
 ///
 /// Allows elements to be any data structure, not just real/int/complex etc
@@ -334,6 +320,13 @@ static SparseMatrix SparseMatrix_general_new(int m, int n, size_t nz, int type,
   if (nz > 0) SparseMatrix_alloc(A, nz);
   return A;
 
+}
+
+SparseMatrix SparseMatrix_new(int m, int n, size_t nz, int type, int format) {
+  /* return a sparse matrix skeleton with row dimension m and storage nz. If nz == 0,
+     only row pointers are allocated */
+  return SparseMatrix_general_new(m, n, nz, type, size_of_matrix_type(type),
+                                  format);
 }
 
 void SparseMatrix_delete(SparseMatrix A){
