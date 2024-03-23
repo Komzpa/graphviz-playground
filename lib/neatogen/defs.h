@@ -24,7 +24,7 @@ extern "C" {
     typedef struct cluster_data {
 	size_t nvars; ///< total count of vars in clusters
         size_t nclusters; ///< number of clusters
-        int *clustersizes; /* number of vars in each cluster */
+        size_t *clustersizes; ///< number of vars in each cluster
         int **clusters;    /* list of var indices for constituents of each c */
 	size_t ntoplevel; ///< number of nodes not in any cluster
 	int *toplevel;     /* array of nodes not in any cluster */

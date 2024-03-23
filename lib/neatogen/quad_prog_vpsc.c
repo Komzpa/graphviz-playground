@@ -289,7 +289,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	if (ecs != NULL)
 	    deleteConstraints(0, ecs);
 	for (size_t i = 0; i < opt->clusters.nclusters; i++) {
-	    for (int j = 0; j < opt->clusters.clustersizes[i]; j++) {
+	    for (size_t j = 0; j < opt->clusters.clustersizes[i]; j++) {
 		Variable *v = e->vs[opt->clusters.clusters[i][j]];
 		Variable *cl = e->vs[e->nv + 2 * i];
 		Variable *cr = e->vs[e->nv + 2 * i + 1];
@@ -395,14 +395,14 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	                               sizeof(Constraint**));
 	int* cm = gv_calloc(opt->clusters.nclusters + 1, sizeof(int));
 	for (size_t i = 0; i < opt->clusters.nclusters; i++) {
-	    int cn = opt->clusters.clustersizes[i];
+	    const size_t cn = opt->clusters.clustersizes[i];
 	    Variable** cvs = gv_calloc(cn + 2, sizeof(Variable*));
 	    boxf* cbb = gv_calloc(cn + 2, sizeof(boxf));
 	    /* compute cluster bounding bb */
 	    boxf container;
 	    container.LL.x = container.LL.y = DBL_MAX;
 	    container.UR.x = container.UR.y = -DBL_MAX;
-	    for (int j = 0; j < cn; j++) {
+	    for (size_t j = 0; j < cn; j++) {
 		int iv = opt->clusters.clusters[i][j];
 		cvs[j] = e->vs[iv];
 		B2BF(bb[iv], cbb[j]);
