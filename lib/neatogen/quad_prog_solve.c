@@ -53,7 +53,7 @@ float **unpackMatrix(float *packedMat, int n)
 
 static void
 ensureMonotonicOrderingWithGaps(float *place, int n, int *ordering,
-				int *levels, int num_levels,
+				int *levels, size_t num_levels,
 				float levels_gap)
 {
     /* ensure that levels are separated in the initial layout and that 
@@ -61,10 +61,10 @@ ensureMonotonicOrderingWithGaps(float *place, int n, int *ordering,
      */
 
     int i;
-    int node, level, max_in_level;
+    int node, max_in_level;
     float lower_bound = -1e9f;
 
-    level = -1;
+    size_t level = SIZE_MAX;
     max_in_level = 0;
     for (i = 0; i < n; i++) {
 	if (i >= max_in_level) {
@@ -99,7 +99,7 @@ constrained_majorization_new_with_gaps(CMajEnv * e, float *b,
     float **lap = e->A;
     int *ordering = e->ordering;
     int *levels = e->levels;
-    int num_levels = e->num_levels;
+    const size_t num_levels = e->num_levels;
     float new_place_i;
     bool converged = false;
     float upper_bound, lower_bound;
@@ -425,8 +425,7 @@ void deleteCMajEnv(CMajEnv * e)
 
 CMajEnv *initConstrainedMajorization(float *packedMat, int n,
 				     int *ordering, int *levels,
-				     int num_levels)
-{
+				     size_t num_levels) {
     CMajEnv *e = gv_alloc(sizeof(CMajEnv));
     e->n = n;
     e->ordering = ordering;
