@@ -318,7 +318,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
     e->fArray3 = gv_calloc(n, sizeof(float));
     if (Verbose)
 	fprintf(stderr,
-		"  initCMajVPSC done: %d global constraints generated.\n",
+		"  initCMajVPSC done: %" PRISIZE_T " global constraints generated.\n",
 		e->m);
     return e;
 }
@@ -522,7 +522,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
     if (e->m > 0) {
 	/* can't reuse instance of VPSC when constraints change! */
 	deleteVPSC(e->vpsc);
-	for (int i = e->gm; i < e->m; i++) {
+	for (size_t i = e->gm; i < e->m; i++) {
 	    /* delete previous overlap constraints */
 	    deleteConstraint(e->cs[i]);
 	}
@@ -541,7 +541,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
     } else {
 	e->m = mol + e->gm;
 	e->cs = newConstraints(e->m);
-	for (int i = 0; i < e->m; i++) {
+	for (size_t i = 0; i < e->m; i++) {
 	    if (i < e->gm) {
 		e->cs[i] = e->gcs[i];
 	    } else {
@@ -552,7 +552,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	deleteConstraints(0, csol);
     }
     if (Verbose)
-	fprintf(stderr, "  generated %d constraints\n", e->m);
+	fprintf(stderr, "  generated %" PRISIZE_T " constraints\n", e->m);
     e->vpsc = newIncVPSC(e->nv + e->nldv + e->ndv, e->vs, e->m, e->cs);
     free (bb);
 }

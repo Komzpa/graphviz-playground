@@ -40,7 +40,7 @@ typedef struct CMajEnvVPSC {
 	size_t nldv; ///< number of dummy nodes included in lap matrix
 	size_t ndv; ///< number of dummy nodes not included in lap matrix
 	Variable **vs;
-	int m; /* total number of constraints for next iteration */
+	size_t m; ///< total number of constraints for next iteration
 	size_t gm; ///< number of global constraints
 	Constraint **cs;
 	/* global constraints are persistent throughout optimisation process */
