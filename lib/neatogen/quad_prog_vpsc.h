@@ -38,7 +38,7 @@ typedef struct CMajEnvVPSC {
 	float **A;
 	size_t nv; ///< number of actual vars
 	size_t nldv; ///< number of dummy nodes included in lap matrix
-	int ndv;  /* number of dummy nodes not included in lap matrix */
+	size_t ndv; ///< number of dummy nodes not included in lap matrix
 	Variable **vs;
 	int m; /* total number of constraints for next iteration */
 	int gm; /* number of global constraints */
@@ -72,7 +72,8 @@ typedef struct {
 	int num_nodes;
 } DigColaLevel;
 
-PRIVATE int get_num_digcola_constraints(DigColaLevel *levels, int num_levels);
+PRIVATE int get_num_digcola_constraints(DigColaLevel *levels,
+                                        size_t num_levels);
 
 #endif 
 

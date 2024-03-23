@@ -69,7 +69,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
     const double relative_tol = levels_sep_tol;
     int *ordering = NULL, *levels = NULL;
     bool converged;
-    int num_levels;
+    size_t num_levels;
 
     if (graph[0].edists != NULL) {
 	for (int i = 0; i < n; i++) {
@@ -123,7 +123,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 	if (levels_gap > 0) {
 	    /* ensure that levels are separated in the initial layout */
 	    double displacement = 0;
-	    for (int i = 0; i < num_levels; i++) {
+	    for (size_t i = 0; i < num_levels; i++) {
 		displacement +=
 		    MAX(0.0,
 			levels_gap - (y[ordering[levels[i]]] +

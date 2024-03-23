@@ -30,6 +30,7 @@
 #include <stdbool.h>
 #include <util/alloc.h>
 #include <util/gv_math.h>
+#include <util/prisize_t.h>
 #ifdef IPSEPCOLA
 #include <math.h>
 #include <stdlib.h>
@@ -181,7 +182,8 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 }
 
 static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
-                                           int *level_inds, int num_divisions);
+                                           int *level_inds,
+                                           size_t num_divisions);
 
 /*
  * Set up environment and global constraints (dir-edge constraints, containment constraints
@@ -242,7 +244,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	levels = assign_digcola_levels(ordering, e->nv, ls, e->ndv);
 	free(ordering);
 	if (Verbose)
-	    fprintf(stderr, "Found %d DiG-CoLa boundaries\n", e->ndv);
+	    fprintf(stderr, "Found %" PRISIZE_T " DiG-CoLa boundaries\n", e->ndv);
 	e->gm =
 	    get_num_digcola_constraints(levels, e->ndv + 1) + e->ndv - 1;
 	e->gcs = newConstraints(e->gm);
@@ -253,13 +255,13 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	}
 	free(vs);
 	/* create dummy vars */
-	for (int i = 0; i < e->ndv; i++) {
+	for (size_t i = 0; i < e->ndv; i++) {
 	    /* dummy vars should have 0 weight */
 	    cvar = n + i;
 	    e->vs[cvar] = newVariable(cvar, 1.0, 0.000001);
 	}
 	halfgap = opt->edge_gap;
-	for (int i = 0; i < e->ndv; i++) {
+	for (size_t i = 0; i < e->ndv; i++) {
 	    cvar = n + i;
 	    /* outgoing constraints for each var in level below boundary */
 	    for (int j = 0; j < levels[i].num_nodes; j++) {
@@ -275,7 +277,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	    }
 	}
 	/* constraints between adjacent boundary dummy vars */
-	for (int i = 0; i < e->ndv - 1; i++) {
+	for (size_t i = 0; i < e->ndv - 1; i++) {
 	    e->gcs[e->gm++] =
 		newConstraint(e->vs[n + i], e->vs[n + i + 1], 0);
 	}
@@ -580,17 +582,18 @@ void removeoverlaps(int n, float **coords, ipsep_options * opt)
  unpack the "ordering" array into an array of DigColaLevel
 */
 static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
-                                           int *level_inds, int num_divisions) {
-    int i, j;
+                                           int *level_inds,
+                                           size_t num_divisions) {
+    int j;
     DigColaLevel *l = gv_calloc(num_divisions + 1, sizeof(DigColaLevel));
     /* first level */
     l[0].num_nodes = level_inds[0];
     l[0].nodes = gv_calloc(l[0].num_nodes, sizeof(int));
-    for (i = 0; i < l[0].num_nodes; i++) {
+    for (int i = 0; i < l[0].num_nodes; i++) {
 	l[0].nodes[i] = ordering[i];
     }
     /* second through second last level */
-    for (i = 1; i < num_divisions; i++) {
+    for (size_t i = 1; i < num_divisions; i++) {
 	l[i].num_nodes = level_inds[i] - level_inds[i - 1];
 	l[i].nodes = gv_calloc(l[i].num_nodes, sizeof(int));
 	for (j = 0; j < l[i].num_nodes; j++) {
@@ -601,7 +604,7 @@ static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
     if (num_divisions > 0) {
 	l[num_divisions].num_nodes = n - level_inds[num_divisions - 1];
 	l[num_divisions].nodes = gv_calloc(l[num_divisions].num_nodes, sizeof(int));
-	for (i = 0; i < l[num_divisions].num_nodes; i++) {
+	for (int i = 0; i < l[num_divisions].num_nodes; i++) {
 	    l[num_divisions].nodes[i] =
 		ordering[level_inds[num_divisions - 1] + i];
 	}
@@ -613,10 +616,9 @@ static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
 get number of separation constraints based on the number of nodes in each level
 ie, num_sep_constraints = sum_i^{num_levels-1} (|L[i]|+|L[i+1]|)
 **********************/
-int get_num_digcola_constraints(DigColaLevel * levels, int num_levels)
-{
-    int i, nc = 0;
-    for (i = 1; i < num_levels; i++) {
+int get_num_digcola_constraints(DigColaLevel *levels, size_t num_levels) {
+    int nc = 0;
+    for (size_t i = 1; i < num_levels; i++) {
 	nc += levels[i].num_nodes + levels[i - 1].num_nodes;
     }
     nc += levels[0].num_nodes + levels[num_levels - 1].num_nodes;
