@@ -286,7 +286,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	Constraint **ecs = e->gcs;
 	const size_t nConCs = 2 * opt->clusters.nvars;
 	e->gcs = newConstraints(e->gm + nConCs);
-	for (int i = 0; i < e->gm; i++) {
+	for (size_t i = 0; i < e->gm; i++) {
 	    e->gcs[i] = ecs[i];
 	}
 	if (ecs != NULL)
