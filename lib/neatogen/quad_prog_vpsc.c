@@ -195,7 +195,6 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 			  ipsep_options * opt, int diredges)
 {
     /* nv is the number of real nodes */
-    int nConCs;
     CMajEnvVPSC *e = gv_alloc(sizeof(CMajEnvVPSC));
     e->A = NULL;
     /* if we have clusters then we'll need two constraints for each var in
@@ -282,7 +281,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
     }
     if (opt->clusters.nclusters > 0) {
 	Constraint **ecs = e->gcs;
-	nConCs = 2 * opt->clusters.nvars;
+	const size_t nConCs = 2 * opt->clusters.nvars;
 	e->gcs = newConstraints(e->gm + nConCs);
 	for (int i = 0; i < e->gm; i++) {
 	    e->gcs[i] = ecs[i];

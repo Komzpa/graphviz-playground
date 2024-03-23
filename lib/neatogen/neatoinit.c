@@ -222,7 +222,8 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
             int *c;
 
             *cn = agnnodes(subg);
-            cdata.nvars += *cn;
+            assert(*cn >= 0);
+            cdata.nvars += (size_t)*cn;
             c = *cs++ = gv_calloc(*cn++, sizeof(int));
             for (n = agfstnode(subg); n; n = agnxtnode(subg, n)) {
                 node_t *gn;
@@ -1040,8 +1041,8 @@ void dumpClusterData (cluster_data* dp)
 {
   int j, sz;
 
-  fprintf(stderr, "nvars %d nclusters %" PRISIZE_T " ntoplevel %" PRISIZE_T
-          "\n", dp->nvars, dp->nclusters, dp->ntoplevel);
+  fprintf(stderr, "nvars %" PRISIZE_T " nclusters %" PRISIZE_T " ntoplevel %"
+          PRISIZE_T "\n", dp->nvars, dp->nclusters, dp->ntoplevel);
   fprintf (stderr, "Clusters:\n");
   for (size_t i = 0; i < dp->nclusters; i++) {
     sz = dp->clustersizes[i];

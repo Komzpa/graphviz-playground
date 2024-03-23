@@ -22,7 +22,7 @@ extern "C" {
 #ifdef DIGCOLA
 #ifdef IPSEPCOLA
     typedef struct cluster_data {
-	int nvars;         /* total count of vars in clusters */
+	size_t nvars; ///< total count of vars in clusters
         size_t nclusters; ///< number of clusters
         int *clustersizes; /* number of vars in each cluster */
         int **clusters;    /* list of var indices for constituents of each c */
