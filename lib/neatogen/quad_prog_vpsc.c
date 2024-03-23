@@ -25,6 +25,7 @@
 #include "config.h"
 
 #include <common/geomprocs.h>
+#include <limits.h>
 #include <neatogen/digcola.h>
 #include <stdbool.h>
 #include <util/alloc.h>
@@ -362,7 +363,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 				   ipsep_options * opt)
 {
     Constraint **csol, **csolptr;
-    int j, mol = 0;
+    int mol = 0;
     int n = e->nv + e->nldv;
     boxf* bb = gv_calloc(n, sizeof(boxf));
     bool genclusters = opt->clusters.nclusters > 0;
@@ -402,7 +403,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	    boxf container;
 	    container.LL.x = container.LL.y = DBL_MAX;
 	    container.UR.x = container.UR.y = -DBL_MAX;
-	    for (j = 0; j < cn; j++) {
+	    for (int j = 0; j < cn; j++) {
 		int iv = opt->clusters.clusters[i][j];
 		cvs[j] = e->vs[iv];
 		B2BF(bb[iv], cbb[j]);
@@ -430,33 +431,36 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	}
 	/* generate top level constraints */
 	{
-	    int cn = opt->clusters.ntoplevel + opt->clusters.nclusters;
+	    const size_t cn = opt->clusters.ntoplevel + opt->clusters.nclusters;
 	    Variable** cvs = gv_calloc(cn, sizeof(Variable*));
 	    boxf* cbb = gv_calloc(cn, sizeof(boxf));
-	    for (int i = 0; i < opt->clusters.ntoplevel; i++) {
+	    for (size_t i = 0; i < opt->clusters.ntoplevel; i++) {
 		int iv = opt->clusters.toplevel[i];
 		cvs[i] = e->vs[iv];
 		B2BF(bb[iv], cbb[i]);
 	    }
 	    /* make dummy variables for clusters */
-	    for (int i = opt->clusters.ntoplevel; i < cn; i++) {
-		cvs[i] = newVariable(123 + i, 1, 1);
-		j = i - opt->clusters.ntoplevel;
+	    for (size_t i = opt->clusters.ntoplevel; i < cn; i++) {
+		assert(i <= INT_MAX);
+		cvs[i] = newVariable(123 + (int)i, 1, 1);
+		const size_t j = i - opt->clusters.ntoplevel;
 		B2BF(opt->clusters.bb[j], cbb[i]);
 	    }
 	    if (k == 0) {
 		const size_t i = opt->clusters.nclusters;
+		assert(cn <= INT_MAX);
 		cm[i] =
-		    genXConstraints(cn, cbb, cvs, &cscl[i],
+		    genXConstraints((int)cn, cbb, cvs, &cscl[i],
 				    transitiveClosure);
 	    } else {
 		const size_t i = opt->clusters.nclusters;
-		cm[i] = genYConstraints(cn, cbb, cvs, &cscl[i]);
+		assert(cn <= INT_MAX);
+		cm[i] = genYConstraints((int)cn, cbb, cvs, &cscl[i]);
 	    }
 	    /* remap constraints from tmp dummy vars to cluster l and r vars */
-	    for (int i = opt->clusters.ntoplevel; i < cn; i++) {
+	    for (size_t i = opt->clusters.ntoplevel; i < cn; i++) {
 		double dgap;
-		j = i - opt->clusters.ntoplevel;
+		const size_t j = i - opt->clusters.ntoplevel;
 		/* dgap is the change in required constraint gap.
 		 * since we are going from a source rectangle the size
 		 * of the cluster bounding box to a zero width (in x dim,
@@ -501,7 +505,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	csolptr = csol = newConstraints(mol);
 	for (size_t i = 0; i < opt->clusters.nclusters + 1; i++) {
 	    /* copy constraints into csol */
-	    for (j = 0; j < cm[i]; j++) {
+	    for (int j = 0; j < cm[i]; j++) {
 		*csolptr++ = cscl[i][j];
 	    }
 	    deleteConstraints(0, cscl[i]);

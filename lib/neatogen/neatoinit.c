@@ -30,6 +30,7 @@
 #include <common/render.h>
 #include <common/utils.h>
 #include <neatogen/sgd.h>
+#include <cgraph/cghdr.h>
 #include <cgraph/cgraph.h>
 #include <float.h>
 #include <stdatomic.h>
@@ -205,7 +206,7 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
     cluster_data cdata = {0};
 
     size_t nclusters = 0;
-    cdata.ntoplevel = agnnodes(g);
+    cdata.ntoplevel = agnnodes_z(g);
     for (subg = agfstsubg(mastergraph); subg; subg = agnxtsubg(subg)) {
         if (is_a_cluster(subg)) {
             nclusters++;
@@ -243,7 +244,7 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
             cdata.toplevel[j++] = i;
         }
     }
-    assert(cdata.ntoplevel == agnnodes(g) - cdata.nvars);
+    assert(cdata.ntoplevel == agnnodes_z(g) - cdata.nvars);
     bitarray_reset(&assigned);
     return cdata;
 }
@@ -1039,8 +1040,8 @@ void dumpClusterData (cluster_data* dp)
 {
   int j, sz;
 
-  fprintf(stderr, "nvars %d nclusters %" PRISIZE_T " ntoplevel %d\n", dp->nvars,
-          dp->nclusters, dp->ntoplevel);
+  fprintf(stderr, "nvars %d nclusters %" PRISIZE_T " ntoplevel %" PRISIZE_T
+          "\n", dp->nvars, dp->nclusters, dp->ntoplevel);
   fprintf (stderr, "Clusters:\n");
   for (size_t i = 0; i < dp->nclusters; i++) {
     sz = dp->clustersizes[i];
@@ -1052,7 +1053,7 @@ void dumpClusterData (cluster_data* dp)
 
 
   fprintf (stderr, "Toplevel:\n");
-  for (int i = 0; i < dp->ntoplevel; i++)
+  for (size_t i = 0; i < dp->ntoplevel; i++)
     fprintf (stderr, "  %d\n", dp->toplevel[i]);
 
   fprintf (stderr, "Boxes:\n");

@@ -26,7 +26,7 @@ extern "C" {
         size_t nclusters; ///< number of clusters
         int *clustersizes; /* number of vars in each cluster */
         int **clusters;    /* list of var indices for constituents of each c */
-	int ntoplevel;     /* number of nodes not in any cluster */
+	size_t ntoplevel; ///< number of nodes not in any cluster
 	int *toplevel;     /* array of nodes not in any cluster */
 	boxf *bb;	   /* bounding box of each cluster */
     } cluster_data;
