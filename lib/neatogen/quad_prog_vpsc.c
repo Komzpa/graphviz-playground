@@ -452,8 +452,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 				    transitiveClosure);
 	    } else {
 		const size_t i = opt->clusters.nclusters;
-		assert(cn <= INT_MAX);
-		cm[i] = genYConstraints((int)cn, cbb, cvs, &cscl[i]);
+		cm[i] = genYConstraints(cn, cbb, cvs, &cscl[i]);
 	    }
 	    /* remap constraints from tmp dummy vars to cluster l and r vars */
 	    for (size_t i = opt->clusters.ntoplevel; i < cn; i++) {

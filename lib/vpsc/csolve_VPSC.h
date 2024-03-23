@@ -45,7 +45,7 @@ typedef struct { pointf LL, UR; } boxf;
 #endif
 int genXConstraints(size_t n, boxf[], Variable **vs, Constraint ***cs,
                     bool transitiveClosure);
-int genYConstraints(int n, boxf[], Variable** vs, Constraint*** cs);
+int genYConstraints(size_t n, boxf[], Variable **vs, Constraint ***cs);
 
 void satisfyVPSC(VPSC*);
 void solveVPSC(VPSC*);

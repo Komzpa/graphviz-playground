@@ -45,9 +45,10 @@ int genXConstraints(size_t n, boxf *bb, Variable **vs, Constraint ***cs,
 	const int m = generateXConstraints(rs, vs, *cs, transitiveClosure);
 	return m;
 }
-int genYConstraints(int n, boxf* bb, Variable** vs, Constraint*** cs) {
+
+int genYConstraints(size_t n, boxf *bb, Variable **vs, Constraint ***cs) {
 	std::vector<Rectangle> rs;
-	for(int i=0;i<n;i++) {
+	for(size_t i = 0; i < n; i++) {
 		rs.emplace_back(bb[i].LL.x,bb[i].UR.x,bb[i].LL.y,bb[i].UR.y);
 	}
 	const int m = generateYConstraints(rs, vs, *cs);
