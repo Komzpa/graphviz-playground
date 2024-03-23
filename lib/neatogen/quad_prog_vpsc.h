@@ -32,10 +32,11 @@ extern "C" {
 #include <neatogen/defs.h>
 #include <neatogen/digcola.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct CMajEnvVPSC {
 	float **A;
-	int nv;   /* number of actual vars */
+	size_t nv; ///< number of actual vars
 	int nldv; /* number of dummy nodes included in lap matrix */
 	int ndv;  /* number of dummy nodes not included in lap matrix */
 	Variable **vs;

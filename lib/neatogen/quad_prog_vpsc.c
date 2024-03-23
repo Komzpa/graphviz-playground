@@ -180,7 +180,7 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
     return counter;
 }
 
-static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
+static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
                                            int *level_inds, int num_divisions);
 
 /*
@@ -212,7 +212,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
     if (diredges == 1) {
 	if (Verbose)
 	    fprintf(stderr, "  generate edge constraints...\n");
-	for (int i = 0; i < e->nv; i++) {
+	for (size_t i = 0; i < e->nv; i++) {
 	    for (size_t j = 1; j < graph[i].nedges; j++) {
 		if (graph[i].edists[j] > 0) {
 		    e->gm++;
@@ -221,9 +221,10 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	}
 	e->gcs = newConstraints(e->gm);
 	e->gm = 0;
-	for (int i = 0; i < e->nv; i++) {
+	for (size_t i = 0; i < e->nv; i++) {
 	    for (size_t j = 1; j < graph[i].nedges; j++) {
-		int u = i, v = graph[i].edges[j];
+		const size_t u = i;
+		int v = graph[i].edges[j];
 		if (graph[i].edists[j] > 0) {
 		    e->gcs[e->gm++] =
 			newConstraint(e->vs[u], e->vs[v], opt->edge_gap);
@@ -322,7 +323,6 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 
 void deleteCMajEnvVPSC(CMajEnvVPSC * e)
 {
-    int i;
     if (e->A != NULL) {
 	free(e->A[0]);
 	free(e->A);
@@ -332,7 +332,7 @@ void deleteCMajEnvVPSC(CMajEnvVPSC * e)
 	if (e->cs != e->gcs && e->gcs != NULL)
 	    deleteConstraints(0, e->gcs);
 	deleteConstraints(e->m, e->cs);
-	for (i = 0; i < e->nv + e->nldv + e->ndv; i++) {
+	for (size_t i = 0; i < e->nv + e->nldv + e->ndv; i++) {
 	    deleteVariable(e->vs[i]);
 	}
 	free(e->vs);
@@ -579,7 +579,7 @@ void removeoverlaps(int n, float **coords, ipsep_options * opt)
 /*
  unpack the "ordering" array into an array of DigColaLevel
 */
-static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
+static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
                                            int *level_inds, int num_divisions) {
     int i, j;
     DigColaLevel *l = gv_calloc(num_divisions + 1, sizeof(DigColaLevel));
