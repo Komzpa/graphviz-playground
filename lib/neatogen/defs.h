@@ -17,12 +17,13 @@ extern "C" {
 #include <neatogen/neato.h>
 
 #include <neatogen/sparsegraph.h>
+#include <stddef.h>
 
 #ifdef DIGCOLA
 #ifdef IPSEPCOLA
     typedef struct cluster_data {
 	int nvars;         /* total count of vars in clusters */
-        int nclusters;     /* number of clusters */
+        size_t nclusters; ///< number of clusters
         int *clustersizes; /* number of vars in each cluster */
         int **clusters;    /* list of var indices for constituents of each c */
 	int ntoplevel;     /* number of nodes not in any cluster */

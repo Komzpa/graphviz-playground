@@ -200,10 +200,11 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
     node_t *n;
      /* array of arrays of node indices in each cluster */
     int **cs,*cn;
-    int i,j,nclusters=0;
+    int i, j;
     bitarray_t assigned = bitarray_new(agnnodes(g));
     cluster_data cdata = {0};
 
+    size_t nclusters = 0;
     cdata.ntoplevel = agnnodes(g);
     for (subg = agfstsubg(mastergraph); subg; subg = agnxtsubg(subg)) {
         if (is_a_cluster(subg)) {
@@ -1036,13 +1037,14 @@ void dumpData(graph_t * g, vtx_data * gp, int nv, int ne)
 }
 void dumpClusterData (cluster_data* dp)
 {
-  int i, j, sz;
+  int j, sz;
 
-  fprintf (stderr, "nvars %d nclusters %d ntoplevel %d\n", dp->nvars, dp->nclusters, dp->ntoplevel);
+  fprintf(stderr, "nvars %d nclusters %" PRISIZE_T " ntoplevel %d\n", dp->nvars,
+          dp->nclusters, dp->ntoplevel);
   fprintf (stderr, "Clusters:\n");
-  for (i = 0; i < dp->nclusters; i++) {
+  for (size_t i = 0; i < dp->nclusters; i++) {
     sz = dp->clustersizes[i];
-    fprintf (stderr, "  [%d] %d vars\n", i, sz);
+    fprintf (stderr, "  [%" PRISIZE_T "] %d vars\n", i, sz);
     for (j = 0; j < sz; j++)
       fprintf (stderr, "  %d", dp->clusters[i][j]);
     fprintf (stderr, "\n");
@@ -1050,11 +1052,11 @@ void dumpClusterData (cluster_data* dp)
 
 
   fprintf (stderr, "Toplevel:\n");
-  for (i = 0; i < dp->ntoplevel; i++)
+  for (int i = 0; i < dp->ntoplevel; i++)
     fprintf (stderr, "  %d\n", dp->toplevel[i]);
 
   fprintf (stderr, "Boxes:\n");
-  for (i = 0; i < dp->nclusters; i++) {
+  for (size_t i = 0; i < dp->nclusters; i++) {
     boxf bb = dp->bb[i];
     fprintf (stderr, "  (%f,%f) (%f,%f)\n", bb.LL.x, bb.LL.y, bb.UR.x, bb.UR.y);
   }

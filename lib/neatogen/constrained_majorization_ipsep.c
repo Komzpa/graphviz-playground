@@ -33,6 +33,8 @@
 
 #include "config.h"
 
+#include <assert.h>
+#include <limits.h>
 #include <neatogen/digcola.h>
 #include <stdbool.h>
 #include <util/alloc.h>
@@ -200,8 +202,8 @@ int stress_majorization_cola(vtx_data * graph,	/* Input graph in sparse represen
     invert_vec(lap_length, lap2);
 
     if (opt->clusters.nclusters > 0) {
-	int nn = n + opt->clusters.nclusters * 2;
-	int clap_length = nn + nn * (nn - 1) / 2;
+	const size_t nn = n + opt->clusters.nclusters * 2;
+	const size_t clap_length = nn + nn * (nn - 1) / 2;
 	float *clap = gv_calloc(clap_length, sizeof(float));
 	int c0, c1;
 	float v;
@@ -226,7 +228,9 @@ int stress_majorization_cola(vtx_data * graph,	/* Input graph in sparse represen
 	}
 	free(lap2);
 	lap2 = clap;
+	assert(nn <= INT_MAX);
 	n = nn;
+	assert(clap_length <= INT_MAX);
 	lap_length = clap_length;
     }
     /* compute diagonal entries */
