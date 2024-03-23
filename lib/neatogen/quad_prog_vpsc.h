@@ -37,7 +37,7 @@ extern "C" {
 typedef struct CMajEnvVPSC {
 	float **A;
 	size_t nv; ///< number of actual vars
-	int nldv; /* number of dummy nodes included in lap matrix */
+	size_t nldv; ///< number of dummy nodes included in lap matrix
 	int ndv;  /* number of dummy nodes not included in lap matrix */
 	Variable **vs;
 	int m; /* total number of constraints for next iteration */

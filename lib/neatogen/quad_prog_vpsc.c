@@ -53,12 +53,12 @@ int
 constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 			      int max_iterations)
 {
-    int i, j, counter;
+    int counter;
     float *g, *old_place, *d;
     /* for laplacian computation need number of real vars and those
      * dummy vars included in lap
      */
-    int n = e->nv + e->nldv;
+    const size_t n = e->nv + e->nldv;
     bool converged = false;
 #ifdef CONMAJ_LOGGING
     static int call_no = 0;
@@ -70,19 +70,19 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
     old_place = e->fArray2;
     d = e->fArray3;
     if (e->m > 0) {
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    setVariableDesiredPos(e->vs[i], place[i]);
 	}
 	satisfyVPSC(e->vpsc);
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    place[i] = getVariablePos(e->vs[i]);
 	}
     }
 #ifdef CONMAJ_LOGGING
     float prev_stress = 0;
-    for (i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 	prev_stress += 2 * b[i] * place[i];
-	for (j = 0; j < n; j++) {
+	for (size_t j = 0; j < n; j++) {
 	    prev_stress -= e->A[i][j] * place[j] * place[i];
 	}
     }
@@ -95,17 +95,17 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	float numerator = 0, denominator = 0, r;
 	converged = true;
 	/* find steepest descent direction */
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    old_place[i] = place[i];
 	    g[i] = 2 * b[i];
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		g[i] -= 2 * e->A[i][j] * place[j];
 	    }
 	}
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    numerator += g[i] * g[i];
 	    r = 0;
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		r += 2 * e->A[i][j] * g[j];
 	    }
 	    denominator -= r * g[i];
@@ -114,31 +114,31 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	    alpha = numerator / denominator;
 	else
 	    alpha = 1.0;
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    place[i] -= alpha * g[i];
 	}
 	if (e->m > 0) {
 	    /* project to constraint boundary */
-	    for (i = 0; i < n; i++) {
+	    for (size_t i = 0; i < n; i++) {
 		setVariableDesiredPos(e->vs[i], place[i]);
 	    }
 	    satisfyVPSC(e->vpsc);
-	    for (i = 0; i < n; i++) {
+	    for (size_t i = 0; i < n; i++) {
 		place[i] = getVariablePos(e->vs[i]);
 	    }
 	}
 	/* set place to the intersection of old_place-g and boundary and 
 	 * compute d, the vector from intersection pnt to projection pnt
 	 */
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    d[i] = place[i] - old_place[i];
 	}
 	/* now compute beta */
 	numerator = 0, denominator = 0;
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    numerator += g[i] * d[i];
 	    r = 0;
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		r += 2 * e->A[i][j] * d[j];
 	    }
 	    denominator += r * d[i];
@@ -148,7 +148,7 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	else
 	    beta = 1.0;
 
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    /* beta > 1.0 takes us back outside the feasible region
 	     * beta < 0 clearly not useful and may happen due to numerical imp.
 	     */
@@ -159,9 +159,9 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	}
 #ifdef CONMAJ_LOGGING
 	float stress = 0;
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    stress += 2 * b[i] * place[i];
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		stress -= e->A[i][j] * place[j] * place[i];
 	    }
 	}
