@@ -208,7 +208,7 @@ int stress_majorization_cola(vtx_data * graph,	/* Input graph in sparse represen
 	int c0, c1;
 	float v;
 	c0 = c1 = 0;
-	for (int i = 0; i < nn; i++) {
+	for (size_t i = 0; i < nn; i++) {
 	    for (int j = 0; j < nn - i; j++) {
 		if (i < n && j < n - i) {
 		    v = lap2[c0++];
@@ -229,9 +229,9 @@ int stress_majorization_cola(vtx_data * graph,	/* Input graph in sparse represen
 	free(lap2);
 	lap2 = clap;
 	assert(nn <= INT_MAX);
-	n = nn;
+	n = (int)nn;
 	assert(clap_length <= INT_MAX);
-	lap_length = clap_length;
+	lap_length = (int)clap_length;
     }
     /* compute diagonal entries */
     count = 0;
