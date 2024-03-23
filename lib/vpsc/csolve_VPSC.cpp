@@ -58,8 +58,9 @@ int genYConstraints(size_t n, boxf *bb, Variable **vs, Constraint ***cs) {
 Constraint** newConstraints(int m) {
 	return new Constraint*[m];
 }
-void deleteConstraints(int m, Constraint **cs) {
-	for(int i=0;i<m;i++) {
+
+void deleteConstraints(size_t m, Constraint **cs) {
+	for (size_t i = 0; i < m; i++) {
 		delete cs[i];
 	}
 	delete [] cs;

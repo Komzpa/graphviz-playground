@@ -35,7 +35,7 @@ void deleteVPSC(VPSC*);
 void deleteConstraint(Constraint*);
 void deleteVariable(Variable*);
 Constraint** newConstraints(int m);
-void deleteConstraints(int m,Constraint**);
+void deleteConstraints(size_t m, Constraint **);
 void remapInConstraints(Variable *u, Variable *v, double dgap);
 void remapOutConstraints(Variable *u, Variable *v, double dgap);
 
