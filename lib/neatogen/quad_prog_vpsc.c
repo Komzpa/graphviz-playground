@@ -363,7 +363,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 {
     Constraint **csol, **csolptr;
     int mol = 0;
-    int n = e->nv + e->nldv;
+    size_t n = e->nv + e->nldv;
     boxf* bb = gv_calloc(n, sizeof(boxf));
     bool genclusters = opt->clusters.nclusters > 0;
     if (genclusters) {
@@ -376,7 +376,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	 */
 	nsizeScale *= 1.0001f;
     }
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 	bb[i].LL.x =
 	    coords[0][i] - nsizeScale * opt->nsize[i].x / 2.0 -
 	    opt->gap.x / 2.0;
