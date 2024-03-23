@@ -17,6 +17,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,8 +43,8 @@ void remapOutConstraints(Variable *u, Variable *v, double dgap);
 typedef struct pointf_s { double x, y; } pointf;
 typedef struct { pointf LL, UR; } boxf;
 #endif
-int genXConstraints(int n, boxf[], Variable** vs, Constraint*** cs,
-		bool transitiveClosure);
+int genXConstraints(size_t n, boxf[], Variable **vs, Constraint ***cs,
+                    bool transitiveClosure);
 int genYConstraints(int n, boxf[], Variable** vs, Constraint*** cs);
 
 void satisfyVPSC(VPSC*);

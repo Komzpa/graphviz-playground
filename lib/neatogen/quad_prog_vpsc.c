@@ -447,9 +447,8 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	    }
 	    if (k == 0) {
 		const size_t i = opt->clusters.nclusters;
-		assert(cn <= INT_MAX);
 		cm[i] =
-		    genXConstraints((int)cn, cbb, cvs, &cscl[i],
+		    genXConstraints(cn, cbb, cvs, &cscl[i],
 				    transitiveClosure);
 	    } else {
 		const size_t i = opt->clusters.nclusters;
