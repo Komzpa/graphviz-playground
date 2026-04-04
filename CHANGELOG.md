@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When gvpr dumps switch statements as text, they are now printed as switch
   statements instead of an if-else ladder. This avoids incorrect interpretation
   of `break` statements in error messages. #2822
+- An out-of-bounds read access during gvpr type checking has been fixed.
 
 ## [14.1.4] – 2026-03-20
 
