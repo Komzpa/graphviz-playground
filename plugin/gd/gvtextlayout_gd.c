@@ -116,8 +116,7 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
     else
 	strex.flags |= gdFTEX_FONTCONFIG;
 
-    span->size.x = 0.0;
-    span->size.y = 0.0;
+    span->size = (pointf){0};
     span->yoffset_layout = 0.0;
 
     span->layout = NULL;
