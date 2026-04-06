@@ -99,10 +99,10 @@ char* gd_psfontResolve (PostscriptAlias* pa)
 
 static bool gd_textlayout(textspan_t * span, char **fontpath)
 {
-    char *err, *fontlist, *fontname;
+    char *err, *fontlist;
     int brect[8];
 
-    fontname = span->font->name;
+    char *const fontname = span->font->name;
     double fontsize = span->font->size;
 
     gdFTStringExtra strex = {
