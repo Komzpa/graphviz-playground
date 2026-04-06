@@ -102,14 +102,15 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
     char *err, *fontlist, *fontname;
     double fontsize;
     int brect[8];
-    gdFTStringExtra strex;
 
     fontname = span->font->name;
     fontsize = span->font->size;
 
-    strex.fontpath = NULL;
-    strex.flags = gdFTEX_RETURNFONTPATHNAME | gdFTEX_RESOLUTION;
-    strex.hdpi = strex.vdpi = POINTS_PER_INCH;
+    gdFTStringExtra strex = {
+      .flags = gdFTEX_RETURNFONTPATHNAME | gdFTEX_RESOLUTION,
+      .hdpi = POINTS_PER_INCH,
+      .vdpi = POINTS_PER_INCH
+    };
 
     if (strchr(fontname, '/'))
 	strex.flags |= gdFTEX_FONTPATHNAME;
