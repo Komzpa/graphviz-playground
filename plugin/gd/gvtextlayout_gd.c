@@ -99,7 +99,7 @@ char* gd_psfontResolve (PostscriptAlias* pa)
 
 static bool gd_textlayout(textspan_t * span, char **fontpath)
 {
-    char *err, *fontlist;
+    char *fontlist;
     int brect[8];
 
     char *const fontname = span->font->name;
@@ -146,7 +146,7 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
 #endif
 
     // call gdImageStringFT with null *im to get brect and to set font cache
-    err = gdImageStringFTEx(NULL, brect, -1, fontlist,
+    char *const err = gdImageStringFTEx(NULL, brect, -1, fontlist,
     			fontsize, 0, 0, 0, span->str, &strex);
     if (fontlist_needs_free) {
         free(fontlist);
