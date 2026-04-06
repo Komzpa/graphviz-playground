@@ -103,9 +103,6 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
     double fontsize;
     int brect[8];
     gdFTStringExtra strex;
-#ifdef HAVE_GD_FONTCONFIG
-    PostscriptAlias *pA;
-#endif
 
     fontname = span->font->name;
     fontsize = span->font->size;
@@ -138,7 +135,7 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
     bool fontlist_needs_free = false;
 #ifdef HAVE_GD_FONTCONFIG
     gdFTUseFontConfig(1);  /* tell gd that we really want to use fontconfig, 'cos it s not the default */
-    pA = span->font->postscript_alias;
+    PostscriptAlias *const pA = span->font->postscript_alias;
     if (pA)
         fontlist = gd_psfontResolve (pA);
     else
