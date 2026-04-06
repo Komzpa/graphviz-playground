@@ -163,7 +163,7 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
 
     if (span->str && span->str[0]) {
         /* can't use brect on some archtectures if strlen 0 */
-        span->size.x = (double) (brect[4] - brect[0]);
+        span->size.x = brect[4] - brect[0];
         // LINESPACING specifies how much extra space to leave between lines
         span->size.y = fontsize * LINESPACING;
     }
