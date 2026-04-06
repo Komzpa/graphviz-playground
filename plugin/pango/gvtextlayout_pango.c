@@ -100,7 +100,7 @@ static bool pango_textlayout(textspan_t * span, char **fontpath)
         !is_exactly_equal(fontsize, span->font->size)) {
 
 	/* check if the conversion to Pango units below will overflow */
-	if (INT_MAX / PANGO_SCALE < span->font->size) {
+	if ((double)INT_MAX / PANGO_SCALE < span->font->size) {
 	    return false;
 	}
 
