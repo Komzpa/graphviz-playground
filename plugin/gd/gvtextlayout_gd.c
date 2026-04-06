@@ -100,11 +100,10 @@ char* gd_psfontResolve (PostscriptAlias* pa)
 static bool gd_textlayout(textspan_t * span, char **fontpath)
 {
     char *err, *fontlist, *fontname;
-    double fontsize;
     int brect[8];
 
     fontname = span->font->name;
-    fontsize = span->font->size;
+    double fontsize = span->font->size;
 
     gdFTStringExtra strex = {
       .flags = gdFTEX_RETURNFONTPATHNAME | gdFTEX_RESOLUTION,
