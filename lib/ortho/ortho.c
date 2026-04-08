@@ -1270,7 +1270,7 @@ void orthoEdges(Agraph_t *g, bool useLbls) {
     if (odb_flags & ODB_ROUTE) emitGraph (stderr, mp, n_edges, route_list, es);
 #endif
     splineInfo sinfo = {swap_ends_p, spline_merge, true, true};
-    attachOrthoEdges(mp, n_edges, route_list, &sinfo, es, useLbls);
+    attachOrthoEdges(mp, n_edges, route_list, &sinfo, es, false);
 
 orthofinish:
     if (Concentrate)
