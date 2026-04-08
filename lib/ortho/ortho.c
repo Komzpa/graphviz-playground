@@ -1162,7 +1162,6 @@ static bool swap_ends_p(edge_t * e)
 void orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
     PointSet* ps = NULL;
-    textlabel_t* lbl;
 
     if (Concentrate) 
 	ps = newPS();
@@ -1246,19 +1245,15 @@ void orthoEdges(Agraph_t *g, bool useLbls) {
         cell *const start = CELL(agtail(e));
         cell *const dest = CELL(aghead(e));
 
-	if (useLbls && (lbl = ED_label(e)) && lbl->set) {
-	}
+	if (start == dest)
+	    addLoop (sg, start, dn, sn);
 	else {
-	    if (start == dest)
-		addLoop (sg, start, dn, sn);
-	    else {
-       		addNodeEdges (sg, dest, dn);
-		addNodeEdges (sg, start, sn);
-	    }
-       	    if (shortPath(pq, sg, dn, sn)) {
-		PQfree(pq);
-		goto orthofinish;
-       	    }
+	    addNodeEdges (sg, dest, dn);
+	    addNodeEdges (sg, start, sn);
+	}
+	if (shortPath(pq, sg, dn, sn)) {
+	    PQfree(pq);
+	    goto orthofinish;
 	}
 	    
        	route_list[i] = convertSPtoRoute(sg, sn, dn);
