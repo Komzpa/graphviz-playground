@@ -1067,9 +1067,8 @@ static double htrack(segment *seg, maze *m) {
 }
 
 static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
-                             splineInfo *sinfo, epair_t es[], bool doLbls) {
+                             splineInfo *sinfo, epair_t es[]) {
     LIST(pointf) ispline = {0};
-    textlabel_t* lbl;
 
     for (size_t irte = 0; irte < n_edges; irte++) {
 	Agedge_t *const e = es[irte].e;
@@ -1117,8 +1116,6 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 	    fprintf(stderr, "ortho %s %s\n", agnameof(agtail(e)),agnameof(aghead(e)));
 	clip_and_install(e, aghead(e), LIST_FRONT(&ispline), LIST_SIZE(&ispline),
 	                 sinfo);
-	if (doLbls && (lbl = ED_label(e)) && !lbl->set)
-	    addEdgeLabels(e);
 	LIST_CLEAR(&ispline);
     }
     LIST_FREE(&ispline);
@@ -1270,7 +1267,7 @@ void orthoEdges(Agraph_t *g, bool useLbls) {
     if (odb_flags & ODB_ROUTE) emitGraph (stderr, mp, n_edges, route_list, es);
 #endif
     splineInfo sinfo = {swap_ends_p, spline_merge, true, true};
-    attachOrthoEdges(mp, n_edges, route_list, &sinfo, es, false);
+    attachOrthoEdges(mp, n_edges, route_list, &sinfo, es);
 
 orthofinish:
     if (Concentrate)
