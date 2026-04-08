@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logic to determine whether a rendered page is non-first has been corrected.
 - gvpr modulo expressions with an out-of-range modulo operand are now detected
   and result in an error message.
+- When gvpr dumps switch statements as text, they are now printed as switch
+  statements instead of an if-else ladder. This avoids incorrect interpretation
+  of `break` statements in error messages. #2822
 
 ## [14.1.4] – 2026-03-20
 
