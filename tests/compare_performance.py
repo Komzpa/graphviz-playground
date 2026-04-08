@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
 """
-compare the runtime performance of two different versions of Graphviz
+Compare the runtime performance of one or more versions of Graphviz.
 
-When making changes to Graphviz’ code that may affect performance, you can use this
-script to evaluate the effect of your changes:
+When making changes to Graphviz’s code that may affect performance, you can
+run this script to evaluate the effect of your changes.
 
+Candidates are identified by the path to the corresponding `dot` program to run,
+although tests involve other Graphviz programs as well (e.g., neato, circo, ccomps)
+
+Example usage:
   python3 compare_performance.py \
     /path/to/install/before/bin/dot /path/to/install/after/bin/dot
 
@@ -136,7 +140,9 @@ def main(args: list[str]) -> int:
     """entry point"""
 
     # parse command line options
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawTextHelpFormatter
+    )
     parser.add_argument(
         "candidate",
         type=argparse.FileType("rb"),
@@ -150,7 +156,7 @@ def main(args: list[str]) -> int:
     for dot in options.candidate:
         exe = Path(dot.name).resolve()
         roots += [exe.parents[1]]
-    headers = ["test case"] + roots
+    headers = ["test case", "program"] + roots
 
     print(f"Comparing {[str(r) for r in roots]}…", flush=True)
 
@@ -165,7 +171,8 @@ def main(args: list[str]) -> int:
 
             # dump results progress, so that if the user interrupts they still have
             # something partial to analyze
-            row = [name]
+            row = [name, cmd[0]]
+
             for index, r in enumerate(result):
                 cell = io.StringIO()
                 if index != 0:
