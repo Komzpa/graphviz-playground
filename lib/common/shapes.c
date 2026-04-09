@@ -3073,30 +3073,6 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 	    AF[i].x = P.x * xsize + ND_coord(n).x;
 	    AF[i].y = P.y * ysize + ND_coord(n).y;
 	}
-	/* lay down fill first */
-	if (filled != 0 && pfilled) {
-	    if (sides <= 2) {
-		if (style.wedged && j == 0 && multicolor(fillcolor)) {
-		    int rv = wedgedEllipse (job, AF, fillcolor);
-		    if (rv > 1)
-			agerr (AGPREV, "in node %s\n", agnameof(n));
-		    filled = 0;
-		}
-		gvrender_ellipse(job, AF, filled);
-		if (style.diagonals) {
-		    Mcircle_hack(job, n);
-		}
-	    } else if (style.striped) {
-		int rv = stripedBox (job, AF, fillcolor, 1);
-		if (rv > 1)
-		    agerr (AGPREV, "in node %s\n", agnameof(n));
-		gvrender_polygon(job, AF, sides, 0);
-	    } else if (style.rounded || style.diagonals) {
-		round_corners(job, AF, sides, style, filled);
-	    } else {
-		gvrender_polygon(job, AF, sides, filled);
-	    }
-	}
 	gvrender_usershape(job, name, AF, sides, filled != 0,
 			   late_string(n, N_imagescale, "false"),
 			   late_string(n, N_imagepos, "mc"));
