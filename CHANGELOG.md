@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   statements instead of an if-else ladder. This avoids incorrect interpretation
   of `break` statements in error messages. #2822
 - An out-of-bounds read access during gvpr type checking has been fixed.
+- A null pointer dereference when freeing xdot objects has been fixed.
 
 ## [14.1.4] – 2026-03-20
 
