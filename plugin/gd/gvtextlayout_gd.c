@@ -99,28 +99,24 @@ char* gd_psfontResolve (PostscriptAlias* pa)
 
 static bool gd_textlayout(textspan_t * span, char **fontpath)
 {
-    char *err, *fontlist, *fontname;
-    double fontsize;
+    char *fontlist;
     int brect[8];
-    gdFTStringExtra strex;
-#ifdef HAVE_GD_FONTCONFIG
-    PostscriptAlias *pA;
-#endif
 
-    fontname = span->font->name;
-    fontsize = span->font->size;
+    char *const fontname = span->font->name;
+    double fontsize = span->font->size;
 
-    strex.fontpath = NULL;
-    strex.flags = gdFTEX_RETURNFONTPATHNAME | gdFTEX_RESOLUTION;
-    strex.hdpi = strex.vdpi = POINTS_PER_INCH;
+    gdFTStringExtra strex = {
+      .flags = gdFTEX_RETURNFONTPATHNAME | gdFTEX_RESOLUTION,
+      .hdpi = POINTS_PER_INCH,
+      .vdpi = POINTS_PER_INCH
+    };
 
     if (strchr(fontname, '/'))
 	strex.flags |= gdFTEX_FONTPATHNAME;
     else
 	strex.flags |= gdFTEX_FONTCONFIG;
 
-    span->size.x = 0.0;
-    span->size.y = 0.0;
+    span->size = (pointf){0};
     span->yoffset_layout = 0.0;
 
     span->layout = NULL;
@@ -128,50 +124,48 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
 
     span->yoffset_centerline = 0.05 * fontsize;
 
-    if (fontname) {
-	if (fontsize <= FONTSIZE_MUCH_TOO_SMALL) {
-	    return true; /* OK, but ignore text entirely */
-	} else if (fontsize <= FONTSIZE_TOO_SMALL) {
-	    /* draw line in place of text */
-	    /* fake a finite fontsize so that line length is calculated */
-	    fontsize = FONTSIZE_TOO_SMALL;
-	}
-	bool fontlist_needs_free = false;
+    if (fontsize <= FONTSIZE_MUCH_TOO_SMALL) {
+        return true; /* OK, but ignore text entirely */
+    } else if (fontsize <= FONTSIZE_TOO_SMALL) {
+        /* draw line in place of text */
+        /* fake a finite fontsize so that line length is calculated */
+        fontsize = FONTSIZE_TOO_SMALL;
+    }
+    bool fontlist_needs_free = false;
 #ifdef HAVE_GD_FONTCONFIG
-	gdFTUseFontConfig(1);  /* tell gd that we really want to use fontconfig, 'cos it s not the default */
-	pA = span->font->postscript_alias;
-	if (pA)
-	    fontlist = gd_psfontResolve (pA);
-	else
-	    fontlist = fontname;
+    gdFTUseFontConfig(1);  /* tell gd that we really want to use fontconfig, 'cos it s not the default */
+    PostscriptAlias *const pA = span->font->postscript_alias;
+    if (pA)
+        fontlist = gd_psfontResolve (pA);
+    else
+        fontlist = fontname;
 #else
-	fontlist = gd_alternate_fontlist(fontname);
-	fontlist_needs_free = true;
+    fontlist = gd_alternate_fontlist(fontname);
+    fontlist_needs_free = true;
 #endif
 
-	// call gdImageStringFT with null *im to get brect and to set font cache
-	err = gdImageStringFTEx(NULL, brect, -1, fontlist,
-				fontsize, 0, 0, 0, span->str, &strex);
-	if (fontlist_needs_free) {
-	    free(fontlist);
-	}
+    // call gdImageStringFT with null *im to get brect and to set font cache
+    char *const err = gdImageStringFTEx(NULL, brect, -1, fontlist,
+    			fontsize, 0, 0, 0, span->str, &strex);
+    if (fontlist_needs_free) {
+        free(fontlist);
+    }
 
-	if (err) {
-	    agerrorf("%s\n", err);
-	    return false; /* indicate error */
-	}
+    if (err) {
+        agerrorf("%s\n", err);
+        return false; /* indicate error */
+    }
 
-	if (fontpath)
-	    *fontpath = strex.fontpath;
-	else
-	    free (strex.fontpath); /* strup'ed in libgd */
+    if (fontpath)
+        *fontpath = strex.fontpath;
+    else
+        free (strex.fontpath); /* strup'ed in libgd */
 
-	if (span->str && span->str[0]) {
-	    /* can't use brect on some archtectures if strlen 0 */
-	    span->size.x = (double) (brect[4] - brect[0]);
-	    // LINESPACING specifies how much extra space to leave between lines
-	    span->size.y = fontsize * LINESPACING;
-	}
+    if (span->str && span->str[0]) {
+        /* can't use brect on some archtectures if strlen 0 */
+        span->size.x = brect[4] - brect[0];
+        // LINESPACING specifies how much extra space to leave between lines
+        span->size.y = fontsize * LINESPACING;
     }
     return true;
 }
