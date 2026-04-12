@@ -293,6 +293,10 @@ static nodelist_t find_longest_path(Agraph_t *tree) {
 	}
     }
 
+    if (common == NULL) {
+	return (nodelist_t){0};
+    }
+
     nodelist_t beginPath = {0};
     for (n = LEAFONE(common); n != common; n = TPARENT(n)) {
 	LIST_APPEND(&beginPath, n);
