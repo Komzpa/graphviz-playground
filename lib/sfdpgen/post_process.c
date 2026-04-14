@@ -940,6 +940,7 @@ void SpringSmoother_delete(SpringSmoother sm) {
     return;
   if (sm->D)
     SparseMatrix_delete(sm->D);
+  free(sm);
 }
 
 void SpringSmoother_smooth(SpringSmoother sm, SparseMatrix A, int dim,
