@@ -930,7 +930,6 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
         if (mask[ja[l]] != i + m) {
           mask[ja[l]] = i + m;
           jd[nz] = ja[l];
-          d[nz] = (avg_dist[i] + 2 * avg_dist[k] + avg_dist[ja[l]]) * 0.5;
           d[nz] = dd[j] + dd[l];
           nz++;
         }
