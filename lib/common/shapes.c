@@ -2042,7 +2042,7 @@ static void poly_init(node_t * n)
 	if (imagesize.x == -1 && imagesize.y == -1) {
 	    agwarningf(
 		  "No or improper image=\"%s\" for node \"%s\"\n",
-		  sfile ? sfile : "<nil>", agnameof(n));
+		  sfile, agnameof(n));
 	    imagesize.x = imagesize.y = 0;
 	} else {
 	    GD_has_images(agraphof(n)) = true;
