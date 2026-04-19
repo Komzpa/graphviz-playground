@@ -863,21 +863,6 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
   SpringSmoother sm = gv_alloc(sizeof(struct SpringSmoother_struct));
   int *mask = gv_calloc(m, sizeof(int));
 
-  double *avg_dist = gv_calloc(m, sizeof(double));
-
-  for (int i = 0; i < m; i++) {
-    avg_dist[i] = 0;
-    int nz = 0;
-    for (j = ia[i]; j < ia[i + 1]; j++) {
-      if (i == ja[j])
-        continue;
-      avg_dist[i] += distance(x, dim, i, ja[j]);
-      nz++;
-    }
-    assert(nz > 0);
-    avg_dist[i] /= nz;
-  }
-
   for (int i = 0; i < m; i++)
     mask[i] = -1;
 
@@ -918,7 +903,6 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
       if (mask[k] != i + m) {
         mask[k] = i + m;
         jd[nz] = k;
-        d[nz] = (avg_dist[i] + avg_dist[k]) * 0.5;
         d[nz] = dd[j];
         nz++;
       }
@@ -930,7 +914,6 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
         if (mask[ja[l]] != i + m) {
           mask[ja[l]] = i + m;
           jd[nz] = ja[l];
-          d[nz] = (avg_dist[i] + 2 * avg_dist[k] + avg_dist[ja[l]]) * 0.5;
           d[nz] = dd[j] + dd[l];
           nz++;
         }
@@ -947,7 +930,6 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
   sm->ctrl.maxiter = 20;
 
   free(mask);
-  free(avg_dist);
   SparseMatrix_delete(ID);
 
   return sm;
