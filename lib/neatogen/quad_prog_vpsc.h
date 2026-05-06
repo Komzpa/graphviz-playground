@@ -71,11 +71,6 @@ typedef struct {
 	int num_nodes;
 } DigColaLevel;
 
-/*
- * unpack the "ordering" array into an array of DigColaLevel (as defined above)
- */
-PRIVATE DigColaLevel* assign_digcola_levels(const int *ordering, int n, int *level_inds,
-                                            int num_divisions);
 PRIVATE int get_num_digcola_constraints(DigColaLevel *levels, int num_levels);
 
 #endif 
