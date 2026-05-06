@@ -240,6 +240,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	if (compute_hierarchy(graph, e->nv, 1e-2, 1e-1, NULL, &ordering, &ls,
 			  &e->ndv)) return NULL;
 	levels = assign_digcola_levels(ordering, e->nv, ls, e->ndv);
+	free(ordering);
 	if (Verbose)
 	    fprintf(stderr, "Found %d DiG-CoLa boundaries\n", e->ndv);
 	e->gm =
