@@ -574,7 +574,7 @@ void removeoverlaps(int n, float **coords, ipsep_options * opt)
 /*
  unpack the "ordering" array into an array of DigColaLevel
 */
-DigColaLevel *assign_digcola_levels(int *ordering, int n, int *level_inds,
+DigColaLevel *assign_digcola_levels(const int *ordering, int n, int *level_inds,
 				    int num_divisions)
 {
     int i, j;
