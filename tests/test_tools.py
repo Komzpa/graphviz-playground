@@ -35,7 +35,6 @@ from gvtest import (  # pylint: disable=wrong-import-position
         "ccomps",
         "circo",
         "cluster",
-        "diffimg",
         "dijkstra",
         "dot",
         "dot2gxl",

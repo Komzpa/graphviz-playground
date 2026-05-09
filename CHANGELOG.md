@@ -4,11 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased (14.1.6)]
+## [Unreleased (15.0.0)]
 
 ### Changed
 
 - The MinGW packages no longer have libgd-dependent components enabled.
+- **Breaking**: The `diffimg` utility has been removed.
 
 ## [14.1.5] – 2026-04-12
 
@@ -3523,7 +3524,7 @@ March 13, 2000: Use AM_PROG_LIBTOOL instead of AC_PROG_LIBTOOL
    in configure.in.  John Ellson <ellson@graphviz.org>
 ```
 
-[Unreleased (14.1.6)]: https://gitlab.com/graphviz/graphviz/compare/14.1.5...main
+[Unreleased (15.0.0)]: https://gitlab.com/graphviz/graphviz/compare/14.1.5...main
 [14.1.5]: https://gitlab.com/graphviz/graphviz/compare/14.1.4...14.1.5
 [14.1.4]: https://gitlab.com/graphviz/graphviz/compare/14.1.3...14.1.4
 [14.1.3]: https://gitlab.com/graphviz/graphviz/compare/14.1.2...14.1.3

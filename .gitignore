@@ -189,7 +189,6 @@ cmd/tools/nop
 cmd/tools/sccmap
 cmd/tools/tred
 cmd/tools/unflatten
-contrib/diffimg/diffimg
 contrib/prune/prune
 
 # Files generated during make check
