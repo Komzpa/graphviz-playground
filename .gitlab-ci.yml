@@ -457,8 +457,6 @@ windows-cygwin-build:
         - Start-Process "C:\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
         - $Env:Path = "C:\cygwin64\bin;" + $Env:Path
         - $Env:build_system = "autotools"
-        # change line endings from crlf to lf
-        - C:\cygwin64\bin\sed -i 's/\r//g' ci/*.sh
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
     artifacts:
         when: always
@@ -491,9 +489,6 @@ windows-cygwin-build-using-autogen:
         - $Env:Path = "C:\cygwin64\bin;" + $Env:Path
         - $Env:build_system = "autotools"
         - $Env:use_autogen = "yes"
-        # change line endings from crlf to lf
-        - C:\cygwin64\bin\find . -name Makefile.am -exec C:\cygwin64\bin\sed -i 's/\r//g' "{}" ';'
-        - C:\cygwin64\bin\sed -i 's/\r//g' autogen.sh ci/*.sh configure.ac
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
     tags:
         - saas-windows-medium-amd64
@@ -931,8 +926,6 @@ windows-cygwin-cmake-build:
         # fail on any compiler warnings
         - $Env:CFLAGS = "-Werror"
         - $Env:CXXFLAGS = "-Werror"
-        # change line endings from crlf to lf
-        - C:\cygwin64\bin\sed -i 's/\r//g' ci/*.sh
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
     artifacts:
         when: always
