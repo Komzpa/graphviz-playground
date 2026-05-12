@@ -492,7 +492,7 @@ windows-cygwin-build-using-autogen:
         - $Env:build_system = "autotools"
         - $Env:use_autogen = "yes"
         # change line endings from crlf to lf
-        - C:\cygwin64\bin\find . '(' -name Makefile.am -or -name "*.def" ')' -exec C:\cygwin64\bin\sed -i 's/\r//g' "{}" ';'
+        - C:\cygwin64\bin\find . -name Makefile.am -exec C:\cygwin64\bin\sed -i 's/\r//g' "{}" ';'
         - C:\cygwin64\bin\sed -i 's/\r//g' autogen.sh ci/*.sh configure.ac
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
     tags:
