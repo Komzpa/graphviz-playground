@@ -168,7 +168,7 @@ portable-source:
         # make sub-scripts default to aborting on cmdlet non-terminating errors
         - $PSDefaultParameterValues['*:ErrorAction']='Stop'
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
         - python --version
         - if (-not $?) { throw "command failed" }
@@ -401,7 +401,7 @@ windows-mingw64-build:
           artifacts: true
     script:
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ci\mingw-prepare.ps1
         - $Env:build_system = "autotools"
         - $Env:use_autogen = "yes"
@@ -424,7 +424,7 @@ windows-mingw64-static-build:
           artifacts: true
     script:
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ci\mingw-prepare.ps1
         - $Env:build_system = "autotools"
         - $Env:CONFIGURE_OPTIONS = "--disable-shared --enable-static"
@@ -452,13 +452,11 @@ windows-cygwin-build:
         - $Env:CI_COMMIT_MESSAGE = $null
         - $Env:CI_COMMIT_TITLE = $null
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - wget https://cygwin.com/setup-x86_64.exe -OutFile C:\setup-x86_64.exe
         - Start-Process "C:\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
         - $Env:Path = "C:\cygwin64\bin;" + $Env:Path
         - $Env:build_system = "autotools"
-        # change line endings from crlf to lf
-        - C:\cygwin64\bin\sed -i 's/\r//g' ci/*.sh
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
     artifacts:
         when: always
@@ -485,15 +483,12 @@ windows-cygwin-build-using-autogen:
         - $Env:CI_COMMIT_MESSAGE = $null
         - $Env:CI_COMMIT_TITLE = $null
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - wget https://cygwin.com/setup-x86_64.exe -OutFile C:\setup-x86_64.exe
         - Start-Process "C:\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
         - $Env:Path = "C:\cygwin64\bin;" + $Env:Path
         - $Env:build_system = "autotools"
         - $Env:use_autogen = "yes"
-        # change line endings from crlf to lf
-        - C:\cygwin64\bin\find . '(' -name Makefile.am -or -name "*.def" ')' -exec C:\cygwin64\bin\sed -i 's/\r//g' "{}" ';'
-        - C:\cygwin64\bin\sed -i 's/\r//g' autogen.sh ci/*.sh configure.ac lib/common/color_names lib/common/brewer_colors lib/common/svgcolor_names
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
     tags:
         - saas-windows-medium-amd64
@@ -870,7 +865,7 @@ windows-mingw64-cmake-build:
     needs: []
     script:
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ci\mingw-prepare.ps1
         - $Env:build_system = "cmake"
         - C:\msys64\msys2_shell.cmd -defterm -mingw64 -here -no-start -l -c 'cd $CI_PROJECT_DIR && ci/mingw-build.sh'
@@ -896,7 +891,7 @@ windows-mingw64-cmake-release-build:
     needs: []
     script:
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ci\mingw-prepare.ps1
         - $Env:build_system = "cmake"
         - $Env:CMAKE_OPTIONS = "-DCMAKE_BUILD_TYPE=Release"
@@ -921,7 +916,7 @@ windows-cygwin-cmake-build:
         - $Env:CI_COMMIT_MESSAGE = $null
         - $Env:CI_COMMIT_TITLE = $null
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         # remove pre-installed Windows Python to avoid CMake picking it up
         - Remove-Item -Path 'C:\Python313' -Recurse -Force
         - wget https://cygwin.com/setup-x86_64.exe -OutFile C:\setup-x86_64.exe
@@ -931,8 +926,6 @@ windows-cygwin-cmake-build:
         # fail on any compiler warnings
         - $Env:CFLAGS = "-Werror"
         - $Env:CXXFLAGS = "-Werror"
-        # change line endings from crlf to lf
-        - C:\cygwin64\bin\sed -i 's/\r//g' ci/*.sh lib/common/color_names lib/common/brewer_colors lib/common/svgcolor_names
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
     artifacts:
         when: always
@@ -1229,7 +1222,7 @@ macos-cmake-test:
 windows-mingw64-cmake-test:
     script:
         # disable Windows Defender
-        - Add-MpPreference -ExclusionPath 'C:\'
+        - Set-MpPreference -DisableRealtimeMonitoring $true
         - powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ci\mingw-prepare.ps1
         - $Env:build_system = "cmake"
         - C:\msys64\msys2_shell.cmd -defterm -mingw64 -here -no-start -l -c 'cd $CI_PROJECT_DIR && ci/mingw-install.sh'

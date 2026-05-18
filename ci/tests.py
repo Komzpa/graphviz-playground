@@ -119,6 +119,9 @@ def test_existence(binary: str):
     if binary == "dot_builtins" and is_static_build():
         pytest.skip("dot_builtins may not be built in a static build")
 
+    if binary == "diffimg" and build_system() == "cmake" and is_mingw():
+        pytest.skip("libgd not detected on CMake+MinGW")
+
     assert which(binary) is not None
 
 
@@ -132,6 +135,9 @@ def check_that_tool_does_not_exist(tool, os_id):
     )
 
 
+@pytest.mark.skipif(
+    build_system() == "cmake" and is_mingw(), reason="libgd not detected on CMake+MinGW"
+)
 def test_1786():
     """
     png:gd format should be supported

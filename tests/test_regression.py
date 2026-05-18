@@ -6223,7 +6223,13 @@ def test_2731():
                 reason="https://gitlab.com/graphviz/graphviz/-/issues/2732",
             ),
         ),
-        "jpg:cairo:gd",
+        pytest.param(
+            "jpg:cairo:gd",
+            marks=pytest.mark.skipif(
+                is_cmake() and is_mingw(),
+                reason="libgd not detected on CMake+MinGW",
+            ),
+        ),
     ),
 )
 def test_2732(fmt: str):
