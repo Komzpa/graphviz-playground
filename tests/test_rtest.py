@@ -24,7 +24,6 @@ from gvtest import is_macos, run  # pylint: disable=wrong-import-position
 # Test specifications
 GRAPHDIR = Path(__file__).parent / "graphs"
 # Directory of input graphs and data
-OUTHTML = Path("nhtml")  # Directory for html test report
 
 
 @dataclass
@@ -370,8 +369,7 @@ def doDiff(output: Path, reference: Path, fmt):
             b = re.sub(r"^<!--.*-->$", "", f.read(), flags=re.MULTILINE)
         assert a.strip() == b.strip()
     elif F == "png":
-        OUTHTML.mkdir(exist_ok=True)
-        run("diffimg", output, reference, OUTHTML / f"dif_{reference.name}")
+        run("diff", output, reference)
     else:
         with open(reference, "rt", encoding="utf-8") as a:
             with open(output, "rt", encoding="utf-8") as b:

@@ -890,7 +890,6 @@ include(CTest)
 
 # ======================= Specify subdirectories to build ======================
 if(GRAPHVIZ_CLI)
-  add_subdirectory(contrib/diffimg)
   add_subdirectory(contrib/prune)
 endif()
 add_subdirectory(graphs)
