@@ -962,7 +962,7 @@ static int gvpr_core(int argc, char *argv[], gvpropts *uopts,
     }
   }
 
-  bool incoreGraphs = uopts->ingraphs;
+  bool incoreGraphs = uopts->ingraphs != NULL;
 
   if (gs->opts.verbose)
     fprintf(stderr, "Parse/compile/init: %.2f secs.\n", elapsed_sec(start));

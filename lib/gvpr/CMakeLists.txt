@@ -85,6 +85,6 @@ endif()
 
 # Specify library version and soversion
 set_target_properties(gvpr PROPERTIES
-  VERSION 2.0.10
+  VERSION 2.0.11
   SOVERSION 2
 )
