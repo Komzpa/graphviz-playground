@@ -903,6 +903,7 @@ AC_ARG_ENABLE(python3,
   [AS_HELP_STRING([--enable-python3=yes],[python3 language bindings])],
   [], [enable_python3=yes])
 
+AC_CHECK_PROG(PYTHON3,python3,python3)
 if test "$enable_python3" != "yes"; then
   use_python3="No (disabled)"
 else
@@ -912,7 +913,6 @@ else
     if test `$SWIG -help 2>&1 | $EGREP -c '\-python *- Generate'` = 0; then
       use_python="No (swig does not support -python option)"
     else
-      AC_CHECK_PROG(PYTHON3,python3,python3)
       if test "$PYTHON3" = ""; then
         use_python3="No (python3 not available)"
       else
