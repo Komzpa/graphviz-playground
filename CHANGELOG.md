@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased (15.0.1)]
+
+### Fixed
+
+- When building from source from a Git checkout, builds with
+  `--disable-python`/`--disable-python3` once again work. This was a regression
+  in Graphviz 14.1.3. #2839
+
 ## [15.0.0] – 2026-05-23
 
 ### Changed
@@ -3524,6 +3532,7 @@ March 13, 2000: Use AM_PROG_LIBTOOL instead of AC_PROG_LIBTOOL
    in configure.in.  John Ellson <ellson@graphviz.org>
 ```
 
+[Unreleased (15.0.1)]: https://gitlab.com/graphviz/graphviz/compare/15.0.0...main
 [15.0.0]: https://gitlab.com/graphviz/graphviz/compare/14.1.5...15.0.0
 [14.1.5]: https://gitlab.com/graphviz/graphviz/compare/14.1.4...14.1.5
 [14.1.4]: https://gitlab.com/graphviz/graphviz/compare/14.1.3...14.1.4
