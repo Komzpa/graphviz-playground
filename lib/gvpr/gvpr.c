@@ -887,11 +887,12 @@ static void gvexitf(void *env, int v) {
 
 static void gverrorf(Expr_t *handle, Exdisc_t *discipline, int level,
                      const char *fmt, ...) {
+  assert(discipline != NULL);
+
   va_list ap;
 
   va_start(ap, fmt);
-  errorv((discipline && handle) ? *((char **)handle) : (char *)handle, level,
-         fmt, ap);
+  errorv(handle ? *((char **)handle) : (char *)handle, level, fmt, ap);
   va_end(ap);
 
   if (level >= ERROR_ERROR) {
