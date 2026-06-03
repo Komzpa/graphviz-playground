@@ -219,7 +219,6 @@ EXCLUDE = (
     "lib/expr/excc.c",
     "lib/expr/excontext.c",
     "lib/expr/exdata.c",
-    "lib/expr/exerror.c",
     "lib/expr/exeval.c",
     "lib/expr/exexpr.c",
     "lib/expr/exgram.h",
