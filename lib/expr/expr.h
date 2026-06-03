@@ -215,9 +215,9 @@ struct Expr_s /* ex program state		*/
 #endif
 };
 
-extern Exnode_t *excast(Expr_t *, Exnode_t *, long, Exnode_t *, int);
-extern Exnode_t *exnoncast(Exnode_t *);
-extern void exclose(Expr_t *);
+Exnode_t *excast(Expr_t *, Exnode_t *, long, Exnode_t *, int);
+Exnode_t *exnoncast(Exnode_t *);
+void exclose(Expr_t *);
 
 /** Compile an expression
  *
@@ -231,36 +231,35 @@ extern void exclose(Expr_t *);
  * \param prefix Optional program text to include ahead of the file content
  * \return 0 on success
  */
-extern int excomp(Expr_t *p, const char *name, int line, FILE *fp,
-                  char *prefix);
+int excomp(Expr_t *p, const char *name, int line, FILE *fp, char *prefix);
 
-extern char *excontext(Expr_t *, char *, int);
-extern void exdump(Expr_t *, Exnode_t *, agxbuf *);
+char *excontext(Expr_t *, char *, int);
+void exdump(Expr_t *, Exnode_t *, agxbuf *);
 #ifdef __GNUC__
 __attribute__((format(printf, 1, 2)))
 #endif
-extern void exerror(const char *, ...);
+void exerror(const char *, ...);
 #ifdef __GNUC__
 __attribute__((format(printf, 1, 2)))
 #endif
-extern void exwarn(const char *, ...);
-extern Extype_t exeval(Expr_t *, Exnode_t *, void *);
-extern Exnode_t *exexpr(Expr_t *, const char *, Exid_t *, int);
-extern void exfreenode(Expr_t *, Exnode_t *);
-extern Exnode_t *exnewnode(Expr_t *, long, bool, long, Exnode_t *, Exnode_t *);
-extern char *exnospace(void);
-extern Expr_t *exopen(Exdisc_t *);
-extern int expop(Expr_t *);
-extern int expush(Expr_t *, const char *, int, FILE *);
-extern int extoken_fn(Expr_t *);
-extern char *exstring(Expr_t *, char *);
-extern void *exstralloc(Expr_t *, size_t);
-extern char *extype(long int);
-extern Extype_t exzero(long int);
-extern char *exopname(long);
-extern void exinit(void);
-extern char *extypename(Expr_t *p, long);
-extern int exisAssign(Exnode_t *);
+void exwarn(const char *, ...);
+Extype_t exeval(Expr_t *, Exnode_t *, void *);
+Exnode_t *exexpr(Expr_t *, const char *, Exid_t *, int);
+void exfreenode(Expr_t *, Exnode_t *);
+Exnode_t *exnewnode(Expr_t *, long, bool, long, Exnode_t *, Exnode_t *);
+char *exnospace(void);
+Expr_t *exopen(Exdisc_t *);
+int expop(Expr_t *);
+int expush(Expr_t *, const char *, int, FILE *);
+int extoken_fn(Expr_t *);
+char *exstring(Expr_t *, char *);
+void *exstralloc(Expr_t *, size_t);
+char *extype(long int);
+Extype_t exzero(long int);
+char *exopname(long);
+void exinit(void);
+char *extypename(Expr_t *p, long);
+int exisAssign(Exnode_t *);
 
 /** Construct an arena-backed string.
  *
