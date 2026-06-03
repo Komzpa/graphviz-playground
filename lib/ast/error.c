@@ -87,9 +87,8 @@ void error(int level, const char *s, ...) {
   va_end(ap);
 }
 
-void errorf(const char *prefix, void *discipline, int level, const char *s,
-            ...) {
-  (void)discipline;
+void errorf(const char *prefix, void *state, int level, const char *s, ...) {
+  (void)state;
 
   va_list ap;
 

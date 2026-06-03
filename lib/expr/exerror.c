@@ -71,8 +71,8 @@ exerror(const char* format, ...)
 		va_start(ap, format);
 		char *s = make_msg(format, ap);
 		va_end(ap);
-		expr.program->disc->errorf(expr.program->id, expr.program->disc, 2, "%s",
-		  s ? s : "out of space");
+		expr.program->disc->errorf(expr.program->id, expr.program->disc->user, 2,
+		  "%s", s ? s : "out of space");
     free(s);
 	}
 }
@@ -86,7 +86,7 @@ exwarn(const char *format, ...)
 		va_start(ap, format);
 		char *s = make_msg(format, ap);
 		va_end(ap);
-		expr.program->disc->errorf(expr.program->id, expr.program->disc,
+		expr.program->disc->errorf(expr.program->id, expr.program->disc->user,
 				       ERROR_WARNING, "%s", s ? s : "out of space");
 		free(s);
 	}

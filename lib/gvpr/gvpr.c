@@ -885,9 +885,9 @@ static void gvexitf(void *env, int v) {
   longjmp(st->state->jbuf, v);
 }
 
-static void gverrorf(const char *prefix, Exdisc_t *discipline, int level,
+static void gverrorf(const char *prefix, void *user_state, int level,
                      const char *fmt, ...) {
-  assert(discipline != NULL);
+  assert(user_state != NULL);
 
   va_list ap;
 
@@ -896,7 +896,7 @@ static void gverrorf(const char *prefix, Exdisc_t *discipline, int level,
   va_end(ap);
 
   if (level >= ERROR_ERROR) {
-    Gpr_t *state = discipline->user;
+    Gpr_t *state = user_state;
     if (state->flags & GV_USE_EXIT)
       graphviz_exit(1);
     else if (state->flags & GV_USE_JUMP)
