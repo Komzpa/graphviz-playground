@@ -226,7 +226,6 @@ EXCLUDE = (
     "lib/expr/exlib.h",
     "lib/expr/exnospace.c",
     "lib/expr/exopen.c",
-    "lib/expr/expr.h",
     "lib/expr/extoken.c",
     "lib/expr/extype.c",
     "lib/expr/exzero.c",
