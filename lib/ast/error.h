@@ -49,16 +49,16 @@ typedef struct Error_info_s {
 
 extern Error_info_t error_info;
 
-extern void setTraceLevel(int);
-extern void setErrorLine(int);
-extern void setErrorFileLine(char *, int);
-extern void setErrorId(char *);
-extern void setErrorErrors(int);
-extern int getErrorErrors(void);
+void setTraceLevel(int);
+void setErrorLine(int);
+void setErrorFileLine(char *, int);
+void setErrorId(char *);
+void setErrorErrors(int);
+int getErrorErrors(void);
 
-extern void error(int, const char *, ...) PRINTF_LIKE(2, 3);
-extern void errorf(void *, void *, int, const char *, ...) PRINTF_LIKE(4, 5);
-extern void errorv(const char *, int, const char *, va_list);
+void error(int, const char *, ...) PRINTF_LIKE(2, 3);
+void errorf(void *, void *, int, const char *, ...) PRINTF_LIKE(4, 5);
+void errorv(const char *, int, const char *, va_list);
 
 #undef PRINTF_LIKE
 
