@@ -893,7 +893,7 @@ static void gverrorf(Expr_t *handle, Exdisc_t *discipline, int level,
   va_list ap;
 
   va_start(ap, fmt);
-  errorv(*((char **)handle), level, fmt, ap);
+  errorv(handle->id, level, fmt, ap);
   va_end(ap);
 
   if (level >= ERROR_ERROR) {
