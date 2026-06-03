@@ -88,10 +88,11 @@ void error(int level, const char *s, ...) {
 }
 
 void errorf(void *handle, void *discipline, int level, const char *s, ...) {
+  (void)discipline;
+
   va_list ap;
 
   va_start(ap, s);
-  errorv((discipline && handle) ? *((char **)handle) : (char *)handle, level, s,
-         ap);
+  errorv(handle ? *((char **)handle) : (char *)handle, level, s, ap);
   va_end(ap);
 }
