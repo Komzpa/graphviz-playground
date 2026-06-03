@@ -104,7 +104,6 @@ EXCLUDE = (
     "lib/ast/ast.h",
     "lib/ast/chresc.c",
     "lib/ast/chrtoi.c",
-    "lib/ast/error.h",
     "lib/ast/fmtesc.c",
     "lib/ast/stresc.c",
     "lib/ast/strmatch.c",
