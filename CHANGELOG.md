@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When building from source from a Git checkout, builds with
   `--disable-python`/`--disable-python3` once again work. This was a regression
   in Graphviz 14.1.3. #2839
+- Gvedit no longer leaves temporary files on disk when previewing.
 
 ## [15.0.0] – 2026-05-23
 

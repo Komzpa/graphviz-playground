@@ -310,14 +310,6 @@ bool CFrmSettings::createLayout() {
   return true;
 }
 
-static QString buildTempFile() {
-  QTemporaryFile tempFile;
-  tempFile.setAutoRemove(false);
-  tempFile.open();
-  QString a = tempFile.fileName();
-  return a;
-}
-
 void CFrmSettings::doPreview(const QString &fileName) {
   if (getActiveWindow()->previewFrm != nullptr) {
     getActiveWindow()->parentFrm->mdiArea->removeSubWindow(
@@ -327,7 +319,9 @@ void CFrmSettings::doPreview(const QString &fileName) {
 
   if (fileName.isNull() ||
       !getActiveWindow()->loadPreview(fileName)) { // create preview
-    QString prevFile(buildTempFile());
+    QTemporaryFile tempFile;
+    tempFile.open();
+    QString prevFile(tempFile.fileName());
     gvRenderFilename(gvc, graph, "png", prevFile.toUtf8().constData());
     getActiveWindow()->loadPreview(prevFile);
   }
