@@ -2177,7 +2177,7 @@ static Exdisc_t *initDisc(Gpr_t *state) {
   if (state->errf)
     dp->errorf = state->errf;
   else
-    dp->errorf = (Exerror_f)errorf;
+    dp->errorf = errorf;
   dp->keyf = keyval;
   dp->getf = getval;
   dp->reff = refval;
