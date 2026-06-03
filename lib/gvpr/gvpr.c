@@ -885,15 +885,14 @@ static void gvexitf(void *env, int v) {
   longjmp(st->state->jbuf, v);
 }
 
-static void gverrorf(Expr_t *handle, Exdisc_t *discipline, int level,
+static void gverrorf(const char *prefix, Exdisc_t *discipline, int level,
                      const char *fmt, ...) {
-  assert(handle != NULL);
   assert(discipline != NULL);
 
   va_list ap;
 
   va_start(ap, fmt);
-  errorv(handle->id, level, fmt, ap);
+  errorv(prefix, level, fmt, ap);
   va_end(ap);
 
   if (level >= ERROR_ERROR) {

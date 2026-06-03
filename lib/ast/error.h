@@ -57,7 +57,7 @@ void setErrorErrors(int);
 int getErrorErrors(void);
 
 void error(int, const char *, ...) PRINTF_LIKE(2, 3);
-void errorf(void *, void *, int, const char *, ...) PRINTF_LIKE(4, 5);
+void errorf(const char *, void *, int, const char *, ...) PRINTF_LIKE(4, 5);
 void errorv(const char *, int, const char *, va_list);
 
 #undef PRINTF_LIKE

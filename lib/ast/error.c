@@ -14,7 +14,6 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <ast/ast.h>
 #include <ast/error.h>
 #include <errno.h>
@@ -88,13 +87,13 @@ void error(int level, const char *s, ...) {
   va_end(ap);
 }
 
-void errorf(void *handle, void *discipline, int level, const char *s, ...) {
-  assert(handle != NULL);
+void errorf(const char *prefix, void *discipline, int level, const char *s,
+            ...) {
   (void)discipline;
 
   va_list ap;
 
   va_start(ap, s);
-  errorv(*((char **)handle), level, s, ap);
+  errorv(prefix, level, s, ap);
   va_end(ap);
 }
