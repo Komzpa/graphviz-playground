@@ -179,6 +179,9 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
     return counter;
 }
 
+static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
+                                           int *level_inds, int num_divisions);
+
 /*
  * Set up environment and global constraints (dir-edge constraints, containment constraints
  * etc).
@@ -237,6 +240,7 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	if (compute_hierarchy(graph, e->nv, 1e-2, 1e-1, NULL, &ordering, &ls,
 			  &e->ndv)) return NULL;
 	levels = assign_digcola_levels(ordering, e->nv, ls, e->ndv);
+	free(ordering);
 	if (Verbose)
 	    fprintf(stderr, "Found %d DiG-CoLa boundaries\n", e->ndv);
 	e->gm =
@@ -574,9 +578,8 @@ void removeoverlaps(int n, float **coords, ipsep_options * opt)
 /*
  unpack the "ordering" array into an array of DigColaLevel
 */
-DigColaLevel *assign_digcola_levels(int *ordering, int n, int *level_inds,
-				    int num_divisions)
-{
+static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
+                                           int *level_inds, int num_divisions) {
     int i, j;
     DigColaLevel *l = gv_calloc(num_divisions + 1, sizeof(DigColaLevel));
     /* first level */
