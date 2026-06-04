@@ -44,9 +44,7 @@ static const char *kinds(Agobj_t *obj) {
 /* Return common root if objects belong to same root graph.
  * NULL otherwise
  */
-Agraph_t *sameG(void *p1, void *p2, char *fn, char *msg) {
-  Agobj_t *obj1 = p1;
-  Agobj_t *obj2 = p2;
+Agraph_t *sameG(void *obj1, void *obj2, char *fn, char *msg) {
   Agraph_t *root;
 
   root = agroot(agraphof(obj1));
