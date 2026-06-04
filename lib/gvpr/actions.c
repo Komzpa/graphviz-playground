@@ -33,8 +33,13 @@
 #include <util/unreachable.h>
 #include <util/unused.h>
 
-#define KINDS(p)                                                               \
-  ((AGTYPE(p) == AGRAPH) ? "graph" : (AGTYPE(p) == AGNODE) ? "node" : "edge")
+static const char *kinds(Agobj_t *obj) {
+  if (AGTYPE(obj) == AGRAPH)
+    return "graph";
+  if (AGTYPE(obj) == AGNODE)
+    return "node";
+  return "edge";
+}
 
 /* Return common root if objects belong to same root graph.
  * NULL otherwise
@@ -50,7 +55,7 @@ Agraph_t *sameG(void *p1, void *p2, char *fn, char *msg) {
       error(ERROR_WARNING, "%s in %s() belong to different graphs", msg, fn);
     else
       error(ERROR_WARNING, "%s and %s in %s() belong to different graphs",
-            KINDS(obj1), KINDS(obj2), fn);
+            kinds(obj1), kinds(obj2), fn);
     return 0;
   } else
     return root;
