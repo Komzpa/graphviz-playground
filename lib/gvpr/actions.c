@@ -45,9 +45,7 @@ static const char *kinds(Agobj_t *obj) {
  * NULL otherwise
  */
 Agraph_t *sameG(void *obj1, void *obj2, char *fn, char *msg) {
-  Agraph_t *root;
-
-  root = agroot(agraphof(obj1));
+  Agraph_t *const root = agroot(agraphof(obj1));
   if (root != agroot(agraphof(obj2))) {
     if (msg)
       error(ERROR_WARNING, "%s in %s() belong to different graphs", msg, fn);
