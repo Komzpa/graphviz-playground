@@ -53,8 +53,8 @@ Agraph_t *sameG(void *obj1, void *obj2, char *fn, char *msg) {
       error(ERROR_WARNING, "%s and %s in %s() belong to different graphs",
             kinds(obj1), kinds(obj2), fn);
     return 0;
-  } else
-    return root;
+  }
+  return root;
 }
 
 /// return index of leftmost string s2 in string s1, or -1
