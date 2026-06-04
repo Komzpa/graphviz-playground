@@ -36,8 +36,7 @@
 #define KINDS(p)                                                               \
   ((AGTYPE(p) == AGRAPH) ? "graph" : (AGTYPE(p) == AGNODE) ? "node" : "edge")
 
-/* sameG:
- * Return common root if objects belong to same root graph.
+/* Return common root if objects belong to same root graph.
  * NULL otherwise
  */
 Agraph_t *sameG(void *p1, void *p2, char *fn, char *msg) {
@@ -57,17 +56,13 @@ Agraph_t *sameG(void *p1, void *p2, char *fn, char *msg) {
     return root;
 }
 
-/* indexOf:
- * Return index of leftmost string s2 in string s1, or -1
- */
+/// return index of leftmost string s2 in string s1, or -1
 int indexOf(char *s1, char *s2) {
   char *s = strstr(s1, s2);
   return s == NULL ? -1 : (int)(s - s1);
 }
 
-/* rindexOf:
- * Return index of rightmost string s2 in string s1, or -1
- */
+/// return index of rightmost string s2 in string s1, or -1
 long rindexOf(char *s1, char *s2) {
   char c1 = *s2;
   char *p;
@@ -91,9 +86,7 @@ long rindexOf(char *s1, char *s2) {
   return -1;
 }
 
-/* match:
- * Return index of pattern pat in string str, or SIZE_MAX
- */
+/// return index of pattern pat in string str, or SIZE_MAX
 size_t match(char *str, char *pat) {
   size_t sub[2];
 
@@ -103,8 +96,7 @@ size_t match(char *str, char *pat) {
     return SIZE_MAX;
 }
 
-/* copyAttr:
- * Copy attributes from src to tgt. Overrides currently
+/* Copy attributes from src to tgt. Overrides currently
  * defined values.
  * FIX: we should probably use the default value of the source
  * graph when initializing the attribute, rather than "".
@@ -136,8 +128,7 @@ int copyAttr(Agobj_t *src, Agobj_t *tgt) {
   return 0;
 }
 
-/* copy:
- * Create new object of type AGTYPE(obj) with all of its
+/* Create new object of type AGTYPE(obj) with all of its
  * attributes.
  * If obj is an edge, only create end nodes if necessary.
  * If obj is a graph, if g is null, create a top-level
@@ -200,9 +191,7 @@ static Agedge_t *mapEdge(Dt_t *emap, Agedge_t *e) {
     return NULL;
 }
 
-/* cloneSubg:
- * Clone subgraph sg in tgt.
- */
+/// clone subgraph sg in tgt
 static Agraph_t *cloneSubg(Agraph_t *tgt, Agraph_t *g, Dt_t *emap) {
   Agraph_t *ng;
   Agraph_t *sg;
@@ -269,9 +258,7 @@ static Dtdisc_t edgepair = {
     .comparf = cmppair,
 };
 
-/* cloneGraph:
- * Clone node, edge and subgraph structure from src to tgt.
- */
+/// clone node, edge and subgraph structure from src to tgt
 static void cloneGraph(Agraph_t *tgt, Agraph_t *src) {
   Agedge_t *e;
   Agedge_t *ne;
@@ -318,8 +305,6 @@ done:
   free(data);
 }
 
-/* cloneG:
- */
 Agraph_t *cloneG(Agraph_t *g, char *name) {
   Agraph_t *ng;
 
@@ -333,8 +318,7 @@ Agraph_t *cloneG(Agraph_t *g, char *name) {
   return ng;
 }
 
-/* cloneO:
- * Create new object of type AGTYPE(obj) with all of its
+/* Create new object of type AGTYPE(obj) with all of its
  * attributes and substructure.
  * If obj is an edge, end nodes are cloned if necessary.
  * If obj is a graph, if g is null, create a clone top-level
@@ -409,9 +393,7 @@ static void cc_dfs(Agraph_t *g, Agraph_t *comp, Agnode_t *n) {
   }
 }
 
-/* compOf:
- * Return connected component of node.
- */
+/// return connected component of node
 Agraph_t *compOf(Agraph_t *g, Agnode_t *n) {
   Agraph_t *cg;
   Agnode_t *np;
@@ -430,8 +412,7 @@ Agraph_t *compOf(Agraph_t *g, Agnode_t *n) {
   return cg;
 }
 
-/* isEdge:
- * Return edge, if any, between t and h with given key.
+/* Return edge, if any, between t and h with given key.
  * Edge is in g.
  */
 Agedge_t *isEdge(Agraph_t *g, Agnode_t *t, Agnode_t *h, char *key) {
@@ -449,8 +430,7 @@ Agedge_t *isEdge(Agraph_t *g, Agnode_t *t, Agnode_t *h, char *key) {
   return agedge(g, t, h, key, 0);
 }
 
-/* addNode:
- * Insert node n into subgraph g.
+/* Insert node n into subgraph g.
  * Return image of n
  */
 Agnode_t *addNode(Agraph_t *gp, Agnode_t *np, int doAdd) {
@@ -459,8 +439,7 @@ Agnode_t *addNode(Agraph_t *gp, Agnode_t *np, int doAdd) {
   return agsubnode(gp, np, doAdd);
 }
 
-/* addEdge:
- * Insert edge e into subgraph g.
+/* Insert edge e into subgraph g.
  * Return image of e
  */
 Agedge_t *addEdge(Agraph_t *gp, Agedge_t *ep, int doAdd) {
@@ -469,8 +448,7 @@ Agedge_t *addEdge(Agraph_t *gp, Agedge_t *ep, int doAdd) {
   return agsubedge(gp, ep, doAdd);
 }
 
-/* lockGraph:
- * Set lock so that graph g will not be deleted.
+/* Set lock so that graph g will not be deleted.
  * g must be a root graph.
  * If v > 0, set lock
  * If v = 0, unset lock and delete graph is necessary.
@@ -498,8 +476,7 @@ int lockGraph(Agraph_t *g, int v) {
   return oldv;
 }
 
-/* deleteObj:
- * Remove obj from g.
+/* Remove obj from g.
  * obj may belong to a subgraph of g, so we first must map
  * obj to its version in g.
  * If g is null, remove object from root graph.
@@ -530,8 +507,7 @@ int deleteObj(Agraph_t *g, Agobj_t *obj) {
     return -1;
 }
 
-/* sfioWrite:
- * If the graph is passed in from a library, its output discipline
+/* If the graph is passed in from a library, its output discipline
  * might not use stdio. In this case, we push a stdio discipline on
  * the graph, write it, and then pop it off.
  */
@@ -545,8 +521,7 @@ int sfioWrite(Agraph_t *g, FILE *fp) {
   return rv;
 }
 
-/* writeFile:
- * Write graph into file f.
+/* Write graph into file f.
  * Return 0 on success
  */
 int writeFile(Agraph_t *g, char *f) {
@@ -566,8 +541,7 @@ int writeFile(Agraph_t *g, char *f) {
   return rv;
 }
 
-/* readFile:
- * Read graph from file f.
+/* Read graph from file f.
  * Return 0 on failure
  */
 Agraph_t *readFile(char *f) {
@@ -671,9 +645,7 @@ char *readLine(Expr_t *ex, long long fd) {
   return line;
 }
 
-/* compare:
- * Lexicographic ordering of objects.
- */
+/// lexicographic ordering of objects
 int compare(Agobj_t *l, Agobj_t *r) {
   char lkind, rkind;
   if (l == NULL) {
@@ -702,9 +674,7 @@ int compare(Agobj_t *l, Agobj_t *r) {
     return 1;
 }
 
-/* toLower:
- * Convert characters to lowercase
- */
+/// convert characters to lowercase
 char *toLower(Expr_t *pgm, char *src) {
 
   const size_t len = strlen(src);
@@ -721,9 +691,7 @@ char *toLower(Expr_t *pgm, char *src) {
   return dst;
 }
 
-/* toUpper:
- * Convert characters to uppercase
- */
+/// convert characters to uppercase
 char *toUpper(Expr_t *pgm, char *src) {
 
   const size_t len = strlen(src);
@@ -740,14 +708,10 @@ char *toUpper(Expr_t *pgm, char *src) {
   return dst;
 }
 
-/* toHtml:
- * Create a string marked as HTML
- */
+/// create a string marked as HTML
 char *toHtml(Agraph_t *g, char *arg) { return agstrdup_html(g, arg); }
 
-/* canon:
- * Canonicalize a string for printing.
- */
+/// canonicalize a string for printing
 char *canon(Expr_t *pgm, char *arg) {
   char *const buffer = exstralloc(pgm, agstrcanon_bytes(arg));
   return agstrcanon(arg, buffer);
@@ -769,9 +733,7 @@ char *canon(Expr_t *pgm, char *arg) {
 
 #include "../common/colxlate.c"
 
-/* colorx:
- * RGB, RGBA, HSV, HSVA
- */
+/// RGB, RGBA, HSV, HSVA
 char *colorx(Expr_t *ex, const char *incolor, char *fmt) {
   gvcolor_t color = {{{0}}, 0};
   color_type_t type;
