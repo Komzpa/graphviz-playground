@@ -126,20 +126,19 @@ static int cntOverlaps(graph_t *g) {
  * Return 1 if nodes overlap
  */
 static int doRep(node_t *p, node_t *q, double xdelta, double ydelta,
-                 double dist2, double X_ov, double X_nonov) {
+                 double dist, double X_ov, double X_nonov) {
   int ov;
   double force;
 
-  while (dist2 == 0.0) {
+  while (dist == 0) {
     xdelta = 5 - rand() % 10;
     ydelta = 5 - rand() % 10;
-    dist2 = xdelta * xdelta + ydelta * ydelta;
+    dist = hypot(xdelta, ydelta);
   }
   if ((ov = overlap(p, q)))
-    force = X_ov / dist2;
+    force = X_ov / (dist * dist);
   else
-    force = X_nonov / dist2;
-  const double dist = sqrt(dist2);
+    force = X_nonov / (dist * dist);
   if (dist > fdp_parms->Mlimit)
     force = 0;
 #ifdef DEBUG
@@ -162,8 +161,7 @@ static int doRep(node_t *p, node_t *q, double xdelta, double ydelta,
 static int applyRep(Agnode_t *p, Agnode_t *q, double X_ov, double X_nonov) {
   const double xdelta = ND_pos(q)[0] - ND_pos(p)[0];
   const double ydelta = ND_pos(q)[1] - ND_pos(p)[1];
-  return doRep(p, q, xdelta, ydelta, xdelta * xdelta + ydelta * ydelta, X_ov,
-               X_nonov);
+  return doRep(p, q, xdelta, ydelta, hypot(xdelta, ydelta), X_ov, X_nonov);
 }
 
 static void applyAttr(Agnode_t *p, Agnode_t *q) {
