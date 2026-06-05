@@ -188,21 +188,20 @@ void fdp_initParams(graph_t *g) {
 }
 
 static void doRep(node_t *p, node_t *q, double xdelta, double ydelta,
-                  double dist2) {
+                  double dist) {
   double force;
 
-  while (dist2 == 0.0) {
+  while (dist == 0) {
     xdelta = 5 - rand() % 10;
     ydelta = 5 - rand() % 10;
-    dist2 = xdelta * xdelta + ydelta * ydelta;
+    dist = hypot(xdelta, ydelta);
   }
-  const double dist = sqrt(dist2);
   if (dist > fdp_parms->Mlimit) {
     force = 0;
   } else if (T_useNew) {
-    force = T_K * T_K / (dist * dist2);
+    force = T_K * T_K / (dist * dist * dist);
   } else
-    force = T_K * T_K / dist2;
+    force = T_K * T_K / (dist * dist);
   if (IS_PORT(p) && IS_PORT(q))
     force *= 10.0;
   DISP(q)[0] += xdelta * force;
@@ -217,7 +216,7 @@ static void applyRep(Agnode_t *p, Agnode_t *q) {
 
   xdelta = ND_pos(q)[0] - ND_pos(p)[0];
   ydelta = ND_pos(q)[1] - ND_pos(p)[1];
-  doRep(p, q, xdelta, ydelta, xdelta * xdelta + ydelta * ydelta);
+  doRep(p, q, xdelta, ydelta, hypot(xdelta, ydelta));
 }
 
 static void doNeighbor(Grid *grid, int i, int j, node_list *nodes) {
@@ -226,7 +225,6 @@ static void doNeighbor(Grid *grid, int i, int j, node_list *nodes) {
   Agnode_t *p;
   Agnode_t *q;
   double xdelta, ydelta;
-  double dist2;
 
   if (cellp) {
 #ifdef DEBUG
@@ -241,9 +239,9 @@ static void doNeighbor(Grid *grid, int i, int j, node_list *nodes) {
         q = qs->node;
         xdelta = (ND_pos(q))[0] - (ND_pos(p))[0];
         ydelta = (ND_pos(q))[1] - (ND_pos(p))[1];
-        dist2 = xdelta * xdelta + ydelta * ydelta;
-        if (dist2 < T_Cell * T_Cell)
-          doRep(p, q, xdelta, ydelta, dist2);
+        const double dist = hypot(xdelta, ydelta);
+        if (dist < T_Cell)
+          doRep(p, q, xdelta, ydelta, dist);
       }
     }
   }
