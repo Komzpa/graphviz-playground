@@ -154,7 +154,6 @@ EXCLUDE = (
     "lib/circogen/edgelist.h",
     "lib/circogen/nodelist.c",
     "lib/circogen/nodelist.h",
-    "lib/common/args.c",
     "lib/common/arith.h",
     "lib/common/arrows.c",
     "lib/common/color.h",
