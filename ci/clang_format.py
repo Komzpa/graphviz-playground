@@ -233,7 +233,6 @@ EXCLUDE = (
     "lib/fdpgen/comp.h",
     "lib/fdpgen/dbg.c",
     "lib/fdpgen/dbg.h",
-    "lib/fdpgen/fdp.h",
     "lib/fdpgen/fdpinit.c",
     "lib/fdpgen/grid.c",
     "lib/fdpgen/grid.h",
