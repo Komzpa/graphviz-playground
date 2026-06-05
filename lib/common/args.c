@@ -123,9 +123,8 @@ static int config_extra_args(GVC_t *gvc, int argc, char **argv) {
  */
 static int setDouble(double *v, char *arg) {
   char *p;
-  double d;
 
-  d = strtod(arg, &p);
+  const double d = strtod(arg, &p);
   if (p == arg) {
     agerrorf("bad value in flag -L%s - ignored\n", arg - 1);
     return 1;
