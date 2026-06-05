@@ -518,9 +518,9 @@ static void spring_electrical_embedding_slow(int dim, SparseMatrix A0,
   free(force);
 }
 
-void spring_electrical_embedding(int dim, SparseMatrix A0,
-                                 spring_electrical_control *ctrl, double *x,
-                                 int *flag) {
+static void spring_electrical_embedding(int dim, SparseMatrix A0,
+                                        spring_electrical_control *ctrl,
+                                        double *x, int *flag) {
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j.  */
   SparseMatrix A = A0;
   int m, n;
