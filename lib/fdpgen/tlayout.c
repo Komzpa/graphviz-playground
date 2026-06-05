@@ -191,7 +191,7 @@ static void doRep(node_t *p, node_t *q, double xdelta, double ydelta,
                   double dist) {
   double force;
 
-  while (dist == 0) {
+  while (!(dist > 0)) {
     xdelta = 5 - rand() % 10;
     ydelta = 5 - rand() % 10;
     dist = hypot(xdelta, ydelta);
