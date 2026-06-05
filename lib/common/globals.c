@@ -21,16 +21,16 @@
 
 show_boxes_t Show_boxes = {.dtor = LIST_DTOR_FREE};
 
-/* Default layout values, possibly set via command line; -1 indicates unset */
+/// Default layout values, possibly set via command line; -1 indicates unset
 static fdpParms_t fdpParms = {
-    1,    /* useGrid */
-    1,    /* useNew */
-    -1,   /* numIters */
-    50,   /* unscaled */
-    0.0,  /* C */
-    1.0,  /* Tfact */
-    -1.0, /* K - set in initParams; used in init_edge */
-    -1.0, /* T0 */
+    1,    ///< useGrid
+    1,    ///< useNew
+    -1,   ///< numIters
+    50,   ///< unscaled
+    0.0,  ///< C
+    1.0,  ///< Tfact
+    -1.0, ///< K - set in initParams; used in init_edge
+    -1.0, ///< T0
 };
 
 struct fdpParms_s *fdp_parms = &fdpParms;
