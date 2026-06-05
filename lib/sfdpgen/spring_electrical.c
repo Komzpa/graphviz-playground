@@ -612,7 +612,7 @@ void spring_electrical_embedding(int dim, SparseMatrix A0,
 #ifdef TIME
 	start = clock();
 #endif
-	QuadTree_get_supernodes(qt, bh, &(x[dim*i]), i, &nsuper, &nsupermax,
+	QuadTree_get_supernodes(qt, bh, &(x[dim*i]), i, &nsuper,
 				&center, &supernode_wgts, &distances, &counts);
 
 #ifdef TIME
@@ -783,7 +783,7 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
 
       /* repulsive force K^(1 - p)/||x_i-x_j||^(1 - p) (x_i - x_j) */
       if (USE_QT){
-	QuadTree_get_supernodes(qt, bh, &x[dim * i], i, &nsuper, &nsupermax,
+	QuadTree_get_supernodes(qt, bh, &x[dim * i], i, &nsuper,
 				&center, &supernode_wgts, &distances, &counts);
 	for (j = 0; j < nsuper; j++){
 	  dist = MAX(distances[j], MINDIST);
