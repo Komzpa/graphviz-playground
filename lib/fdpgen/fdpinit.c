@@ -51,8 +51,7 @@ static void initialPositions(graph_t * g)
 	    c = '\0';
 	    if (sscanf(p, "%lf,%lf%c", pvec, pvec + 1, &c) >= 2) {
 		if (PSinputscale > 0.0) {
-		    int j;
-		    for (j = 0; j < NDIM; j++)
+		    for (int j = 0; j < NDIM; j++)
 			pvec[j] = pvec[j] / PSinputscale;
 		}
 		ND_pinned(np) = P_SET;
