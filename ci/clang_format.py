@@ -236,7 +236,6 @@ EXCLUDE = (
     "lib/fdpgen/grid.h",
     "lib/fdpgen/layout.c",
     "lib/fdpgen/tlayout.h",
-    "lib/fdpgen/xlayout.c",
     "lib/fdpgen/xlayout.h",
     "lib/glcomp/glcompbutton.c",
     "lib/glcomp/glcompbutton.h",
