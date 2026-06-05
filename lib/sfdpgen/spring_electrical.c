@@ -686,12 +686,12 @@ void spring_electrical_embedding(int dim, SparseMatrix A0,
 
 void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D,
                                         spring_electrical_control *ctrl,
-                                        double *x, int *flag) {
+                                        double *x) {
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j. Same as the spring-electrical except we also
      introduce force due to spring length
    */
   SparseMatrix A = A0;
-  int m, n;
+  int n;
   int i, j, k;
   double p = ctrl->p, K = ctrl->K, CRK, maxiter = ctrl->maxiter, step = ctrl->step, KP;
   int *ia = NULL, *ja = NULL;
@@ -707,17 +707,13 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
   int max_qtree_level = 10;
 
   if (!A  || maxiter <= 0) return;
-  m = A->m, n = A->n;
+  n = A->n;
   if (n <= 0 || dim <= 0) return;
 
   if (n >= quadtree_size) {
     USE_QT = true;
   }
-  *flag = 0;
-  if (m != n) {
-    *flag = ERROR_NOT_SQUARE_MATRIX;
-    goto RETURN;
-  }
+  assert(A->m == n);
   assert(A->format == FORMAT_CSR);
   A = SparseMatrix_symmetrize(A, true);
   ia = A->ia;
@@ -814,7 +810,6 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
 
   if (ctrl->beautify_leaves) beautify_leaves(dim, A, x);
 
- RETURN:
   free(xold);
   if (A != A0) SparseMatrix_delete(A);
   free(f);

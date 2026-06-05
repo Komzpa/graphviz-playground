@@ -70,6 +70,6 @@ double average_edge_length(SparseMatrix A, int dim, double *coord);
 
 void spring_electrical_spring_embedding(int dim, SparseMatrix A, SparseMatrix D,
                                         spring_electrical_control *ctrl,
-                                        double *x, int *flag);
+                                        double *x);
 
 void pcp_rotate(int n, int dim, double *x);
