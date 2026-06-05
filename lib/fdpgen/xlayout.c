@@ -99,18 +99,14 @@ static double xinit_params(graph_t *g, int n, xparams *xpms) {
 
 static double cool(int t) { return X_T0 * (X_numIters - t) / X_numIters; }
 
-/* overlap:
- * Return true if nodes overlap
- */
+/// return true if nodes overlap
 static int overlap(node_t *p, node_t *q) {
   const double xdelta = fabs(ND_pos(q)[0] - ND_pos(p)[0]);
   const double ydelta = fabs(ND_pos(q)[1] - ND_pos(p)[1]);
   return xdelta <= WD2(p) + WD2(q) && ydelta <= HT2(p) + HT2(q);
 }
 
-/* cntOverlaps:
- * Return number of overlaps.
- */
+/// return number of overlaps
 static int cntOverlaps(graph_t *g) {
   int cnt = 0;
 
@@ -122,9 +118,7 @@ static int cntOverlaps(graph_t *g) {
   return cnt;
 }
 
-/* doRep:
- * Return 1 if nodes overlap
- */
+/// return 1 if nodes overlap
 static int doRep(node_t *p, node_t *q, double xdelta, double ydelta,
                  double dist, double X_ov, double X_nonov) {
   int ov;
@@ -154,8 +148,7 @@ static int doRep(node_t *p, node_t *q, double xdelta, double ydelta,
   return ov;
 }
 
-/* applyRep:
- * Repulsive force = (K*K)/d
+/* Repulsive force = (K*K)/d
  * Return 1 if nodes overlap
  */
 static int applyRep(Agnode_t *p, Agnode_t *q, double X_ov, double X_nonov) {
@@ -192,8 +185,7 @@ static void applyAttr(Agnode_t *p, Agnode_t *q) {
   DISP(p)[1] += ydelta * force;
 }
 
-/* adjust:
- * Return 0 if definitely no overlaps.
+/* Return 0 if definitely no overlaps.
  * Return non-zero if we had overlaps before most recent move.
  */
 static int adjust(Agraph_t *g, double temp, double X_ov, double X_nonov) {
@@ -241,8 +233,7 @@ static int adjust(Agraph_t *g, double temp, double X_ov, double X_nonov) {
   return overlaps;
 }
 
-/* x_layout:
- * Given graph g with initial layout, adjust g so that nodes
+/* Given graph g with initial layout, adjust g so that nodes
  * do not overlap.
  * Assume g is connected.
  * g may have ports. At present, we do not use ports in the layout
@@ -301,8 +292,7 @@ static int x_layout(graph_t *g, xparams *pxpms, int tries) {
   return ov;
 }
 
-/* fdp_xLayout:
- * Use overlap parameter to determine if and how to remove overlaps.
+/* Use overlap parameter to determine if and how to remove overlaps.
  * In addition to the usual values accepted by removeOverlap, overlap
  * can begin with "n:" to indicate the given number of tries using
  * x_layout to remove overlaps.
