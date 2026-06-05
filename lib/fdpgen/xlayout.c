@@ -139,10 +139,12 @@ static int doRep(node_t *p, node_t *q, double xdelta, double ydelta,
     force = X_ov / dist2;
   else
     force = X_nonov / dist2;
+  const double dist = sqrt(dist2);
+  if (dist > fdp_parms->Mlimit)
+    force = 0;
 #ifdef DEBUG
   if (Verbose == 4) {
     prIndent();
-    const double dist = sqrt(dist2);
     fprintf(stderr, " ov Fr %f dist %f\n", force * dist, dist);
   }
 #endif

@@ -158,6 +158,10 @@ static int setFDPAttr(char *arg) {
   case 'O':
     fdp_parms->useNew = 0;
     break;
+  case 'm':
+    if (setDouble(&fdp_parms->Mlimit, arg))
+      return 1;
+    break;
   case 'n':
     if (setInt(&fdp_parms->numIters, arg))
       return 1;

@@ -62,6 +62,7 @@ static char *fdpFlags =
 static char *fdpItems = "\n\
  -Lg         - Don't use grid\n\
  -LO         - Use old attractive force\n\
+ -Lm<l>      - Set m-limit to l\n\
  -Ln<i>      - Set number of iterations to i\n\
  -LU<i>      - Set unscaled factor to i\n\
  -LC<v>      - Set overlap expansion factor to v\n\

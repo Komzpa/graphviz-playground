@@ -190,15 +190,16 @@ void fdp_initParams(graph_t *g) {
 static void doRep(node_t *p, node_t *q, double xdelta, double ydelta,
                   double dist2) {
   double force;
-  double dist;
 
   while (dist2 == 0.0) {
     xdelta = 5 - rand() % 10;
     ydelta = 5 - rand() % 10;
     dist2 = xdelta * xdelta + ydelta * ydelta;
   }
-  if (T_useNew) {
-    dist = sqrt(dist2);
+  const double dist = sqrt(dist2);
+  if (dist > fdp_parms->Mlimit) {
+    force = 0;
+  } else if (T_useNew) {
     force = T_K * T_K / (dist * dist2);
   } else
     force = T_K * T_K / dist2;
