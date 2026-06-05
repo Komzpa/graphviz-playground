@@ -56,9 +56,6 @@ void spring_electrical_control_print(spring_electrical_control ctrl);
 void spring_electrical_embedding(int dim, SparseMatrix A0,
                                  spring_electrical_control *ctrl, double *x,
                                  int *flag);
-void spring_electrical_embedding_fast(int dim, SparseMatrix A0,
-                                      spring_electrical_control *ctrl,
-                                      double *x, int *flag);
 
 void multilevel_spring_electrical_embedding(int dim, SparseMatrix A0,
                                             spring_electrical_control *ctrl,
