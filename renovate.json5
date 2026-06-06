@@ -15,6 +15,12 @@
       "matchDatasources": ["docker"],
       "pinDigests": true,
     },
+    // We update our python constraint manually when distributions reach EOL.
+    {
+      "matchDepTypes": ["tool-constraint"],
+      "matchDepNames": ["python"],
+      "enabled": false,
+    },
   ],
   // We need to support an older version of python that not all PyPI packages support.
   "constraints": {
