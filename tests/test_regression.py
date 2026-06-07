@@ -46,6 +46,7 @@ from gvtest import (  # pylint: disable=wrong-import-position
     is_rocky_8,
     is_rocky_10,
     is_static_build,
+    is_ubuntu_2604,
     pexpect_spawn_tclsh,
     plugin_version,
     remove_asan_summary,
@@ -1279,7 +1280,7 @@ def test_1594():
         pytest.param(
             "png:cairo:gdk",
             marks=pytest.mark.xfail(
-                is_fedora_43(),
+                is_fedora_43() or is_ubuntu_2604(),
                 strict=True,
                 reason="https://gitlab.com/graphviz/graphviz/-/issues/2732",
             ),
@@ -6218,7 +6219,7 @@ def test_2731():
         pytest.param(
             "jpg",
             marks=pytest.mark.xfail(
-                is_fedora_43(),
+                is_fedora_43() or is_ubuntu_2604(),
                 strict=True,
                 reason="https://gitlab.com/graphviz/graphviz/-/issues/2732",
             ),
