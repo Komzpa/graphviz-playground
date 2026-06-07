@@ -399,6 +399,13 @@ def is_ubuntu_2510() -> bool:
     return freedesktop_os_release().get("VERSION_ID") == "25.10"
 
 
+def is_ubuntu_2604() -> bool:
+    """is the current environment Ubuntu 26.04?"""
+    if not is_ubuntu():
+        return False
+    return freedesktop_os_release().get("VERSION_ID") == "26.04"
+
+
 def remove_asan_summary(s: str) -> str:
     """
     Remove the “Suppressions used…” informational text Address Sanitizer prints.
