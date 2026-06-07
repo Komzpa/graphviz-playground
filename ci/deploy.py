@@ -199,13 +199,11 @@ def main() -> int:
     # exported artifacts to be included in the release
     ARTIFACTS = {
         # CI job → [artifacts…]
-        "fedora41-build": [f"fedora_41_graphviz-{version}-rpms.tar.xz"],
         "fedora42-build": [f"fedora_42_graphviz-{version}-rpms.tar.xz"],
         "fedora43-build": [f"fedora_43_graphviz-{version}-rpms.tar.xz"],
         "rocky8-build": [f"rocky_8.9_graphviz-{version}-rpms.tar.xz"],
         "rocky9-build": [f"rocky_9.7_graphviz-{version}-rpms.tar.xz"],
         "rocky10-build": [f"rocky_10.1_graphviz-{version}-rpms.tar.xz"],
-        "fedora41-cmake-build": [f"fedora_41_graphviz-{version}-cmake.rpm"],
         "fedora42-cmake-build": [f"fedora_42_graphviz-{version}-cmake.rpm"],
         "fedora43-cmake-build": [f"fedora_43_graphviz-{version}-cmake.rpm"],
         "rocky8-cmake-build": [f"rocky_8.9_graphviz-{version}-cmake.rpm"],
