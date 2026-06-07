@@ -560,10 +560,10 @@ ubuntu-26.04-cmake-build:
     variables:
       IMAGE: ubuntu-26.04
 
-ubuntu-24.04-cmake-minimal-build:
+ubuntu-26.04-cmake-minimal-build:
     <<: *deb_build_definition
     needs:
-        - job: docker_build_ubuntu-24.04
+        - job: docker_build_ubuntu-26.04
           artifacts: false
     before_script:
         - export build_system="cmake"
@@ -586,7 +586,7 @@ ubuntu-24.04-cmake-minimal-build:
     tags:
         - saas-linux-small-amd64
     variables:
-      IMAGE: ubuntu-24.04
+      IMAGE: ubuntu-26.04
 
 ubuntu-24.04-cmake-ASan-build-and-test-including-ctest:
     stage: build
