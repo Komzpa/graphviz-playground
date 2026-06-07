@@ -294,12 +294,12 @@ ubuntu-24.04-debug-build:
     variables:
       IMAGE: ubuntu-24.04
 
-ubuntu-24.04-static-build:
+ubuntu-26.04-static-build:
     <<: *deb_build_definition
     before_script:
         - export CONFIGURE_OPTIONS="--disable-shared --enable-static"
     needs:
-        - job: docker_build_ubuntu-24.04
+        - job: docker_build_ubuntu-26.04
           artifacts: false
         - job: portable-source
           artifacts: true
@@ -313,7 +313,7 @@ ubuntu-24.04-static-build:
     tags:
         - saas-linux-small-amd64
     variables:
-      IMAGE: ubuntu-24.04
+      IMAGE: ubuntu-26.04
 
 ubuntu-24.04-build:
     <<: *deb_build_definition
