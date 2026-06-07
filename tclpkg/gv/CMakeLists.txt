@@ -237,11 +237,7 @@ if(ENABLE_SWIG)
       TARGET gv_php
       PROPERTY SWIG_GENERATED_INCLUDE_DIRECTORIES ${PHP_INCLUDE_DIRS}
     )
-    set_property(
-      TARGET gv_php
-      APPEND
-      PROPERTY INCLUDE_DIRECTORIES ${PHP_INCLUDE_DIRS}
-    )
+    target_include_directories(gv_php SYSTEM PRIVATE ${PHP_INCLUDE_DIRS})
     set(PHP_FLAGS "")
     if(HAVE_CXX_WSHADOW)
       list(APPEND PHP_FLAGS -Wno-shadow)
