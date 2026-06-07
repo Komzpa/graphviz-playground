@@ -279,8 +279,8 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
         *tmp = 0;
         /* Check for real /lib dir. Don't accept pre-install /.libs */
         if (strcmp(strrchr(p,'/'), DOTLIBS) != 0) {
-            memmove(line, p, strlen(p) + 1); // use line buffer for result
-            strcat(line, "/graphviz");  /* plugins are in "graphviz" subdirectory */
+            // plugins are in "graphviz" subdirectory
+            snprintf(line, BSZ, "%s/graphviz", p); // use line buffer for result
             return 1;
         }
    }
