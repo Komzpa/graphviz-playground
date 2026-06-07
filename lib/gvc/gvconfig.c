@@ -273,14 +273,16 @@ static void gvconfig_write_library_config(GVC_t *gvc, char *lib_path,
 static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 {
    const char *p = info->dlpi_name;
-   char *tmp = strstr(p, "/libgvc.");
+   const char *const tmp = strstr(p, "/libgvc.");
    (void) size;
    if (tmp) {
-        *tmp = 0;
+        const char *slash;
+        for (slash = tmp - 1; *slash != '/'; --slash);
         /* Check for real /lib dir. Don't accept pre-install /.libs */
-        if (strcmp(strrchr(p,'/'), DOTLIBS) != 0) {
+        if (strncmp(slash, DOTLIBS, (size_t)(tmp - slash)) != 0) {
             // plugins are in "graphviz" subdirectory
-            snprintf(line, BSZ, "%s/graphviz", p); // use line buffer for result
+            snprintf(line, BSZ, "%.*s/graphviz", (int)(tmp - p), p);
+              // use line buffer for result
             return 1;
         }
    }
