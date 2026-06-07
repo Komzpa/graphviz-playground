@@ -214,6 +214,7 @@ def main() -> int:
         "ubuntu-22.04-cmake-build": [f"ubuntu_22.04_graphviz-{version}-cmake.deb"],
         "ubuntu-24.04-cmake-build": [f"ubuntu_24.04_graphviz-{version}-cmake.deb"],
         "ubuntu-25.10-cmake-build": [f"ubuntu_25.10_graphviz-{version}-cmake.deb"],
+        "ubuntu-26.04-cmake-build": [f"ubuntu_26.04_graphviz-{version}-cmake.deb"],
         "macos-autotools-build": [f"Darwin_23.6.0_graphviz-{version}-arm64.pkg"],
         "macos-cmake-build": [f"Darwin_23.6.0_Graphviz-{version}-Darwin.zip"],
         "windows-cmake-Win32-release-build": [

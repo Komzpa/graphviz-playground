@@ -543,6 +543,23 @@ ubuntu-25.10-cmake-build:
     variables:
       IMAGE: ubuntu-25.10
 
+ubuntu-26.04-cmake-build:
+    <<: *deb_build_definition
+    needs:
+        - job: docker_build_ubuntu-26.04
+          artifacts: false
+    before_script:
+        - export build_system="cmake"
+        # fail on any compiler warnings
+        - export CFLAGS="-Werror"
+        - export CXXFLAGS="-Werror"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_SMYRNA=OFF"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_RUBY=OFF"
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: ubuntu-26.04
+
 ubuntu-24.04-cmake-minimal-build:
     <<: *deb_build_definition
     needs:
@@ -1062,6 +1079,18 @@ ubuntu-25.10-cmake-test:
         - saas-linux-small-amd64
     variables:
       IMAGE: ubuntu-25.10
+
+ubuntu-26.04-cmake-test:
+    <<: *linux_test_definition
+    before_script:
+        - export build_system="cmake"
+    needs:
+        - job: "ubuntu-26.04-cmake-build"
+          artifacts: true
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: ubuntu-26.04
 
 rocky8-cmake-test:
     <<: *linux_test_definition
