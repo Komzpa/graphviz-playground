@@ -210,6 +210,7 @@ def main() -> int:
         "ubuntu-22.04-build": [f"ubuntu_22.04_graphviz-{version}-debs.tar.xz"],
         "ubuntu-24.04-build": [f"ubuntu_24.04_graphviz-{version}-debs.tar.xz"],
         "ubuntu-25.10-build": [f"ubuntu_25.10_graphviz-{version}-debs.tar.xz"],
+        "ubuntu-26.04-build": [f"ubuntu_26.04_graphviz-{version}-debs.tar.xz"],
         "ubuntu-22.04-cmake-build": [f"ubuntu_22.04_graphviz-{version}-cmake.deb"],
         "ubuntu-24.04-cmake-build": [f"ubuntu_24.04_graphviz-{version}-cmake.deb"],
         "ubuntu-25.10-cmake-build": [f"ubuntu_25.10_graphviz-{version}-cmake.deb"],
