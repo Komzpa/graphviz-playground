@@ -120,8 +120,6 @@ SparseMatrix SparseMatrix_to_square_matrix(SparseMatrix A, int bipartite_options
 
 SparseMatrix SparseMatrix_sort(SparseMatrix A);
 
-SparseMatrix SparseMatrix_set_entries_to_real_one(SparseMatrix A);
-
 /// compute a distance matrix
 ///
 /// @param D0 The graph. Entry values are unused.

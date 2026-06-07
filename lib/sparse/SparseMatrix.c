@@ -1613,19 +1613,6 @@ SparseMatrix SparseMatrix_get_submatrix(SparseMatrix A, int nrow, int ncol, int 
 
 }
 
-SparseMatrix SparseMatrix_set_entries_to_real_one(SparseMatrix A){
-  double *a;
-
-  free(A->a);
-  A->a = gv_calloc(A->nz, sizeof(double));
-  a = A->a;
-  for (size_t i = 0; i < A->nz; i++) a[i] = 1.;
-  A->type = MATRIX_TYPE_REAL;
-  A->size = sizeof(double);
-  return A;
-
-}
-
 SparseMatrix SparseMatrix_distance_matrix(SparseMatrix D0) {
   SparseMatrix D = D0;
   int m = D->m, n = D->n;
