@@ -123,7 +123,10 @@ static void flat_search(graph_t *g, node_t *v);
 static void init_mincross(graph_t *g);
 static void merge2(graph_t *g);
 static void init_mccomp(graph_t *g, size_t c);
-static void cleanup2(graph_t *g, int64_t nc);
+
+/// @param have_vlists Are there vlists that need resetting?
+static void cleanup2(graph_t *g, int64_t nc, bool have_vlists);
+
 /// @return minimum crossings on success, negative value on failure
 static int64_t mincross_clust(graph_t *g);
 /// @return minimum crossings on success, negative value on failure
@@ -326,6 +329,8 @@ int dot_mincross(graph_t *g) {
   int64_t nc;
   char *s;
 
+  int rc = 0;
+
   /* check whether malformed input has led to empty cluster that the crossing
    * functions will not anticipate
    */
@@ -344,13 +349,15 @@ int dot_mincross(graph_t *g) {
   }
 
   init_mincross(g);
+  bool has_set_vlists = false;
 
   size_t comp;
   for (nc = 0, comp = 0; comp < GD_comp(g).size; comp++) {
     init_mccomp(g, comp);
     const int64_t mc = mincross(g, 0);
     if (mc < 0) {
-      return -1;
+      rc = -1;
+      goto done;
     }
     nc += mc;
   }
@@ -361,7 +368,8 @@ int dot_mincross(graph_t *g) {
   for (int c = 1; c <= GD_n_cluster(g); c++) {
     const int64_t mc = mincross_clust(GD_clust(g)[c]);
     if (mc < 0) {
-      return -1;
+      rc = -1;
+      goto done;
     }
     nc += mc;
 #ifdef DEBUG
@@ -369,13 +377,15 @@ int dot_mincross(graph_t *g) {
     check_order();
 #endif
   }
+  has_set_vlists = true;
 
   if (GD_n_cluster(g) > 0 && (!(s = agget(g, "remincross")) || mapbool(s))) {
     mark_lowclusters(g);
     ReMincross = true;
     const int64_t mc = mincross(g, 2);
     if (mc < 0) {
-      return -1;
+      rc = -1;
+      goto done;
     }
     nc = mc;
 #ifdef DEBUG
@@ -383,8 +393,9 @@ int dot_mincross(graph_t *g) {
       check_vlists(GD_clust(g)[c]);
 #endif
   }
-  cleanup2(g, nc);
-  return 0;
+done:
+  cleanup2(g, nc, has_set_vlists);
+  return rc;
 }
 
 static adjmatrix_t *new_matrix(size_t initial_rows, size_t initial_columns) {
@@ -814,7 +825,7 @@ static void merge2(graph_t *g) {
   }
 }
 
-static void cleanup2(graph_t *g, int64_t nc) {
+static void cleanup2(graph_t *g, int64_t nc, bool has_vlists) {
   int i, j, r, c;
   node_t *v;
   edge_t *e;
@@ -828,7 +839,7 @@ static void cleanup2(graph_t *g, int64_t nc) {
     TE_list = NULL;
   }
   /* fix vlists of clusters */
-  for (c = 1; c <= GD_n_cluster(g); c++)
+  for (c = 1; has_vlists && c <= GD_n_cluster(g); c++)
     rec_reset_vlists(GD_clust(g)[c]);
 
   /* remove node temporary edges for ordering nodes */
