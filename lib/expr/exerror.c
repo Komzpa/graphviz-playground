@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright (c) 2011 AT&T Intellectual Property 
+ * Copyright (c) 2011 AT&T Intellectual Property
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
  * which accompanies this distribution, and is available at
@@ -60,34 +60,29 @@ static char *make_msg(const char *format, va_list ap) {
   return s;
 }
 
-void
-exerror(const char* format, ...)
-{
-	if (expr.program->disc->errorf && !expr.program->errors)
-	{
-		va_list	ap;
+void exerror(const char *format, ...) {
+  if (expr.program->disc->errorf && !expr.program->errors) {
+    va_list ap;
 
-		expr.program->errors = 1;
-		va_start(ap, format);
-		char *s = make_msg(format, ap);
-		va_end(ap);
-		expr.program->disc->errorf(expr.program, expr.program->disc, 2, "%s",
-		  s ? s : "out of space");
+    expr.program->errors = 1;
+    va_start(ap, format);
+    char *s = make_msg(format, ap);
+    va_end(ap);
+    expr.program->disc->errorf(expr.program->id, expr.program->disc->user, 2,
+                               "%s", s ? s : "out of space");
     free(s);
-	}
+  }
 }
 
-void 
-exwarn(const char *format, ...)
-{
-	if (expr.program->disc->errorf) {
-		va_list ap;
+void exwarn(const char *format, ...) {
+  if (expr.program->disc->errorf) {
+    va_list ap;
 
-		va_start(ap, format);
-		char *s = make_msg(format, ap);
-		va_end(ap);
-		expr.program->disc->errorf(expr.program, expr.program->disc,
-				       ERROR_WARNING, "%s", s ? s : "out of space");
-		free(s);
-	}
+    va_start(ap, format);
+    char *s = make_msg(format, ap);
+    va_end(ap);
+    expr.program->disc->errorf(expr.program->id, expr.program->disc->user,
+                               ERROR_WARNING, "%s", s ? s : "out of space");
+    free(s);
+  }
 }
