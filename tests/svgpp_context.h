@@ -2,6 +2,8 @@
 
 #include <stdexcept>
 
+#include <boost/type_traits/add_const.hpp>
+
 #include <boost/range/any_range.hpp>
 #include <boost/range/iterator_range_core.hpp>
 #ifdef __GNUC__
