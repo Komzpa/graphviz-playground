@@ -4,12 +4,23 @@
 
 import argparse
 import logging
+import shlex
 import subprocess
 import sys
 from pathlib import Path
+from typing import Union
 
 # logging output stream, setup in main()
 log = None
+
+
+def run(
+    args: list[Union[str, Path]],
+) -> None:
+    """run a command, echoing it beforehand"""
+
+    print(f"+ {shlex.join(str(x) for x in args)}", flush=True)
+    subprocess.check_call(args)
 
 
 def main(args: list[str]) -> int:
@@ -72,7 +83,7 @@ def main(args: list[str]) -> int:
     init_exclude_options = [f"--exclude={f}" for f in init_excluded_files]
 
     if options.init:
-        subprocess.check_call(
+        run(
             [
                 "lcov",
                 "--capture",
@@ -90,7 +101,7 @@ def main(args: list[str]) -> int:
 
     if options.analyze:
         # capture test coverage data
-        subprocess.check_call(
+        run(
             [
                 "lcov",
                 "--capture",
@@ -102,7 +113,7 @@ def main(args: list[str]) -> int:
             + ["--output-file=app_test.info"]
         )
         # combine baseline and test coverage data
-        subprocess.check_call(
+        run(
             [
                 "lcov",
                 "--branch-coverage",
@@ -113,7 +124,7 @@ def main(args: list[str]) -> int:
         )
         # generate coverage html pages using lcov which are nicer than gcovr's
         Path("coverage/lcov").mkdir(parents=True, exist_ok=True)
-        subprocess.check_call(
+        run(
             [
                 "genhtml",
                 f"--prefix={cwd}",
@@ -125,7 +136,7 @@ def main(args: list[str]) -> int:
         )
         # generate coverage info for GitLab's Test Coverage Visualization
         Path("coverage/gcovr").mkdir(parents=True, exist_ok=True)
-        subprocess.check_call(
+        run(
             ["gcovr"]
             + exclude_options
             + [f"--gcov-exclude={f}" for f in generated_files]
