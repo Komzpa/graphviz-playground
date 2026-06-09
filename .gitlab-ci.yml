@@ -1449,10 +1449,10 @@ lint_html:
       - job_execution_timeout
 
 lint_python:
-  image: "$CI_REGISTRY_IMAGE/ubuntu-24.04:$CI_COMMIT_SHA"
+  image: "$CI_REGISTRY_IMAGE/ubuntu-26.04:$CI_COMMIT_SHA"
   stage: test
   needs:
-    - job: "ubuntu-24.04-build"
+    - job: "ubuntu-26.04-build"
       artifacts: true
   tags:
     - saas-linux-small-amd64

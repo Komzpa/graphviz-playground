@@ -26,7 +26,7 @@ fi
 
 GV_VERSION=$(python3 gen_version.py)
 if [ "${CI_JOB_NAME}" = "lint_python" ]; then
-  DIR=Packages/ubuntu-24.04-build
+  DIR=Packages/ubuntu-26.04-build
 elif [ "${CI_JOB_NAME}" = "ubuntu-24.04-cmake-ASan-build-and-test-including-ctest" ]; then
   DIR=Packages/ubuntu-24.04-cmake-ASan-build-and-test-including-ctest
 else
