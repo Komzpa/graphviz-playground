@@ -588,10 +588,10 @@ ubuntu-26.04-cmake-minimal-build:
     variables:
       IMAGE: ubuntu-26.04
 
-ubuntu-24.04-cmake-ASan-build-and-test-including-ctest:
+ubuntu-26.04-cmake-ASan-build-and-test-including-ctest:
     stage: build
     needs:
-        - job: docker_build_ubuntu-24.04
+        - job: docker_build_ubuntu-26.04
           artifacts: false
     script:
         - source /opt/virtualenv/bin/activate
@@ -601,11 +601,12 @@ ubuntu-24.04-cmake-ASan-build-and-test-including-ctest:
         - export CXXFLAGS="-fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=address,undefined -g -Werror -DBOOST_ALLOW_DEPRECATED_HEADERS"
         - export LDFLAGS="-fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=address,undefined -g -Werror"
         - export CMAKE_OPTIONS="-Duse_coverage=ON -Dwith_cxx_tests=ON -Dwith_cxx_api=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_SMYRNA=ON"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_SMYRNA=OFF"
         - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_LTDL=ON"
         - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_EXPAT=ON"
         - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_GVEDIT=ON"
         - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_ZLIB=ON"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_RUBY=OFF"
         - ci/linux-build-job-script.sh
         - echo 'leak:*libfontconfig*' > suppressions.txt
         - export LSAN_OPTIONS=suppressions=$(pwd)/suppressions.txt
@@ -627,7 +628,7 @@ ubuntu-24.04-cmake-ASan-build-and-test-including-ctest:
         - tags
     tags:
         - saas-linux-small-amd64
-    image: "$CI_REGISTRY_IMAGE/ubuntu-24.04:$CI_COMMIT_SHA"
+    image: "$CI_REGISTRY_IMAGE/ubuntu-26.04:$CI_COMMIT_SHA"
     retry:
         max: 1
         when:

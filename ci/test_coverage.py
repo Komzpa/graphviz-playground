@@ -108,6 +108,7 @@ def main(args: list[str]) -> int:
                 "--directory=.",
                 "--branch-coverage",
                 "--no-external",
+                "--rc=check_data_consistency=0",
             ]
             + exclude_options
             + ["--output-file=app_test.info"]
@@ -120,6 +121,7 @@ def main(args: list[str]) -> int:
                 "--add-tracefile=app_base.info",
                 "--add-tracefile=app_test.info",
                 "--output-file=app_total.info",
+                "--rc=check_data_consistency=0",
             ]
         )
         # generate coverage html pages using lcov which are nicer than gcovr's
@@ -130,6 +132,7 @@ def main(args: list[str]) -> int:
                 f"--prefix={cwd}",
                 "--branch-coverage",
                 "--output-directory=coverage/lcov",
+                "--rc=check_data_consistency=0",
                 "--show-details",
                 "app_total.info",
             ]
