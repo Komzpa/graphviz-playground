@@ -77,14 +77,13 @@ def main(args: list[str]) -> int:
                 "lcov",
                 "--capture",
                 "--initial",
-                "--directory",
-                ".",
+                "--directory=.",
                 "--branch-coverage",
                 "--no-external",
             ]
             + exclude_options
             + init_exclude_options
-            + ["--output-file", "app_base.info"]
+            + ["--output-file=app_base.info"]
         )
 
         return 0
@@ -95,25 +94,21 @@ def main(args: list[str]) -> int:
             [
                 "lcov",
                 "--capture",
-                "--directory",
-                ".",
+                "--directory=.",
                 "--branch-coverage",
                 "--no-external",
             ]
             + exclude_options
-            + ["--output-file", "app_test.info"]
+            + ["--output-file=app_test.info"]
         )
         # combine baseline and test coverage data
         subprocess.check_call(
             [
                 "lcov",
                 "--branch-coverage",
-                "--add-tracefile",
-                "app_base.info",
-                "--add-tracefile",
-                "app_test.info",
-                "--output-file",
-                "app_total.info",
+                "--add-tracefile=app_base.info",
+                "--add-tracefile=app_test.info",
+                "--output-file=app_total.info",
             ]
         )
         # generate coverage html pages using lcov which are nicer than gcovr's
@@ -121,11 +116,9 @@ def main(args: list[str]) -> int:
         subprocess.check_call(
             [
                 "genhtml",
-                "--prefix",
-                cwd,
+                f"--prefix={cwd}",
                 "--branch-coverage",
-                "--output-directory",
-                "coverage/lcov",
+                "--output-directory=coverage/lcov",
                 "--show-details",
                 "app_total.info",
             ]
@@ -142,10 +135,8 @@ def main(args: list[str]) -> int:
                 "--exclude-unreachable-branches",
                 "--gcov-ignore-errors=no_working_dir_found",
                 "--print-summary",
-                "--output",
-                "coverage.xml",
-                "--root",
-                cwd,
+                "--output=coverage.xml",
+                f"--root={cwd}",
             ]
         )
 
