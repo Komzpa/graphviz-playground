@@ -110,7 +110,7 @@ def main(args: list[str]) -> int:
                 "--branch-coverage",
                 "--add-tracefile",
                 "app_base.info",
-                "-add-tracefile",
+                "--add-tracefile",
                 "app_test.info",
                 "--output-file",
                 "app_total.info",
