@@ -6460,6 +6460,45 @@ def test_2827(tmp_path: Path):
     assert svg1 == svg2, "state from one graph carried to another"
 
 
+@pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
+@pytest.mark.xfail(
+    raises=AssertionError,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/2835",
+    strict=True,
+)
+def test_2835():
+    """
+    gvpr should apply cluster attributes to the correct graph, not the root graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2835
+    """
+
+    # find our test sources
+    program = Path(__file__).parent / "2835.gvpr"
+    graph = Path(__file__).parent / "2835.dot"
+
+    # run this through gvpr
+    gvpr_bin = which("gvpr")
+    output = run(gvpr_bin, "-f", program, graph)
+
+    # Now extract various text chunks from the final graph. Doing this with regexes is
+    # not reliable, but we do not want to depend on dot itself for this in case another
+    # bug masks what we are trying to validate.
+
+    graph_start = re.search(
+        r"/+ final graph /+\n(?P<graph>(.|\n)+)", output, flags=re.MULTILINE
+    )
+    assert graph_start is not None, "failed to find final graph output"
+    graph = graph_start.group("graph")
+
+    first_cluster = re.search(r"\bsubgraph cluster", graph).start()
+
+    graph_color = re.search(r"\bcolor\s*=[^,\]]*", graph[:first_cluster])
+    assert graph_color is None, "color attribute was added to the root graph"
+
+    graph_style = re.search(r'\bstyle\s*="[^"]*"', graph[:first_cluster])
+    assert graph_style is None, "style attribute was added to the root graph"
+
+
 @pytest.mark.parametrize("package", ("Tcldot", "Tclpathplan"))
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 @pytest.mark.xfail(
