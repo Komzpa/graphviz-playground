@@ -53,13 +53,6 @@ typedef struct {
 spring_electrical_control spring_electrical_control_new(void);
 void spring_electrical_control_print(spring_electrical_control ctrl);
 
-void spring_electrical_embedding(int dim, SparseMatrix A0,
-                                 spring_electrical_control *ctrl, double *x,
-                                 int *flag);
-void spring_electrical_embedding_fast(int dim, SparseMatrix A0,
-                                      spring_electrical_control *ctrl,
-                                      double *x, int *flag);
-
 void multilevel_spring_electrical_embedding(int dim, SparseMatrix A0,
                                             spring_electrical_control *ctrl,
                                             double *label_sizes, double *x,
@@ -70,6 +63,6 @@ double average_edge_length(SparseMatrix A, int dim, double *coord);
 
 void spring_electrical_spring_embedding(int dim, SparseMatrix A, SparseMatrix D,
                                         spring_electrical_control *ctrl,
-                                        double *x, int *flag);
+                                        double *x);
 
 void pcp_rotate(int n, int dim, double *x);

@@ -239,9 +239,9 @@ static void beautify_leaves(int dim, SparseMatrix A, double *x){
   bitarray_reset(&checked);
 }
 
-void spring_electrical_embedding_fast(int dim, SparseMatrix A0,
-                                      spring_electrical_control *ctrl,
-                                      double *x, int *flag) {
+static void spring_electrical_embedding_fast(int dim, SparseMatrix A0,
+                                             spring_electrical_control *ctrl,
+                                             double *x, int *flag) {
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j.  */
   SparseMatrix A = A0;
   int m, n;
@@ -518,9 +518,9 @@ static void spring_electrical_embedding_slow(int dim, SparseMatrix A0,
   free(force);
 }
 
-void spring_electrical_embedding(int dim, SparseMatrix A0,
-                                 spring_electrical_control *ctrl, double *x,
-                                 int *flag) {
+static void spring_electrical_embedding(int dim, SparseMatrix A0,
+                                        spring_electrical_control *ctrl,
+                                        double *x, int *flag) {
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j.  */
   SparseMatrix A = A0;
   int m, n;
@@ -531,7 +531,7 @@ void spring_electrical_embedding(int dim, SparseMatrix A0,
   int iter = 0;
   const bool adaptive_cooling = ctrl->adaptive_cooling;
   bool USE_QT = false;
-  int nsuper = 0, nsupermax = 10;
+  int nsuper = 0;
   double *center = NULL, *supernode_wgts = NULL, *distances = NULL, nsuper_avg, counts = 0, counts_avg = 0;
 #ifdef TIME
   clock_t start, end, start0, start2;
@@ -550,9 +550,6 @@ void spring_electrical_embedding(int dim, SparseMatrix A0,
   if (n >= quadtree_size) {
     USE_QT = true;
     qtree_level_optimizer = oned_optimizer_new(max_qtree_level);
-    center = gv_calloc(nsupermax * dim, sizeof(double));
-    supernode_wgts = gv_calloc(nsupermax, sizeof(double));
-    distances = gv_calloc(nsupermax, sizeof(double));
   }
   *flag = 0;
   if (m != n) {
@@ -612,7 +609,7 @@ void spring_electrical_embedding(int dim, SparseMatrix A0,
 #ifdef TIME
 	start = clock();
 #endif
-	QuadTree_get_supernodes(qt, bh, &(x[dim*i]), i, &nsuper, &nsupermax,
+	QuadTree_get_supernodes(qt, bh, &(x[dim*i]), i, &nsuper,
 				&center, &supernode_wgts, &distances, &counts);
 
 #ifdef TIME
@@ -689,12 +686,12 @@ void spring_electrical_embedding(int dim, SparseMatrix A0,
 
 void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D,
                                         spring_electrical_control *ctrl,
-                                        double *x, int *flag) {
+                                        double *x) {
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j. Same as the spring-electrical except we also
      introduce force due to spring length
    */
   SparseMatrix A = A0;
-  int m, n;
+  int n;
   int i, j, k;
   double p = ctrl->p, K = ctrl->K, CRK, maxiter = ctrl->maxiter, step = ctrl->step, KP;
   int *ia = NULL, *ja = NULL;
@@ -705,25 +702,18 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
   int iter = 0;
   const bool adaptive_cooling = ctrl->adaptive_cooling;
   bool USE_QT = false;
-  int nsuper = 0, nsupermax = 10;
+  int nsuper = 0;
   double *center = NULL, *supernode_wgts = NULL, *distances = NULL, counts = 0;
   int max_qtree_level = 10;
 
   if (!A  || maxiter <= 0) return;
-  m = A->m, n = A->n;
+  n = A->n;
   if (n <= 0 || dim <= 0) return;
 
   if (n >= quadtree_size) {
     USE_QT = true;
-    center = gv_calloc(nsupermax * dim, sizeof(double));
-    supernode_wgts = gv_calloc(nsupermax, sizeof(double));
-    distances = gv_calloc(nsupermax, sizeof(double));
   }
-  *flag = 0;
-  if (m != n) {
-    *flag = ERROR_NOT_SQUARE_MATRIX;
-    goto RETURN;
-  }
+  assert(A->m == n);
   assert(A->format == FORMAT_CSR);
   A = SparseMatrix_symmetrize(A, true);
   ia = A->ia;
@@ -783,7 +773,7 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
 
       /* repulsive force K^(1 - p)/||x_i-x_j||^(1 - p) (x_i - x_j) */
       if (USE_QT){
-	QuadTree_get_supernodes(qt, bh, &x[dim * i], i, &nsuper, &nsupermax,
+	QuadTree_get_supernodes(qt, bh, &x[dim * i], i, &nsuper,
 				&center, &supernode_wgts, &distances, &counts);
 	for (j = 0; j < nsuper; j++){
 	  dist = MAX(distances[j], MINDIST);
@@ -820,7 +810,6 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
 
   if (ctrl->beautify_leaves) beautify_leaves(dim, A, x);
 
- RETURN:
   free(xold);
   if (A != A0) SparseMatrix_delete(A);
   free(f);

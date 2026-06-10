@@ -93,18 +93,18 @@ static void QuadTree_get_supernodes_internal(QuadTree qt, double bh, double *pt,
 }
 
 void QuadTree_get_supernodes(QuadTree qt, double bh, double *pt, int nodeid, int *nsuper, 
-			     int *nsupermax, double **center, double **supernode_wgts, double **distances, double *counts) {
+			     double **center, double **supernode_wgts, double **distances, double *counts) {
   int dim = qt->dim;
 
   (*counts) = 0;
 
   *nsuper = 0;
 
-  *nsupermax = 10;
-  if (!*center) *center = gv_calloc(*nsupermax * dim, sizeof(double));
-  if (!*supernode_wgts) *supernode_wgts = gv_calloc(*nsupermax, sizeof(double));
-  if (!*distances) *distances = gv_calloc(*nsupermax, sizeof(double));
-  QuadTree_get_supernodes_internal(qt, bh, pt, nodeid, nsuper, nsupermax, center, supernode_wgts, distances, counts);
+  int nsupermax = 10;
+  if (!*center) *center = gv_calloc(nsupermax * dim, sizeof(double));
+  if (!*supernode_wgts) *supernode_wgts = gv_calloc(nsupermax, sizeof(double));
+  if (!*distances) *distances = gv_calloc(nsupermax, sizeof(double));
+  QuadTree_get_supernodes_internal(qt, bh, pt, nodeid, nsuper, &nsupermax, center, supernode_wgts, distances, counts);
 
 }
 

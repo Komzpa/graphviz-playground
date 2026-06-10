@@ -6897,6 +6897,7 @@ Usage: dot [-Vv?] [-(GNEA)name=val] [-(KTlso)<val>] <dot files>
 
  -Lg         - Don't use grid
  -LO         - Use old attractive force
+ -Lm<l>      - Set m-limit to l
  -Ln<i>      - Set number of iterations to i
  -LU<i>      - Set unscaled factor to i
  -LC<v>      - Set overlap expansion factor to v
