@@ -4,7 +4,7 @@
  * @ingroup cgraph_utils
  */
 /*************************************************************************
- * Copyright (c) 2011 AT&T Intellectual Property 
+ * Copyright (c) 2011 AT&T Intellectual Property
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
  * which accompanies this distribution, and is available at
@@ -19,31 +19,28 @@
 #include <stdlib.h>
 
 Dict_t *agdtopen(Dtdisc_t *disc, Dtmethod_t *method) {
-    return dtopen(disc, method);
+  return dtopen(disc, method);
 }
 
-int agdtdelete(Agraph_t * g, Dict_t * dict, void *obj)
-{
-    (void)g;
-    return dtdelete(dict, obj) != NULL;
+int agdtdelete(Agraph_t *g, Dict_t *dict, void *obj) {
+  (void)g;
+  return dtdelete(dict, obj) != NULL;
 }
 
-int agdtclose(Agraph_t * g, Dict_t * dict)
-{
-    (void)g;
-    dtdisc(dict, NULL);
-    if (dtclose(dict))
-	return 1;
-    return 0;
+int agdtclose(Agraph_t *g, Dict_t *dict) {
+  (void)g;
+  dtdisc(dict, NULL);
+  if (dtclose(dict))
+    return 1;
+  return 0;
 }
 
-void agdtdisc(Agraph_t * g, Dict_t * dict, Dtdisc_t * disc)
-{
-    (void)g; /* unused */
-    if (disc && dtdisc(dict, NULL) != disc) {
-	dtdisc(dict, disc);
-    }
-    /* else unchanged, disc is same as old disc */
+void agdtdisc(Agraph_t *g, Dict_t *dict, Dtdisc_t *disc) {
+  (void)g; /* unused */
+  if (disc && dtdisc(dict, NULL) != disc) {
+    dtdisc(dict, disc);
+  }
+  /* else unchanged, disc is same as old disc */
 }
 /// @defgroup cgraph_utils utilities
 /// @brief low level cgraph utilities
