@@ -166,7 +166,10 @@ static void core_loadimage_ps(GVJ_t * job, usershape_t *us, boxf b, bool filled)
         switch (us->type) {
             case FT_PS:
             case FT_EPS:
-		fstat(fd, &statbuf);
+		if (fstat(fd, &statbuf) < 0) {
+			us->must_inline = true;
+			break;
+		}
 		us->datasize = (size_t)statbuf.st_size;
 #ifdef HAVE_SYS_MMAN_H
 		us->data = mmap(0, us->datasize, PROT_READ, MAP_PRIVATE, fd, 0);
