@@ -23,11 +23,8 @@
 
 static Agraph_t *agfindsubg_by_id(Agraph_t * g, IDTYPE id)
 {
-    Agraph_t template;
-
     agdtdisc(g->g_id, &Ag_subgraph_id_disc);
-    AGID(&template) = id;
-    return dtsearch(g->g_id, &template);
+    return dtsearch(g->g_id, &(Agraph_t){.base = {.tag = {.id = id}}});
 }
 
 static Agraph_t *localsubg(Agraph_t * g, IDTYPE id)
