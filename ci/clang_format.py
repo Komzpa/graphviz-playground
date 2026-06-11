@@ -474,7 +474,6 @@ EXCLUDE = (
     "plugin.demo/xgtk/src/interface.h",
     "plugin.demo/xgtk/src/support.c",
     "plugin.demo/xgtk/src/support.h",
-    "plugin/core/gvloadimage_core.c",
     "plugin/core/gvplugin_core.c",
     "plugin/core/gvrender_core_dot.c",
     "plugin/core/gvrender_core_fig.c",
