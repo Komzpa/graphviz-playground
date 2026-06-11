@@ -202,19 +202,14 @@ static void core_loadimage_ps(GVJ_t * job, usershape_t *us, boxf b, bool filled)
 static void core_loadimage_pslib(GVJ_t * job, usershape_t *us, boxf b, bool filled)
 {
     int i;
-    pointf AF[4];
 
     assert(job);
     assert(us);
     assert(us->name);
 
     if (us->data) {
-	AF[0] = b.LL;
-	AF[2] = b.UR;
-	AF[1].x = AF[0].x;
-	AF[1].y = AF[2].y;
-	AF[3].x = AF[2].x;
-	AF[3].y = AF[0].y;
+	const pointf AF[] = {
+	  b.LL, {.x = b.LL.x, .y = b.UR.y}, b.UR, {.x = b.UR.x, .y = b.LL.y}};
         if (filled) {
             gvprintf(job, "[ ");
             for (i = 0; i < 4; i++)
