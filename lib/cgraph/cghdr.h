@@ -78,7 +78,7 @@ uint64_t agnextseq(Agraph_t * g, int objtype);
 
 /* dict helper functions */
 Dict_t *agdtopen(Dtdisc_t *disc, Dtmethod_t *method);
-void agdtdisc(Agraph_t * g, Dict_t * dict, Dtdisc_t * disc);
+void agdtdisc(Dict_t * dict, Dtdisc_t * disc);
 int agdtdelete(Agraph_t * g, Dict_t * dict, void *obj);
 int agdtclose(Agraph_t * g, Dict_t * dict);
 

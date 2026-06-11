@@ -25,7 +25,7 @@ static Agraph_t *agfindsubg_by_id(Agraph_t * g, IDTYPE id)
 {
     Agraph_t template;
 
-    agdtdisc(g, g->g_id, &Ag_subgraph_id_disc);
+    agdtdisc(g->g_id, &Ag_subgraph_id_disc);
     AGID(&template) = id;
     return dtsearch(g->g_id, &template);
 }
