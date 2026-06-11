@@ -201,8 +201,6 @@ static void core_loadimage_ps(GVJ_t * job, usershape_t *us, boxf b, bool filled)
 /* usershape described by a member of a postscript library */
 static void core_loadimage_pslib(GVJ_t * job, usershape_t *us, boxf b, bool filled)
 {
-    int i;
-
     assert(job);
     assert(us);
     assert(us->name);
@@ -212,13 +210,13 @@ static void core_loadimage_pslib(GVJ_t * job, usershape_t *us, boxf b, bool fill
 	  b.LL, {.x = b.LL.x, .y = b.UR.y}, b.UR, {.x = b.UR.x, .y = b.LL.y}};
         if (filled) {
             gvprintf(job, "[ ");
-            for (i = 0; i < 4; i++)
+            for (size_t i = 0; i < sizeof(AF) / sizeof(AF[0]); i++)
                 gvprintf(job, "%g %g ", AF[i].x, AF[i].y);
             gvprintf(job, "%g %g ", AF[0].x, AF[0].y);
             gvprintf(job, "]  %d true %s\n", 4, us->name);
         }
         gvprintf(job, "[ ");
-        for (i = 0; i < 4; i++)
+        for (size_t i = 0; i < sizeof(AF) / sizeof(AF[0]); i++)
             gvprintf(job, "%g %g ", AF[i].x, AF[i].y);
         gvprintf(job, "%g %g ", AF[0].x, AF[0].y);
         gvprintf(job, "]  %d false %s\n", 4, us->name);
