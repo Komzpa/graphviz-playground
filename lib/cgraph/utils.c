@@ -18,25 +18,22 @@
 #include <cgraph/cghdr.h>
 #include <stdlib.h>
 
-static Agraph_t *Ag_dictop_G;
-
 Dict_t *agdtopen(Dtdisc_t *disc, Dtmethod_t *method) {
     return dtopen(disc, method);
 }
 
 int agdtdelete(Agraph_t * g, Dict_t * dict, void *obj)
 {
-    Ag_dictop_G = g;
+    (void)g;
     return dtdelete(dict, obj) != NULL;
 }
 
 int agdtclose(Agraph_t * g, Dict_t * dict)
 {
+    (void)g;
     dtdisc(dict, NULL);
-    Ag_dictop_G = g;
     if (dtclose(dict))
 	return 1;
-    Ag_dictop_G = NULL;
     return 0;
 }
 
