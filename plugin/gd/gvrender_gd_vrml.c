@@ -190,6 +190,7 @@ static int set_penstyle(GVJ_t * job, gdImagePtr im, gdImagePtr brush)
             pen = gdStyledBrushed;
         else
             pen = gdBrushed;
+        gdImageDestroy(brush);
     }
     return pen;
 }
