@@ -215,7 +215,15 @@ static void process6up(GVJ_t *job) {
 }
 
 /// draw a 8-pixels-per-character monochrome image
-static void process8up(GVJ_t *job) {
+static void process8up(GVJ_t *job, const char **tiles) {
+  const unsigned y_stride = 4;
+  const unsigned x_stride = 2;
+  assert(256 == 1 << (y_stride * x_stride));
+  processNup(job, y_stride, x_stride, tiles);
+}
+
+/// draw a 8-pixels-per-character monochrome image with Braille characters
+static void process8up1(GVJ_t *job) {
   // the Unicode “Braille Patterns” block
   const char *tiles[] = {
       " ", "⠁", "⠈", "⠉", "⠂", "⠃", "⠊", "⠋", "⠐", "⠑", "⠘", "⠙", "⠒", "⠓", "⠚",
@@ -236,10 +244,7 @@ static void process8up(GVJ_t *job) {
       "⣡", "⣨", "⣩", "⣢", "⣣", "⣪", "⣫", "⣰", "⣱", "⣸", "⣹", "⣲", "⣳", "⣺", "⣻",
       "⣤", "⣥", "⣬", "⣭", "⣦", "⣧", "⣮", "⣯", "⣴", "⣵", "⣼", "⣽", "⣶", "⣷", "⣾",
       "⣿"};
-  const unsigned y_stride = 4;
-  const unsigned x_stride = 2;
-  assert(sizeof(tiles) / sizeof(tiles[0]) == 1 << (y_stride * x_stride));
-  processNup(job, y_stride, x_stride, tiles);
+  process8up(job, tiles);
 }
 
 static gvdevice_engine_t engine3 = {
@@ -259,7 +264,7 @@ static gvdevice_engine_t engine6up = {
 };
 
 static gvdevice_engine_t engine8up = {
-    .format = process8up,
+    .format = process8up1,
 };
 
 static gvdevice_features_t device_features = {
