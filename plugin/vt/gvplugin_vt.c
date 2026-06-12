@@ -247,6 +247,43 @@ static void process8up1(GVJ_t *job) {
   process8up(job, tiles);
 }
 
+/// draw a 8-pixels-per-character monochrome image with octant characters
+static void process8up2(GVJ_t *job) {
+  // the Unicode octants block
+  const char *tiles[] = {
+      " ",    "𜺨", "𜺫", "🮂",    "𜴀", "▘",    "𜴁", "𜴂", "𜴃",
+      "𜴄", "▝",    "𜴅", "𜴆", "𜴇", "𜴈", "▀",    "𜴉", "𜴊",
+      "𜴋", "𜴌", "🯦", "𜴍", "𜴎", "𜴏", "𜴐", "𜴑", "𜴒",
+      "𜴓", "𜴔", "𜴕", "𜴖", "𜴗", "𜴘", "𜴙", "𜴚", "𜴛",
+      "𜴜", "𜴝", "𜴞", "𜴟", "🯧", "𜴠", "𜴡", "𜴢", "𜴣",
+      "𜴤", "𜴥", "𜴦", "𜴧", "𜴨", "𜴩", "𜴪", "𜴫", "𜴬",
+      "𜴭", "𜴮", "𜴯", "𜴰", "𜴱", "𜴲", "𜴳", "𜴴", "𜴵",
+      "🮅",    "𜺣", "𜴶", "𜴷", "𜴸", "𜴹", "𜴺", "𜴻", "𜴼",
+      "𜴽", "𜴾", "𜴿", "𜵀", "𜵁", "𜵂", "𜵃", "𜵄", "▖",
+      "𜵅", "𜵆", "𜵇", "𜵈", "▌",    "𜵉", "𜵊", "𜵋", "𜵌",
+      "▞",    "𜵍", "𜵎", "𜵏", "𜵐", "▛",    "𜵑", "𜵒", "𜵓",
+      "𜵔", "𜵕", "𜵖", "𜵗", "𜵘", "𜵙", "𜵚", "𜵛", "𜵜",
+      "𜵝", "𜵞", "𜵟", "𜵠", "𜵡", "𜵢", "𜵣", "𜵤", "𜵥",
+      "𜵦", "𜵧", "𜵨", "𜵩", "𜵪", "𜵫", "𜵬", "𜵭", "𜵮",
+      "𜵯", "𜵰", "𜺠", "𜵱", "𜵲", "𜵳", "𜵴", "𜵵", "𜵶",
+      "𜵷", "𜵸", "𜵹", "𜵺", "𜵻", "𜵼", "𜵽", "𜵾", "𜵿",
+      "𜶀", "𜶁", "𜶂", "𜶃", "𜶄", "𜶅", "𜶆", "𜶇", "𜶈",
+      "𜶉", "𜶊", "𜶋", "𜶌", "𜶍", "𜶎", "𜶏", "▗",    "𜶐",
+      "𜶑", "𜶒", "𜶓", "▚",    "𜶔", "𜶕", "𜶖", "𜶗", "▐",
+      "𜶘", "𜶙", "𜶚", "𜶛", "▜",    "𜶜", "𜶝", "𜶞", "𜶟",
+      "𜶠", "𜶡", "𜶢", "𜶣", "𜶤", "𜶥", "𜶦", "𜶧", "𜶨",
+      "𜶩", "𜶪", "𜶫", "▂",    "𜶬", "𜶭", "𜶮", "𜶯", "𜶰",
+      "𜶱", "𜶲", "𜶳", "𜶴", "𜶵", "𜶶", "𜶷", "𜶸", "𜶹",
+      "𜶺", "𜶻", "𜶼", "𜶽", "𜶾", "𜶿", "𜷀", "𜷁", "𜷂",
+      "𜷃", "𜷄", "𜷅", "𜷆", "𜷇", "𜷈", "𜷉", "𜷊", "𜷋",
+      "𜷌", "𜷍", "𜷎", "𜷏", "𜷐", "𜷑", "𜷒", "𜷓", "𜷔",
+      "𜷕", "𜷖", "𜷗", "𜷘", "𜷙", "𜷚", "▄",    "𜷛", "𜷜",
+      "𜷝", "𜷞", "▙",    "𜷟", "𜷠", "𜷡", "𜷢", "▟",    "𜷣",
+      "▆",    "𜷤", "𜷥", "█",
+  };
+  process8up(job, tiles);
+}
+
 static gvdevice_engine_t engine3 = {
     .format = process3,
 };
@@ -263,8 +300,12 @@ static gvdevice_engine_t engine6up = {
     .format = process6up,
 };
 
-static gvdevice_engine_t engine8up = {
+static gvdevice_engine_t engine8up1 = {
     .format = process8up1,
+};
+
+static gvdevice_engine_t engine8up2 = {
+    .format = process8up2,
 };
 
 static gvdevice_features_t device_features = {
@@ -276,7 +317,8 @@ static gvplugin_installed_t device_types[] = {
     {1 << 24, "vt-24bit:cairo", 0, &engine24, &device_features},
     {4, "vt-4up:cairo", 0, &engine4up, &device_features},
     {6, "vt-6up:cairo", 0, &engine6up, &device_features},
-    {7, "vt-8up:cairo", 0, &engine8up, &device_features},
+    {7, "vt-8up:cairo", 0, &engine8up1, &device_features},
+    {9, "vt-8up2:cairo", 0, &engine8up2, &device_features},
     {0},
 };
 

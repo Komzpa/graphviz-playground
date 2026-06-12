@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When using the fdp layout algorithm (`dot -Kfdp …` or `fdp …`), a new command
   line option `-Lm…` is supported for controlling the “m-limit”. See the man
   page for details about this option. #954
+- The vt plugin has a new option for using Unicode octant characters to render
+  8-pixels-per-cell output, `-Tvt-8up2`.
 
 ### Fixed
 
