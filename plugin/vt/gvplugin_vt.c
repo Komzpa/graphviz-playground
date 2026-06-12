@@ -312,13 +312,22 @@ static gvdevice_features_t device_features = {
     .default_dpi = {96, 96},
 };
 
+enum {
+  PPC2_3,       // 2 pixels per cell, 3-bit color
+  PPC2_24,      // 2 pixels per cell, 24-bit color
+  PPC4,         // 4 pixels per cell
+  PPC6,         // 6 pixels per cell
+  PPC8_BRAILLE, // 8 pixels per cell with Braille
+  PPC8_OCTANTS, // 8 pixels per cell with octants
+};
+
 static gvplugin_installed_t device_types[] = {
-    {8, "vt:cairo", 0, &engine3, &device_features},
-    {1 << 24, "vt-24bit:cairo", 0, &engine24, &device_features},
-    {4, "vt-4up:cairo", 0, &engine4up, &device_features},
-    {6, "vt-6up:cairo", 0, &engine6up, &device_features},
-    {7, "vt-8up:cairo", 0, &engine8up1, &device_features},
-    {9, "vt-8up2:cairo", 0, &engine8up2, &device_features},
+    {PPC2_3, "vt:cairo", 0, &engine3, &device_features},
+    {PPC2_24, "vt-24bit:cairo", 0, &engine24, &device_features},
+    {PPC4, "vt-4up:cairo", 0, &engine4up, &device_features},
+    {PPC6, "vt-6up:cairo", 0, &engine6up, &device_features},
+    {PPC8_BRAILLE, "vt-8up:cairo", 0, &engine8up1, &device_features},
+    {PPC8_OCTANTS, "vt-8up2:cairo", 0, &engine8up2, &device_features},
     {0},
 };
 
