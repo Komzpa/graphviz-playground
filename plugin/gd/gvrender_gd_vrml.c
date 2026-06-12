@@ -571,7 +571,6 @@ static void vrml_polygon(GVJ_t *job, pointf *A, size_t np, int filled) {
     pointf p, mp;
     gdPoint *points;
     int pen;
-    gdImagePtr brush = NULL;
     double theta;
     state_t *state = job->context;
 
@@ -587,7 +586,7 @@ static void vrml_polygon(GVJ_t *job, pointf *A, size_t np, int filled) {
 	break;
     case NODE_OBJTYPE:
 	n = obj->u.n;
-	pen = set_penstyle(job, state->im, brush);
+	pen = set_penstyle(job, state->im, NULL);
 	points = gv_calloc(np, sizeof(gdPoint));
 	for (size_t i = 0; i < np; i++) {
 	    mp = vrml_node_point(job, n, A[i]);
@@ -599,8 +598,6 @@ static void vrml_polygon(GVJ_t *job, pointf *A, size_t np, int filled) {
 	    gdImageFilledPolygon(state->im, points, (int)np, color_index(state->im, obj->fillcolor));
 	gdImagePolygon(state->im, points, (int)np, pen);
 	free(points);
-	if (brush)
-	    gdImageDestroy(brush);
 
 	gvputs(job,   "Shape {\n"
 	              "  appearance Appearance {\n"
