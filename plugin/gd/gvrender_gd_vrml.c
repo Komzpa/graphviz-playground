@@ -714,7 +714,6 @@ static void vrml_ellipse(GVJ_t * job, pointf * A, int filled)
     pointf npf, nqf;
     point np;
     int pen;
-    gdImagePtr brush = NULL;
     state_t *state = job->context;
 
     rx = A[1].x - A[0].x;
@@ -730,7 +729,7 @@ static void vrml_ellipse(GVJ_t * job, pointf * A, int filled)
 	    doSphere(job, A[0], z, rx);
 	    return;
 	}
-	pen = set_penstyle(job, state->im, brush);
+	pen = set_penstyle(job, state->im, NULL);
 
 	npf = vrml_node_point(job, n, A[0]);
 	nqf = vrml_node_point(job, n, A[1]);
@@ -743,9 +742,6 @@ static void vrml_ellipse(GVJ_t * job, pointf * A, int filled)
 	if (filled)
 	    gdImageFilledEllipse(state->im, np.x, np.y, dx, dy, color_index(state->im, obj->fillcolor));
 	gdImageArc(state->im, np.x, np.y, dx, dy, 0, 360, pen);
-
-	if (brush)
-	    gdImageDestroy(brush);
 
 	gvputs(job,   "Transform {\n");
 	gvprintf(job, "  translation %.3f %.3f %.3f\n", A[0].x, A[0].y, z);
