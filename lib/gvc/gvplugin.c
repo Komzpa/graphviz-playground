@@ -226,7 +226,7 @@ gvplugin_library_t *gvplugin_library_load(GVC_t *gvc, const char *pathname) {
     }
     free(sym);
     agxbfree(&fullpath);
-    return (gvplugin_library_t *)ptr;
+    return ptr;
 #else
     (void)gvc;
     (void)pathname;
