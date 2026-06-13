@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <gvc/gvconfig.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -294,7 +295,7 @@ char * gvconfig_libdir(GVC_t * gvc)
 {
     static char line[BSZ];
     agxbuf libdir = {0};
-    static bool dirShown = false;
+    static atomic_flag dirShown;
 
     const char *const gvbindir = getenv("GVBINDIR");
     if (gvbindir != NULL) {
@@ -378,9 +379,8 @@ char * gvconfig_libdir(GVC_t * gvc)
 #endif
     }
     char *const dir = agxbdisown(&libdir);
-    if (gvc->common.verbose && !dirShown) {
+    if (gvc->common.verbose && !atomic_flag_test_and_set(&dirShown)) {
 	fprintf(stderr, "libdir = \"%s\"\n", dir);
-	dirShown = true;
     }
     return dir;
 }
