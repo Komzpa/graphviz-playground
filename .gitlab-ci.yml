@@ -255,30 +255,6 @@ rocky10-build:
     variables:
       IMAGE: rocky10
 
-fedora41-build:
-    <<: *rpm_build_definition
-    needs:
-        - job: docker_build_fedora41
-          artifacts: false
-        - job: portable-source
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora41
-
-fedora42-build:
-    <<: *rpm_build_definition
-    needs:
-        - job: docker_build_fedora42
-          artifacts: false
-        - job: portable-source
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora42
-
 fedora43-build:
     <<: *rpm_build_definition
     needs:
@@ -567,6 +543,23 @@ ubuntu-25.10-cmake-build:
     variables:
       IMAGE: ubuntu-25.10
 
+ubuntu-26.04-cmake-build:
+    <<: *deb_build_definition
+    needs:
+        - job: docker_build_ubuntu-26.04
+          artifacts: false
+    before_script:
+        - export build_system="cmake"
+        # fail on any compiler warnings
+        - export CFLAGS="-Werror"
+        - export CXXFLAGS="-Werror"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_SMYRNA=OFF"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_RUBY=OFF"
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: ubuntu-26.04
+
 ubuntu-24.04-cmake-minimal-build:
     <<: *deb_build_definition
     needs:
@@ -698,46 +691,6 @@ rocky10-cmake-build:
         - saas-linux-small-amd64
     variables:
       IMAGE: rocky10
-
-fedora41-cmake-build:
-    <<: *rpm_build_definition
-    needs:
-        - job: docker_build_fedora41
-          artifacts: false
-    before_script:
-        - export build_system="cmake"
-        # fail on any compiler warnings
-        - export CFLAGS="-Werror"
-        - export CXXFLAGS="-Werror"
-        - export CMAKE_OPTIONS="-DWITH_SMYRNA=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_LTDL=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_EXPAT=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_GVEDIT=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_ZLIB=ON"
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora41
-
-fedora42-cmake-build:
-    <<: *rpm_build_definition
-    needs:
-        - job: docker_build_fedora42
-          artifacts: false
-    before_script:
-        - export build_system="cmake"
-        # fail on any compiler warnings
-        - export CFLAGS="-Werror"
-        - export CXXFLAGS="-Werror"
-        - export CMAKE_OPTIONS="-DWITH_SMYRNA=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_LTDL=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_EXPAT=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_GVEDIT=ON"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_ZLIB=ON"
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora42
 
 fedora43-cmake-build:
     <<: *rpm_build_definition
@@ -1059,30 +1012,6 @@ rocky10-test:
     variables:
       IMAGE: rocky10
 
-fedora41-test:
-    <<: *linux_test_definition
-    before_script:
-        - export build_system="autotools"
-    needs:
-        - job: "fedora41-build"
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora41
-
-fedora42-test:
-    <<: *linux_test_definition
-    before_script:
-        - export build_system="autotools"
-    needs:
-        - job: "fedora42-build"
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora42
-
 fedora43-test:
     <<: *linux_test_definition
     before_script:
@@ -1151,6 +1080,18 @@ ubuntu-25.10-cmake-test:
     variables:
       IMAGE: ubuntu-25.10
 
+ubuntu-26.04-cmake-test:
+    <<: *linux_test_definition
+    before_script:
+        - export build_system="cmake"
+    needs:
+        - job: "ubuntu-26.04-cmake-build"
+          artifacts: true
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: ubuntu-26.04
+
 rocky8-cmake-test:
     <<: *linux_test_definition
     before_script:
@@ -1186,30 +1127,6 @@ rocky10-cmake-test:
         - saas-linux-small-amd64
     variables:
       IMAGE: rocky10
-
-fedora41-cmake-test:
-    <<: *linux_test_definition
-    before_script:
-        - export build_system="cmake"
-    needs:
-        - job: "fedora41-cmake-build"
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora41
-
-fedora42-cmake-test:
-    <<: *linux_test_definition
-    before_script:
-        - export build_system="cmake"
-    needs:
-        - job: "fedora42-cmake-build"
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: fedora42
 
 fedora43-cmake-test:
     <<: *linux_test_definition
@@ -1361,16 +1278,6 @@ docker_build_rocky10:
   variables:
     IMAGE: rocky10
 
-docker_build_fedora41:
-  <<: *docker_build_definition
-  variables:
-    IMAGE: fedora41
-
-docker_build_fedora42:
-  <<: *docker_build_definition
-  variables:
-    IMAGE: fedora42
-
 docker_build_fedora43:
   <<: *docker_build_definition
   variables:
@@ -1416,20 +1323,6 @@ docker_push_rocky10:
     IMAGE: rocky10
   needs:
     - docker_build_rocky10
-
-docker_push_fedora41:
-  <<: *docker_push_definition
-  variables:
-    IMAGE: fedora41
-  needs:
-    - docker_build_fedora41
-
-docker_push_fedora42:
-  <<: *docker_push_definition
-  variables:
-    IMAGE: fedora42
-  needs:
-    - docker_build_fedora42
 
 docker_push_fedora43:
   <<: *docker_push_definition
