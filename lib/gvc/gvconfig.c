@@ -293,7 +293,6 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 
 char * gvconfig_libdir(GVC_t * gvc)
 {
-    char line[BSZ] = {0};
     agxbuf libdir = {0};
     static atomic_flag dirShown;
 
@@ -310,17 +309,20 @@ char * gvconfig_libdir(GVC_t * gvc)
             agerrorf("failed to get handle for executable.\n");
             return 0;
         }
-        r = GetModuleFileName((HMODULE)mbi.AllocationBase, line, BSZ);
-        if (!r || (r == BSZ)) {
-            agerrorf("failed to get path for executable.\n");
-            return 0;
+        {
+            char line[BSZ] = {0};
+            r = GetModuleFileName((HMODULE)mbi.AllocationBase, line, BSZ);
+            if (!r || (r == BSZ)) {
+                agerrorf("failed to get path for executable.\n");
+                return 0;
+            }
+            s = strrchr(line,'\\');
+            if (!s) {
+                agerrorf("no slash in path %s.\n", line);
+                return 0;
+            }
+            agxbput_n(&libdir, line, (size_t)(s - line));
         }
-        s = strrchr(line,'\\');
-        if (!s) {
-            agerrorf("no slash in path %s.\n", line);
-            return 0;
-        }
-        agxbput_n(&libdir, line, (size_t)(s - line));
 #else
         agxbput(&libdir, GVLIBDIR);
 #ifdef __APPLE__
@@ -347,13 +349,17 @@ char * gvconfig_libdir(GVC_t * gvc)
             }
         }
 #elif defined(HAVE_DL_ITERATE_PHDR)
-        dl_iterate_phdr(line_callback, line);
-        agxbclear(&libdir);
-        agxbput(&libdir, line);
+        {
+            char line[BSZ] = {0};
+            dl_iterate_phdr(line_callback, line);
+            agxbclear(&libdir);
+            agxbput(&libdir, line);
+        }
 #else
         FILE* f = gv_fopen("/proc/self/maps", "r");
         if (f) {
             while (!feof(f)) {
+                char line[BSZ] = {0};
                 if (!fgets(line, sizeof (line), f))
                     continue;
                 if (!strstr(line, " r-xp "))
