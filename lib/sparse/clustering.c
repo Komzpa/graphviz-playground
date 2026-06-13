@@ -11,6 +11,7 @@
 #include "config.h"
 
 #define STANDALONE
+#include <assert.h>
 #include <math.h>
 #include <sparse/general.h>
 #include <sparse/SparseMatrix.h>
@@ -366,7 +367,7 @@ void modularity_clustering(SparseMatrix A, bool inplace, int ncluster_target,
 
   B = SparseMatrix_remove_diagonal(B);
 
-  if (B->type != MATRIX_TYPE_REAL) B = SparseMatrix_set_entries_to_real_one(B);
+  assert(B->type == MATRIX_TYPE_REAL);
 
   hierachical_modularity_clustering(B, ncluster_target, nclusters, assignment, modularity);
 

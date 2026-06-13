@@ -58,6 +58,7 @@
 #include "config.h"
 
 #define STANDALONE
+#include <assert.h>
 #include <limits.h>
 #include <sparse/general.h>
 #include <sparse/SparseMatrix.h>
@@ -601,7 +602,7 @@ void mq_clustering(SparseMatrix A, int maxcluster,
 
   B = SparseMatrix_remove_diagonal(B);
 
-  if (B->type != MATRIX_TYPE_REAL) B = SparseMatrix_set_entries_to_real_one(B);
+  assert(B->type == MATRIX_TYPE_REAL);
 
   hierachical_mq_clustering(B, maxcluster, nclusters, assignment, mq);
 

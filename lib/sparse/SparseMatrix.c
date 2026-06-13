@@ -304,20 +304,6 @@ static SparseMatrix SparseMatrix_realloc(SparseMatrix A, size_t nz) {
   return A;
 }
 
-SparseMatrix SparseMatrix_new(int m, int n, size_t nz, int type, int format) {
-  /* return a sparse matrix skeleton with row dimension m and storage nz. If nz == 0, 
-     only row pointers are allocated */
-  SparseMatrix A;
-  size_t sz;
-
-  sz = size_of_matrix_type(type);
-  A = SparseMatrix_init(m, n, type, sz, format);
-
-  if (nz > 0) SparseMatrix_alloc(A, nz);
-  return A;
-
-}
-
 /// a generalized version of `SparseMatrix_new`
 ///
 /// Allows elements to be any data structure, not just real/int/complex etc
@@ -334,6 +320,13 @@ static SparseMatrix SparseMatrix_general_new(int m, int n, size_t nz, int type,
   if (nz > 0) SparseMatrix_alloc(A, nz);
   return A;
 
+}
+
+SparseMatrix SparseMatrix_new(int m, int n, size_t nz, int type, int format) {
+  /* return a sparse matrix skeleton with row dimension m and storage nz. If nz == 0,
+     only row pointers are allocated */
+  return SparseMatrix_general_new(m, n, nz, type, size_of_matrix_type(type),
+                                  format);
 }
 
 void SparseMatrix_delete(SparseMatrix A){
@@ -663,43 +656,23 @@ void SparseMatrix_multiply_vector(SparseMatrix A, double *v, double **res) {
   switch (A->type){
   case MATRIX_TYPE_REAL:
     a = A->a;
-    if (v){
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += a[j]*v[ja[j]];
-	}
-      }
-    } else {
-      /* v is assumed to be all 1's */
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += a[j];
-	}
+    assert(v != NULL);
+    if (!u) u = gv_calloc((size_t)m, sizeof(double));
+    for (i = 0; i < m; i++){
+      u[i] = 0.;
+      for (j = ia[i]; j < ia[i+1]; j++){
+	u[i] += a[j]*v[ja[j]];
       }
     }
     break;
   case MATRIX_TYPE_INTEGER:
     ai = A->a;
-    if (v){
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += ai[j]*v[ja[j]];
-	}
-      }
-    } else {
-      /* v is assumed to be all 1's */
-      if (!u) u = gv_calloc((size_t)m, sizeof(double));
-      for (i = 0; i < m; i++){
-	u[i] = 0.;
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  u[i] += ai[j];
-	}
+    assert(v != NULL);
+    if (!u) u = gv_calloc((size_t)m, sizeof(double));
+    for (i = 0; i < m; i++){
+      u[i] = 0.;
+      for (j = ia[i]; j < ia[i+1]; j++){
+	u[i] += ai[j]*v[ja[j]];
       }
     }
     break;
@@ -1637,19 +1610,6 @@ SparseMatrix SparseMatrix_get_submatrix(SparseMatrix A, int nrow, int ncol, int 
 
 
   return B;
-
-}
-
-SparseMatrix SparseMatrix_set_entries_to_real_one(SparseMatrix A){
-  double *a;
-
-  free(A->a);
-  A->a = gv_calloc(A->nz, sizeof(double));
-  a = A->a;
-  for (size_t i = 0; i < A->nz; i++) a[i] = 1.;
-  A->type = MATRIX_TYPE_REAL;
-  A->size = sizeof(double);
-  return A;
 
 }
 

@@ -92,7 +92,7 @@ bool SparseMatrix_is_symmetric(SparseMatrix A, bool test_pattern_symmetry_only);
 SparseMatrix SparseMatrix_transpose(SparseMatrix A);
 SparseMatrix SparseMatrix_symmetrize(SparseMatrix A,
                                      bool pattern_symmetric_only);
-void SparseMatrix_multiply_vector(SparseMatrix A, double *v, double **res);/* if v = NULL, v is assumed to be {1,1,...,1}*/
+void SparseMatrix_multiply_vector(SparseMatrix A, double *v, double **res);
 SparseMatrix SparseMatrix_remove_diagonal(SparseMatrix A);
 SparseMatrix SparseMatrix_remove_upper(SparseMatrix A);/* remove diag and upper diag */
 SparseMatrix SparseMatrix_divide_row_by_degree(SparseMatrix A);
@@ -119,8 +119,6 @@ SparseMatrix SparseMatrix_get_augmented(SparseMatrix A);
 SparseMatrix SparseMatrix_to_square_matrix(SparseMatrix A, int bipartite_options);
 
 SparseMatrix SparseMatrix_sort(SparseMatrix A);
-
-SparseMatrix SparseMatrix_set_entries_to_real_one(SparseMatrix A);
 
 /// compute a distance matrix
 ///
