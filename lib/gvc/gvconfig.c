@@ -293,7 +293,7 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 
 char * gvconfig_libdir(GVC_t * gvc)
 {
-    static char line[BSZ];
+    char line[BSZ] = {0};
     agxbuf libdir = {0};
     static atomic_flag dirShown;
 
