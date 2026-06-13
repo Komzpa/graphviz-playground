@@ -364,7 +364,7 @@ char * gvconfig_libdir(GVC_t * gvc)
                 if (tmp) {
                     *tmp = 0;
                     /* Check for real /lib dir. Don't accept pre-install /.libs */
-                    if (strcmp(strrchr(p, '/'), "/.libs") == 0)
+                    if (strcmp(strrchr(p, '/'), DOTLIBS) == 0)
                         continue;
                     /* plugins are in "graphviz" subdirectory */
                     agxbclear(&libdir);
