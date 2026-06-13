@@ -151,7 +151,6 @@ static void gvplugin_activate(GVC_t * gvc, api_t api, const char *typestr,
 gvplugin_library_t *gvplugin_library_load(GVC_t *gvc, const char *pathname) {
 #ifdef ENABLE_LTDL
     lt_dlhandle hndl;
-    lt_ptr ptr;
     char *s;
     size_t len;
     char *libdir;
@@ -217,7 +216,7 @@ gvplugin_library_t *gvplugin_library_load(GVC_t *gvc, const char *pathname) {
 #endif
     strcpy(s, suffix);          /* append "_LTX_library" */
 
-    ptr = lt_dlsym(hndl, sym);
+    lt_ptr ptr = lt_dlsym(hndl, sym);
     if (!ptr) {
         agerrorf("failed to resolve %s in %s\n", sym, p);
         free(sym);
