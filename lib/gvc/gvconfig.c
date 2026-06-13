@@ -297,95 +297,93 @@ char * gvconfig_libdir(GVC_t * gvc)
     bool is_libdir_heap_allocated = false;
     static bool dirShown = false;
 
+    libdir = getenv("GVBINDIR");
     if (!libdir) {
-        libdir=getenv("GVBINDIR");
-	if (!libdir) {
 #ifdef _WIN32
-	    int r;
-	    char* s;
-		
-		MEMORY_BASIC_INFORMATION mbi;
-		if (VirtualQuery (&gvconfig_libdir, &mbi, sizeof(mbi)) == 0) {
-		agerrorf("failed to get handle for executable.\n");
-		return 0;
-	    }
-	    r = GetModuleFileName ((HMODULE)mbi.AllocationBase, line, BSZ);
-	    if (!r || (r == BSZ)) {
-		agerrorf("failed to get path for executable.\n");
-		return 0;
-	    }
-	    s = strrchr(line,'\\');
-	    if (!s) {
-		agerrorf("no slash in path %s.\n", line);
-		return 0;
-	    }
-	    *s = '\0';
-	    libdir = line;
-#else
-	    libdir = GVLIBDIR;	    
-#ifdef __APPLE__
-	    uint32_t i, c = _dyld_image_count();
-	    size_t len, ind;
-	    for (i = 0; i < c; ++i) {
-		const char *p = _dyld_get_image_name(i);
-		const char* tmp = strstr(p, "/libgvc.");
-		if (tmp) {
-		    if (tmp > p) {
-			/* Check for real /lib dir. Don't accept pre-install /.libs */
-			const char *s = tmp - 1;
-			/* back up to previous slash (or head of string) */
-			while (*s != '/' && s > p) s--;
-			if (startswith(s, DOTLIBS))
-			    continue;
-		    }
+        int r;
+        char *s;
 
-		    ind = tmp - p; // byte offset
-		    len = ind + sizeof("/graphviz");
-		    if (len < BSZ)
-			libdir = line;
-		    else {
-		        libdir = gv_alloc(len);
-		        is_libdir_heap_allocated = true;
-		    }
-		    if (ind > 0) {
-		        memmove(libdir, p, ind);
-		    }
-		    /* plugins are in "graphviz" subdirectory */
-		    strcpy(libdir+ind, "/graphviz");  
-		    break;
-		}
-	    }
-#elif defined(HAVE_DL_ITERATE_PHDR)
-	    dl_iterate_phdr(line_callback, line);
-	    libdir = line;
+        MEMORY_BASIC_INFORMATION mbi;
+        if (VirtualQuery(&gvconfig_libdir, &mbi, sizeof(mbi)) == 0) {
+            agerrorf("failed to get handle for executable.\n");
+            return 0;
+        }
+        r = GetModuleFileName((HMODULE)mbi.AllocationBase, line, BSZ);
+        if (!r || (r == BSZ)) {
+            agerrorf("failed to get path for executable.\n");
+            return 0;
+        }
+        s = strrchr(line,'\\');
+        if (!s) {
+            agerrorf("no slash in path %s.\n", line);
+            return 0;
+        }
+        *s = '\0';
+        libdir = line;
 #else
-	    FILE* f = gv_fopen("/proc/self/maps", "r");
-	    if (f) {
-		while (!feof (f)) {
-		    if (!fgets (line, sizeof (line), f))
-			continue;
-		    if (!strstr (line, " r-xp "))
-			continue;
-		    char *p = strchr(line, '/');
-		    if (!p)
-		        continue;
-		    char* tmp = strstr(p, "/libgvc.");
-		    if (tmp) {
-			*tmp = 0;
-			/* Check for real /lib dir. Don't accept pre-install /.libs */
-			if (strcmp(strrchr(p, '/'), "/.libs") == 0)
-			    continue;
-			memmove(line, p, strlen(p) + 1); // use line buffer for result
-			strcat(line, "/graphviz");  /* plugins are in "graphviz" subdirectory */
-			libdir = line;
-			break;
-		    }
-		}
-		fclose (f);
-	    }
+        libdir = GVLIBDIR;	    
+#ifdef __APPLE__
+        uint32_t i, c = _dyld_image_count();
+        size_t len, ind;
+        for (i = 0; i < c; ++i) {
+            const char *p = _dyld_get_image_name(i);
+            const char* tmp = strstr(p, "/libgvc.");
+            if (tmp) {
+                if (tmp > p) {
+                    /* Check for real /lib dir. Don't accept pre-install /.libs */
+                    const char *s = tmp - 1;
+                    /* back up to previous slash (or head of string) */
+                    while (*s != '/' && s > p) s--;
+                    if (startswith(s, DOTLIBS))
+                        continue;
+                }
+
+                ind = tmp - p; // byte offset
+                len = ind + sizeof("/graphviz");
+                if (len < BSZ)
+                    libdir = line;
+                else {
+                    libdir = gv_alloc(len);
+                    is_libdir_heap_allocated = true;
+                }
+                if (ind > 0) {
+                    memmove(libdir, p, ind);
+                }
+                /* plugins are in "graphviz" subdirectory */
+                strcpy(libdir+ind, "/graphviz");  
+                break;
+            }
+        }
+#elif defined(HAVE_DL_ITERATE_PHDR)
+        dl_iterate_phdr(line_callback, line);
+        libdir = line;
+#else
+        FILE* f = gv_fopen("/proc/self/maps", "r");
+        if (f) {
+            while (!feof(f)) {
+                if (!fgets(line, sizeof (line), f))
+                    continue;
+                if (!strstr(line, " r-xp "))
+                    continue;
+                char *p = strchr(line, '/');
+                if (!p)
+                    continue;
+                char* tmp = strstr(p, "/libgvc.");
+                if (tmp) {
+                    *tmp = 0;
+                    /* Check for real /lib dir. Don't accept pre-install /.libs */
+                    if (strcmp(strrchr(p, '/'), "/.libs") == 0)
+                        continue;
+                    memmove(line, p, strlen(p) + 1); // use line buffer for result
+                    strcat(line, "/graphviz");  /* plugins are in "graphviz" subdirectory */
+                    libdir = line;
+                    break;
+                }
+            }
+            fclose (f);
+        }
 #endif
 #endif
-	}
     }
     if (gvc->common.verbose && !dirShown) {
 	fprintf (stderr, "libdir = \"%s\"\n", (libdir ? libdir : "<null>"));
