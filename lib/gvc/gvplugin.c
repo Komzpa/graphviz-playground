@@ -203,24 +203,28 @@ gvplugin_library_t *gvplugin_library_load(GVC_t *gvc, const char *pathname) {
         agxbfree(&fullpath);
         return NULL;
     }
-    char *sym = gv_alloc(len + strlen(suffix) + 1);
 #if defined(_WIN32) && !defined(__MINGW32__) && !defined(__CYGWIN__)
-    strcpy(sym, s + 1);         /* strip leading "/"  */
+    const char *const no_prefix = s + 1; // strip leading “/”
 #else
-    strcpy(sym, s + 4);         /* strip leading "/lib" or "/cyg" */
+    const char *const no_prefix = s + 4; // strip leading “/lib” or “/cyg”
 #endif
 #if defined(__CYGWIN__) || defined(__MINGW32__)
-    s = strchr(sym, '-');       /* strip trailing "-1.dll" */
+    // strip trailing “-1.dll”
+    const strview_t no_suffix = strview(no_prefix, '-');
 #else
-    s = strchr(sym, '.');       /* strip trailing ".so.0" or ".dll" or ".sl" */
+    // strip trailing “.so.0” or “.dll” or “.sl”
+    const strview_t no_suffix = strview(no_prefix, '.');
 #endif
-    strcpy(s, suffix);          /* append "_LTX_library" */
+    agxbuf sym_buf = {0};
+    // append “_LTX_library”
+    agxbprint(&sym_buf, "%.*s%s", (int)no_suffix.size, no_suffix.data, suffix);
 
+    const char *const sym = agxbuse(&sym_buf);
     lt_ptr ptr = lt_dlsym(hndl, sym);
     if (!ptr) {
         agerrorf("failed to resolve %s in %s\n", sym, p);
     }
-    free(sym);
+    agxbfree(&sym_buf);
     agxbfree(&fullpath);
     return ptr;
 #else
