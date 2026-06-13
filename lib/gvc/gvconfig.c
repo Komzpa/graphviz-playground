@@ -282,6 +282,7 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
         for (slash = tmp - 1; *slash != '/'; --slash);
         /* Check for real /lib dir. Don't accept pre-install /.libs */
         if (strncmp(slash, DOTLIBS, (size_t)(tmp - slash)) != 0) {
+            agxbclear(xb);
             // plugins are in "graphviz" subdirectory
             agxbprint(xb, "%.*s/graphviz", (int)(tmp - p), p);
             return 1;
@@ -349,7 +350,6 @@ char * gvconfig_libdir(GVC_t * gvc)
             }
         }
 #elif defined(HAVE_DL_ITERATE_PHDR)
-        agxbclear(&libdir);
         dl_iterate_phdr(line_callback, &libdir);
 #else
         FILE* f = gv_fopen("/proc/self/maps", "r");
