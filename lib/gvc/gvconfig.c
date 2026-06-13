@@ -274,6 +274,7 @@ static void gvconfig_write_library_config(GVC_t *gvc, char *lib_path,
 static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 {
    const char *p = info->dlpi_name;
+   agxbuf *const xb = line;
    const char *const tmp = strstr(p, "/libgvc.");
    (void) size;
    if (tmp) {
@@ -282,8 +283,7 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
         /* Check for real /lib dir. Don't accept pre-install /.libs */
         if (strncmp(slash, DOTLIBS, (size_t)(tmp - slash)) != 0) {
             // plugins are in "graphviz" subdirectory
-            snprintf(line, BSZ, "%.*s/graphviz", (int)(tmp - p), p);
-              // use line buffer for result
+            agxbprint(xb, "%.*s/graphviz", (int)(tmp - p), p);
             return 1;
         }
    }
@@ -349,12 +349,8 @@ char * gvconfig_libdir(GVC_t * gvc)
             }
         }
 #elif defined(HAVE_DL_ITERATE_PHDR)
-        {
-            char line[BSZ] = {0};
-            dl_iterate_phdr(line_callback, line);
-            agxbclear(&libdir);
-            agxbput(&libdir, line);
-        }
+        agxbclear(&libdir);
+        dl_iterate_phdr(line_callback, &libdir);
 #else
         FILE* f = gv_fopen("/proc/self/maps", "r");
         if (f) {
