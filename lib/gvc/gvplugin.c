@@ -171,6 +171,7 @@ gvplugin_library_t *gvplugin_library_load(GVC_t *gvc, const char *pathname) {
     } else {
         agxbprint(&fullpath, "%s%c%s", libdir, PATH_SEPARATOR, pathname);
     }
+    free(libdir);
 
     if (lt_dlinit()) {
         agerrorf("failed to init libltdl\n");

@@ -293,7 +293,8 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 char * gvconfig_libdir(GVC_t * gvc)
 {
     static char line[BSZ];
-    static char *libdir;
+    char *libdir = NULL;
+    bool is_libdir_heap_allocated = false;
     static bool dirShown = false;
 
     if (!libdir) {
@@ -342,8 +343,10 @@ char * gvconfig_libdir(GVC_t * gvc)
 		    len = ind + sizeof("/graphviz");
 		    if (len < BSZ)
 			libdir = line;
-		    else
+		    else {
 		        libdir = gv_alloc(len);
+		        is_libdir_heap_allocated = true;
+		    }
 		    if (ind > 0) {
 		        memmove(libdir, p, ind);
 		    }
@@ -387,6 +390,9 @@ char * gvconfig_libdir(GVC_t * gvc)
     if (gvc->common.verbose && !dirShown) {
 	fprintf (stderr, "libdir = \"%s\"\n", (libdir ? libdir : "<null>"));
 	dirShown = true;
+    }
+    if (libdir != NULL && !is_libdir_heap_allocated) {
+	return gv_strdup(libdir);
     }
     return libdir;
 }
@@ -506,6 +512,7 @@ static void config_rescan(GVC_t *gvc, char *config_path)
 
     agxbuf config_glob = {0};
     agxbprint(&config_glob, "%s%c%s", libdir, PATH_SEPARATOR, plugin_glob);
+    free(libdir);
 
     /* load all libraries even if can't save config */
 
@@ -569,6 +576,7 @@ void gvconfig(GVC_t * gvc, bool rescan)
         libdir = gvconfig_libdir(gvc);
         if (access(libdir, F_OK) < 0) {
     	    /* if we fail to stat it then it probably doesn't exist so just fail silently */
+	    free(libdir);
 	    goto done;
         }
     
@@ -577,6 +585,7 @@ void gvconfig(GVC_t * gvc, bool rescan)
             agxbprint(&xb, "%s%c%s", libdir, PATH_SEPARATOR, config_file_name);
             gvc->config_path = agxbdisown(&xb);
         }
+        free(libdir);
     	
         if (rescan) {
     	    config_rescan(gvc, gvc->config_path);
@@ -684,11 +693,13 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
     }
 
     LIST_DETACH(&strs, &pglob->gl_pathv, &pglob->gl_pathc);
+    free(libdir);
     
     return 0;
 
 oom:
     LIST_FREE(&strs);
+    free(libdir);
     return GLOB_NOSPACE;
 }
 
