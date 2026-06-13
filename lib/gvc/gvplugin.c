@@ -219,9 +219,6 @@ gvplugin_library_t *gvplugin_library_load(GVC_t *gvc, const char *pathname) {
     lt_ptr ptr = lt_dlsym(hndl, sym);
     if (!ptr) {
         agerrorf("failed to resolve %s in %s\n", sym, p);
-        free(sym);
-        agxbfree(&fullpath);
-        return NULL;
     }
     free(sym);
     agxbfree(&fullpath);
