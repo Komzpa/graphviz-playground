@@ -200,7 +200,6 @@ EXCLUDE = (
     "lib/dotgen/dotprocs.h",
     "lib/dotgen/fastgr.c",
     "lib/dotgen/flat.c",
-    "lib/dotgen/mincross.c",
     "lib/dotgen/position.c",
     "lib/dotgen/rank.c",
     "lib/dotgen/sameport.c",
