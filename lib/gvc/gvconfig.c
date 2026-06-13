@@ -293,12 +293,13 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 char * gvconfig_libdir(GVC_t * gvc)
 {
     static char line[BSZ];
-    char *libdir = NULL;
-    bool is_libdir_heap_allocated = false;
+    agxbuf libdir = {0};
     static bool dirShown = false;
 
-    libdir = getenv("GVBINDIR");
-    if (!libdir) {
+    const char *const gvbindir = getenv("GVBINDIR");
+    if (gvbindir != NULL) {
+        agxbput(&libdir, gvbindir);
+    } else {
 #ifdef _WIN32
         int r;
         char *s;
@@ -318,13 +319,12 @@ char * gvconfig_libdir(GVC_t * gvc)
             agerrorf("no slash in path %s.\n", line);
             return 0;
         }
-        *s = '\0';
-        libdir = line;
+        agxbput_n(&libdir, line, (size_t)(s - line));
 #else
-        libdir = GVLIBDIR;	    
+        agxbput(&libdir, GVLIBDIR);
 #ifdef __APPLE__
         uint32_t i, c = _dyld_image_count();
-        size_t len, ind;
+        size_t ind;
         for (i = 0; i < c; ++i) {
             const char *p = _dyld_get_image_name(i);
             const char* tmp = strstr(p, "/libgvc.");
@@ -339,24 +339,16 @@ char * gvconfig_libdir(GVC_t * gvc)
                 }
 
                 ind = tmp - p; // byte offset
-                len = ind + sizeof("/graphviz");
-                if (len < BSZ)
-                    libdir = line;
-                else {
-                    libdir = gv_alloc(len);
-                    is_libdir_heap_allocated = true;
-                }
-                if (ind > 0) {
-                    memmove(libdir, p, ind);
-                }
                 /* plugins are in "graphviz" subdirectory */
-                strcpy(libdir+ind, "/graphviz");  
+                agxbclear(&libdir);
+                agxbprint(&libdir, "%.*s/graphviz", (int)ind, p);
                 break;
             }
         }
 #elif defined(HAVE_DL_ITERATE_PHDR)
         dl_iterate_phdr(line_callback, line);
-        libdir = line;
+        agxbclear(&libdir);
+        agxbput(&libdir, line);
 #else
         FILE* f = gv_fopen("/proc/self/maps", "r");
         if (f) {
@@ -374,9 +366,9 @@ char * gvconfig_libdir(GVC_t * gvc)
                     /* Check for real /lib dir. Don't accept pre-install /.libs */
                     if (strcmp(strrchr(p, '/'), "/.libs") == 0)
                         continue;
-                    memmove(line, p, strlen(p) + 1); // use line buffer for result
-                    strcat(line, "/graphviz");  /* plugins are in "graphviz" subdirectory */
-                    libdir = line;
+                    /* plugins are in "graphviz" subdirectory */
+                    agxbclear(&libdir);
+                    agxbprint(&libdir, "%s/graphviz", p);
                     break;
                 }
             }
@@ -385,14 +377,12 @@ char * gvconfig_libdir(GVC_t * gvc)
 #endif
 #endif
     }
+    char *const dir = agxbdisown(&libdir);
     if (gvc->common.verbose && !dirShown) {
-	fprintf (stderr, "libdir = \"%s\"\n", (libdir ? libdir : "<null>"));
+	fprintf(stderr, "libdir = \"%s\"\n", dir);
 	dirShown = true;
     }
-    if (libdir != NULL && !is_libdir_heap_allocated) {
-	return gv_strdup(libdir);
-    }
-    return libdir;
+    return dir;
 }
 #endif
 
