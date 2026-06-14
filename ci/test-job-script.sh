@@ -48,4 +48,4 @@ elif [ "${ID}" = "Darwin" ]; then
     graphviz_ROOT=${PREFIX}
 fi
 
-python3 -m pytest -m "not slow" --junit-xml=report.xml ci/tests.py tests
+python3 -m pytest -n auto -m "not slow" --junit-xml=report.xml ci/tests.py tests
