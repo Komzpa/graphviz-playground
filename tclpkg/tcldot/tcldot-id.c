@@ -50,19 +50,6 @@ static void myiddisc_free(void *state, int objtype, uint64_t id) {
     (void)objtype;
 
     gctx_t *gctx = state;
-
-/* FIXME no obj* available
-    ictx_t *ictx = gctx->ictx;
-    char buf[32] = "";
-
-    switch (objtype) {
-        case AGRAPH: sprintf(buf,"graph%lu",id); break;
-        case AGNODE: sprintf(buf,"node%lu",id); break;
-        case AGINEDGE:
-        case AGOUTEDGE: sprintf(buf,"edge%lu",id); break;
-    }
-    Tcl_DeleteCommand(ictx->interp, buf);
-*/
     if (id % 2 == 0)
         agstrfree(gctx->g, (char *)(uintptr_t)id, false);
 }

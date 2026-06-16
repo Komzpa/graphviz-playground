@@ -492,7 +492,6 @@ static const unsigned int flag_masks[] = {0x1F, 0x3F, 0x7F};
 static void xdot_textspan(GVJ_t * job, pointf p, textspan_t * span)
 {
     emit_state_t emit_state = job->obj->emit_state;
-    unsigned flags;
     int j;
     
     agxbput(xbufs[emit_state], "F ");
@@ -512,10 +511,7 @@ static void xdot_textspan(GVJ_t * job, pointf p, textspan_t * span)
         j = 0;
         break;
     }
-    if (span->font)
-	flags = span->font->flags;
-    else
-	flags = 0;
+    const unsigned flags = span->font->flags;
     const size_t flag_masks_size = sizeof(flag_masks) / sizeof(flag_masks[0]);
     if (xd->version >= 15 && (size_t)xd->version - 15 < flag_masks_size) {
 	unsigned int mask = flag_masks[xd->version-15];
