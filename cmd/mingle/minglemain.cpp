@@ -366,7 +366,6 @@ using PointMap = std::unordered_map<std::pair<int, int>, int, PointHash>;
 
 static int bundle(Agraph_t *g, const opts_t &opts) {
 	double *x = nullptr;
-	int dim = 2;
     int i;
 
 	if (checkG(g)) {
@@ -422,7 +421,7 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 	int nz = A->nz;
 	std::vector<double> xx(nz * 4);
 	nz = 0;
-	dim = 4;
+	const int dim = 4;
 	for (i = 0; i < A->m; i++){
 		for (int j = ia[i]; j < ia[i+1]; j++){
 			if (ja[j] > i){
