@@ -89,6 +89,7 @@ void attach_edge_colors(Agraph_t *g, int dim, double *colors) {
  * but not a->b and a->b
  */
 SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
+  assert(x != NULL);
   enum { DIM = 2 };
   SparseMatrix A = 0;
   Agnode_t *n;
@@ -150,12 +151,10 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
     }
   }
 
-  if (x && (psym = agattr_text(g, AGNODE, "pos", NULL))) {
+  if ((psym = agattr_text(g, AGNODE, "pos", NULL))) {
     bool has_positions = true;
     char *pval;
-    if (!(*x)) {
-      *x = gv_calloc(DIM * nnodes, sizeof(double));
-    }
+    *x = gv_calloc(DIM * nnodes, sizeof(double));
     for (n = agfstnode(g); n && has_positions; n = agnxtnode(g, n)) {
       double xx, yy;
       int nitems;
@@ -177,7 +176,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
       free(*x);
       *x = NULL;
     }
-  } else if (x)
+  } else
     agerrorf("Error: graph %s has missing \"pos\" information", agnameof(g));
 
   size_t sz = sizeof(double);
