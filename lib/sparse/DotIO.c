@@ -503,9 +503,9 @@ SparseMatrix Import_coord_clusters_from_dot(
     if (!noclusterinfo && clust_clr_sym &&
         (colorxlate(agxget(n, clust_clr_sym), &color, RGBA_DOUBLE) ==
          COLOR_OK)) {
-      (*rgb_r)[(*clusters)[i]] = color.u.RGBA[0];
-      (*rgb_g)[(*clusters)[i]] = color.u.RGBA[1];
-      (*rgb_b)[(*clusters)[i]] = color.u.RGBA[2];
+      (*rgb_r)[(*clusters)[i]] = (float)color.u.RGBA[0];
+      (*rgb_g)[(*clusters)[i]] = (float)color.u.RGBA[1];
+      (*rgb_b)[(*clusters)[i]] = (float)color.u.RGBA[2];
     }
 
     const char *cc = agget(n, "clustercolor");
