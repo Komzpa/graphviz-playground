@@ -382,9 +382,6 @@ SparseMatrix SparseMatrix_from_coordinate_format(SparseMatrix A){
   void *a = A->a;
 
   assert(A->format == FORMAT_COORD);
-  if (A->format != FORMAT_COORD) {
-    return NULL;
-  }
   irn = A->ia;
   jcn = A->ja;
   return SparseMatrix_from_coordinate_arrays(A->nz, A->m, A->n, irn, jcn, a, A->type, A->size);
