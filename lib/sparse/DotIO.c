@@ -92,7 +92,6 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   assert(x != NULL);
   enum { DIM = 2 };
   SparseMatrix A = 0;
-  Agnode_t *n;
   Agedge_t *e;
   Agsym_t *sym;
   Agsym_t *psym;
@@ -115,7 +114,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
 
   /* Assign node ids */
   i = 0;
-  for (n = agfstnode(g); n; n = agnxtnode(g, n))
+  for (Agnode_t *n = agfstnode(g); n; n = agnxtnode(g, n))
     ND_id(n) = i++;
 
   if (format == FORMAT_COORD) {
@@ -132,7 +131,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
 
   sym = agattr_text(g, AGEDGE, "weight", NULL);
   i = 0;
-  for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
+  for (Agnode_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     row = ND_id(n);
     for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
       I[i] = row;
@@ -155,7 +154,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
     bool has_positions = true;
     char *pval;
     *x = gv_calloc(DIM * nnodes, sizeof(double));
-    for (n = agfstnode(g); n && has_positions; n = agnxtnode(g, n)) {
+    for (Agnode_t *n = agfstnode(g); n && has_positions; n = agnxtnode(g, n)) {
       double xx, yy;
       int nitems;
       i = ND_id(n);
