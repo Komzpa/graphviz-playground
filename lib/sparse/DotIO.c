@@ -239,7 +239,7 @@ static int hex2int(char h) {
 }
 
 static float hexcol2rgb(const char *h) {
-  return (hex2int(h[0]) * 16 + hex2int(h[1])) / 255.;
+  return (float)(hex2int(h[0]) * 16 + hex2int(h[1])) / 255.0f;
 }
 
 void Dot_SetClusterColor(Agraph_t *g, float *rgb_r, float *rgb_g, float *rgb_b,
