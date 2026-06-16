@@ -12,6 +12,8 @@
 
 #define STANDALONE
 #include <assert.h>
+#include <cgraph/cghdr.h>
+#include <limits.h>
 #include <math.h>
 #include <sparse/DotIO.h>
 #include <sparse/clustering.h>
@@ -87,13 +89,12 @@ void attach_edge_colors(Agraph_t *g, int dim, double *colors) {
  * but not a->b and a->b
  */
 SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
-  enum {DIM = 2};
+  enum { DIM = 2 };
   SparseMatrix A = 0;
   Agnode_t *n;
   Agedge_t *e;
   Agsym_t *sym;
   Agsym_t *psym;
-  int nnodes;
   int nedges;
   int i, row;
   int *I;
@@ -104,7 +105,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
 
   if (!g)
     return NULL;
-  nnodes = agnnodes(g);
+  const size_t nnodes = agnnodes_z(g);
   nedges = agnedges(g);
   if (format != FORMAT_CSR && format != FORMAT_COORD) {
     fprintf(stderr, "Format %d not supported\n", format);
@@ -181,8 +182,9 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
 
   size_t sz = sizeof(double);
   if (format == FORMAT_CSR) {
-    A = SparseMatrix_from_coordinate_arrays((size_t)nedges, nnodes, nnodes, I,
-                                            J, val, type, sz);
+    assert(nnodes <= INT_MAX);
+    A = SparseMatrix_from_coordinate_arrays((size_t)nedges, (int)nnodes,
+                                            (int)nnodes, I, J, val, type, sz);
   }
 
   if (format != FORMAT_COORD) {
