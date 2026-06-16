@@ -93,7 +93,6 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   enum { DIM = 2 };
   SparseMatrix A = 0;
   Agsym_t *psym;
-  int row;
   int *I;
   int *J;
   double *val;
@@ -129,7 +128,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   Agsym_t *const sym = agattr_text(g, AGEDGE, "weight", NULL);
   i = 0;
   for (Agnode_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    row = ND_id(n);
+    const int row = ND_id(n);
     for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
       I[i] = row;
       J[i] = ND_id(aghead(e));
