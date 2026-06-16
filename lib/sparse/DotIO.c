@@ -93,7 +93,6 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   enum { DIM = 2 };
   SparseMatrix A = 0;
   Agsym_t *psym;
-  int nedges;
   int i, row;
   int *I;
   int *J;
@@ -104,7 +103,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   if (!g)
     return NULL;
   const size_t nnodes = agnnodes_z(g);
-  nedges = agnedges(g);
+  const size_t nedges = (size_t)agnedges(g);
   if (format != FORMAT_CSR && format != FORMAT_COORD) {
     fprintf(stderr, "Format %d not supported\n", format);
     graphviz_exit(1);
@@ -116,8 +115,8 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
     ND_id(n) = i++;
 
   if (format == FORMAT_COORD) {
-    A = SparseMatrix_new(i, i, (size_t)nedges, MATRIX_TYPE_REAL, format);
-    A->nz = (size_t)nedges;
+    A = SparseMatrix_new(i, i, nedges, MATRIX_TYPE_REAL, format);
+    A->nz = nedges;
     I = A->ia;
     J = A->ja;
     val = A->a;
@@ -179,8 +178,8 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   size_t sz = sizeof(double);
   if (format == FORMAT_CSR) {
     assert(nnodes <= INT_MAX);
-    A = SparseMatrix_from_coordinate_arrays((size_t)nedges, (int)nnodes,
-                                            (int)nnodes, I, J, val, type, sz);
+    A = SparseMatrix_from_coordinate_arrays(nedges, (int)nnodes, (int)nnodes, I,
+                                            J, val, type, sz);
   }
 
   if (format != FORMAT_COORD) {
