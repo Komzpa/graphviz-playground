@@ -411,7 +411,6 @@ EXCLUDE = (
     "lib/sfio/sftable.c",
     "lib/sfio/sfprint.c",
     "lib/sfio/sfvscanf.c",
-    "lib/sparse/DotIO.h",
     "lib/sparse/QuadTree.c",
     "lib/sparse/QuadTree.h",
     "lib/sparse/SparseMatrix.c",
