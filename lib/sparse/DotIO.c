@@ -86,8 +86,8 @@ void attach_edge_colors(Agraph_t *g, int dim, double *colors) {
  * Assumes g is connected and simple, i.e., we can have a->b and b->a
  * but not a->b and a->b
  */
-SparseMatrix SparseMatrix_import_dot(Agraph_t *g, int dim, double **x,
-                                     int format) {
+SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
+  enum {DIM = 2};
   SparseMatrix A = 0;
   Agnode_t *n;
   Agedge_t *e;
@@ -153,51 +153,20 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, int dim, double **x,
     bool has_positions = true;
     char *pval;
     if (!(*x)) {
-      *x = gv_calloc(dim * nnodes, sizeof(double));
+      *x = gv_calloc(DIM * nnodes, sizeof(double));
     }
     for (n = agfstnode(g); n && has_positions; n = agnxtnode(g, n)) {
-      double xx, yy, zz, ww;
+      double xx, yy;
       int nitems;
       i = ND_id(n);
       if ((pval = agxget(n, psym)) && *pval) {
-        if (dim == 2) {
-          nitems = sscanf(pval, "%lf,%lf", &xx, &yy);
-          if (nitems != 2) {
-            has_positions = false;
-            agerrorf("Node \"%s\" pos has %d < 2 values", agnameof(n), nitems);
-          }
-          (*x)[i * dim] = xx;
-          (*x)[i * dim + 1] = yy;
-        } else if (dim == 3) {
-          nitems = sscanf(pval, "%lf,%lf,%lf", &xx, &yy, &zz);
-          if (nitems != 3) {
-            has_positions = false;
-            agerrorf("Node \"%s\" pos has %d < 3 values", agnameof(n), nitems);
-          }
-          (*x)[i * dim] = xx;
-          (*x)[i * dim + 1] = yy;
-          (*x)[i * dim + 2] = zz;
-        } else if (dim == 4) {
-          nitems = sscanf(pval, "%lf,%lf,%lf,%lf", &xx, &yy, &zz, &ww);
-          if (nitems != 4) {
-            has_positions = false;
-            agerrorf("Node \"%s\" pos has %d < 4 values", agnameof(n), nitems);
-          }
-          (*x)[i * dim] = xx;
-          (*x)[i * dim + 1] = yy;
-          (*x)[i * dim + 2] = zz;
-          (*x)[i * dim + 3] = ww;
-        } else if (dim == 1) {
-          nitems = sscanf(pval, "%lf", &xx);
-          if (nitems != 1) {
-            SparseMatrix_delete(A);
-            A = NULL;
-            goto done;
-          }
-          (*x)[i * dim] = xx;
-        } else {
-          assert(0);
+        nitems = sscanf(pval, "%lf,%lf", &xx, &yy);
+        if (nitems != 2) {
+          has_positions = false;
+          agerrorf("Node \"%s\" pos has %d < 2 values", agnameof(n), nitems);
         }
+        (*x)[i * DIM] = xx;
+        (*x)[i * DIM + 1] = yy;
       } else {
         has_positions = false;
         agerrorf("Node \"%s\" lacks position info", agnameof(n));
@@ -216,7 +185,6 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, int dim, double **x,
                                             J, val, type, sz);
   }
 
-done:
   if (format != FORMAT_COORD) {
     free(I);
     free(J);

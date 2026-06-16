@@ -374,7 +374,7 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 		return 1;
 	}
     initDotIO(g);
-	SparseMatrix A = SparseMatrix_import_dot(g, dim, &x, FORMAT_CSR);
+	SparseMatrix A = SparseMatrix_import_dot(g, &x, FORMAT_CSR);
 	if (!A){
 		agerrorf("Error: could not convert graph %s (%s) into matrix\n", agnameof(g), fname);
 		return 1;

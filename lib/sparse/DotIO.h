@@ -37,8 +37,7 @@ int getDotNodeID(Agnode_t *n);
 
 void attach_edge_colors(Agraph_t *g, int dim, double *colors);
 
-SparseMatrix SparseMatrix_import_dot(Agraph_t *g, int dim, double **x,
-                                     int format);
+SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format);
 SparseMatrix Import_coord_clusters_from_dot(
     Agraph_t *g, int maxcluster, int dim, int *nn, double **label_sizes,
     double **x, int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
