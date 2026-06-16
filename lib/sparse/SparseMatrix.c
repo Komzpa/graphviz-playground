@@ -698,6 +698,7 @@ SparseMatrix SparseMatrix_multiply(SparseMatrix A, SparseMatrix B){
     return NULL;
   }
   type = A->type;
+  assert(type == MATRIX_TYPE_REAL);
   
   mask = calloc((size_t)B->n, sizeof(int));
   if (!mask) return NULL;
@@ -729,77 +730,26 @@ SparseMatrix SparseMatrix_multiply(SparseMatrix A, SparseMatrix B){
   
   nz = 0;
 
-  switch (type){
-  case MATRIX_TYPE_REAL:
-    {
-      double *a = A->a;
-      double *b = B->a;
-      double *c = C->a;
-      ic[0] = 0;
-      for (int i = 0; i < m; i++) {
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  jj = ja[j];
-	  for (k = ib[jj]; k < ib[jj+1]; k++){
-	    if (mask[jb[k]] < ic[i]){
-	      mask[jb[k]] = (int)nz;
-	      jc[nz] = jb[k];
-	      c[nz] = a[j]*b[k];
-	      nz++;
-	    } else {
-	      assert(jc[mask[jb[k]]] == jb[k]);
-	      c[mask[jb[k]]] += a[j]*b[k];
-	    }
-	  }
-	}
-	ic[i + 1] = (int)nz;
+  double *a = A->a;
+  double *b = B->a;
+  double *c = C->a;
+  ic[0] = 0;
+  for (int i = 0; i < m; i++) {
+    for (j = ia[i]; j < ia[i+1]; j++){
+      jj = ja[j];
+      for (k = ib[jj]; k < ib[jj+1]; k++){
+        if (mask[jb[k]] < ic[i]){
+          mask[jb[k]] = (int)nz;
+          jc[nz] = jb[k];
+          c[nz] = a[j]*b[k];
+          nz++;
+        } else {
+          assert(jc[mask[jb[k]]] == jb[k]);
+          c[mask[jb[k]]] += a[j]*b[k];
+        }
       }
     }
-    break;
-  case MATRIX_TYPE_INTEGER:
-    {
-      int *a = A->a;
-      int *b = B->a;
-      int *c = C->a;
-      ic[0] = 0;
-      for (int i = 0; i < m; i++) {
-	for (j = ia[i]; j < ia[i+1]; j++){
-	  jj = ja[j];
-	  for (k = ib[jj]; k < ib[jj+1]; k++){
-	    if (mask[jb[k]] < ic[i]){
-	      mask[jb[k]] = (int)nz;
-	      jc[nz] = jb[k];
-	      c[nz] = a[j]*b[k];
-	      nz++;
-	    } else {
-	      assert(jc[mask[jb[k]]] == jb[k]);
-	      c[mask[jb[k]]] += a[j]*b[k];
-	    }
-	  }
-	}
-	ic[i + 1] = (int)nz;
-      }
-    }
-    break;
-  case MATRIX_TYPE_PATTERN:
-    ic[0] = 0;
-    for (int i = 0; i < m; i++) {
-      for (j = ia[i]; j < ia[i+1]; j++){
-	jj = ja[j];
-	for (k = ib[jj]; k < ib[jj+1]; k++){
-	  if (mask[jb[k]] < ic[i]){
-	    mask[jb[k]] = (int)nz;
-	    jc[nz] = jb[k];
-	    nz++;
-	  } else {
-	    assert(jc[mask[jb[k]]] == jb[k]);
-	  }
-	}
-      }
-      ic[i + 1] = (int)nz;
-    }
-    break;
-  default:
-    UNREACHABLE();
+    ic[i + 1] = (int)nz;
   }
   
   C->nz = nz;
