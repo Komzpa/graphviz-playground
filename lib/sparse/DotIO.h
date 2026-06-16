@@ -30,15 +30,15 @@ enum {
   COLOR_SCHEME_SEQUENTIAL_SINGLEHUE_RED_LIGHTER,
   COLOR_SCHEME_GREY
 };
-extern void initDotIO(Agraph_t *g);
+void initDotIO(Agraph_t *g);
 
-extern void setDotNodeID(Agnode_t *n, int v);
-extern int getDotNodeID(Agnode_t *n);
+void setDotNodeID(Agnode_t *n, int v);
+int getDotNodeID(Agnode_t *n);
 
-extern void attach_edge_colors(Agraph_t *g, int dim, double *colors);
+void attach_edge_colors(Agraph_t *g, int dim, double *colors);
 
-extern SparseMatrix SparseMatrix_import_dot(Agraph_t *g, int dim, double **x,
-                                            int format);
+SparseMatrix SparseMatrix_import_dot(Agraph_t *g, int dim, double **x,
+                                     int format);
 SparseMatrix Import_coord_clusters_from_dot(
     Agraph_t *g, int maxcluster, int dim, int *nn, double **label_sizes,
     double **x, int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
