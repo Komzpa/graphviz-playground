@@ -93,7 +93,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   enum { DIM = 2 };
   SparseMatrix A = 0;
   Agsym_t *psym;
-  int i, row;
+  int row;
   int *I;
   int *J;
   double *val;
@@ -110,7 +110,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   }
 
   /* Assign node ids */
-  i = 0;
+  int i = 0;
   for (Agnode_t *n = agfstnode(g); n; n = agnxtnode(g, n))
     ND_id(n) = i++;
 
