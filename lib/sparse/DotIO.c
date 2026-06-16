@@ -103,10 +103,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
     return NULL;
   const size_t nnodes = agnnodes_z(g);
   const size_t nedges = (size_t)agnedges(g);
-  if (format != FORMAT_CSR && format != FORMAT_COORD) {
-    fprintf(stderr, "Format %d not supported\n", format);
-    graphviz_exit(1);
-  }
+  assert(format == FORMAT_CSR || format == FORMAT_COORD);
 
   /* Assign node ids */
   int i = 0;
