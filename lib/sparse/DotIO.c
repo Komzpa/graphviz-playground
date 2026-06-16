@@ -30,7 +30,7 @@
 
 typedef struct {
   Agrec_t h;
-  unsigned int id;
+  int id;
 } Agnodeinfo_t;
 
 #define ND_id(n) (((Agnodeinfo_t *)((n)->base.data))->id)
@@ -63,16 +63,15 @@ void attach_edge_colors(Agraph_t *g, int dim, double *colors) {
   Agedge_t *e;
   Agnode_t *n;
   agxbuf buf = {0};
-  unsigned row, col;
   int ie = 0;
 
   if (!sym)
     sym = agattr_text(g, AGEDGE, "color", "");
 
   for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    row = ND_id(n);
+    const int row = ND_id(n);
     for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      col = ND_id(aghead(e));
+      const int col = ND_id(aghead(e));
       if (row == col)
         continue;
       color_string(&buf, dim, colors + ie * dim);
@@ -239,7 +238,6 @@ int Import_dot_splines(Agraph_t *g, int *ne, char ***xsplines) {
   Agedge_t *e;
   Agsym_t *sym;
   int nedges;
-  unsigned i;
 
   if (!g) {
     return 0;
@@ -248,7 +246,7 @@ int Import_dot_splines(Agraph_t *g, int *ne, char ***xsplines) {
   *ne = nedges = agnedges(g);
 
   /* Assign node ids */
-  i = 0;
+  int i = 0;
   for (n = agfstnode(g); n; n = agnxtnode(g, n))
     ND_id(n) = i++;
 
@@ -289,13 +287,12 @@ void Dot_SetClusterColor(Agraph_t *g, float *rgb_r, float *rgb_g, float *rgb_b,
 
   Agnode_t *n;
   agxbuf scluster = {0};
-  unsigned i;
   Agsym_t *clust_clr_sym = agattr_text(g, AGNODE, "clustercolor", NULL);
 
   if (!clust_clr_sym)
     clust_clr_sym = agattr_text(g, AGNODE, "clustercolor", "-1");
   for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    i = ND_id(n);
+    const int i = ND_id(n);
     if (rgb_r && rgb_g && rgb_b) {
       rgb2hex(rgb_r[clusters[i]], rgb_g[clusters[i]], rgb_b[clusters[i]],
               &scluster, NULL);
