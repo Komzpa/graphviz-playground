@@ -152,10 +152,9 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
     *x = gv_calloc(DIM * nnodes, sizeof(double));
     for (Agnode_t *n = agfstnode(g); n && has_positions; n = agnxtnode(g, n)) {
       double xx, yy;
-      int nitems;
       i = ND_id(n);
       if ((pval = agxget(n, psym)) && *pval) {
-        nitems = sscanf(pval, "%lf,%lf", &xx, &yy);
+        const int nitems = sscanf(pval, "%lf,%lf", &xx, &yy);
         if (nitems != 2) {
           has_positions = false;
           agerrorf("Node \"%s\" pos has %d < 2 values", agnameof(n), nitems);
