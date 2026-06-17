@@ -154,8 +154,7 @@ static int color_index(gdImagePtr im, gvcolor_t color)
 		    alpha);
 }
 
-static int set_penstyle(GVJ_t * job, gdImagePtr im, gdImagePtr brush)
-{
+static int set_penstyle(GVJ_t *job, gdImagePtr im) {
     obj_state_t *obj = job->obj;
     int i, pen, pencolor, transparent, dashstyle[20];
 
@@ -182,7 +181,7 @@ static int set_penstyle(GVJ_t * job, gdImagePtr im, gdImagePtr brush)
     gdImageSetThickness(im, width);
     /* use brush instead of Thickness to improve end butts */
     if (width != (int)PENWIDTH_NORMAL) {
-        brush = gdImageCreate(width, width);
+        gdImagePtr const brush = gdImageCreate(width, width);
         gdImagePaletteCopy(brush, im);
         gdImageFilledRectangle(brush, 0, 0, width - 1, width - 1, pencolor);
         gdImageSetBrush(im, brush);
@@ -190,6 +189,7 @@ static int set_penstyle(GVJ_t * job, gdImagePtr im, gdImagePtr brush)
             pen = gdStyledBrushed;
         else
             pen = gdBrushed;
+        gdImageDestroy(brush);
     }
     return pen;
 }
@@ -571,7 +571,6 @@ static void vrml_polygon(GVJ_t *job, pointf *A, size_t np, int filled) {
     pointf p, mp;
     gdPoint *points;
     int pen;
-    gdImagePtr brush = NULL;
     double theta;
     state_t *state = job->context;
 
@@ -587,7 +586,7 @@ static void vrml_polygon(GVJ_t *job, pointf *A, size_t np, int filled) {
 	break;
     case NODE_OBJTYPE:
 	n = obj->u.n;
-	pen = set_penstyle(job, state->im, brush);
+	pen = set_penstyle(job, state->im);
 	points = gv_calloc(np, sizeof(gdPoint));
 	for (size_t i = 0; i < np; i++) {
 	    mp = vrml_node_point(job, n, A[i]);
@@ -599,8 +598,6 @@ static void vrml_polygon(GVJ_t *job, pointf *A, size_t np, int filled) {
 	    gdImageFilledPolygon(state->im, points, (int)np, color_index(state->im, obj->fillcolor));
 	gdImagePolygon(state->im, points, (int)np, pen);
 	free(points);
-	if (brush)
-	    gdImageDestroy(brush);
 
 	gvputs(job,   "Shape {\n"
 	              "  appearance Appearance {\n"
@@ -717,7 +714,6 @@ static void vrml_ellipse(GVJ_t * job, pointf * A, int filled)
     pointf npf, nqf;
     point np;
     int pen;
-    gdImagePtr brush = NULL;
     state_t *state = job->context;
 
     rx = A[1].x - A[0].x;
@@ -733,7 +729,7 @@ static void vrml_ellipse(GVJ_t * job, pointf * A, int filled)
 	    doSphere(job, A[0], z, rx);
 	    return;
 	}
-	pen = set_penstyle(job, state->im, brush);
+	pen = set_penstyle(job, state->im);
 
 	npf = vrml_node_point(job, n, A[0]);
 	nqf = vrml_node_point(job, n, A[1]);
@@ -746,9 +742,6 @@ static void vrml_ellipse(GVJ_t * job, pointf * A, int filled)
 	if (filled)
 	    gdImageFilledEllipse(state->im, np.x, np.y, dx, dy, color_index(state->im, obj->fillcolor));
 	gdImageArc(state->im, np.x, np.y, dx, dy, 0, 360, pen);
-
-	if (brush)
-	    gdImageDestroy(brush);
 
 	gvputs(job,   "Transform {\n");
 	gvprintf(job, "  translation %.3f %.3f %.3f\n", A[0].x, A[0].y, z);

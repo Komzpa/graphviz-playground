@@ -201,11 +201,11 @@ def main() -> int:
         # CI job → [artifacts…]
         "fedora43-build": [f"fedora_43_graphviz-{version}-rpms.tar.xz"],
         "rocky8-build": [f"rocky_8.9_graphviz-{version}-rpms.tar.xz"],
-        "rocky9-build": [f"rocky_9.7_graphviz-{version}-rpms.tar.xz"],
+        "rocky9-build": [f"rocky_9.8_graphviz-{version}-rpms.tar.xz"],
         "rocky10-build": [f"rocky_10.1_graphviz-{version}-rpms.tar.xz"],
         "fedora43-cmake-build": [f"fedora_43_graphviz-{version}-cmake.rpm"],
         "rocky8-cmake-build": [f"rocky_8.9_graphviz-{version}-cmake.rpm"],
-        "rocky9-cmake-build": [f"rocky_9.7_graphviz-{version}-cmake.rpm"],
+        "rocky9-cmake-build": [f"rocky_9.8_graphviz-{version}-cmake.rpm"],
         "rocky10-cmake-build": [f"rocky_10.1_graphviz-{version}-cmake.rpm"],
         "ubuntu-22.04-build": [f"ubuntu_22.04_graphviz-{version}-debs.tar.xz"],
         "ubuntu-24.04-build": [f"ubuntu_24.04_graphviz-{version}-debs.tar.xz"],

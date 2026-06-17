@@ -741,7 +741,6 @@ static void test_zero_item_size(void) {
 #endif
 }
 
-/// test removal does not leak memory
 int main(void) {
 
 #define RUN(t)                                                                 \
