@@ -27,7 +27,7 @@ UTIL_API int *gv_permutation(size_t bound);
 ///
 /// @param bound Exclusive upper bound on random number generation
 /// @return A random number drawn from a uniform distribution
-UTIL_API int gv_random(int bound);
+UTIL_API size_t gv_random(size_t bound);
 
 /// generate a random 64-bit unsigned number in the range `[0, bound - 1]`
 ///

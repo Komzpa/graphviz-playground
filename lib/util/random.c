@@ -24,8 +24,8 @@ int *gv_permutation(size_t bound) {
   }
 
   // perform a Fisher-Yates shuffle
-  for (int i = (int)bound - 1; i > 0; --i) {
-    const int j = gv_random(i + 1);
+  for (size_t i = bound - 1; i > 0; --i) {
+    const size_t j = gv_random(i + 1);
     SWAP(&p[i], &p[j]);
   }
 
@@ -82,7 +82,7 @@ uint64_t gv_random_u64(uint64_t bound) {
   return r % bound;
 }
 
-int gv_random(int bound) {
+size_t gv_random(size_t bound) {
   assert(bound > 0);
 
   if (bound > RAND_MAX) {
@@ -90,7 +90,7 @@ int gv_random(int bound) {
                    "the `int` type includes non-negative values that do not "
                    "fit in a `uint64_t`, hence some `int` values can never be "
                    "returned by `gv_random_u64`");
-    return (int)gv_random_u64((uint64_t)bound);
+    return (size_t)gv_random_u64(bound);
   }
-  return random_small(bound);
+  return (size_t)random_small((int)bound);
 }
