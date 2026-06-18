@@ -621,7 +621,7 @@ static int same_edge(int ecur, int elast, int *edge_table){
 	  || (edge_head(ecur) == edge_tail(elast) && edge_tail(ecur) == edge_head(elast));
 }
 
-static void get_polygon_solids(int nt, SparseMatrix E, int ncomps,
+static void get_polygon_solids(int nt, SparseMatrix E, size_t ncomps,
                                int *comps_ptr, int *comps, SparseMatrix *polys)
 {
   /*============================================================
@@ -701,9 +701,9 @@ static void get_polygon_solids(int nt, SparseMatrix E, int ncomps,
   elist = gv_calloc(nt * 3, sizeof(int));
   for (int i = 0; i < nt; i++) elist[i*edim + 2] = 0;
 
-  *polys = SparseMatrix_new((size_t)ncomps, nt, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
+  *polys = SparseMatrix_new(ncomps, nt, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
 
-  for (int i = 0; i < ncomps; i++){
+  for (int i = 0; (size_t)i < ncomps; i++){
     if (DEBUG_CYCLE) fprintf(stderr, "\n ============  comp %d has %d members\n",i, comps_ptr[i+1]-comps_ptr[i]);
     for (k = comps_ptr[i]; k < comps_ptr[i+1]; k++){
       ii = comps[k];
@@ -940,7 +940,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
     polygon solids
 
     ============================================================*/
-  get_polygon_solids(nt, E, (int)ncomps, comps_ptr, comps, polys);
+  get_polygon_solids(nt, E, ncomps, comps_ptr, comps, polys);
 
   *country_graph = get_country_graph(n, E, groups, GRP_RANDOM, GRP_BBOX);
 
