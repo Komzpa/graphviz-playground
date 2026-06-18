@@ -90,24 +90,22 @@ static int comp_ascend_int(const void *s1, const void *s2){
   return 0;
 }
 
-void vector_ordering(int n, double *v, int **p){
+void vector_ordering(size_t n, double *v, int **p) {
   /* give the position of the smallest, second smallest etc in vector v.
      results in p. If *p == NULL, p is assigned.
   */
 
-  int i;
-
   if (!*p) *p = gv_calloc(n, sizeof(int));
   double *u = gv_calloc(2 * n, sizeof(double));
 
-  for (i = 0; i < n; i++) {
-    u[2*i+1] = i;
-    u[2*i] = v[i];
+  for (size_t i = 0; i < n; i++) {
+    u[2 * i + 1] = (double)i;
+    u[2 * i] = v[i];
   }
 
   qsort(u, n, sizeof(double)*2, comp_ascend);
 
-  for (i = 0; i < n; i++) (*p)[i] = (int) u[2*i+1];
+  for (size_t i = 0; i < n; i++) (*p)[i] = (int)u[2 * i + 1];
   free(u);
 }
 

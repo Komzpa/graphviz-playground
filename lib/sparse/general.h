@@ -66,7 +66,7 @@ void vector_float_take(int n, float *v, int m, int *p, float **u);
 /* give the position of the smallest, second smallest etc in vector v.
    results in p. If *p == NULL, p is assigned.
 */
-void vector_ordering(int n, double *v, int **p);
+void vector_ordering(size_t n, double *v, int **p);
 void vector_sort_int(int n, int *v);
 
 #define MACHINEACC 1.0e-16
