@@ -37,10 +37,9 @@ double vector_product(int n, double *x, double *y){
   return res;
 }
 
-double* vector_saxpy(int n, double *x, double *y, double beta){
+double *vector_saxpy(size_t n, double *x, double *y, double beta) {
   /* y = x+beta*y */
-  int i;
-  for (i = 0; i < n; i++) y[i] = x[i] + beta*y[i];
+  for (size_t i = 0; i < n; i++) y[i] = x[i] + beta * y[i];
   return y;
 }
 

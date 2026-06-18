@@ -84,7 +84,7 @@ static double conjugate_gradient(SparseMatrix A, const double *precon, size_t n,
 
     if (iter > 1){
       beta = rho/rho_old;
-      p = vector_saxpy((int)n, z, p, beta);
+      p = vector_saxpy(n, z, p, beta);
     } else {
       memcpy(p, z, sizeof(double)*n);
     }

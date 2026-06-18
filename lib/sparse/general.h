@@ -55,8 +55,7 @@ double *vector_subtract_to(size_t n, double *x, double *y); ///< y = x-y
 
 double vector_product(int n, double *x, double *y);
 
-double* vector_saxpy(int n, double *x, double *y, double beta); /* y = x+beta*y */
-
+double *vector_saxpy(size_t n, double *x, double *y, double beta); ///< y = x+beta*y
 
 double* vector_saxpy2(int n, double *x, double *y, double beta);/* x = x+beta*y */
 
