@@ -500,7 +500,7 @@ static void conn_comp(int n, SparseMatrix A, int *groups, SparseMatrix *poly_poi
 
 }
 
-static void get_poly_lines(int nt, SparseMatrix E, int ncomps, int *comps_ptr,
+static void get_poly_lines(int nt, SparseMatrix E, size_t ncomps, int *comps_ptr,
                            int *comps, int *groups, SparseMatrix *poly_lines,
                            int **polys_groups, int GRP_RANDOM, int GRP_BBOX) {
   /*============================================================
@@ -520,7 +520,7 @@ static void get_poly_lines(int nt, SparseMatrix E, int ncomps, int *comps_ptr,
   /* loop over every point in each connected component */
   elist = gv_calloc(nt * edim, sizeof(int));
   tlist = gv_calloc(nt * 2, sizeof(int));
-  *poly_lines = SparseMatrix_new((size_t)ncomps, nt, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
+  *poly_lines = SparseMatrix_new(ncomps, nt, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
   *polys_groups = gv_calloc(ncomps, sizeof(int));
 
   for (i = 0; i < nt; i++) elist[i*edim + 2] = 0;
@@ -528,7 +528,7 @@ static void get_poly_lines(int nt, SparseMatrix E, int ncomps, int *comps_ptr,
 
   ipoly = 1;
 
-  for (i = 0; i < ncomps; i++){
+  for (i = 0; (size_t)i < ncomps; i++) {
     nnt = 0;
     for (j = comps_ptr[i]; j < comps_ptr[i+1]; j++){
       ii = comps[j];
@@ -932,7 +932,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
     polygon outlines 
 
     ============================================================*/
-  get_poly_lines(nt, E, (int)ncomps, comps_ptr, comps, groups, poly_lines,
+  get_poly_lines(nt, E, ncomps, comps_ptr, comps, groups, poly_lines,
                  polys_groups, GRP_RANDOM, GRP_BBOX);
 
   /*============================================================
