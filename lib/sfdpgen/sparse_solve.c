@@ -93,8 +93,8 @@ static double conjugate_gradient(SparseMatrix A, const double *precon, size_t n,
 
     alpha = rho / vector_product((int)n, p, q);
 
-    x = vector_saxpy2((int)n, x, p, alpha);
-    r = vector_saxpy2((int)n, r, q, -alpha);
+    x = vector_saxpy2(n, x, p, alpha);
+    r = vector_saxpy2(n, r, q, -alpha);
     
     res = sqrt(vector_product((int)n, r, r)) / (double)n;
 

@@ -43,10 +43,9 @@ double *vector_saxpy(size_t n, double *x, double *y, double beta) {
   return y;
 }
 
-double* vector_saxpy2(int n, double *x, double *y, double beta){
+double *vector_saxpy2(size_t n, double *x, double *y, double beta) {
   /* x = x+beta*y */
-  int i;
-  for (i = 0; i < n; i++) x[i] = x[i] + beta*y[i];
+  for (size_t i = 0; i < n; i++) x[i] += beta * y[i];
   return x;
 }
 
