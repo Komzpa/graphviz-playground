@@ -113,21 +113,21 @@ static double conjugate_gradient(SparseMatrix A, const double *precon, int n,
   return res;
 }
 
-static double cg(SparseMatrix A, const double *precond, int n, int dim,
+static double cg(SparseMatrix A, const double *precond, size_t n, int dim,
                  double *x0, double *rhs, double tol, double maxit) {
   double res = 0;
-  int k, i;
+  int k;
   double *x = gv_calloc(n, sizeof(double));
   double *b = gv_calloc(n, sizeof(double));
   for (k = 0; k < dim; k++){
-    for (i = 0; i < n; i++) {
-      x[i] = x0[i*dim+k];
-      b[i] = rhs[i*dim+k];
+    for (size_t i = 0; i < n; i++) {
+      x[i] = x0[(int)i * dim + k];
+      b[i] = rhs[(int)i * dim + k];
     }
     
-    res += conjugate_gradient(A, precond, n, x, b, tol, maxit);
-    for (i = 0; i < n; i++) {
-      rhs[i*dim+k] = x[i];
+    res += conjugate_gradient(A, precond, (int)n, x, b, tol, maxit);
+    for (size_t i = 0; i < n; i++) {
+      rhs[(int)i * dim + k] = x[i];
     }
   }
   free(x);
@@ -140,7 +140,7 @@ double SparseMatrix_solve(SparseMatrix A, int dim, double *x0, double *rhs,
   const size_t n = A->m;
 
   double *precond = diag_precon_new(A);
-  double res = cg(A, precond, (int)n, dim, x0, rhs, tol, maxit);
+  double res = cg(A, precond, n, dim, x0, rhs, tol, maxit);
   free(precond);
   return res;
 }
