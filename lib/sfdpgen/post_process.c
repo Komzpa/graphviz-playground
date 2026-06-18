@@ -864,26 +864,26 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
   dd = ID->a;
 
   SpringSmoother sm = gv_alloc(sizeof(struct SpringSmoother_struct));
-  int *mask = gv_calloc(m, sizeof(int));
+  size_t *const mask = gv_calloc(m, sizeof(size_t));
 
   for (size_t i = 0; i < m; i++)
-    mask[i] = -1;
+    mask[i] = SIZE_MAX;
 
   size_t nz = 0;
   for (size_t i = 0; i < m; i++) {
-    mask[i] = (int)i;
+    mask[i] = i;
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
-      if (mask[k] != (int)i) {
-        mask[k] = (int)i;
+      if (mask[k] != i) {
+        mask[k] = i;
         nz++;
       }
     }
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
       for (l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] != (int)i) {
-          mask[ja[l]] = (int)i;
+        if (mask[ja[l]] != i) {
+          mask[ja[l]] = i;
           nz++;
         }
       }
@@ -900,11 +900,11 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
 
   nz = 0;
   for (size_t i = 0; i < m; i++) {
-    mask[i] = (int)(i + m);
+    mask[i] = i + m;
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
-      if (mask[k] != (int)(i + m)) {
-        mask[k] = (int)(i + m);
+      if (mask[k] != i + m) {
+        mask[k] = i + m;
         jd[nz] = k;
         d[nz] = dd[j];
         nz++;
@@ -914,8 +914,8 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
       for (l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] != (int)(i + m)) {
-          mask[ja[l]] = (int)(i + m);
+        if (mask[ja[l]] != i + m) {
+          mask[ja[l]] = i + m;
           jd[nz] = ja[l];
           d[nz] = dd[j] + dd[l];
           nz++;
