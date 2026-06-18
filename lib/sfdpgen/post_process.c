@@ -437,7 +437,7 @@ SparseStressMajorizationSmoother_smooth(SparseStressMajorizationSmoother sm,
   return StressMajorizationSmoother_smooth(sm, dim, x, maxit_sm);
 }
 
-static void get_edge_label_matrix(relative_position_constraints data, int m,
+static void get_edge_label_matrix(relative_position_constraints data, size_t m,
                                   int dim, double *x, SparseMatrix *LL,
                                   double **rhs) {
   int edge_labeling_scheme = data->edge_labeling_scheme;
@@ -514,7 +514,7 @@ static void get_edge_label_matrix(relative_position_constraints data, int m,
         }
       }
     }
-    Lc = SparseMatrix_from_coordinate_arrays(nz, (size_t)m, m, irn, jcn, val,
+    Lc = SparseMatrix_from_coordinate_arrays(nz, m, (int)m, irn, jcn, val,
                                              MATRIX_TYPE_REAL, sizeof(double));
   } else if (edge_labeling_scheme == ELSCHEME_PENALTY2 ||
              edge_labeling_scheme == ELSCHEME_STRAIGHTLINE_PENALTY2) {
@@ -550,7 +550,7 @@ static void get_edge_label_matrix(relative_position_constraints data, int m,
         x00[ii * dim + l] *= constr_penalty / (dist) / (ia[ii + 1] - ia[ii]);
       }
     }
-    Lc = SparseMatrix_from_coordinate_arrays(nz, (size_t)m, m, irn, jcn, val,
+    Lc = SparseMatrix_from_coordinate_arrays(nz, m, (int)m, irn, jcn, val,
                                              MATRIX_TYPE_REAL, sizeof(double));
   }
   *LL = Lc;
@@ -616,7 +616,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #endif
   /* for the additional matrix L due to the position constraints */
   if (sm->scheme == SM_SCHEME_NORMAL_ELABEL) {
-    get_edge_label_matrix(sm->data, (int)m, dim, x, &Lc, &x00);
+    get_edge_label_matrix(sm->data, m, dim, x, &Lc, &x00);
     if (Lc)
       Lw = SparseMatrix_add(Lw, Lc);
   }
