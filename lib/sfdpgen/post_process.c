@@ -411,15 +411,15 @@ SparseStressMajorizationSmoother_new(SparseMatrix A, int dim, double *x) {
   return sm;
 }
 
-static double total_distance(int m, int dim, double *x, double *y) {
+static double total_distance(size_t m, int dim, double *x, double *y) {
   double total = 0, dist = 0;
-  int i, j;
+  int j;
 
-  for (i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     dist = 0.;
     for (j = 0; j < dim; j++) {
-      dist +=
-          (y[i * dim + j] - x[i * dim + j]) * (y[i * dim + j] - x[i * dim + j]);
+      dist += (y[(int)i * dim + j] - x[(int)i * dim + j]) *
+              (y[(int)i * dim + j] - x[(int)i * dim + j]);
     }
     total += sqrt(dist);
   }
@@ -690,8 +690,8 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
       fprintf(stderr, "stress2 = %g\n",
               get_stress(m, dim, iw, jw, w, d, y, sm->scaling));
 #endif
-    diff = total_distance((int)m, dim, x, y) /
-           sqrt(vector_product((int)m * dim, x, x));
+    diff =
+        total_distance(m, dim, x, y) / sqrt(vector_product((int)m * dim, x, x));
 #ifdef DEBUG_PRINT
     if (Verbose) {
       fprintf(stderr,
