@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <util/alloc.h>
+#include <util/prisize_t.h>
 #include <util/random.h>
 
 static const int minsize = 4;
@@ -23,7 +24,7 @@ static const double min_coarsen_factor = 0.75;
 
 static Multilevel Multilevel_init(SparseMatrix A) {
   if (!A) return NULL;
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
   Multilevel grid = gv_alloc(sizeof(struct Multilevel_struct));
   grid->level = 0;
   grid->n = A->n;
@@ -54,7 +55,7 @@ void Multilevel_delete(Multilevel grid){
 }
 
 static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(SparseMatrix A, int **cluster, int **clusterp, int *ncluster){
-  int i, ii, j, *ia, *ja, m, n;
+  int j, *ia, *ja, n;
   (void)n;
   double *a, amax = 0;
   int jamax = 0;
@@ -66,14 +67,14 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
   assert(A->is_pattern_symmetric);
   ia = A->ia;
   ja = A->ja;
-  m = A->m;
+  const size_t m = A->m;
   n = A->n;
-  assert(n == m);
+  assert((size_t)n == m);
   *cluster = gv_calloc(m, sizeof(int));
   *clusterp = gv_calloc(m + 1, sizeof(int));
   matched = gv_calloc(m, sizeof(int));
 
-  for (i = 0; i < m; i++) matched[i] = i;
+  for (size_t i = 0; i < m; i++) matched[i] = (int)i;
 
   assert(SparseMatrix_is_symmetric(A, false));
   assert(A->type == MATRIX_TYPE_REAL);
@@ -85,7 +86,7 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
   nz = 0;
   a = A->a;
 
-  for (i = 0; i < nsuper; i++){
+  for (int i = 0; i < nsuper; i++){
     if (superp[i+1] - superp[i] <= 1) continue;
     nz0 = (*clusterp)[*ncluster];
     for (j = superp[i]; j < superp[i+1]; j++){
@@ -99,13 +100,13 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
     if (nz > nz0) (*clusterp)[++(*ncluster)] = nz;
   }
 
-  int *const p = gv_permutation(m);
-  for (ii = 0; ii < m; ii++){
-    i = p[ii];
+  int *const p = gv_permutation((int)m);
+  for (size_t ii = 0; ii < m; ii++){
+    int i = p[ii];
     bool first = true;
     if (matched[i] == MATCHED) continue;
     for (j = ia[i]; j < ia[i+1]; j++){
-      if (i == ja[j]) continue;
+      if ((int)i == ja[j]) continue;
       if (matched[ja[j]] != MATCHED && matched[i] != MATCHED){
         if (first) {
           amax = a[j];
@@ -122,15 +123,15 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
     if (!first){
         matched[jamax] = MATCHED;
         matched[i] = MATCHED;
-        (*cluster)[nz++] = i;
+        (*cluster)[nz++] = (int)i;
         (*cluster)[nz++] = jamax;
         (*clusterp)[++(*ncluster)] = nz;
     }
   }
 
-  for (i = 0; i < m; i++){
-    if (matched[i] == i){
-      (*cluster)[nz++] = i;
+  for (size_t i = 0; i < m; i++){
+    if (matched[i] == (int)i){
+      (*cluster)[nz++] = (int)i;
       (*clusterp)[++(*ncluster)] = nz;
     }
   }
@@ -145,25 +146,25 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
 
 static void Multilevel_coarsen_internal(SparseMatrix A, SparseMatrix *cA,
                                         SparseMatrix *P, SparseMatrix *R) {
-  int nc, n, i;
+  int nc, i;
   int *irn = NULL, *jcn = NULL;
   double *val = NULL;
   int j;
   int *cluster=NULL, *clusterp=NULL, ncluster;
 
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
   *cA = NULL;
   *P = NULL;
   *R = NULL;
-  n = A->m;
+  const size_t n = A->m;
 
   maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(A, &cluster, &clusterp, &ncluster);
-  assert(ncluster <= n);
+  assert(ncluster <= (int)n);
   nc = ncluster;
-  if (nc == n || nc < minsize) {
+  if (nc == (int)n || nc < minsize) {
 #ifdef DEBUG_PRINT
     if (Verbose)
-      fprintf(stderr, "nc = %d, nf = %d, minsz = %d, coarsen_factor = %f coarsening stops\n",nc, n, minsize, min_coarsen_factor);
+      fprintf(stderr, "nc = %d, nf = %" PRISIZE_T ", minsz = %d, coarsen_factor = %f coarsening stops\n",nc, n, minsize, min_coarsen_factor);
 #endif
     goto RETURN;
   }
@@ -179,7 +180,7 @@ static void Multilevel_coarsen_internal(SparseMatrix A, SparseMatrix *cA,
       val[nzc++] = 1.;
    }
   }
-  assert(nzc == (size_t)n);
+  assert(nzc == n);
   *P = SparseMatrix_from_coordinate_arrays(nzc, n, nc, irn, jcn, val,
                                            MATRIX_TYPE_REAL, sizeof(double));
   *R = SparseMatrix_transpose(*P);
@@ -272,7 +273,7 @@ static void Multilevel_establish(Multilevel grid,
   cgrid = Multilevel_init(cA);
   grid->next = cgrid;
   cgrid->level = grid->level + 1;
-  cgrid->n = cA->m;
+  cgrid->n = (int)cA->m;
   cgrid->P = P;
   grid->R = R;
   cgrid->prev = grid;

@@ -19,6 +19,7 @@
 #include <math.h>
 #include <sparse/color_palette.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 #include <util/alloc.h>
 #include <util/debug.h>
@@ -48,7 +49,7 @@ static void node_distinct_coloring_internal2(int scheme, QuadTree qt,
     red[0] = lab.l; red[1] = lab.a; red[2] = lab.b;
   }
 
-  const int n = A->m;
+  const size_t n = A->m;
   if (n == 1){
     if (scheme == COLOR_LAB){
       assert(qt);
@@ -90,7 +91,7 @@ static void node_distinct_coloring_internal2(int scheme, QuadTree qt,
 
   /* randomly assign colors first */
   srand(seed);
-  for (int i = 0; i < n*cdim; i++) colors[i] = cspace_size*drand();
+  for (int i = 0; i < (int)n * cdim; i++) colors[i] = cspace_size*drand();
 
   double *x = gv_calloc(cdim * n, sizeof(double));
   double *wgt = weightedQ ? gv_calloc(n, sizeof(double)) : NULL;
@@ -103,15 +104,15 @@ static void node_distinct_coloring_internal2(int scheme, QuadTree qt,
   while (iter++ < iter_max && (color_diff > color_diff_old || (color_diff == color_diff_old && color_diff_sum > color_diff_sum_old))){
     color_diff_old = color_diff;
     color_diff_sum_old = color_diff_sum;
-    for (int i = 0; i < n; i++){
+    for (size_t i = 0; i < n; i++){
       int k = 0;
       for (int j = ia[i]; j < ia[i+1]; j++){
-	if (ja[j] == i) continue;
+	if (ja[j] == (int)i) continue;
 	memcpy(&(x[k*cdim]), &(colors[ja[j]*cdim]), sizeof(double)*cdim);
 	if (wgt && a) wgt[k] = a[j];
 	k++;
       }
-      cc = &(colors[i*cdim]);
+      cc = &(colors[(int)i * cdim]);
       if (scheme == COLOR_LAB){
 	furtherest_point_in_list(k, cdim, wgt, x, qt, max_level, &dist_max, &cc);
       } else if (scheme == COLOR_RGB || scheme == COLOR_GRAY){
@@ -134,14 +135,14 @@ static void node_distinct_coloring_internal2(int scheme, QuadTree qt,
 
   if (scheme == COLOR_LAB){
     /* convert from LAB to RGB */
-    for (int i = 0; i < n; i++){
-      const color_lab lab = color_lab_init(colors[i * cdim],
-                                           colors[i * cdim + 1],
-                                           colors[i * cdim + 2]);
+    for (size_t i = 0; i < n; i++){
+      const color_lab lab = color_lab_init(colors[(int)i * cdim],
+                                           colors[(int)i * cdim + 1],
+                                           colors[(int)i * cdim + 2]);
       const color_rgb rgb = LAB2RGB(lab);
-      colors[i*cdim] = (rgb.r)/255;
-      colors[i*cdim+1] = (rgb.g)/255;
-      colors[i*cdim+2] = (rgb.b)/255;
+      colors[(int)i * cdim] = rgb.r  /255;
+      colors[(int)i * cdim + 1] = rgb.g / 255;
+      colors[(int)i * cdim + 2] = rgb.b / 255;
     }
   }
   *color_diff0 = color_diff;
@@ -181,7 +182,7 @@ int node_distinct_coloring(const char *color_scheme, int *lightness,
                            int seed, int *cdim0, double **colors) {
   SparseMatrix B, A = A0;
   int ncomps, *comps = NULL;
-  int nn, n;
+  int nn;
   int i, j, jj;
   QuadTree qt = NULL;
   int cdim;
@@ -220,8 +221,8 @@ int node_distinct_coloring(const char *color_scheme, int *lightness,
 
   if (accuracy <= 0) accuracy = 0.0001;
 
-  n = A->m;
-  if (n != A->n) {
+  const size_t n = A->m;
+  if (n != (size_t)A->n) {
     QuadTree_delete(qt);
     return -1;
   }

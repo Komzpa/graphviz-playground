@@ -47,7 +47,8 @@ static void get_12_norm(int n, const int *ia, const int *ja, int *p,
 }
 
 void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
-  int cnt = 1, n = A->m, *ia = A->ia, *ja = A->ja;
+  int cnt = 1, *ia = A->ia, *ja = A->ja;
+  const size_t n = A->m;
   double norm1[2];
   clock_t start = clock();
   FILE *fp = NULL;
@@ -59,17 +60,17 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
   assert(SparseMatrix_is_symmetric(A, true));
   for (bool improved = true; improved; ) {
     improved = false;
-    for (int i = 0; i < n; i++) {
-      norm1[0] = get_local_12_norm(n, i, ia, ja, p);
-      for (int j = 0; j < n; j++) {
+    for (size_t i = 0; i < n; i++) {
+      norm1[0] = get_local_12_norm((int)n, (int)i, ia, ja, p);
+      for (size_t j = 0; j < n; j++) {
 	if (j == i) continue;
-	const double norm2 = get_local_12_norm(n, j, ia, ja, p);
+	const double norm2 = get_local_12_norm((int)n, (int)j, ia, ja, p);
 	const int pi = p[i];
 	const int pj = p[j];
 	p[i] = pj;
 	p[j] = pi;
-	const double norm11 = get_local_12_norm(n, i, ia, ja, p);
-	const double norm22 = get_local_12_norm(n, j, ia, ja, p);
+	const double norm11 = get_local_12_norm((int)n, (int)i, ia, ja, p);
+	const double norm22 = get_local_12_norm((int)n, (int)j, ia, ja, p);
 	if (fmin(norm11, norm22) > fmin(norm1[0], norm2)){
 	  improved = true;
 	  norm1[0] = norm11;
@@ -79,13 +80,13 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
 	p[j] = pj;
       }
       if (i%100 == 0 && Verbose) {
-	get_12_norm(n, ia, ja, p, norm1);
+	get_12_norm((int)n, ia, ja, p, norm1);
 	fprintf(fp, "%f %f %f\n", ((double)(clock() - start)) / CLOCKS_PER_SEC,
 	        norm1[0], norm1[1]);
       }
     }
     if (Verbose) {
-      get_12_norm(n, ia, ja, p, norm1);
+      get_12_norm((int)n, ia, ja, p, norm1);
       fprintf(stderr, "[%d] aband = %f, aband_avg = %f\n", cnt++, norm1[0], norm1[1]);
       fprintf(fp,"%f %f %f\n", ((double)(clock() - start)) / CLOCKS_PER_SEC,
               norm1[0], norm1[1]);
@@ -97,26 +98,26 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
 }
   
 void country_graph_coloring(int seed, SparseMatrix A, int **p) {
-  int n = A->m;
+  const size_t n = A->m;
 
   clock_t start = clock();
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
   SparseMatrix A2 = SparseMatrix_symmetrize(A, true);
   const int *const ia = A2->ia;
   const int *const ja = A2->ja;
 
   /* Laplacian */
-  SparseMatrix L = SparseMatrix_new(n, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
-  for (int i = 0; i < n; i++){
+  SparseMatrix L = SparseMatrix_new(n, (int)n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+  for (size_t i = 0; i < n; i++){
     double nrow = 0.;
     for (int j = ia[i]; j < ia[i+1]; j++){
       const int jj = ja[j];
-      if (jj != i){
+      if (jj != (int)i){
 	nrow ++;
-	L = SparseMatrix_coordinate_form_add_entry(L, i, jj, &(double){-1});
+	L = SparseMatrix_coordinate_form_add_entry(L, (int)i, jj, &(double){-1});
       }
     }
-    L = SparseMatrix_coordinate_form_add_entry(L, i, i, &nrow);
+    L = SparseMatrix_coordinate_form_add_entry(L, (int)i, (int)i, &nrow);
   }
   {
     SparseMatrix new = SparseMatrix_from_coordinate_format(L);
@@ -127,7 +128,7 @@ void country_graph_coloring(int seed, SparseMatrix A, int **p) {
   /* largest eigen vector */
   double *v = power_method(L, L->n, seed);
 
-  vector_ordering(n, v, p);
+  vector_ordering((int)n, v, p);
   free(v);
   if (Verbose)
     fprintf(stderr, "cpu time for spectral ordering (before greedy) = %f\n",

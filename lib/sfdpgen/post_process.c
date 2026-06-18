@@ -52,24 +52,24 @@ static SparseMatrix ideal_distance_matrix(SparseMatrix A, int dim, double *x) {
   double *const d = D->a;
 
   int *mask = gv_calloc(D->m, sizeof(int));
-  for (int i = 0; i < D->m; i++)
+  for (size_t i = 0; i < D->m; i++)
     mask[i] = -1;
 
-  for (int i = 0; i < D->m; i++) {
+  for (size_t i = 0; i < D->m; i++) {
     const double di = node_degree(i);
-    mask[i] = i;
+    mask[i] = (int)i;
     for (int j = ia[i]; j < ia[i + 1]; j++) {
-      if (i == ja[j])
+      if ((int)i == ja[j])
         continue;
-      mask[ja[j]] = i;
+      mask[ja[j]] = (int)i;
     }
     for (int j = ia[i]; j < ia[i + 1]; j++) {
       const int k = ja[j];
-      if (i == k)
+      if ((int)i == k)
         continue;
       double len = di + node_degree(k);
       for (int l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] == i)
+        if (mask[ja[l]] == (int)i)
           len--;
       }
       d[j] = len;
@@ -80,12 +80,12 @@ static SparseMatrix ideal_distance_matrix(SparseMatrix A, int dim, double *x) {
   sum = 0;
   double sumd = 0;
   int nz = 0;
-  for (int i = 0; i < D->m; i++) {
+  for (size_t i = 0; i < D->m; i++) {
     for (int j = ia[i]; j < ia[i + 1]; j++) {
-      if (i == ja[j])
+      if ((int)i == ja[j])
         continue;
       nz++;
-      sum += distance(x, dim, i, ja[j]);
+      sum += distance(x, dim, (int)i, ja[j]);
       sumd += d[j];
     }
   }
@@ -93,9 +93,9 @@ static SparseMatrix ideal_distance_matrix(SparseMatrix A, int dim, double *x) {
   sumd /= nz;
   sum = sum / sumd;
 
-  for (int i = 0; i < D->m; i++) {
+  for (size_t i = 0; i < D->m; i++) {
     for (int j = ia[i]; j < ia[i + 1]; j++) {
-      if (i == ja[j])
+      if ((int)i == ja[j])
         continue;
       d[j] = sum * d[j];
     }
@@ -111,7 +111,8 @@ StressMajorizationSmoother2_new(SparseMatrix A, int dim, double lambda0,
   /* use up to dist 2 neighbor. This is used in overcoming pherical effect with
      ideal distance of 2-neighbors equal graph distance etc.
    */
-  int j, k, l, m = A->m, *ia = A->ia, *ja = A->ja, *iw, *jw, *id, *jd;
+  int j, k, l, *ia = A->ia, *ja = A->ja, *iw, *jw, *id, *jd;
+  const size_t m = A->m;
   double *d, *w, *lambda;
   double diag_d, diag_w, dist, s = 0, stop = 0, sbot = 0;
   SparseMatrix ID;
@@ -126,56 +127,55 @@ StressMajorizationSmoother2_new(SparseMatrix A, int dim, double lambda0,
   sm->data = NULL;
   sm->scheme = SM_SCHEME_NORMAL;
   sm->tol_cg = 0.01;
-  sm->maxit_cg = floor(sqrt(A->m));
+  sm->maxit_cg = floor(sqrt((double)A->m));
 
   lambda = sm->lambda = gv_calloc(m, sizeof(double));
-  for (int i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++)
     sm->lambda[i] = lambda0;
   int *mask = gv_calloc(m, sizeof(int));
 
   double *avg_dist = gv_calloc(m, sizeof(double));
 
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     avg_dist[i] = 0;
     int nz = 0;
     for (j = ia[i]; j < ia[i + 1]; j++) {
-      if (i == ja[j])
+      if ((int)i == ja[j])
         continue;
-      avg_dist[i] += distance(x, dim, i, ja[j]);
+      avg_dist[i] += distance(x, dim, (int)i, ja[j]);
       nz++;
     }
     assert(nz > 0);
     avg_dist[i] /= nz;
   }
 
-  for (int i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++)
     mask[i] = -1;
 
   size_t nz = 0;
-  for (int i = 0; i < m; i++) {
-    mask[i] = i;
+  for (size_t i = 0; i < m; i++) {
+    mask[i] = (int)i;
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
-      if (mask[k] != i) {
-        mask[k] = i;
+      if (mask[k] != (int)i) {
+        mask[k] = (int)i;
         nz++;
       }
     }
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
       for (l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] != i) {
-          mask[ja[l]] = i;
+        if (mask[ja[l]] != (int)i) {
+          mask[ja[l]] = (int)i;
           nz++;
         }
       }
     }
   }
 
-  sm->Lw = SparseMatrix_new(m, m, nz + (size_t)m, MATRIX_TYPE_REAL, FORMAT_CSR);
+  sm->Lw = SparseMatrix_new(m, (int)m, nz + m, MATRIX_TYPE_REAL, FORMAT_CSR);
   assert(sm->Lw != NULL);
-  sm->Lwd =
-      SparseMatrix_new(m, m, nz + (size_t)m, MATRIX_TYPE_REAL, FORMAT_CSR);
+  sm->Lwd = SparseMatrix_new(m, (int)m, nz + m, MATRIX_TYPE_REAL, FORMAT_CSR);
   assert(sm->Lwd != NULL);
 
   iw = sm->Lw->ia;
@@ -189,13 +189,13 @@ StressMajorizationSmoother2_new(SparseMatrix A, int dim, double lambda0,
   iw[0] = id[0] = 0;
 
   nz = 0;
-  for (int i = 0; i < m; i++) {
-    mask[i] = i + m;
+  for (size_t i = 0; i < m; i++) {
+    mask[i] = (int)(i + m);
     diag_d = diag_w = 0;
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
-      if (mask[k] != i + m) {
-        mask[k] = i + m;
+      if (mask[k] != (int)(i + m)) {
+        mask[k] = (int)(i + m);
 
         jw[nz] = k;
         if (ideal_dist_scheme == IDEAL_GRAPH_DIST) {
@@ -203,7 +203,7 @@ StressMajorizationSmoother2_new(SparseMatrix A, int dim, double lambda0,
         } else if (ideal_dist_scheme == IDEAL_AVG_DIST) {
           dist = (avg_dist[i] + avg_dist[k]) * 0.5;
         } else if (ideal_dist_scheme == IDEAL_POWER_DIST) {
-          dist = pow(distance_cropped(x, dim, i, k), .4);
+          dist = pow(distance_cropped(x, dim, (int)i, k), .4);
         } else {
           fprintf(stderr, "ideal_dist_scheme value wrong");
           assert(0);
@@ -226,7 +226,7 @@ StressMajorizationSmoother2_new(SparseMatrix A, int dim, double lambda0,
           d[nz] = w[nz]*(avg_dist[i] + avg_dist[k])*0.5;
         */
         d[nz] = w[nz] * dist;
-        stop += d[nz] * distance(x, dim, i, k);
+        stop += d[nz] * distance(x, dim, (int)i, k);
         sbot += d[nz] * dist;
         diag_d += d[nz];
 
@@ -238,15 +238,15 @@ StressMajorizationSmoother2_new(SparseMatrix A, int dim, double lambda0,
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
       for (l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] != i + m) {
-          mask[ja[l]] = i + m;
+        if (mask[ja[l]] != (int)(i + m)) {
+          mask[ja[l]] = (int)(i + m);
 
           if (ideal_dist_scheme == IDEAL_GRAPH_DIST) {
             dist = 2;
           } else if (ideal_dist_scheme == IDEAL_AVG_DIST) {
             dist = (avg_dist[i] + 2 * avg_dist[k] + avg_dist[ja[l]]) * 0.5;
           } else if (ideal_dist_scheme == IDEAL_POWER_DIST) {
-            dist = pow(distance_cropped(x, dim, i, ja[l]), .4);
+            dist = pow(distance_cropped(x, dim, (int)i, ja[l]), .4);
           } else {
             fprintf(stderr, "ideal_dist_scheme value wrong");
             assert(0);
@@ -279,12 +279,12 @@ StressMajorizationSmoother2_new(SparseMatrix A, int dim, double lambda0,
         }
       }
     }
-    jw[nz] = i;
+    jw[nz] = (int)i;
     lambda[i] *= (-diag_w); /* alternatively don't do that then we have a
                                constant penalty term scaled by lambda0 */
 
     w[nz] = -diag_w + lambda[i];
-    jd[nz] = i;
+    jd[nz] = (int)i;
     d[nz] = -diag_d;
     nz++;
 
@@ -311,21 +311,21 @@ SparseStressMajorizationSmoother_new(SparseMatrix A, int dim, double *x) {
   /* solve a stress model to achieve the ideal distance among a sparse set of
      edges recorded in A. A must be a real matrix.
    */
-  int m = A->m;
+  const size_t m = A->m;
   double stop = 0, sbot = 0;
 
   assert(SparseMatrix_is_symmetric(A, false) && A->type == MATRIX_TYPE_REAL);
 
   /* if x is all zero, make it random */
   bool has_nonzero = false;
-  for (int i = 0; i < m * dim; i++) {
+  for (size_t i = 0; i < m * (size_t)dim; i++) {
     if (!is_exactly_equal(x[i], 0)) {
       has_nonzero = true;
       break;
     }
   }
   if (!has_nonzero) {
-    for (int i = 0; i < m * dim; i++)
+    for (size_t i = 0; i < m * (size_t)dim; i++)
       x[i] = 72 * drand();
   }
 
@@ -340,16 +340,15 @@ SparseStressMajorizationSmoother_new(SparseMatrix A, int dim, double *x) {
   sm->scheme = SM_SCHEME_NORMAL;
   sm->D = A;
   sm->tol_cg = 0.01;
-  sm->maxit_cg = floor(sqrt(A->m));
+  sm->maxit_cg = floor(sqrt((double)A->m));
 
   double *const lambda = sm->lambda = gv_calloc(m, sizeof(double));
 
   size_t nz = A->nz;
 
-  sm->Lw = SparseMatrix_new(m, m, nz + (size_t)m, MATRIX_TYPE_REAL, FORMAT_CSR);
+  sm->Lw = SparseMatrix_new(m, (int)m, nz + m, MATRIX_TYPE_REAL, FORMAT_CSR);
   assert(sm->Lw != NULL);
-  sm->Lwd =
-      SparseMatrix_new(m, m, nz + (size_t)m, MATRIX_TYPE_REAL, FORMAT_CSR);
+  sm->Lwd = SparseMatrix_new(m, (int)m, nz + m, MATRIX_TYPE_REAL, FORMAT_CSR);
   assert(sm->Lwd != NULL);
 
   int *const iw = sm->Lw->ia;
@@ -361,12 +360,12 @@ SparseStressMajorizationSmoother_new(SparseMatrix A, int dim, double *x) {
   iw[0] = id[0] = 0;
 
   nz = 0;
-  for (int i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     double diag_d = 0;
     double diag_w = 0;
     for (int j = ia[i]; j < ia[i + 1]; j++) {
       const int k = ja[j];
-      if (k != i) {
+      if (k != (int)i) {
 
         jw[nz] = k;
         const double dist = a[j];
@@ -375,7 +374,7 @@ SparseStressMajorizationSmoother_new(SparseMatrix A, int dim, double *x) {
         jd[nz] = k;
         d[nz] = w[nz] * dist;
 
-        stop += d[nz] * distance(x, dim, i, k);
+        stop += d[nz] * distance(x, dim, (int)i, k);
         sbot += d[nz] * dist;
         diag_d += d[nz];
 
@@ -383,12 +382,12 @@ SparseStressMajorizationSmoother_new(SparseMatrix A, int dim, double *x) {
       }
     }
 
-    jw[nz] = i;
+    jw[nz] = (int)i;
     lambda[i] *= (-diag_w); /* alternatively don't do that then we have a
                                constant penalty term scaled by lambda0 */
     w[nz] = -diag_w + lambda[i];
 
-    jd[nz] = i;
+    jd[nz] = (int)i;
     d[nz] = -diag_d;
     nz++;
 
@@ -514,7 +513,7 @@ static void get_edge_label_matrix(relative_position_constraints data, int m,
         }
       }
     }
-    Lc = SparseMatrix_from_coordinate_arrays(nz, m, m, irn, jcn, val,
+    Lc = SparseMatrix_from_coordinate_arrays(nz, (size_t)m, m, irn, jcn, val,
                                              MATRIX_TYPE_REAL, sizeof(double));
   } else if (edge_labeling_scheme == ELSCHEME_PENALTY2 ||
              edge_labeling_scheme == ELSCHEME_STRAIGHTLINE_PENALTY2) {
@@ -550,7 +549,7 @@ static void get_edge_label_matrix(relative_position_constraints data, int m,
         x00[ii * dim + l] *= constr_penalty / (dist) / (ia[ii + 1] - ia[ii]);
       }
     }
-    Lc = SparseMatrix_from_coordinate_arrays(nz, m, m, irn, jcn, val,
+    Lc = SparseMatrix_from_coordinate_arrays(nz, (size_t)m, m, irn, jcn, val,
                                              MATRIX_TYPE_REAL, sizeof(double));
   }
   *LL = Lc;
@@ -579,7 +578,7 @@ static UNUSED double get_stress(int m, int dim, int *iw, int *jw, double *w,
 double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
                                          double *x, int maxit_sm) {
   SparseMatrix Lw = sm->Lw, Lwd = sm->Lwd, Lwdd = NULL;
-  int i, j, k, m, *id, *jd, *iw, *jw, idiag, iter = 0;
+  int j, k, *id, *jd, *iw, *jw, idiag, iter = 0;
   double *w, *dd, *d, *y = NULL, *x0 = NULL, *x00 = NULL, diag, diff = 1,
                       *lambda = sm->lambda;
   SparseMatrix Lc = NULL;
@@ -588,7 +587,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
   const double tol = 0.001;
 
   Lwdd = SparseMatrix_copy(Lwd);
-  m = Lw->m;
+  const size_t m = Lw->m;
   x0 = calloc(dim * m, sizeof(double));
   if (!x0)
     goto RETURN;
@@ -609,30 +608,30 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
   if (Verbose)
     fprintf(stderr, "initial stress = %f\n",
-            get_stress(m, dim, iw, jw, w, d, x, sm->scaling));
+            get_stress((int)m, dim, iw, jw, w, d, x, sm->scaling));
 #else
   (void)iw;
   (void)jw;
 #endif
   /* for the additional matrix L due to the position constraints */
   if (sm->scheme == SM_SCHEME_NORMAL_ELABEL) {
-    get_edge_label_matrix(sm->data, m, dim, x, &Lc, &x00);
+    get_edge_label_matrix(sm->data, (int)m, dim, x, &Lc, &x00);
     if (Lc)
       Lw = SparseMatrix_add(Lw, Lc);
   }
 
   while (iter++ < maxit_sm && diff > tol) {
 
-    for (i = 0; i < m; i++) {
+    for (size_t i = 0; i < m; i++) {
       idiag = -1;
       diag = 0.;
       for (j = id[i]; j < id[i + 1]; j++) {
-        if (i == jd[j]) {
+        if ((int)i == jd[j]) {
           idiag = j;
           continue;
         }
 
-        dist = distance(x, dim, i, jd[j]);
+        dist = distance(x, dim, (int)i, jd[j]);
         if (d[j] == 0) {
           dd[j] = 0;
         } else {
@@ -641,7 +640,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
             /* perturb so points do not sit at the same place */
             for (k = 0; k < dim; k++)
               x[jd[j] * dim + k] += 0.0001 * (drand() + .0001) * dij;
-            dist = distance(x, dim, i, jd[j]);
+            dist = distance(x, dim, (int)i, jd[j]);
           }
           dd[j] = d[j] / dist;
         }
@@ -655,9 +654,9 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
     SparseMatrix_multiply_dense(Lwdd, x, y, dim);
 
     if (lambda) { /* is there a penalty term? */
-      for (i = 0; i < m; i++) {
+      for (size_t i = 0; i < m; i++) {
         for (j = 0; j < dim; j++) {
-          y[i * dim + j] += lambda[i] * x0[i * dim + j];
+          y[(int)i * dim + j] += lambda[i] * x0[(int)i * dim + j];
         }
       }
     }
@@ -665,9 +664,9 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
     /* additional term added to the rhs */
     switch (sm->scheme) {
     case SM_SCHEME_NORMAL_ELABEL: {
-      for (i = 0; i < m; i++) {
+      for (size_t i = 0; i < m; i++) {
         for (j = 0; j < dim; j++) {
-          y[i * dim + j] += x00[i * dim + j];
+          y[(int)i * dim + j] += x00[(int)i * dim + j];
         }
       }
       break;
@@ -679,7 +678,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
     if (Verbose) {
       fprintf(stderr, "stress1 = %g\n",
-              get_stress(m, dim, iw, jw, w, d, x, sm->scaling));
+              get_stress((int)m, dim, iw, jw, w, d, x, sm->scaling));
     }
 #endif
 
@@ -688,9 +687,10 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
     if (Verbose)
       fprintf(stderr, "stress2 = %g\n",
-              get_stress(m, dim, iw, jw, w, d, y, sm->scaling));
+              get_stress((int)m, dim, iw, jw, w, d, y, sm->scaling));
 #endif
-    diff = total_distance(m, dim, x, y) / sqrt(vector_product(m * dim, x, x));
+    diff = total_distance((int)m, dim, x, y) /
+           sqrt(vector_product((int)m * dim, x, x));
 #ifdef DEBUG_PRINT
     if (Verbose) {
       fprintf(stderr,
@@ -709,7 +709,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
   if (Verbose)
     fprintf(stderr, "iter = %d, final stress = %f\n", iter,
-            get_stress(m, dim, iw, jw, w, d, x, sm->scaling));
+            get_stress((int)m, dim, iw, jw, w, d, x, sm->scaling));
 #endif
 
 RETURN:
@@ -740,7 +740,8 @@ void StressMajorizationSmoother_delete(StressMajorizationSmoother sm) {
 
 TriangleSmoother TriangleSmoother_new(SparseMatrix A, int dim, double *x,
                                       bool use_triangularization) {
-  int i, j, k, m = A->m, *ia = A->ia, *ja = A->ja, *iw, *jw, jdiag, nz;
+  int j, k, *ia = A->ia, *ja = A->ja, *iw, *jw, jdiag, nz;
+  const size_t m = A->m;
   SparseMatrix B;
   double *d, *w, diag_d, diag_w, dist;
   double s = 0, stop = 0, sbot = 0;
@@ -749,13 +750,13 @@ TriangleSmoother TriangleSmoother_new(SparseMatrix A, int dim, double *x,
 
   double *avg_dist = gv_calloc(m, sizeof(double));
 
-  for (i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     avg_dist[i] = 0;
     nz = 0;
     for (j = ia[i]; j < ia[i + 1]; j++) {
-      if (i == ja[j])
+      if ((int)i == ja[j])
         continue;
-      avg_dist[i] += distance(x, dim, i, ja[j]);
+      avg_dist[i] += distance(x, dim, (int)i, ja[j]);
       nz++;
     }
     assert(nz > 0);
@@ -767,15 +768,15 @@ TriangleSmoother TriangleSmoother_new(SparseMatrix A, int dim, double *x,
   sm->data = NULL;
   sm->scheme = SM_SCHEME_NORMAL;
   sm->tol_cg = 0.01;
-  sm->maxit_cg = floor(sqrt(A->m));
+  sm->maxit_cg = floor(sqrt((double)A->m));
 
   double *lambda = sm->lambda = gv_calloc(m, sizeof(double));
 
   if (m > 2) {
     if (use_triangularization) {
-      B = call_tri(m, x);
+      B = call_tri((int)m, x);
     } else {
-      B = call_tri2(m, dim, x);
+      B = call_tri2((int)m, dim, x);
     }
   } else {
     B = SparseMatrix_copy(A);
@@ -796,12 +797,12 @@ TriangleSmoother TriangleSmoother_new(SparseMatrix A, int dim, double *x,
   w = sm->Lw->a;
   d = sm->Lwd->a;
 
-  for (i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     diag_d = diag_w = 0;
     jdiag = -1;
     for (j = iw[i]; j < iw[i + 1]; j++) {
       k = jw[j];
-      if (k == i) {
+      if (k == (int)i) {
         jdiag = j;
         continue;
       }
@@ -809,14 +810,14 @@ TriangleSmoother TriangleSmoother_new(SparseMatrix A, int dim, double *x,
               w[j] = -2./(avg_dist[i]+avg_dist[k]);
               w[j] = -1.*/
       ; /* use unit weight for now, later can try 1/(deg(i)+deg(k)) */
-      dist = pow(distance_cropped(x, dim, i, k), 0.6);
+      dist = pow(distance_cropped(x, dim, (int)i, k), 0.6);
       w[j] = 1 / (dist * dist);
       diag_w += w[j];
 
       /*      d[j] = w[j]*distance(x,dim,i,k);
               d[j] = w[j]*(avg_dist[i] + avg_dist[k])*0.5;*/
       d[j] = w[j] * dist;
-      stop += d[j] * distance(x, dim, i, k);
+      stop += d[j] * distance(x, dim, (int)i, k);
       sbot += d[j] * dist;
       diag_d += d[j];
     }
@@ -829,7 +830,7 @@ TriangleSmoother TriangleSmoother_new(SparseMatrix A, int dim, double *x,
   }
 
   s = stop / sbot;
-  for (i = 0; i < iw[m]; i++)
+  for (int i = 0; i < iw[m]; i++)
     d[i] *= s;
   sm->scaling = s;
 
@@ -851,7 +852,8 @@ void TriangleSmoother_smooth(TriangleSmoother sm, int dim, double *x) {
  * ================ */
 SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
                                   spring_electrical_control ctrl, double *x) {
-  int j, k, l, m = A->m, *ia = A->ia, *ja = A->ja, *id, *jd;
+  int j, k, l, *ia = A->ia, *ja = A->ja, *id, *jd;
+  const size_t m = A->m;
   double *d, *dd;
   SparseMatrix ID = NULL;
 
@@ -863,31 +865,31 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
   SpringSmoother sm = gv_alloc(sizeof(struct SpringSmoother_struct));
   int *mask = gv_calloc(m, sizeof(int));
 
-  for (int i = 0; i < m; i++)
+  for (size_t i = 0; i < m; i++)
     mask[i] = -1;
 
   size_t nz = 0;
-  for (int i = 0; i < m; i++) {
-    mask[i] = i;
+  for (size_t i = 0; i < m; i++) {
+    mask[i] = (int)i;
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
-      if (mask[k] != i) {
-        mask[k] = i;
+      if (mask[k] != (int)i) {
+        mask[k] = (int)i;
         nz++;
       }
     }
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
       for (l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] != i) {
-          mask[ja[l]] = i;
+        if (mask[ja[l]] != (int)i) {
+          mask[ja[l]] = (int)i;
           nz++;
         }
       }
     }
   }
 
-  sm->D = SparseMatrix_new(m, m, nz, MATRIX_TYPE_REAL, FORMAT_CSR);
+  sm->D = SparseMatrix_new(m, (int)m, nz, MATRIX_TYPE_REAL, FORMAT_CSR);
   assert(sm->D != NULL);
 
   id = sm->D->ia;
@@ -896,12 +898,12 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
   id[0] = 0;
 
   nz = 0;
-  for (int i = 0; i < m; i++) {
-    mask[i] = i + m;
+  for (size_t i = 0; i < m; i++) {
+    mask[i] = (int)(i + m);
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
-      if (mask[k] != i + m) {
-        mask[k] = i + m;
+      if (mask[k] != (int)(i + m)) {
+        mask[k] = (int)(i + m);
         jd[nz] = k;
         d[nz] = dd[j];
         nz++;
@@ -911,8 +913,8 @@ SpringSmoother SpringSmoother_new(SparseMatrix A, int dim,
     for (j = ia[i]; j < ia[i + 1]; j++) {
       k = ja[j];
       for (l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] != i + m) {
-          mask[ja[l]] = i + m;
+        if (mask[ja[l]] != (int)(i + m)) {
+          mask[ja[l]] = (int)(i + m);
           jd[nz] = ja[l];
           d[nz] = dd[j] + dd[l];
           nz++;

@@ -111,7 +111,7 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
     ND_id(n) = i++;
 
   if (format == FORMAT_COORD) {
-    A = SparseMatrix_new(i, i, nedges, MATRIX_TYPE_REAL, format);
+    A = SparseMatrix_new((size_t)i, i, nedges, MATRIX_TYPE_REAL, format);
     A->nz = nedges;
     I = A->ia;
     J = A->ja;
@@ -173,8 +173,8 @@ SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format) {
   size_t sz = sizeof(double);
   if (format == FORMAT_CSR) {
     assert(nnodes <= INT_MAX);
-    A = SparseMatrix_from_coordinate_arrays(nedges, (int)nnodes, (int)nnodes, I,
-                                            J, val, type, sz);
+    A = SparseMatrix_from_coordinate_arrays(nedges, nnodes, (int)nnodes, I, J,
+                                            val, type, sz);
   }
 
   if (format != FORMAT_COORD) {
@@ -360,8 +360,8 @@ SparseMatrix Import_coord_clusters_from_dot(
       i++;
     }
   }
-  A = SparseMatrix_from_coordinate_arrays((size_t)nedges, nnodes, nnodes, I, J,
-                                          val, type, sizeof(double));
+  A = SparseMatrix_from_coordinate_arrays(
+      (size_t)nedges, (size_t)nnodes, nnodes, I, J, val, type, sizeof(double));
 
   /* get clustering info */
   *clusters = gv_calloc(nnodes, sizeof(int));
@@ -591,8 +591,8 @@ void attached_clustering(Agraph_t *g, int maxcluster, int clustering_scheme) {
       i++;
     }
   }
-  A = SparseMatrix_from_coordinate_arrays((size_t)nedges, nnodes, nnodes, I, J,
-                                          val, type, sz);
+  A = SparseMatrix_from_coordinate_arrays((size_t)nedges, (size_t)nnodes,
+                                          nnodes, I, J, val, type, sz);
 
   int *clusters = gv_calloc(nnodes, sizeof(int));
 

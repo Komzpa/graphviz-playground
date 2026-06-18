@@ -31,7 +31,8 @@ static double *diag_precon(const double *diag, double *x, double *y) {
 }
 
 static double *diag_precon_new(SparseMatrix A) {
-  int i, j, m = A->m, *ia = A->ia, *ja = A->ja;
+  int j, *ia = A->ia, *ja = A->ja;
+  const size_t m = A->m;
   double *a = A->a;
 
   assert(A->type == MATRIX_TYPE_REAL);
@@ -43,10 +44,10 @@ static double *diag_precon_new(SparseMatrix A) {
 
   diag[0] = m;
   diag++;
-  for (i = 0; i < m; i++){
+  for (size_t i = 0; i < m; i++){
     diag[i] = 1.;
     for (j = ia[i]; j < ia[i+1]; j++){
-      if (i == ja[j] && fabs(a[j]) > 0) diag[i] = 1./a[j];
+      if ((int)i == ja[j] && fabs(a[j]) > 0) diag[i] = 1./a[j];
     }
   }
 
@@ -136,10 +137,10 @@ static double cg(SparseMatrix A, const double *precond, int n, int dim,
 
 double SparseMatrix_solve(SparseMatrix A, int dim, double *x0, double *rhs,
                           double tol, double maxit) {
-  int n = A->m;
+  const size_t n = A->m;
 
   double *precond = diag_precon_new(A);
-  double res = cg(A, precond, n, dim, x0, rhs, tol, maxit);
+  double res = cg(A, precond, (int)n, dim, x0, rhs, tol, maxit);
   free(precond);
   return res;
 }

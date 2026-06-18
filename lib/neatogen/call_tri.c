@@ -35,7 +35,7 @@ SparseMatrix call_tri(int n, double *x) {
 	edgelist = delaunay_tri (xv, yv, n, &numberofedges);
     }
 
-    A = SparseMatrix_new(n, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+    A = SparseMatrix_new((size_t)n, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
     for (i = 0; i < numberofedges; i++) {
 	ii = edgelist[i * 2];
 	jj = edgelist[i * 2 + 1];
@@ -78,7 +78,7 @@ SparseMatrix call_tri2(int n, int dim, double * xx)
 
     delaunay = UG_graph(x, y, n);
 
-    A = SparseMatrix_new(n, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+    A = SparseMatrix_new((size_t)n, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
 
     for (i = 0; i < n; i++) {
 	for (j = 1; j < delaunay[i].nedges; j++) {

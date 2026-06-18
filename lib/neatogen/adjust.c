@@ -571,7 +571,7 @@ SparseMatrix makeMatrix(Agraph_t *g) {
 	}
     }
 
-    SparseMatrix A = SparseMatrix_from_coordinate_arrays((size_t)nedges, nnodes,
+    SparseMatrix A = SparseMatrix_from_coordinate_arrays((size_t)nedges, (size_t)nnodes,
                                                          nnodes, I, J, val,
                                                          MATRIX_TYPE_REAL,
                                                          sizeof(double));

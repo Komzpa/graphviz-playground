@@ -26,7 +26,7 @@ enum {BIPARTITE_RECT = 0, BIPARTITE_PATTERN_UNSYM, BIPARTITE_UNSYM, BIPARTITE_AL
 
 
 struct SparseMatrix_struct {
-  int m; /* row dimension */
+  size_t m; ///< row dimension
   int n; /* column dimension */
   size_t nz; ///< the actual length used is nz, for CSR/CSC matrix this is the same as ia[n]
   size_t nzmax; ///< the current length of ja and a (if exists) allocated
@@ -45,18 +45,18 @@ typedef struct SparseMatrix_struct* SparseMatrix;
 
 enum {MATRIX_TYPE_REAL = 1<<0, MATRIX_TYPE_INTEGER = 1<<2, MATRIX_TYPE_PATTERN = 1<<3};
 
-SparseMatrix SparseMatrix_new(int m, int n, size_t nz, int type, int format);
+SparseMatrix SparseMatrix_new(size_t m, int n, size_t nz, int type, int format);
 
 /* this version sum repeated entries */
 SparseMatrix SparseMatrix_from_coordinate_format(SparseMatrix A);
 SparseMatrix SparseMatrix_from_coordinate_format_not_compacted(SparseMatrix A);
 
-SparseMatrix SparseMatrix_from_coordinate_arrays(size_t nz, int m, int n,
+SparseMatrix SparseMatrix_from_coordinate_arrays(size_t nz, size_t m, int n,
                                                  int *irn, int *jcn,
                                                  const void *val, int type,
                                                  size_t sz);
 
-SparseMatrix SparseMatrix_from_coordinate_arrays_not_compacted(size_t nz, int m,
+SparseMatrix SparseMatrix_from_coordinate_arrays_not_compacted(size_t nz, size_t m,
                                                                int n, int *irn,
                                                                int *jcn,
                                                                void *val,

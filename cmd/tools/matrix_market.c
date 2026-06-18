@@ -86,8 +86,8 @@ SparseMatrix SparseMatrix_import_matrix_market(FILE *f) {
   }
   vp = val;
 
-  A = SparseMatrix_from_coordinate_arrays(nz, m, n, I, J, vp, MATRIX_TYPE_REAL,
-                                          sizeof(double));
+  A = SparseMatrix_from_coordinate_arrays(nz, (size_t)m, n, I, J, vp,
+                                          MATRIX_TYPE_REAL, sizeof(double));
 done:
   free(I);
   free(J);

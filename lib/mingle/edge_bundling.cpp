@@ -406,8 +406,8 @@ static void force_directed_edge_bundling(SparseMatrix A,
   
   if (Verbose > 1)
     fprintf(stderr, "total interaction pairs = %" PRISIZE_T
-            " out of %d, avg neighbors per edge = %f\n", A->nz, A->m * A->m,
-            (double)A->nz / A->m);
+            " out of %" PRISIZE_T ", avg neighbors per edge = %f\n", A->nz, A->m * A->m,
+            (double)A->nz / (double)A->m);
 
   std::vector<double> force_t(dim * np);
   std::vector<double> force_a(dim * np);
@@ -555,20 +555,19 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
      max_recursion: used only in agglomerative method. Specify how many level of recursion to do to bundle bundled edges again
 
   */
-  int ne = A0->m;
+  const size_t ne = A0->m;
   SparseMatrix A = A0, B = nullptr;
-  int i;
   double tol = 0.001;
   int k;
   double step0 = 0.1, start = 0.0;
   int maxit = 10;
 
-  assert(A->n == ne);
+  assert((size_t)A->n == ne);
   std::vector<pedge> edges;
   edges.reserve(ne);
 
-  for (i = 0; i < ne; i++){
-    edges.emplace_back(pedge_new(2, dim, &x.data()[dim * 2 * i]));
+  for (size_t i = 0; i < ne; i++){
+    edges.emplace_back(pedge_new(2, dim, &x.data()[dim * 2 * (int)i]));
   }
 
   A = SparseMatrix_symmetrize(A0, true);
@@ -579,9 +578,9 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
   if (method == METHOD_INK){
 
     /* go through the links and make sure edges are compatible */
-    B = check_compatibility(A, ne, edges, compatibility_method, tol);
+    B = check_compatibility(A, (int)ne, edges, compatibility_method, tol);
 
-    modularity_ink_bundling(dim, ne, B, edges, angle_param, angle);
+    modularity_ink_bundling(dim, (int)ne, B, edges, angle_param, angle);
 
   } else if (method == METHOD_INK_AGGLOMERATE){
     /* plan: merge a node with its neighbors if doing so improve. Form coarsening graph, repeat until no more ink saving */
@@ -590,11 +589,11 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
   } else if (method == METHOD_FD){/* FD method */
     
     /* go through the links and make sure edges are compatible */
-    B = check_compatibility(A, ne, edges, compatibility_method, tol);
+    B = check_compatibility(A, (int)ne, edges, compatibility_method, tol);
 
 
     for (k = 0; k < maxit_outer; k++){
-      for (i = 0; i < ne; i++){
+      for (size_t i = 0; i < ne; i++){
 	pedge_double(edges[i]);
       }
       step0 /= 2;

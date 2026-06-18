@@ -21,6 +21,7 @@
 #include <utility>
 #include <util/debug.h>
 #include <util/exit.h>
+#include <util/prisize_t.h>
 #include <vector>
 
 #include <sparse/DotIO.h>
@@ -366,7 +367,6 @@ using PointMap = std::unordered_map<std::pair<int, int>, int, PointHash>;
 
 static int bundle(Agraph_t *g, const opts_t &opts) {
 	double *x = nullptr;
-    int i;
 
 	if (checkG(g)) {
 		agerrorf("Graph %s (%s) contains loops or multiedges\n", agnameof(g), fname);
@@ -392,14 +392,15 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 
 		const int *ia = A->ia;
 		const int *ja = A->ja;
-		for (i = 0; i < A->m; i++){
+		for (size_t i = 0; i < A->m; i++){
 			for (int j = ia[i]; j < ia[i+1]; j++){
-				if (ja[j] > i){
-					pm[std::pair(i, ja[j])] = idx++;
+				if (ja[j] > (int)i){
+					pm[std::pair((int)i, ja[j])] = idx++;
 				}
 			}
 		}
-		for (i = 0, n = agfstnode(g); n; n = agnxtnode(g,n)) {
+		int i = 0;
+		for (n = agfstnode(g); n; n = agnxtnode(g,n)) {
 			setDotNodeID(n, i++);
 		}
 		for (n = agfstnode(g); n; n = agnxtnode(g,n)) {
@@ -422,9 +423,9 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 	std::vector<double> xx(nz * 4);
 	nz = 0;
 	const int dim = 4;
-	for (i = 0; i < A->m; i++){
+	for (size_t i = 0; i < A->m; i++){
 		for (int j = ia[i]; j < ia[i+1]; j++){
-			if (ja[j] > i){
+			if (ja[j] > (int)i){
 				xx[nz*dim] = x[i*2];
 				xx[nz*dim+1] = x[i*2+1];
 				xx[nz*dim+2] = x[ja[j]*2];
@@ -433,7 +434,7 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 			}
 		}
 	}
-	GV_DEBUG("n = %d nz = %d", A->m, nz);
+	GV_DEBUG("n = %" PRISIZE_T " nz = %d", A->m, nz);
 
 	SparseMatrix B = nearest_neighbor_graph(nz, std::min(opts.nneighbors, nz), xx);
 
@@ -447,10 +448,10 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
                           opts.max_recursion, opts.angle_param, opts.angle);
 
 	if (opts.fmt == FMT_GV) {
-	    	export_dot(outfile, A->m, edges, g);
+	    	export_dot(outfile, (int)A->m, edges, g);
 	}
 	else {
-		pedge_export_gv(outfile, A->m, edges);
+		pedge_export_gv(outfile, (int)A->m, edges);
 	}
 	return 0;
 }
