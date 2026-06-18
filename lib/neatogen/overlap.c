@@ -453,22 +453,22 @@ static void scale_to_edge_length(int dim, SparseMatrix A, double *x, double avg_
   for (size_t i = 0; i < (size_t)dim * A->m; i++) x[i] *= dist;
 }
 
-static void print_bounding_box(int n, int dim, double *x){
-  int i, k;
+static void print_bounding_box(size_t n, int dim, double *x) {
+  int k;
 
   double *xmin = gv_calloc(dim, sizeof(double));
   double *xmax = gv_calloc(dim, sizeof(double));
 
-  for (i = 0; i < dim; i++) xmin[i]=xmax[i] = x[i];
+  for (int i = 0; i < dim; i++) xmin[i] = xmax[i] = x[i];
 
-  for (i = 0; i < n; i++){
+  for (size_t i = 0; i < n; i++) {
     for (k = 0; k < dim; k++){
-      xmin[k] = fmin(xmin[k], x[i * dim + k]);
-      xmax[k] = fmax(xmax[k], x[i * dim + k]);
+      xmin[k] = fmin(xmin[k], x[(int)i * dim + k]);
+      xmax[k] = fmax(xmax[k], x[(int)i * dim + k]);
     }
   }
   fprintf(stderr,"bounding box = \n");
-  for (i = 0; i < dim; i++) fprintf(stderr,"{%f,%f}, ",xmin[i], xmax[i]);
+  for (int i = 0; i < dim; i++) fprintf(stderr,"{%f,%f}, ", xmin[i], xmax[i]);
   fprintf(stderr,"\n");
 
   free(xmin);
@@ -533,7 +533,7 @@ void remove_overlap(int dim, SparseMatrix A, double *x, double *label_sizes, int
       edge_labeling_scheme != ELSCHEME_NONE && n_constr_nodes > 0;
   int i;
   for (i = 0; i < ntry; i++){
-    if (Verbose) print_bounding_box((int)A->m, dim, x);
+    if (Verbose) print_bounding_box(A->m, dim, x);
     sm = OverlapSmoother_new(A, (int)A->m, dim, x, label_sizes, neighborhood_only,
 			     &max_overlap, &min_overlap, edge_labeling_scheme, n_constr_nodes, constr_nodes, A_constr, shrink); 
     if (Verbose) {
