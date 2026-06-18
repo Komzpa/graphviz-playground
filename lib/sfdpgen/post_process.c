@@ -557,20 +557,20 @@ static void get_edge_label_matrix(relative_position_constraints data, int m,
   *rhs = x00;
 }
 
-static UNUSED double get_stress(int m, int dim, int *iw, int *jw, double *w,
+static UNUSED double get_stress(size_t m, int dim, int *iw, int *jw, double *w,
                                 double *d, double *x, double scaling) {
-  int i, j;
+  int j;
   double res = 0., dist;
   // We use the fact that dᵢⱼ = wᵢⱼ × graph_dist(i, j). Also, dᵢⱼ and x are
   // scaled by ×scaling, so divide by it to get actual unscaled stress.
-  for (i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     for (j = iw[i]; j < iw[i + 1]; j++) {
-      if (i == jw[j]) {
+      if ((int)i == jw[j]) {
         continue;
       }
       dist = d[j] / w[j]; /* both negative*/
-      res += -w[j] * (dist - distance(x, dim, i, jw[j])) *
-             (dist - distance(x, dim, i, jw[j]));
+      res += -w[j] * (dist - distance(x, dim, (int)i, jw[j])) *
+             (dist - distance(x, dim, (int)i, jw[j]));
     }
   }
   return 0.5 * res / scaling / scaling;
@@ -609,7 +609,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
   if (Verbose)
     fprintf(stderr, "initial stress = %f\n",
-            get_stress((int)m, dim, iw, jw, w, d, x, sm->scaling));
+            get_stress(m, dim, iw, jw, w, d, x, sm->scaling));
 #else
   (void)iw;
   (void)jw;
@@ -679,7 +679,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
     if (Verbose) {
       fprintf(stderr, "stress1 = %g\n",
-              get_stress((int)m, dim, iw, jw, w, d, x, sm->scaling));
+              get_stress(m, dim, iw, jw, w, d, x, sm->scaling));
     }
 #endif
 
@@ -688,7 +688,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
     if (Verbose)
       fprintf(stderr, "stress2 = %g\n",
-              get_stress((int)m, dim, iw, jw, w, d, y, sm->scaling));
+              get_stress(m, dim, iw, jw, w, d, y, sm->scaling));
 #endif
     diff = total_distance((int)m, dim, x, y) /
            sqrt(vector_product((int)m * dim, x, x));
@@ -710,7 +710,7 @@ double StressMajorizationSmoother_smooth(StressMajorizationSmoother sm, int dim,
 #ifdef DEBUG_PRINT
   if (Verbose)
     fprintf(stderr, "iter = %d, final stress = %f\n", iter,
-            get_stress((int)m, dim, iw, jw, w, d, x, sm->scaling));
+            get_stress(m, dim, iw, jw, w, d, x, sm->scaling));
 #endif
 
 RETURN:
