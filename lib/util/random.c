@@ -12,19 +12,19 @@
 #include <util/gv_math.h>
 #include <util/random.h>
 
-int *gv_permutation(int bound) {
-  if (bound <= 0) {
+int *gv_permutation(size_t bound) {
+  if (bound == 0) {
     return NULL;
   }
 
   // initialize a sequence `{0, 1, …, bound - 1}`
-  int *const p = gv_calloc((size_t)bound, sizeof(int));
-  for (int i = 0; i < bound; i++) {
+  int *const p = gv_calloc(bound, sizeof(int));
+  for (int i = 0; (size_t)i < bound; i++) {
     p[i] = i;
   }
 
   // perform a Fisher-Yates shuffle
-  for (int i = bound - 1; i > 0; --i) {
+  for (int i = (int)bound - 1; i > 0; --i) {
     const int j = gv_random(i + 1);
     SWAP(&p[i], &p[j]);
   }

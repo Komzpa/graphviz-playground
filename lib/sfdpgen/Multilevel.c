@@ -100,7 +100,7 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
     if (nz > nz0) (*clusterp)[++(*ncluster)] = nz;
   }
 
-  int *const p = gv_permutation((int)m);
+  int *const p = gv_permutation(m);
   for (size_t ii = 0; ii < m; ii++){
     int i = p[ii];
     bool first = true;
