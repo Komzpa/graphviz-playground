@@ -311,18 +311,18 @@ static void genBundleColors(const pedge &edge, std::ostream &os,
 	os << std::dec << std::setw(0); // reset stream characteristics
 }
 
-static void export_dot(FILE *fp, int ne, const std::vector<pedge> &edges,
+static void export_dot(FILE *fp, size_t ne, const std::vector<pedge> &edges,
                        Agraph_t *g) {
 	Agsym_t* epos = agattr_text(g, AGEDGE, const_cast<char*>("pos"), "");
 	Agsym_t* esects = agattr_text(g, AGEDGE, const_cast<char*>("bundle"), "");
 	Agsym_t* eclrs = nullptr;
 	Agnode_t* n;
 	Agedge_t* e;
-	int i, j;
+	int j;
 	double maxwgt = 0;
 
 	  /* figure out max number of bundled original edges in a pedge */
-	for (i = 0; i < ne; i++){
+	for (size_t i = 0; i < ne; i++){
 		const pedge &edge = edges[i];
 		if (!edge.wgts.empty()) {
 			for (j = 0; j < edge.npoints - 1; j++){
@@ -448,7 +448,7 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
                           opts.max_recursion, opts.angle_param, opts.angle);
 
 	if (opts.fmt == FMT_GV) {
-	    	export_dot(outfile, (int)A->m, edges, g);
+	    	export_dot(outfile, A->m, edges, g);
 	}
 	else {
 		pedge_export_gv(outfile, (int)A->m, edges);
