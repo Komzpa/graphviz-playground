@@ -51,7 +51,7 @@ extern double _statistics[10];
 
 extern double drand(void);
 
-double* vector_subtract_to(int n, double *x, double *y);/* y = x-y */
+double *vector_subtract_to(size_t n, double *x, double *y); ///< y = x-y
 
 double vector_product(int n, double *x, double *y);
 

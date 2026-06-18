@@ -25,10 +25,9 @@ double drand(void){
   return rand()/(double) RAND_MAX;
 }
 
-double* vector_subtract_to(int n, double *x, double *y){
+double *vector_subtract_to(size_t n, double *x, double *y) {
   /* y = x-y */
-  int i;
-  for (i = 0; i < n; i++) y[i] = x[i] - y[i];
+  for (size_t i = 0; i < n; i++) y[i] = x[i] - y[i];
   return y;
 }
 double vector_product(int n, double *x, double *y){

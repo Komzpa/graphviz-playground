@@ -67,7 +67,7 @@ static double conjugate_gradient(SparseMatrix A, const double *precon, size_t n,
   double *q = gv_calloc(n, sizeof(double));
 
   SparseMatrix_multiply_vector(A, x, &r);
-  r = vector_subtract_to((int)n, rhs, r);
+  r = vector_subtract_to(n, rhs, r);
 
   res0 = res = sqrt(vector_product((int)n, r, r)) / (double)n;
 #ifdef DEBUG_PRINT
