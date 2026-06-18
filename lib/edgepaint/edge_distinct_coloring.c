@@ -11,7 +11,6 @@
 #include "config.h"
 
 #include <assert.h>
-#include <limits.h>
 #include <sparse/general.h>
 #include <math.h>
 #include <stdbool.h>
@@ -231,8 +230,7 @@ Agraph_t *edge_distinct_coloring(const char *color_scheme, int *lightness,
     fprintf(stderr, "The edge conflict graph has %" PRISIZE_T " nodes and %" PRISIZE_T
             " edges\n", C->m, C->nz);
 
-  assert(cdim <= INT_MAX);
-  attach_edge_colors(g, (int)cdim, colors);
+  attach_edge_colors(g, cdim, colors);
 
  RETURN:
   SparseMatrix_delete(A);

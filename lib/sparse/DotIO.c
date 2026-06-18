@@ -37,7 +37,7 @@ typedef struct {
 
 #define ND_id(n) (((Agnodeinfo_t *)((n)->base.data))->id)
 
-static void color_string(agxbuf *buf, int dim, double *color) {
+static void color_string(agxbuf *buf, size_t dim, double *color) {
   if (dim > 3 || dim < 1) {
     fprintf(stderr, "can only 1, 2 or 3 dimensional color space. with color "
                     "value between 0 to 1\n");
@@ -57,7 +57,7 @@ static void color_string(agxbuf *buf, int dim, double *color) {
   }
 }
 
-void attach_edge_colors(Agraph_t *g, int dim, double *colors) {
+void attach_edge_colors(Agraph_t *g, size_t dim, double *colors) {
   /* colors is array of dim*nedges, with color for edge i at colors[dim*i,
    * dim(i+1))
    */
@@ -65,7 +65,7 @@ void attach_edge_colors(Agraph_t *g, int dim, double *colors) {
   Agedge_t *e;
   Agnode_t *n;
   agxbuf buf = {0};
-  int ie = 0;
+  size_t ie = 0;
 
   if (!sym)
     sym = agattr_text(g, AGEDGE, "color", "");
