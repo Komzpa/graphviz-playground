@@ -52,13 +52,11 @@ double* vector_saxpy2(int n, double *x, double *y, double beta){
   return x;
 }
 
-void vector_float_take(int n, float *v, int m, int *p, float **u){
+void vector_float_take(int n, float *v, size_t m, int *p, float **u) {
   /* take m elements v[p[i]]],i=1,...,m and oput in u */
-  int i;
-
   if (!*u) *u = gv_calloc(m, sizeof(float));
 
-  for (i = 0; i < m; i++) {
+  for (size_t i = 0; i < m; i++) {
     assert(p[i] < n && p[i] >= 0);
     (void)n;
     (*u)[i] = v[p[i]];
