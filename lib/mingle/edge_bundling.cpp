@@ -501,22 +501,22 @@ static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
   SparseMatrix_delete(D);
 }
 
-static SparseMatrix check_compatibility(SparseMatrix A, int ne,
+static SparseMatrix check_compatibility(SparseMatrix A, size_t ne,
                                         const std::vector<pedge> &edges,
                                         int compatibility_method, double tol) {
   /* go through the links and make sure edges are compatible */
   SparseMatrix B, C;
-  int *ia, *ja, i, j, jj;
+  int *ia, *ja, j, jj;
   double start;
   double dist;
 
   B = SparseMatrix_new(1, 1, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
   ia = A->ia; ja = A->ja;
   start = clock();
-  for (i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     for (j = ia[i]; j < ia[i+1]; j++){
       jj = ja[j];
-      if (i == jj) continue;
+      if ((int)i == jj) continue;
       if (compatibility_method == COMPATIBILITY_DIST){
 	dist = edge_compatibility_full(edges[i], edges[jj]);
       } else if (compatibility_method == COMPATIBILITY_FULL){
@@ -524,8 +524,8 @@ static SparseMatrix check_compatibility(SparseMatrix A, int ne,
       } 
 
       if (fabs(dist) > tol){
-	B = SparseMatrix_coordinate_form_add_entry(B, i, jj, &dist);
-	B = SparseMatrix_coordinate_form_add_entry(B, jj, i, &dist);
+	B = SparseMatrix_coordinate_form_add_entry(B, (int)i, jj, &dist);
+	B = SparseMatrix_coordinate_form_add_entry(B, jj, (int)i, &dist);
       }
     }
   }
@@ -578,7 +578,7 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
   if (method == METHOD_INK){
 
     /* go through the links and make sure edges are compatible */
-    B = check_compatibility(A, (int)ne, edges, compatibility_method, tol);
+    B = check_compatibility(A, ne, edges, compatibility_method, tol);
 
     modularity_ink_bundling(dim, (int)ne, B, edges, angle_param, angle);
 
@@ -589,7 +589,7 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
   } else if (method == METHOD_FD){/* FD method */
     
     /* go through the links and make sure edges are compatible */
-    B = check_compatibility(A, (int)ne, edges, compatibility_method, tol);
+    B = check_compatibility(A, ne, edges, compatibility_method, tol);
 
 
     for (k = 0; k < maxit_outer; k++){
