@@ -15,6 +15,7 @@
 #include <common/arith.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <util/alloc.h>
 #include <util/prisize_t.h>
 #include <util/random.h>
@@ -59,8 +60,8 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
   (void)n;
   double *a, amax = 0;
   int jamax = 0;
-  int *matched, nz, nz0;
-  enum {MATCHED = -1};
+  int nz, nz0;
+  enum {MATCHED = SIZE_MAX};
   int  nsuper, *super = NULL, *superp = NULL;
 
   assert(A);
@@ -72,9 +73,9 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
   assert((size_t)n == m);
   *cluster = gv_calloc(m, sizeof(int));
   *clusterp = gv_calloc(m + 1, sizeof(int));
-  matched = gv_calloc(m, sizeof(int));
+  size_t *const matched = gv_calloc(m, sizeof(size_t));
 
-  for (size_t i = 0; i < m; i++) matched[i] = (int)i;
+  for (size_t i = 0; i < m; i++) matched[i] = i;
 
   assert(SparseMatrix_is_symmetric(A, false));
   assert(A->type == MATRIX_TYPE_REAL);
@@ -130,7 +131,7 @@ static void maximal_independent_edge_set_heavest_edge_pernode_supernodes_first(S
   }
 
   for (size_t i = 0; i < m; i++){
-    if (matched[i] == (int)i){
+    if (matched[i] == i) {
       (*cluster)[nz++] = (int)i;
       (*clusterp)[++(*ncluster)] = nz;
     }
