@@ -159,26 +159,26 @@ static void fprint_rgb(FILE* fp, int r, int g, int b, int alpha){
   fprintf(fp, "#%02x%02x%02x%02x", r, g, b, alpha);
 }
 
-void pedge_export_gv(FILE *fp, int ne, const std::vector<pedge> &edges) {
+void pedge_export_gv(FILE *fp, size_t ne, const std::vector<pedge> &edges) {
   double maxwgt = 0;
 
   fprintf(fp,"strict graph{\n");
   /* points */
-  for (int i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     const pedge &edge = edges[i];
     const std::vector<double> &x = edge.x;
     const int dim = edge.dim;
     const int sta = 0;
     const int sto = edge.npoints - 1;
 
-    fprintf(fp, "%d [pos=\"", i);
+    fprintf(fp, "%" PRISIZE_T " [pos=\"", i);
     for (int k = 0; k < dim; k++) {
       if (k != 0)  fprintf(fp, ",");
       fprintf(fp, "%f", x[sta*dim+k]);
     }
     fprintf(fp, "\"];\n");
 
-    fprintf(fp, "%d [pos=\"", i + ne);
+    fprintf(fp, "%" PRISIZE_T " [pos=\"", i + ne);
     for (int k = 0; k < dim; k++) {
       if (k != 0)  fprintf(fp, ",");
       fprintf(fp, "%f", x[sto*dim+k]);
@@ -188,7 +188,7 @@ void pedge_export_gv(FILE *fp, int ne, const std::vector<pedge> &edges) {
   }
 
   /* figure out max number of bundled original edges in a pedge */
-  for (int i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     const pedge &edge = edges[i];
     if (!edge.wgts.empty()) {
       for (int j = 0; j < edge.npoints - 1; j++) {
@@ -198,8 +198,8 @@ void pedge_export_gv(FILE *fp, int ne, const std::vector<pedge> &edges) {
   }
 
   /* spline and colors */
-  for (int i = 0; i < ne; i++){
-    fprintf(fp,"%d -- %d [pos=\"", i, i + ne);
+  for (size_t i = 0; i < ne; i++){
+    fprintf(fp,"%" PRISIZE_T " -- %" PRISIZE_T " [pos=\"", i, i + ne);
     const pedge &edge = edges[i];
     const std::vector<double> &x = edge.x;
     const int dim = edge.dim;

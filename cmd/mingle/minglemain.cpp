@@ -451,7 +451,7 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 	    	export_dot(outfile, A->m, edges, g);
 	}
 	else {
-		pedge_export_gv(outfile, (int)A->m, edges);
+		pedge_export_gv(outfile, A->m, edges);
 	}
 	return 0;
 }
