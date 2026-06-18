@@ -60,7 +60,7 @@ double *vector_saxpy(size_t n, double *x, double *y, double beta); ///< y = x+be
 double *vector_saxpy2(size_t n, double *x, double *y, double beta); ///< x = x+beta*y
 
 /* take m elements v[p[i]]],i=1,...,m and oput in u. u will be assigned if *u = NULL */
-void vector_float_take(int n, float *v, size_t m, int *p, float **u);
+void vector_float_take(size_t n, float *v, size_t m, int *p, float **u);
 
 /* give the position of the smallest, second smallest etc in vector v.
    results in p. If *p == NULL, p is assigned.
