@@ -20,7 +20,7 @@
 SparseMatrix SparseMatrix_import_matrix_market(FILE *f) {
   matrix_shape_t shape;
   double *val = NULL;
-  int m, n;
+  int n;
   void *vp = NULL;
   SparseMatrix A = NULL;
   int c;
@@ -38,7 +38,7 @@ SparseMatrix SparseMatrix_import_matrix_market(FILE *f) {
   }
 
   /* find out size of sparse matrix .... */
-  size_t nz;
+  size_t m, nz;
   if (mm_read_mtx_crd_size(f, &m, &n, &nz) != 0) {
     return NULL;
   }
@@ -86,8 +86,8 @@ SparseMatrix SparseMatrix_import_matrix_market(FILE *f) {
   }
   vp = val;
 
-  A = SparseMatrix_from_coordinate_arrays(nz, (size_t)m, n, I, J, vp,
-                                          MATRIX_TYPE_REAL, sizeof(double));
+  A = SparseMatrix_from_coordinate_arrays(nz, m, n, I, J, vp, MATRIX_TYPE_REAL,
+                                          sizeof(double));
 done:
   free(I);
   free(J);

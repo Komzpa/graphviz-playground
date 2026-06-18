@@ -81,12 +81,13 @@ int mm_read_banner(FILE *f, matrix_shape_t *shape) {
     return 0;
 }
 
-int mm_read_mtx_crd_size(FILE * f, int *M, int *N, size_t *nz) {
+int mm_read_mtx_crd_size(FILE *f, size_t *M, int *N, size_t *nz) {
     char line[MM_MAX_LINE_LENGTH];
     int num_items_read;
 
     /* set return null parameter values, in case we exit with errors */
-    *M = *N = 0;
+    *M = 0;
+    *N = 0;
     *nz = 0;
 
     /* now continue scanning until you reach the end-of-comments */
@@ -96,12 +97,12 @@ int mm_read_mtx_crd_size(FILE * f, int *M, int *N, size_t *nz) {
     } while (line[0] == '%');
 
     /* line[] is either blank or has M,N, nz */
-    if (sscanf(line, "%d %d %" PRISIZE_T, M, N, nz) == 3)
+    if (sscanf(line, "%" PRISIZE_T " %d %" PRISIZE_T, M, N, nz) == 3)
 	return 0;
 
     else
 	do {
-	    num_items_read = fscanf(f, "%d %d %" PRISIZE_T, M, N, nz);
+	    num_items_read = fscanf(f, "%" PRISIZE_T " %d %" PRISIZE_T, M, N, nz);
 	    if (num_items_read == EOF)
 		return MM_PREMATURE_EOF;
 	}

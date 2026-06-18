@@ -32,7 +32,7 @@
 typedef enum { MS_GENERAL, MS_SYMMETRIC, MS_HERMITIAN, MS_SKEW } matrix_shape_t;
 
 int mm_read_banner(FILE *f, matrix_shape_t *shape);
-int mm_read_mtx_crd_size(FILE * f, int *M, int *N, size_t *nz);
+int mm_read_mtx_crd_size(FILE *f, size_t *M, int *N, size_t *nz);
 
 /********************* Matrix Market error codes ***************************/
 
