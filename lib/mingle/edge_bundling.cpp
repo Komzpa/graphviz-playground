@@ -445,7 +445,7 @@ static void force_directed_edge_bundling(SparseMatrix A,
   }
 }
 
-static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
+static void modularity_ink_bundling(int dim, size_t ne, SparseMatrix B,
                                     std::vector<pedge> &edges,
                                     double angle_param, double angle) {
   int *assignment = nullptr, nclusters;
@@ -454,7 +454,7 @@ static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
   SparseMatrix D, C;
   point_t meet1, meet2;
   double ink0, ink1;
-  int i, j, jj;
+  int j, jj;
 
   SparseMatrix BB;
 
@@ -468,16 +468,16 @@ static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
   
   C = SparseMatrix_new(1, 1, 1, MATRIX_TYPE_PATTERN, FORMAT_COORD);
   
-  for (i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     jj = assignment[i];
-    SparseMatrix_coordinate_form_add_entry(C, jj, i, nullptr);
+    SparseMatrix_coordinate_form_add_entry(C, jj, (int)i, nullptr);
   }
   
   D = SparseMatrix_from_coordinate_format(C);
   SparseMatrix_delete(C);
   clusterp = D->ia;
   clusters = D->ja;
-  for (i = 0; i < nclusters; i++) {
+  for (int i = 0; i < nclusters; i++) {
     ink1 = ink(edges, clusterp[i + 1] - clusterp[i], &clusters[clusterp[i]],
                &ink0, &meet1, &meet2, angle_param, angle);
     if (Verbose > 1)
@@ -580,7 +580,7 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
     /* go through the links and make sure edges are compatible */
     B = check_compatibility(A, ne, edges, compatibility_method, tol);
 
-    modularity_ink_bundling(dim, (int)ne, B, edges, angle_param, angle);
+    modularity_ink_bundling(dim, ne, B, edges, angle_param, angle);
 
   } else if (method == METHOD_INK_AGGLOMERATE){
     /* plan: merge a node with its neighbors if doing so improve. Form coarsening graph, repeat until no more ink saving */
