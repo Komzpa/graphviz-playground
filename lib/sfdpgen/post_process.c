@@ -777,7 +777,7 @@ TriangleSmoother TriangleSmoother_new(SparseMatrix A, int dim, double *x,
     if (use_triangularization) {
       B = call_tri((int)m, x);
     } else {
-      B = call_tri2((int)m, dim, x);
+      B = call_tri2(m, dim, x);
     }
   } else {
     B = SparseMatrix_copy(A);

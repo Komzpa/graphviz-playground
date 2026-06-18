@@ -61,32 +61,31 @@ SparseMatrix call_tri(int n, double *x) {
     return B;
 }
 
-SparseMatrix call_tri2(int n, int dim, double * xx)
-{
+SparseMatrix call_tri2(size_t n, int dim, double *xx) {
     v_data *delaunay;
-    int i, j;
+    int j;
     SparseMatrix A;
     SparseMatrix B;
     double one = 1;
     double *x = gv_calloc(n, sizeof(double));
     double *y = gv_calloc(n, sizeof(double));
 
-    for (i = 0; i < n; i++) {
-	x[i] = xx[dim * i];
-	y[i] = xx[dim * i + 1];
+    for (size_t i = 0; i < n; i++) {
+	x[i] = xx[dim * (int)i];
+	y[i] = xx[dim * (int)i + 1];
     }
 
-    delaunay = UG_graph(x, y, n);
+    delaunay = UG_graph(x, y, (int)n);
 
-    A = SparseMatrix_new((size_t)n, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+    A = SparseMatrix_new(n, (int)n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
 
-    for (i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 	for (j = 1; j < delaunay[i].nedges; j++) {
-	    SparseMatrix_coordinate_form_add_entry(A, i, delaunay[i].edges[j], &one);
+	    SparseMatrix_coordinate_form_add_entry(A, (int)i, delaunay[i].edges[j], &one);
 	}
     }
-    for (i = 0; i < n; i++) {
-	SparseMatrix_coordinate_form_add_entry(A, i, i, &one);
+    for (size_t i = 0; i < n; i++) {
+	SparseMatrix_coordinate_form_add_entry(A, (int)i, (int)i, &one);
     }
     B = SparseMatrix_from_coordinate_format(A);
     {
