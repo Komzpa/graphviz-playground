@@ -54,7 +54,7 @@ static double *diag_precon_new(SparseMatrix A) {
   return data;
 }
 
-static double conjugate_gradient(SparseMatrix A, const double *precon, int n,
+static double conjugate_gradient(SparseMatrix A, const double *precon, size_t n,
                                  double *x, double *rhs, double tol,
                                  double maxit) {
   double res, alpha;
@@ -67,9 +67,9 @@ static double conjugate_gradient(SparseMatrix A, const double *precon, int n,
   double *q = gv_calloc(n, sizeof(double));
 
   SparseMatrix_multiply_vector(A, x, &r);
-  r = vector_subtract_to(n, rhs, r);
+  r = vector_subtract_to((int)n, rhs, r);
 
-  res0 = res = sqrt(vector_product(n, r, r))/n;
+  res0 = res = sqrt(vector_product((int)n, r, r)) / (double)n;
 #ifdef DEBUG_PRINT
     if (Verbose){
       fprintf(stderr,
@@ -80,23 +80,23 @@ static double conjugate_gradient(SparseMatrix A, const double *precon, int n,
 
   while ((iter++) < maxit && res > tol*res0){
     z = diag_precon(precon, r, z);
-    rho = vector_product(n, r, z);
+    rho = vector_product((int)n, r, z);
 
     if (iter > 1){
       beta = rho/rho_old;
-      p = vector_saxpy(n, z, p, beta);
+      p = vector_saxpy((int)n, z, p, beta);
     } else {
       memcpy(p, z, sizeof(double)*n);
     }
 
     SparseMatrix_multiply_vector(A, p, &q);
 
-    alpha = rho/vector_product(n, p, q);
+    alpha = rho / vector_product((int)n, p, q);
 
-    x = vector_saxpy2(n, x, p, alpha);
-    r = vector_saxpy2(n, r, q, -alpha);
+    x = vector_saxpy2((int)n, x, p, alpha);
+    r = vector_saxpy2((int)n, r, q, -alpha);
     
-    res = sqrt(vector_product(n, r, r))/n;
+    res = sqrt(vector_product((int)n, r, r)) / (double)n;
 
     rho_old = rho;
   }
@@ -125,7 +125,7 @@ static double cg(SparseMatrix A, const double *precond, size_t n, int dim,
       b[i] = rhs[(int)i * dim + k];
     }
     
-    res += conjugate_gradient(A, precond, (int)n, x, b, tol, maxit);
+    res += conjugate_gradient(A, precond, n, x, b, tol, maxit);
     for (size_t i = 0; i < n; i++) {
       rhs[(int)i * dim + k] = x[i];
     }
