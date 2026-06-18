@@ -16,6 +16,7 @@
 #include <limits.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -51,17 +52,17 @@ static SparseMatrix ideal_distance_matrix(SparseMatrix A, int dim, double *x) {
   }
   double *const d = D->a;
 
-  int *mask = gv_calloc(D->m, sizeof(int));
+  size_t *const mask = gv_calloc(D->m, sizeof(size_t));
   for (size_t i = 0; i < D->m; i++)
-    mask[i] = -1;
+    mask[i] = SIZE_MAX;
 
   for (size_t i = 0; i < D->m; i++) {
     const double di = node_degree(i);
-    mask[i] = (int)i;
+    mask[i] = i;
     for (int j = ia[i]; j < ia[i + 1]; j++) {
       if ((int)i == ja[j])
         continue;
-      mask[ja[j]] = (int)i;
+      mask[ja[j]] = i;
     }
     for (int j = ia[i]; j < ia[i + 1]; j++) {
       const int k = ja[j];
@@ -69,7 +70,7 @@ static SparseMatrix ideal_distance_matrix(SparseMatrix A, int dim, double *x) {
         continue;
       double len = di + node_degree(k);
       for (int l = ia[k]; l < ia[k + 1]; l++) {
-        if (mask[ja[l]] == (int)i)
+        if (mask[ja[l]] == i)
           len--;
       }
       d[j] = len;
