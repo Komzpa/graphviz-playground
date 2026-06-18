@@ -1276,18 +1276,18 @@ void SparseMatrix_decompose_to_supervariables(SparseMatrix A, int *ncluster, int
    */
   int *ia = A->ia, *ja = A->ja, n = A->n;
   const size_t m = A->m;
-  int *super = NULL, *nsuper = NULL, j, *mask = NULL, isup, *newmap, isuper;
+  int *super = NULL, *nsuper = NULL, j, isup, *newmap, isuper;
 
   super = gv_calloc((size_t)n, sizeof(int));
   nsuper = gv_calloc((size_t)(n + 1), sizeof(int));
-  mask = gv_calloc((size_t)n, sizeof(int));
+  size_t *const mask = gv_calloc((size_t)n, sizeof(size_t));
   newmap = gv_calloc((size_t)n, sizeof(int));
   nsuper++;
 
   isup = 0;
   for (int i = 0; i < n; i++) super[i] = isup;/* every node belongs to super variable 0 by default */
   nsuper[0] = n;
-  for (int i = 0; i < n; i++) mask[i] = -1;
+  for (int i = 0; i < n; i++) mask[i] = SIZE_MAX;
   isup++;
 
   for (size_t i = 0; i < m; i++){
@@ -1301,8 +1301,8 @@ void SparseMatrix_decompose_to_supervariables(SparseMatrix A, int *ncluster, int
     }
     for (j = ia[i]; j < ia[i+1]; j++){
       isuper = super[ja[j]];
-      if (mask[isuper] < (int)i){
-	mask[isuper] = (int)i;
+      if (mask[i] == SIZE_MAX || mask[isuper] < i){
+	mask[isuper] = i;
 	if (nsuper[isuper] == 0){/* all nodes in the isuper group exist in this row */
 #ifdef DEBUG_PRINT1
 	  printf("node %d keep super node id  %d\n",ja[j]+1,isuper+1);
