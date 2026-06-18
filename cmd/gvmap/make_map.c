@@ -50,7 +50,7 @@ void map_palette_optimal_coloring(char *color_scheme, SparseMatrix A0,
   /*color: On input an array of size n*cdim, if NULL, will be allocated. On exit the final color assignment for node i is [cdim*i,cdim*(i+1)), in RGB (between 0 to 1)
   */
   double *colors = NULL;
-  int cdim;
+  size_t cdim;
   const size_t n = A0->m;
 
   SparseMatrix A;
@@ -87,9 +87,9 @@ void map_palette_optimal_coloring(char *color_scheme, SparseMatrix A0,
   *rgb_b = gv_calloc(n + 1, sizeof(float));
 
   for (size_t i = 0; i < n; i++){
-    (*rgb_r)[i + 1] = (float)colors[cdim * (int)i];
-    (*rgb_g)[i + 1] = (float)colors[cdim * (int)i + 1];
-    (*rgb_b)[i + 1] = (float)colors[cdim * (int)i + 2];
+    (*rgb_r)[i + 1] = (float)colors[cdim * i];
+    (*rgb_g)[i + 1] = (float)colors[cdim * i + 1];
+    (*rgb_b)[i + 1] = (float)colors[cdim * i + 2];
   }
   free(colors);
 }

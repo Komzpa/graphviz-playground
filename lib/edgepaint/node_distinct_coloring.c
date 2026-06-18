@@ -179,7 +179,7 @@ static void node_distinct_coloring_internal(int scheme, QuadTree qt,
 
 int node_distinct_coloring(const char *color_scheme, int *lightness,
                            bool weightedQ, SparseMatrix A0, double accuracy,
-                           int seed, int *cdim0, double **colors) {
+                           int seed, size_t *cdim0, double **colors) {
   SparseMatrix B, A = A0;
   int ncomps, *comps = NULL;
   int nn;
@@ -191,7 +191,8 @@ int node_distinct_coloring(const char *color_scheme, int *lightness,
   const char *color_list = color_palettes_get(color_scheme);
   if (color_list) color_scheme = color_list;
 
-  cdim = *cdim0 = 3;
+  cdim = 3;
+  *cdim0 = 3;
   if (strcmp(color_scheme, "lab") == 0){
     GV_DEBUG("lab");
     scheme =  COLOR_LAB;
@@ -205,7 +206,8 @@ int node_distinct_coloring(const char *color_scheme, int *lightness,
     scheme = COLOR_RGB;
   } else if (strcmp(color_scheme, "gray") == 0){
     scheme = COLOR_GRAY;
-    cdim = *cdim0 = 1;
+    cdim = 1;
+    *cdim0 = 1;
   } else if (sscanf(color_scheme,"#%02X%02X%02X", &r, &g, &b) == 3 ){
     scheme = COLOR_LAB;
     double *color_points = color_blend_rgb2lab(color_scheme, maxcolors);

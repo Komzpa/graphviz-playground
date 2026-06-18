@@ -10,9 +10,12 @@
 
 #include "config.h"
 
+#include <assert.h>
+#include <limits.h>
 #include <sparse/general.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 #include <time.h>
 #include <sparse/SparseMatrix.h>
@@ -142,7 +145,7 @@ Agraph_t *edge_distinct_coloring(const char *color_scheme, int *lightness,
   double *colors = NULL;
   int flag, ne;
   char **xsplines = NULL;
-  int cdim;
+  size_t cdim;
 
   A = SparseMatrix_import_dot(g, &x, FORMAT_COORD);
   if (!x){
@@ -228,7 +231,8 @@ Agraph_t *edge_distinct_coloring(const char *color_scheme, int *lightness,
     fprintf(stderr, "The edge conflict graph has %" PRISIZE_T " nodes and %" PRISIZE_T
             " edges\n", C->m, C->nz);
 
-  attach_edge_colors(g, cdim, colors);
+  assert(cdim <= INT_MAX);
+  attach_edge_colors(g, (int)cdim, colors);
 
  RETURN:
   SparseMatrix_delete(A);

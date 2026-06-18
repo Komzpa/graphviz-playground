@@ -11,6 +11,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 enum { COLOR_RGB, COLOR_GRAY, COLOR_LAB };
 enum { ERROR_BAD_COLOR_SCHEME = -9 };
@@ -39,4 +40,4 @@ enum { ERROR_BAD_COLOR_SCHEME = -9 };
 ///   RGB (between 0 to 1)
 int node_distinct_coloring(const char *color_scheme, int *lightness,
                            bool weightedQ, SparseMatrix A, double accuracy,
-                           int seed, int *cdim, double **colors);
+                           int seed, size_t *cdim, double **colors);
