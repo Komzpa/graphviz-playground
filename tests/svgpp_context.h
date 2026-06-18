@@ -2,6 +2,8 @@
 
 #include <stdexcept>
 
+#include <boost/type_traits/add_const.hpp>
+
 #include <boost/range/any_range.hpp>
 #include <boost/range/iterator_range_core.hpp>
 #ifdef __GNUC__
@@ -65,47 +67,47 @@ public:
   template <class IRI> void set(svgpp::tag::attribute::fill, IRI const &) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::fill, svgpp::tag::iri_fragment, IRI const &) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::fill, IRI const &, svgpp::tag::value::none) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::fill, svgpp::tag::iri_fragment, IRI const &,
            svgpp::tag::value::none) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::fill, IRI const &,
            svgpp::tag::value::currentColor) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::fill, svgpp::tag::iri_fragment, IRI const &,
            svgpp::tag::value::currentColor) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::fill, IRI const &, color_t,
            svgpp::tag::skip_icc_color = svgpp::tag::skip_icc_color()) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::fill, svgpp::tag::iri_fragment, IRI const &,
            color_t, svgpp::tag::skip_icc_color = svgpp::tag::skip_icc_color()) {
     throw std::runtime_error{
         "this flavor of the 'fill' attribute is not yet implemented"};
-  };
+  }
 
   void set(svgpp::tag::attribute::fill_opacity, double v);
   void set(svgpp::tag::attribute::stroke, svgpp::tag::value::none);
@@ -115,49 +117,49 @@ public:
   template <class IRI> void set(svgpp::tag::attribute::stroke, IRI const &) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::stroke, svgpp::tag::iri_fragment,
            IRI const &) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::stroke, IRI const &,
            svgpp::tag::value::none) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::stroke, svgpp::tag::iri_fragment, IRI const &,
            svgpp::tag::value::none) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::stroke, IRI const &,
            svgpp::tag::value::currentColor) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::stroke, svgpp::tag::iri_fragment, IRI const &,
            svgpp::tag::value::currentColor) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::stroke, IRI const &, color_t,
            svgpp::tag::skip_icc_color = svgpp::tag::skip_icc_color()) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   template <class IRI>
   void set(svgpp::tag::attribute::stroke, svgpp::tag::iri_fragment, IRI const &,
            color_t, svgpp::tag::skip_icc_color = svgpp::tag::skip_icc_color()) {
     throw std::runtime_error{
         "this flavor of the 'stroke' attribute is not yet implemented"};
-  };
+  }
   void set(svgpp::tag::attribute::stroke_opacity, double v);
   void set(svgpp::tag::attribute::stroke_width, double v);
   void transform_matrix(const boost::array<double, 6> &matrix);

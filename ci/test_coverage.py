@@ -4,12 +4,23 @@
 
 import argparse
 import logging
+import shlex
 import subprocess
 import sys
 from pathlib import Path
+from typing import Union
 
 # logging output stream, setup in main()
 log = None
+
+
+def run(
+    args: list[Union[str, Path]],
+) -> None:
+    """run a command, echoing it beforehand"""
+
+    print(f"+ {shlex.join(str(x) for x in args)}", flush=True)
+    subprocess.check_call(args)
 
 
 def main(args: list[str]) -> int:
@@ -72,67 +83,63 @@ def main(args: list[str]) -> int:
     init_exclude_options = [f"--exclude={f}" for f in init_excluded_files]
 
     if options.init:
-        subprocess.check_call(
+        run(
             [
                 "lcov",
                 "--capture",
                 "--initial",
-                "--directory",
-                ".",
+                "--directory=.",
                 "--branch-coverage",
                 "--no-external",
             ]
             + exclude_options
             + init_exclude_options
-            + ["--output-file", "app_base.info"]
+            + ["--output-file=app_base.info"]
         )
 
         return 0
 
     if options.analyze:
         # capture test coverage data
-        subprocess.check_call(
+        run(
             [
                 "lcov",
                 "--capture",
-                "--directory",
-                ".",
+                "--directory=.",
                 "--branch-coverage",
                 "--no-external",
+                "--rc=check_data_consistency=0",
             ]
             + exclude_options
-            + ["--output-file", "app_test.info"]
+            + ["--output-file=app_test.info"]
         )
         # combine baseline and test coverage data
-        subprocess.check_call(
+        run(
             [
                 "lcov",
                 "--branch-coverage",
-                "--add-tracefile",
-                "app_base.info",
-                "-add-tracefile",
-                "app_test.info",
-                "--output-file",
-                "app_total.info",
+                "--add-tracefile=app_base.info",
+                "--add-tracefile=app_test.info",
+                "--output-file=app_total.info",
+                "--rc=check_data_consistency=0",
             ]
         )
         # generate coverage html pages using lcov which are nicer than gcovr's
         Path("coverage/lcov").mkdir(parents=True, exist_ok=True)
-        subprocess.check_call(
+        run(
             [
                 "genhtml",
-                "--prefix",
-                cwd,
+                f"--prefix={cwd}",
                 "--branch-coverage",
-                "--output-directory",
-                "coverage/lcov",
+                "--output-directory=coverage/lcov",
+                "--rc=check_data_consistency=0",
                 "--show-details",
                 "app_total.info",
             ]
         )
         # generate coverage info for GitLab's Test Coverage Visualization
         Path("coverage/gcovr").mkdir(parents=True, exist_ok=True)
-        subprocess.check_call(
+        run(
             ["gcovr"]
             + exclude_options
             + [f"--gcov-exclude={f}" for f in generated_files]
@@ -142,10 +149,8 @@ def main(args: list[str]) -> int:
                 "--exclude-unreachable-branches",
                 "--gcov-ignore-errors=no_working_dir_found",
                 "--print-summary",
-                "--output",
-                "coverage.xml",
-                "--root",
-                cwd,
+                "--output=coverage.xml",
+                f"--root={cwd}",
             ]
         )
 
