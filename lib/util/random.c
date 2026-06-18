@@ -12,14 +12,14 @@
 #include <util/gv_math.h>
 #include <util/random.h>
 
-int *gv_permutation(size_t bound) {
+size_t *gv_permutation(size_t bound) {
   if (bound == 0) {
     return NULL;
   }
 
   // initialize a sequence `{0, 1, …, bound - 1}`
-  int *const p = gv_calloc(bound, sizeof(int));
-  for (int i = 0; (size_t)i < bound; i++) {
+  size_t *const p = gv_calloc(bound, sizeof(size_t));
+  for (size_t i = 0; i < bound; i++) {
     p[i] = i;
   }
 
