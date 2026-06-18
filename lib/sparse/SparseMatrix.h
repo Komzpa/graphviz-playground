@@ -103,7 +103,7 @@ SparseMatrix SparseMatrix_apply_fun(SparseMatrix A, double (*fun)(double x));/* 
 SparseMatrix SparseMatrix_copy(SparseMatrix A);
 bool SparseMatrix_has_diagonal(SparseMatrix A);
 SparseMatrix SparseMatrix_make_undirected(SparseMatrix A);/* make it strictly low diag only, and set flag to undirected */
-int *SparseMatrix_weakly_connected_components(SparseMatrix A0, int *ncomp,
+int *SparseMatrix_weakly_connected_components(SparseMatrix A0, size_t *ncomp,
                                               int **comps);
 void SparseMatrix_decompose_to_supervariables(SparseMatrix A, int *ncluster, int **cluster, int **clusterp);
 SparseMatrix SparseMatrix_get_submatrix(SparseMatrix A, int nrow, int ncol, int *rindices, int *cindices);

@@ -1238,7 +1238,7 @@ static void SparseMatrix_level_sets(SparseMatrix A, int root, int *nlevel,
   if (reinitialize_mask) for (int i = 0; i < (*levelset_ptr)[*nlevel]; i++) (*mask)[(*levelset)[i]] = UNMASKED;
 }
 
-int *SparseMatrix_weakly_connected_components(SparseMatrix A0, int *ncomp,
+int *SparseMatrix_weakly_connected_components(SparseMatrix A0, size_t *ncomp,
                                               int **comps) {
   SparseMatrix A = A0;
   int *levelset_ptr = NULL, *levelset = NULL, *mask = NULL, nlevel;

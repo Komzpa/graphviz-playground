@@ -471,7 +471,8 @@ static void conn_comp(int n, SparseMatrix A, int *groups, SparseMatrix *poly_poi
   int *ia, *ja;
   int one = 1, jj, i, j;
   SparseMatrix B, BB;
-  int ncomps, *comps = NULL;
+  size_t ncomps;
+  int *comps = NULL;
 
   B = SparseMatrix_new((size_t)n, n, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
   ia = A->ia;
@@ -489,7 +490,7 @@ static void conn_comp(int n, SparseMatrix A, int *groups, SparseMatrix *poly_poi
   int *comps_ptr = SparseMatrix_weakly_connected_components(BB, &ncomps, &comps);
   SparseMatrix_delete(B);
   SparseMatrix_delete(BB);
-  *poly_point_map = SparseMatrix_new((size_t)ncomps, n, (size_t)n, MATRIX_TYPE_PATTERN,
+  *poly_point_map = SparseMatrix_new(ncomps, n, (size_t)n, MATRIX_TYPE_PATTERN,
                                      FORMAT_CSR);
   free((*poly_point_map)->ia);
   free((*poly_point_map)->ja);

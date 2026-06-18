@@ -181,9 +181,10 @@ int node_distinct_coloring(const char *color_scheme, int *lightness,
                            bool weightedQ, SparseMatrix A0, double accuracy,
                            int seed, size_t *cdim0, double **colors) {
   SparseMatrix B, A = A0;
-  int ncomps, *comps = NULL;
+  size_t ncomps;
+  int *comps = NULL;
   int nn;
-  int i, j, jj;
+  int j, jj;
   QuadTree qt = NULL;
   int cdim;
   int scheme = COLOR_LAB;
@@ -237,7 +238,7 @@ int node_distinct_coloring(const char *color_scheme, int *lightness,
 
   int *comps_ptr = SparseMatrix_weakly_connected_components(A, &ncomps, &comps);
   
-  for (i = 0; i < ncomps; i++){
+  for (size_t i = 0; i < ncomps; i++){
     nn = comps_ptr[i+1] - comps_ptr[i];
     B = SparseMatrix_get_submatrix(A, nn, nn, &(comps[comps_ptr[i]]), &(comps[comps_ptr[i]]));
     node_distinct_coloring_internal(scheme, qt, weightedQ, B, cdim, accuracy, seed, ctmp);
