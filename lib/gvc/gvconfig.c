@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <gvc/gvconfig.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -273,6 +274,7 @@ static void gvconfig_write_library_config(GVC_t *gvc, char *lib_path,
 static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 {
    const char *p = info->dlpi_name;
+   agxbuf *const xb = line;
    const char *const tmp = strstr(p, "/libgvc.");
    (void) size;
    if (tmp) {
@@ -280,9 +282,9 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
         for (slash = tmp - 1; *slash != '/'; --slash);
         /* Check for real /lib dir. Don't accept pre-install /.libs */
         if (strncmp(slash, DOTLIBS, (size_t)(tmp - slash)) != 0) {
+            agxbclear(xb);
             // plugins are in "graphviz" subdirectory
-            snprintf(line, BSZ, "%.*s/graphviz", (int)(tmp - p), p);
-              // use line buffer for result
+            agxbprint(xb, "%.*s/graphviz", (int)(tmp - p), p);
             return 1;
         }
    }
@@ -292,103 +294,97 @@ static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
 
 char * gvconfig_libdir(GVC_t * gvc)
 {
-    static char line[BSZ];
-    static char *libdir;
-    static bool dirShown = false;
+    agxbuf libdir = {0};
+    static atomic_flag dirShown;
 
-    if (!libdir) {
-        libdir=getenv("GVBINDIR");
-	if (!libdir) {
+    const char *const gvbindir = getenv("GVBINDIR");
+    if (gvbindir != NULL) {
+        agxbput(&libdir, gvbindir);
+    } else {
 #ifdef _WIN32
-	    int r;
-	    char* s;
-		
-		MEMORY_BASIC_INFORMATION mbi;
-		if (VirtualQuery (&gvconfig_libdir, &mbi, sizeof(mbi)) == 0) {
-		agerrorf("failed to get handle for executable.\n");
-		return 0;
-	    }
-	    r = GetModuleFileName ((HMODULE)mbi.AllocationBase, line, BSZ);
-	    if (!r || (r == BSZ)) {
-		agerrorf("failed to get path for executable.\n");
-		return 0;
-	    }
-	    s = strrchr(line,'\\');
-	    if (!s) {
-		agerrorf("no slash in path %s.\n", line);
-		return 0;
-	    }
-	    *s = '\0';
-	    libdir = line;
-#else
-	    libdir = GVLIBDIR;	    
-#ifdef __APPLE__
-	    uint32_t i, c = _dyld_image_count();
-	    size_t len, ind;
-	    for (i = 0; i < c; ++i) {
-		const char *p = _dyld_get_image_name(i);
-		const char* tmp = strstr(p, "/libgvc.");
-		if (tmp) {
-		    if (tmp > p) {
-			/* Check for real /lib dir. Don't accept pre-install /.libs */
-			const char *s = tmp - 1;
-			/* back up to previous slash (or head of string) */
-			while (*s != '/' && s > p) s--;
-			if (startswith(s, DOTLIBS))
-			    continue;
-		    }
+        int r;
+        char *s;
 
-		    ind = tmp - p; // byte offset
-		    len = ind + sizeof("/graphviz");
-		    if (len < BSZ)
-			libdir = line;
-		    else
-		        libdir = gv_alloc(len);
-		    if (ind > 0) {
-		        memmove(libdir, p, ind);
-		    }
-		    /* plugins are in "graphviz" subdirectory */
-		    strcpy(libdir+ind, "/graphviz");  
-		    break;
-		}
-	    }
-#elif defined(HAVE_DL_ITERATE_PHDR)
-	    dl_iterate_phdr(line_callback, line);
-	    libdir = line;
+        MEMORY_BASIC_INFORMATION mbi;
+        if (VirtualQuery(&gvconfig_libdir, &mbi, sizeof(mbi)) == 0) {
+            agerrorf("failed to get handle for executable.\n");
+            return 0;
+        }
+        {
+            char line[BSZ] = {0};
+            r = GetModuleFileName((HMODULE)mbi.AllocationBase, line, BSZ);
+            if (!r || (r == BSZ)) {
+                agerrorf("failed to get path for executable.\n");
+                return 0;
+            }
+            s = strrchr(line,'\\');
+            if (!s) {
+                agerrorf("no slash in path %s.\n", line);
+                return 0;
+            }
+            agxbput_n(&libdir, line, (size_t)(s - line));
+        }
 #else
-	    FILE* f = gv_fopen("/proc/self/maps", "r");
-	    if (f) {
-		while (!feof (f)) {
-		    if (!fgets (line, sizeof (line), f))
-			continue;
-		    if (!strstr (line, " r-xp "))
-			continue;
-		    char *p = strchr(line, '/');
-		    if (!p)
-		        continue;
-		    char* tmp = strstr(p, "/libgvc.");
-		    if (tmp) {
-			*tmp = 0;
-			/* Check for real /lib dir. Don't accept pre-install /.libs */
-			if (strcmp(strrchr(p, '/'), "/.libs") == 0)
-			    continue;
-			memmove(line, p, strlen(p) + 1); // use line buffer for result
-			strcat(line, "/graphviz");  /* plugins are in "graphviz" subdirectory */
-			libdir = line;
-			break;
-		    }
-		}
-		fclose (f);
-	    }
+        agxbput(&libdir, GVLIBDIR);
+#ifdef __APPLE__
+        uint32_t i, c = _dyld_image_count();
+        size_t ind;
+        for (i = 0; i < c; ++i) {
+            const char *p = _dyld_get_image_name(i);
+            const char* tmp = strstr(p, "/libgvc.");
+            if (tmp) {
+                if (tmp > p) {
+                    /* Check for real /lib dir. Don't accept pre-install /.libs */
+                    const char *s = tmp - 1;
+                    /* back up to previous slash (or head of string) */
+                    while (*s != '/' && s > p) s--;
+                    if (startswith(s, DOTLIBS))
+                        continue;
+                }
+
+                ind = tmp - p; // byte offset
+                /* plugins are in "graphviz" subdirectory */
+                agxbclear(&libdir);
+                agxbprint(&libdir, "%.*s/graphviz", (int)ind, p);
+                break;
+            }
+        }
+#elif defined(HAVE_DL_ITERATE_PHDR)
+        dl_iterate_phdr(line_callback, &libdir);
+#else
+        FILE* f = gv_fopen("/proc/self/maps", "r");
+        if (f) {
+            while (!feof(f)) {
+                char line[BSZ] = {0};
+                if (!fgets(line, sizeof (line), f))
+                    continue;
+                if (!strstr(line, " r-xp "))
+                    continue;
+                char *p = strchr(line, '/');
+                if (!p)
+                    continue;
+                char* tmp = strstr(p, "/libgvc.");
+                if (tmp) {
+                    *tmp = 0;
+                    /* Check for real /lib dir. Don't accept pre-install /.libs */
+                    if (strcmp(strrchr(p, '/'), DOTLIBS) == 0)
+                        continue;
+                    /* plugins are in "graphviz" subdirectory */
+                    agxbclear(&libdir);
+                    agxbprint(&libdir, "%s/graphviz", p);
+                    break;
+                }
+            }
+            fclose (f);
+        }
 #endif
 #endif
-	}
     }
-    if (gvc->common.verbose && !dirShown) {
-	fprintf (stderr, "libdir = \"%s\"\n", (libdir ? libdir : "<null>"));
-	dirShown = true;
+    char *const dir = agxbdisown(&libdir);
+    if (gvc->common.verbose && !atomic_flag_test_and_set(&dirShown)) {
+	fprintf(stderr, "libdir = \"%s\"\n", dir);
     }
-    return libdir;
+    return dir;
 }
 #endif
 
@@ -506,6 +502,7 @@ static void config_rescan(GVC_t *gvc, char *config_path)
 
     agxbuf config_glob = {0};
     agxbprint(&config_glob, "%s%c%s", libdir, PATH_SEPARATOR, plugin_glob);
+    free(libdir);
 
     /* load all libraries even if can't save config */
 
@@ -569,6 +566,7 @@ void gvconfig(GVC_t * gvc, bool rescan)
         libdir = gvconfig_libdir(gvc);
         if (access(libdir, F_OK) < 0) {
     	    /* if we fail to stat it then it probably doesn't exist so just fail silently */
+	    free(libdir);
 	    goto done;
         }
     
@@ -577,6 +575,7 @@ void gvconfig(GVC_t * gvc, bool rescan)
             agxbprint(&xb, "%s%c%s", libdir, PATH_SEPARATOR, config_file_name);
             gvc->config_path = agxbdisown(&xb);
         }
+        free(libdir);
     	
         if (rescan) {
     	    config_rescan(gvc, gvc->config_path);
@@ -684,11 +683,13 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
     }
 
     LIST_DETACH(&strs, &pglob->gl_pathv, &pglob->gl_pathc);
+    free(libdir);
     
     return 0;
 
 oom:
     LIST_FREE(&strs);
+    free(libdir);
     return GLOB_NOSPACE;
 }
 
