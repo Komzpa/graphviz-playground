@@ -36,4 +36,4 @@ export graphviz_ROOT="$DIR_LABS"
 # LD_LIBRARY_PATH. Must be the logical directory
 export PATH="${PATH}:$DIR_LABS/bin"
 
-python3 -m pytest -m "not slow" ci/tests.py tests
+python3 -m pytest -n auto -m "not slow" ci/tests.py tests
