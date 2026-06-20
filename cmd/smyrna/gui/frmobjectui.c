@@ -499,7 +499,7 @@ attr_list *load_attr_list(Agraph_t * g)
     l = attr_list_new(true);
     file = fopen(smyrna_attrs, "r");
     if (file != NULL) {
-	for (size_t i = 0; fgets(buffer, sizeof(buffer), file) != NULL; ++i) {
+	while (fgets(buffer, sizeof(buffer), file) != NULL) {
 	    attr = new_attr();
 	    a = strtok(buffer, ",");
 	    attr->type = get_attr_data_type(a[0]);
