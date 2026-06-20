@@ -11,6 +11,7 @@
 #include "config.h"
 
 #include <neatogen/digcola.h>
+#include <stddef.h>
 #include <util/alloc.h>
 #ifdef DIGCOLA
 #include <neatogen/kkutils.h>
@@ -48,7 +49,7 @@
 int
 compute_hierarchy(vtx_data * graph, int n, double abs_tol,
 		  double relative_tol, double *given_coords,
-		  int **orderingp, int **levelsp, int *num_levelsp)
+		  int **orderingp, int **levelsp, size_t *num_levelsp)
 {
     double *y;
     int i, rv=0;
@@ -56,7 +57,6 @@ compute_hierarchy(vtx_data * graph, int n, double abs_tol,
     int *levels;
     double tol;			/* node 'i' precedes 'j' in hierarchy iff y[i]-y[j]>tol */
     double hierarchy_span;
-    int num_levels;
 
     /* compute optimizer of hierarchy energy: 'y' */
     if (given_coords) {
@@ -87,7 +87,7 @@ compute_hierarchy(vtx_data * graph, int n, double abs_tol,
 
     /* count how many levels the hierarchy contains (a SINGLE_LINK clustering */
     /* alternatively we could use COMPLETE_LINK clustering) */
-    num_levels = 0;
+    size_t num_levels = 0;
     for (i = 1; i < n; i++) {
 	if (y[ordering[i]] - y[ordering[i - 1]] > tol) {
 	    num_levels++;

@@ -30,6 +30,7 @@
 #include <common/render.h>
 #include <common/utils.h>
 #include <neatogen/sgd.h>
+#include <cgraph/cghdr.h>
 #include <cgraph/cgraph.h>
 #include <float.h>
 #include <stdatomic.h>
@@ -199,12 +200,13 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
     graph_t *subg;
     node_t *n;
      /* array of arrays of node indices in each cluster */
-    int **cs,*cn;
-    int i,j,nclusters=0;
+    int **cs;
+    int i, j;
     bitarray_t assigned = bitarray_new(agnnodes(g));
     cluster_data cdata = {0};
 
-    cdata.ntoplevel = agnnodes(g);
+    size_t nclusters = 0;
+    cdata.ntoplevel = agnnodes_z(g);
     for (subg = agfstsubg(mastergraph); subg; subg = agnxtsubg(subg)) {
         if (is_a_cluster(subg)) {
             nclusters++;
@@ -213,13 +215,13 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
     cdata.nvars=0;
     cdata.nclusters = nclusters;
     cs = cdata.clusters = gv_calloc(nclusters, sizeof(int*));
-    cn = cdata.clustersizes = gv_calloc(nclusters, sizeof(int));
+    size_t *cn = cdata.clustersizes = gv_calloc(nclusters, sizeof(size_t));
     for (subg = agfstsubg(mastergraph); subg; subg = agnxtsubg(subg)) {
         /* clusters are processed by separate calls to ordered_edges */
         if (is_a_cluster(subg)) {
             int *c;
 
-            *cn = agnnodes(subg);
+            *cn = agnnodes_z(subg);
             cdata.nvars += *cn;
             c = *cs++ = gv_calloc(*cn++, sizeof(int));
             for (n = agfstnode(subg); n; n = agnxtnode(subg, n)) {
@@ -242,7 +244,7 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
             cdata.toplevel[j++] = i;
         }
     }
-    assert(cdata.ntoplevel == agnnodes(g) - cdata.nvars);
+    assert(cdata.ntoplevel == agnnodes_z(g) - cdata.nvars);
     bitarray_reset(&assigned);
     return cdata;
 }
@@ -1036,25 +1038,24 @@ void dumpData(graph_t * g, vtx_data * gp, int nv, int ne)
 }
 void dumpClusterData (cluster_data* dp)
 {
-  int i, j, sz;
-
-  fprintf (stderr, "nvars %d nclusters %d ntoplevel %d\n", dp->nvars, dp->nclusters, dp->ntoplevel);
+  fprintf(stderr, "nvars %" PRISIZE_T " nclusters %" PRISIZE_T " ntoplevel %"
+          PRISIZE_T "\n", dp->nvars, dp->nclusters, dp->ntoplevel);
   fprintf (stderr, "Clusters:\n");
-  for (i = 0; i < dp->nclusters; i++) {
-    sz = dp->clustersizes[i];
-    fprintf (stderr, "  [%d] %d vars\n", i, sz);
-    for (j = 0; j < sz; j++)
+  for (size_t i = 0; i < dp->nclusters; i++) {
+    const size_t sz = dp->clustersizes[i];
+    fprintf (stderr, "  [%" PRISIZE_T "] %" PRISIZE_T " vars\n", i, sz);
+    for (size_t j = 0; j < sz; j++)
       fprintf (stderr, "  %d", dp->clusters[i][j]);
     fprintf (stderr, "\n");
   }
 
 
   fprintf (stderr, "Toplevel:\n");
-  for (i = 0; i < dp->ntoplevel; i++)
+  for (size_t i = 0; i < dp->ntoplevel; i++)
     fprintf (stderr, "  %d\n", dp->toplevel[i]);
 
   fprintf (stderr, "Boxes:\n");
-  for (i = 0; i < dp->nclusters; i++) {
+  for (size_t i = 0; i < dp->nclusters; i++) {
     boxf bb = dp->bb[i];
     fprintf (stderr, "  (%f,%f) (%f,%f)\n", bb.LL.x, bb.LL.y, bb.UR.x, bb.UR.y);
   }

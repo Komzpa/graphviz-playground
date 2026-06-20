@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <util/api.h>
 
 #ifdef __cplusplus
@@ -20,8 +21,8 @@ extern "C" {
 
 #ifdef DIGCOLA
 PRIVATE int compute_y_coords(vtx_data*, int, double*, int);
-PRIVATE int compute_hierarchy(vtx_data*, int, double, double, 
-                         double*, int**, int**, int*); 
+PRIVATE int compute_hierarchy(vtx_data *, int, double, double, double *, int **,
+                              int **, size_t *); 
 PRIVATE int IMDS_given_dim(vtx_data*, int, double*, double*, double);
 PRIVATE int stress_majorization_with_hierarchy(vtx_data*, int, double**, 
                                               node_t**, int, int, int, int, double);

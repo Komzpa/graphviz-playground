@@ -17,6 +17,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +35,7 @@ void deleteVPSC(VPSC*);
 void deleteConstraint(Constraint*);
 void deleteVariable(Variable*);
 Constraint** newConstraints(int m);
-void deleteConstraints(int m,Constraint**);
+void deleteConstraints(size_t m, Constraint **);
 void remapInConstraints(Variable *u, Variable *v, double dgap);
 void remapOutConstraints(Variable *u, Variable *v, double dgap);
 
@@ -42,9 +43,9 @@ void remapOutConstraints(Variable *u, Variable *v, double dgap);
 typedef struct pointf_s { double x, y; } pointf;
 typedef struct { pointf LL, UR; } boxf;
 #endif
-int genXConstraints(int n, boxf[], Variable** vs, Constraint*** cs,
-		bool transitiveClosure);
-int genYConstraints(int n, boxf[], Variable** vs, Constraint*** cs);
+int genXConstraints(size_t n, boxf[], Variable **vs, Constraint ***cs,
+                    bool transitiveClosure);
+int genYConstraints(size_t n, boxf[], Variable **vs, Constraint ***cs);
 
 void satisfyVPSC(VPSC*);
 void solveVPSC(VPSC*);

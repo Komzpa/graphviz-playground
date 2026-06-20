@@ -36,18 +36,19 @@ VPSC* newIncVPSC(int n, Variable* vs[], int m, Constraint* cs[]) {
 	return new IncVPSC(n,vs,m,cs);
 }
 
-int genXConstraints(int n, boxf *bb, Variable **vs, Constraint ***cs,
+int genXConstraints(size_t n, boxf *bb, Variable **vs, Constraint ***cs,
                     bool transitiveClosure) {
 	std::vector<Rectangle> rs;
-	for(int i=0;i<n;i++) {
+	for (size_t  i = 0; i < n; i++) {
 		rs.emplace_back(bb[i].LL.x,bb[i].UR.x,bb[i].LL.y,bb[i].UR.y);
 	}
 	const int m = generateXConstraints(rs, vs, *cs, transitiveClosure);
 	return m;
 }
-int genYConstraints(int n, boxf* bb, Variable** vs, Constraint*** cs) {
+
+int genYConstraints(size_t n, boxf *bb, Variable **vs, Constraint ***cs) {
 	std::vector<Rectangle> rs;
-	for(int i=0;i<n;i++) {
+	for(size_t i = 0; i < n; i++) {
 		rs.emplace_back(bb[i].LL.x,bb[i].UR.x,bb[i].LL.y,bb[i].UR.y);
 	}
 	const int m = generateYConstraints(rs, vs, *cs);
@@ -57,8 +58,9 @@ int genYConstraints(int n, boxf* bb, Variable** vs, Constraint*** cs) {
 Constraint** newConstraints(int m) {
 	return new Constraint*[m];
 }
-void deleteConstraints(int m, Constraint **cs) {
-	for(int i=0;i<m;i++) {
+
+void deleteConstraints(size_t m, Constraint **cs) {
+	for (size_t i = 0; i < m; i++) {
 		delete cs[i];
 	}
 	delete [] cs;

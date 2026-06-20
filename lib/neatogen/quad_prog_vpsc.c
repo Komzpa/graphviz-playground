@@ -25,10 +25,12 @@
 #include "config.h"
 
 #include <common/geomprocs.h>
+#include <limits.h>
 #include <neatogen/digcola.h>
 #include <stdbool.h>
 #include <util/alloc.h>
 #include <util/gv_math.h>
+#include <util/prisize_t.h>
 #ifdef IPSEPCOLA
 #include <math.h>
 #include <stdlib.h>
@@ -52,12 +54,12 @@ int
 constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 			      int max_iterations)
 {
-    int i, j, counter;
+    int counter;
     float *g, *old_place, *d;
     /* for laplacian computation need number of real vars and those
      * dummy vars included in lap
      */
-    int n = e->nv + e->nldv;
+    const size_t n = e->nv + e->nldv;
     bool converged = false;
 #ifdef CONMAJ_LOGGING
     static int call_no = 0;
@@ -69,19 +71,19 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
     old_place = e->fArray2;
     d = e->fArray3;
     if (e->m > 0) {
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    setVariableDesiredPos(e->vs[i], place[i]);
 	}
 	satisfyVPSC(e->vpsc);
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    place[i] = getVariablePos(e->vs[i]);
 	}
     }
 #ifdef CONMAJ_LOGGING
     float prev_stress = 0;
-    for (i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 	prev_stress += 2 * b[i] * place[i];
-	for (j = 0; j < n; j++) {
+	for (size_t j = 0; j < n; j++) {
 	    prev_stress -= e->A[i][j] * place[j] * place[i];
 	}
     }
@@ -94,17 +96,17 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	float numerator = 0, denominator = 0, r;
 	converged = true;
 	/* find steepest descent direction */
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    old_place[i] = place[i];
 	    g[i] = 2 * b[i];
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		g[i] -= 2 * e->A[i][j] * place[j];
 	    }
 	}
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    numerator += g[i] * g[i];
 	    r = 0;
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		r += 2 * e->A[i][j] * g[j];
 	    }
 	    denominator -= r * g[i];
@@ -113,31 +115,31 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	    alpha = numerator / denominator;
 	else
 	    alpha = 1.0;
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    place[i] -= alpha * g[i];
 	}
 	if (e->m > 0) {
 	    /* project to constraint boundary */
-	    for (i = 0; i < n; i++) {
+	    for (size_t i = 0; i < n; i++) {
 		setVariableDesiredPos(e->vs[i], place[i]);
 	    }
 	    satisfyVPSC(e->vpsc);
-	    for (i = 0; i < n; i++) {
+	    for (size_t i = 0; i < n; i++) {
 		place[i] = getVariablePos(e->vs[i]);
 	    }
 	}
 	/* set place to the intersection of old_place-g and boundary and 
 	 * compute d, the vector from intersection pnt to projection pnt
 	 */
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    d[i] = place[i] - old_place[i];
 	}
 	/* now compute beta */
 	numerator = 0, denominator = 0;
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    numerator += g[i] * d[i];
 	    r = 0;
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		r += 2 * e->A[i][j] * d[j];
 	    }
 	    denominator += r * d[i];
@@ -147,7 +149,7 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	else
 	    beta = 1.0;
 
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    /* beta > 1.0 takes us back outside the feasible region
 	     * beta < 0 clearly not useful and may happen due to numerical imp.
 	     */
@@ -158,9 +160,9 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
 	}
 #ifdef CONMAJ_LOGGING
 	float stress = 0;
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 	    stress += 2 * b[i] * place[i];
-	    for (j = 0; j < n; j++) {
+	    for (size_t j = 0; j < n; j++) {
 		stress -= e->A[i][j] * place[j] * place[i];
 	    }
 	}
@@ -179,8 +181,9 @@ constrained_majorization_vpsc(CMajEnvVPSC * e, float *b, float *place,
     return counter;
 }
 
-static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
-                                           int *level_inds, int num_divisions);
+static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
+                                           int *level_inds,
+                                           size_t num_divisions);
 
 /*
  * Set up environment and global constraints (dir-edge constraints, containment constraints
@@ -193,9 +196,7 @@ static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
 CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 			  ipsep_options * opt, int diredges)
 {
-    int i;
     /* nv is the number of real nodes */
-    int nConCs;
     CMajEnvVPSC *e = gv_alloc(sizeof(CMajEnvVPSC));
     e->A = NULL;
     /* if we have clusters then we'll need two constraints for each var in
@@ -206,14 +207,14 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 
     e->gcs = NULL;
     e->vs = gv_calloc(n, sizeof(Variable*));
-    for (i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++) {
 	e->vs[i] = newVariable(i, 1.0, 1.0);
     }
     e->gm = 0;
     if (diredges == 1) {
 	if (Verbose)
 	    fprintf(stderr, "  generate edge constraints...\n");
-	for (i = 0; i < e->nv; i++) {
+	for (size_t i = 0; i < e->nv; i++) {
 	    for (size_t j = 1; j < graph[i].nedges; j++) {
 		if (graph[i].edists[j] > 0) {
 		    e->gm++;
@@ -222,9 +223,10 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	}
 	e->gcs = newConstraints(e->gm);
 	e->gm = 0;
-	for (i = 0; i < e->nv; i++) {
+	for (size_t i = 0; i < e->nv; i++) {
 	    for (size_t j = 1; j < graph[i].nedges; j++) {
-		int u = i, v = graph[i].edges[j];
+		const size_t u = i;
+		int v = graph[i].edges[j];
 		if (graph[i].edists[j] > 0) {
 		    e->gcs[e->gm++] =
 			newConstraint(e->vs[u], e->vs[v], opt->edge_gap);
@@ -242,24 +244,24 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	levels = assign_digcola_levels(ordering, e->nv, ls, e->ndv);
 	free(ordering);
 	if (Verbose)
-	    fprintf(stderr, "Found %d DiG-CoLa boundaries\n", e->ndv);
+	    fprintf(stderr, "Found %" PRISIZE_T " DiG-CoLa boundaries\n", e->ndv);
 	e->gm =
 	    get_num_digcola_constraints(levels, e->ndv + 1) + e->ndv - 1;
 	e->gcs = newConstraints(e->gm);
 	e->gm = 0;
 	e->vs = gv_calloc(n + e->ndv, sizeof(Variable*));
-	for (i = 0; i < n; i++) {
+	for (int i = 0; i < n; i++) {
 	    e->vs[i] = vs[i];
 	}
 	free(vs);
 	/* create dummy vars */
-	for (i = 0; i < e->ndv; i++) {
+	for (size_t i = 0; i < e->ndv; i++) {
 	    /* dummy vars should have 0 weight */
 	    cvar = n + i;
 	    e->vs[cvar] = newVariable(cvar, 1.0, 0.000001);
 	}
 	halfgap = opt->edge_gap;
-	for (i = 0; i < e->ndv; i++) {
+	for (size_t i = 0; i < e->ndv; i++) {
 	    cvar = n + i;
 	    /* outgoing constraints for each var in level below boundary */
 	    for (int j = 0; j < levels[i].num_nodes; j++) {
@@ -275,22 +277,22 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
 	    }
 	}
 	/* constraints between adjacent boundary dummy vars */
-	for (i = 0; i < e->ndv - 1; i++) {
+	for (size_t i = 0; i < e->ndv - 1; i++) {
 	    e->gcs[e->gm++] =
 		newConstraint(e->vs[n + i], e->vs[n + i + 1], 0);
 	}
     }
     if (opt->clusters.nclusters > 0) {
 	Constraint **ecs = e->gcs;
-	nConCs = 2 * opt->clusters.nvars;
+	const size_t nConCs = 2 * opt->clusters.nvars;
 	e->gcs = newConstraints(e->gm + nConCs);
-	for (i = 0; i < e->gm; i++) {
+	for (size_t i = 0; i < e->gm; i++) {
 	    e->gcs[i] = ecs[i];
 	}
 	if (ecs != NULL)
 	    deleteConstraints(0, ecs);
-	for (i = 0; i < opt->clusters.nclusters; i++) {
-	    for (int j = 0; j < opt->clusters.clustersizes[i]; j++) {
+	for (size_t i = 0; i < opt->clusters.nclusters; i++) {
+	    for (size_t j = 0; j < opt->clusters.clustersizes[i]; j++) {
 		Variable *v = e->vs[opt->clusters.clusters[i][j]];
 		Variable *cl = e->vs[e->nv + 2 * i];
 		Variable *cr = e->vs[e->nv + 2 * i + 1];
@@ -316,14 +318,13 @@ CMajEnvVPSC *initCMajVPSC(int n, float *packedMat, vtx_data * graph,
     e->fArray3 = gv_calloc(n, sizeof(float));
     if (Verbose)
 	fprintf(stderr,
-		"  initCMajVPSC done: %d global constraints generated.\n",
+		"  initCMajVPSC done: %" PRISIZE_T " global constraints generated.\n",
 		e->m);
     return e;
 }
 
 void deleteCMajEnvVPSC(CMajEnvVPSC * e)
 {
-    int i;
     if (e->A != NULL) {
 	free(e->A[0]);
 	free(e->A);
@@ -333,7 +334,7 @@ void deleteCMajEnvVPSC(CMajEnvVPSC * e)
 	if (e->cs != e->gcs && e->gcs != NULL)
 	    deleteConstraints(0, e->gcs);
 	deleteConstraints(e->m, e->cs);
-	for (i = 0; i < e->nv + e->nldv + e->ndv; i++) {
+	for (size_t i = 0; i < e->nv + e->nldv + e->ndv; i++) {
 	    deleteVariable(e->vs[i]);
 	}
 	free(e->vs);
@@ -363,8 +364,8 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 				   ipsep_options * opt)
 {
     Constraint **csol, **csolptr;
-    int i, j, mol = 0;
-    int n = e->nv + e->nldv;
+    int mol = 0;
+    size_t n = e->nv + e->nldv;
     boxf* bb = gv_calloc(n, sizeof(boxf));
     bool genclusters = opt->clusters.nclusters > 0;
     if (genclusters) {
@@ -377,7 +378,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	 */
 	nsizeScale *= 1.0001f;
     }
-    for (i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
 	bb[i].LL.x =
 	    coords[0][i] - nsizeScale * opt->nsize[i].x / 2.0 -
 	    opt->gap.x / 2.0;
@@ -395,15 +396,15 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	Constraint ***cscl = gv_calloc(opt->clusters.nclusters + 1,
 	                               sizeof(Constraint**));
 	int* cm = gv_calloc(opt->clusters.nclusters + 1, sizeof(int));
-	for (i = 0; i < opt->clusters.nclusters; i++) {
-	    int cn = opt->clusters.clustersizes[i];
+	for (size_t i = 0; i < opt->clusters.nclusters; i++) {
+	    const size_t cn = opt->clusters.clustersizes[i];
 	    Variable** cvs = gv_calloc(cn + 2, sizeof(Variable*));
 	    boxf* cbb = gv_calloc(cn + 2, sizeof(boxf));
 	    /* compute cluster bounding bb */
 	    boxf container;
 	    container.LL.x = container.LL.y = DBL_MAX;
 	    container.UR.x = container.UR.y = -DBL_MAX;
-	    for (j = 0; j < cn; j++) {
+	    for (size_t j = 0; j < cn; j++) {
 		int iv = opt->clusters.clusters[i][j];
 		cvs[j] = e->vs[iv];
 		B2BF(bb[iv], cbb[j]);
@@ -431,32 +432,34 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	}
 	/* generate top level constraints */
 	{
-	    int cn = opt->clusters.ntoplevel + opt->clusters.nclusters;
+	    const size_t cn = opt->clusters.ntoplevel + opt->clusters.nclusters;
 	    Variable** cvs = gv_calloc(cn, sizeof(Variable*));
 	    boxf* cbb = gv_calloc(cn, sizeof(boxf));
-	    for (i = 0; i < opt->clusters.ntoplevel; i++) {
+	    for (size_t i = 0; i < opt->clusters.ntoplevel; i++) {
 		int iv = opt->clusters.toplevel[i];
 		cvs[i] = e->vs[iv];
 		B2BF(bb[iv], cbb[i]);
 	    }
 	    /* make dummy variables for clusters */
-	    for (i = opt->clusters.ntoplevel; i < cn; i++) {
-		cvs[i] = newVariable(123 + i, 1, 1);
-		j = i - opt->clusters.ntoplevel;
+	    for (size_t i = opt->clusters.ntoplevel; i < cn; i++) {
+		assert(i <= INT_MAX);
+		cvs[i] = newVariable(123 + (int)i, 1, 1);
+		const size_t j = i - opt->clusters.ntoplevel;
 		B2BF(opt->clusters.bb[j], cbb[i]);
 	    }
-	    i = opt->clusters.nclusters;
 	    if (k == 0) {
+		const size_t i = opt->clusters.nclusters;
 		cm[i] =
 		    genXConstraints(cn, cbb, cvs, &cscl[i],
 				    transitiveClosure);
 	    } else {
+		const size_t i = opt->clusters.nclusters;
 		cm[i] = genYConstraints(cn, cbb, cvs, &cscl[i]);
 	    }
 	    /* remap constraints from tmp dummy vars to cluster l and r vars */
-	    for (i = opt->clusters.ntoplevel; i < cn; i++) {
+	    for (size_t i = opt->clusters.ntoplevel; i < cn; i++) {
 		double dgap;
-		j = i - opt->clusters.ntoplevel;
+		const size_t j = i - opt->clusters.ntoplevel;
 		/* dgap is the change in required constraint gap.
 		 * since we are going from a source rectangle the size
 		 * of the cluster bounding box to a zero width (in x dim,
@@ -499,9 +502,9 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	    free (cbb);
 	}
 	csolptr = csol = newConstraints(mol);
-	for (i = 0; i < opt->clusters.nclusters + 1; i++) {
+	for (size_t i = 0; i < opt->clusters.nclusters + 1; i++) {
 	    /* copy constraints into csol */
-	    for (j = 0; j < cm[i]; j++) {
+	    for (int j = 0; j < cm[i]; j++) {
 		*csolptr++ = cscl[i][j];
 	    }
 	    deleteConstraints(0, cscl[i]);
@@ -519,7 +522,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
     if (e->m > 0) {
 	/* can't reuse instance of VPSC when constraints change! */
 	deleteVPSC(e->vpsc);
-	for (i = e->gm; i < e->m; i++) {
+	for (size_t i = e->gm; i < e->m; i++) {
 	    /* delete previous overlap constraints */
 	    deleteConstraint(e->cs[i]);
 	}
@@ -538,7 +541,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
     } else {
 	e->m = mol + e->gm;
 	e->cs = newConstraints(e->m);
-	for (i = 0; i < e->m; i++) {
+	for (size_t i = 0; i < e->m; i++) {
 	    if (i < e->gm) {
 		e->cs[i] = e->gcs[i];
 	    } else {
@@ -549,7 +552,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	deleteConstraints(0, csol);
     }
     if (Verbose)
-	fprintf(stderr, "  generated %d constraints\n", e->m);
+	fprintf(stderr, "  generated %" PRISIZE_T " constraints\n", e->m);
     e->vpsc = newIncVPSC(e->nv + e->nldv + e->ndv, e->vs, e->m, e->cs);
     free (bb);
 }
@@ -578,18 +581,19 @@ void removeoverlaps(int n, float **coords, ipsep_options * opt)
 /*
  unpack the "ordering" array into an array of DigColaLevel
 */
-static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
-                                           int *level_inds, int num_divisions) {
-    int i, j;
+static DigColaLevel *assign_digcola_levels(const int *ordering, size_t n,
+                                           int *level_inds,
+                                           size_t num_divisions) {
+    int j;
     DigColaLevel *l = gv_calloc(num_divisions + 1, sizeof(DigColaLevel));
     /* first level */
     l[0].num_nodes = level_inds[0];
     l[0].nodes = gv_calloc(l[0].num_nodes, sizeof(int));
-    for (i = 0; i < l[0].num_nodes; i++) {
+    for (int i = 0; i < l[0].num_nodes; i++) {
 	l[0].nodes[i] = ordering[i];
     }
     /* second through second last level */
-    for (i = 1; i < num_divisions; i++) {
+    for (size_t i = 1; i < num_divisions; i++) {
 	l[i].num_nodes = level_inds[i] - level_inds[i - 1];
 	l[i].nodes = gv_calloc(l[i].num_nodes, sizeof(int));
 	for (j = 0; j < l[i].num_nodes; j++) {
@@ -600,7 +604,7 @@ static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
     if (num_divisions > 0) {
 	l[num_divisions].num_nodes = n - level_inds[num_divisions - 1];
 	l[num_divisions].nodes = gv_calloc(l[num_divisions].num_nodes, sizeof(int));
-	for (i = 0; i < l[num_divisions].num_nodes; i++) {
+	for (int i = 0; i < l[num_divisions].num_nodes; i++) {
 	    l[num_divisions].nodes[i] =
 		ordering[level_inds[num_divisions - 1] + i];
 	}
@@ -612,10 +616,9 @@ static DigColaLevel *assign_digcola_levels(const int *ordering, int n,
 get number of separation constraints based on the number of nodes in each level
 ie, num_sep_constraints = sum_i^{num_levels-1} (|L[i]|+|L[i+1]|)
 **********************/
-int get_num_digcola_constraints(DigColaLevel * levels, int num_levels)
-{
-    int i, nc = 0;
-    for (i = 1; i < num_levels; i++) {
+int get_num_digcola_constraints(DigColaLevel *levels, size_t num_levels) {
+    int nc = 0;
+    for (size_t i = 1; i < num_levels; i++) {
 	nc += levels[i].num_nodes + levels[i - 1].num_nodes;
     }
     nc += levels[0].num_nodes + levels[num_levels - 1].num_nodes;

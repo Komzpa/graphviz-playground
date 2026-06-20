@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <util/api.h>
 
 #ifdef __cplusplus
@@ -27,10 +28,11 @@ typedef struct {
 	float *fArray4;
 	int *ordering;
 	int *levels;
-	int num_levels;
+	size_t num_levels;
 }CMajEnv;
 
-PRIVATE CMajEnv* initConstrainedMajorization(float *, int, int*, int*, int);
+PRIVATE CMajEnv *initConstrainedMajorization(float *, int, int *, int *,
+                                             size_t);
 
 PRIVATE void constrained_majorization_new_with_gaps(CMajEnv*, float*, float**, 
                                             int, int, float);
