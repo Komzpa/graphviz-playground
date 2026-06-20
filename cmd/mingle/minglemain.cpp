@@ -366,7 +366,6 @@ using PointMap = std::unordered_map<std::pair<int, int>, int, PointHash>;
 
 static int bundle(Agraph_t *g, const opts_t &opts) {
 	double *x = nullptr;
-	int dim = 2;
     int i;
 
 	if (checkG(g)) {
@@ -374,7 +373,7 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 		return 1;
 	}
     initDotIO(g);
-	SparseMatrix A = SparseMatrix_import_dot(g, dim, &x, FORMAT_CSR);
+	SparseMatrix A = SparseMatrix_import_dot(g, &x, FORMAT_CSR);
 	if (!A){
 		agerrorf("Error: could not convert graph %s (%s) into matrix\n", agnameof(g), fname);
 		return 1;
@@ -422,7 +421,7 @@ static int bundle(Agraph_t *g, const opts_t &opts) {
 	int nz = A->nz;
 	std::vector<double> xx(nz * 4);
 	nz = 0;
-	dim = 4;
+	const int dim = 4;
 	for (i = 0; i < A->m; i++){
 		for (int j = ia[i]; j < ia[i+1]; j++){
 			if (ja[j] > i){
