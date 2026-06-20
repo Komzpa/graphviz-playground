@@ -200,10 +200,12 @@ def main() -> int:
     ARTIFACTS = {
         # CI job → [artifacts…]
         "fedora43-build": [f"fedora_43_graphviz-{version}-rpms.tar.xz"],
+        "fedora44-build": [f"fedora_44_graphviz-{version}-rpms.tar.xz"],
         "rocky8-build": [f"rocky_8.9_graphviz-{version}-rpms.tar.xz"],
         "rocky9-build": [f"rocky_9.8_graphviz-{version}-rpms.tar.xz"],
         "rocky10-build": [f"rocky_10.2_graphviz-{version}-rpms.tar.xz"],
         "fedora43-cmake-build": [f"fedora_43_graphviz-{version}-cmake.rpm"],
+        "fedora44-cmake-build": [f"fedora_44_graphviz-{version}-cmake.rpm"],
         "rocky8-cmake-build": [f"rocky_8.9_graphviz-{version}-cmake.rpm"],
         "rocky9-cmake-build": [f"rocky_9.8_graphviz-{version}-cmake.rpm"],
         "rocky10-cmake-build": [f"rocky_10.2_graphviz-{version}-cmake.rpm"],

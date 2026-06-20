@@ -267,6 +267,18 @@ fedora43-build:
     variables:
       IMAGE: fedora43
 
+fedora44-build:
+    <<: *rpm_build_definition
+    needs:
+        - job: docker_build_fedora44
+          artifacts: false
+        - job: portable-source
+          artifacts: true
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: fedora44
+
 ubuntu-22.04-build:
     <<: *deb_build_definition
     needs:
@@ -713,6 +725,26 @@ fedora43-cmake-build:
     variables:
       IMAGE: fedora43
 
+fedora44-cmake-build:
+    <<: *rpm_build_definition
+    needs:
+        - job: docker_build_fedora44
+          artifacts: false
+    before_script:
+        - export build_system="cmake"
+        # fail on any compiler warnings
+        - export CFLAGS="-Werror"
+        - export CXXFLAGS="-Werror"
+        - export CMAKE_OPTIONS="-DWITH_SMYRNA=ON"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_LTDL=ON"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_EXPAT=ON"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_GVEDIT=ON"
+        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_ZLIB=ON"
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: fedora44
+
 macos-cmake-build:
     <<: *macos_build_definition
     needs: []
@@ -1025,6 +1057,18 @@ fedora43-test:
     variables:
       IMAGE: fedora43
 
+fedora44-test:
+    <<: *linux_test_definition
+    before_script:
+        - export build_system="autotools"
+    needs:
+        - job: "fedora44-build"
+          artifacts: true
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: fedora44
+
 macos-autotools-test:
     <<: *test_definition
     before_script:
@@ -1140,6 +1184,18 @@ fedora43-cmake-test:
         - saas-linux-small-amd64
     variables:
       IMAGE: fedora43
+
+fedora44-cmake-test:
+    <<: *linux_test_definition
+    before_script:
+        - export build_system="cmake"
+    needs:
+        - job: "fedora44-cmake-build"
+          artifacts: true
+    tags:
+        - saas-linux-small-amd64
+    variables:
+      IMAGE: fedora44
 
 macos-cmake-test:
     <<: *test_definition
@@ -1284,6 +1340,11 @@ docker_build_fedora43:
   variables:
     IMAGE: fedora43
 
+docker_build_fedora44:
+  <<: *docker_build_definition
+  variables:
+    IMAGE: fedora44
+
 docker_build_ubuntu-22.04:
   <<: *docker_build_definition
   variables:
@@ -1331,6 +1392,13 @@ docker_push_fedora43:
     IMAGE: fedora43
   needs:
     - docker_build_fedora43
+
+docker_push_fedora44:
+  <<: *docker_push_definition
+  variables:
+    IMAGE: fedora44
+  needs:
+    - docker_build_fedora44
 
 docker_push_ubuntu-22.04:
   <<: *docker_push_definition

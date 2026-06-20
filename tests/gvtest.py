@@ -359,13 +359,6 @@ def is_fedora() -> bool:
     return freedesktop_os_release().get("ID") == "fedora"
 
 
-def is_fedora_43() -> bool:
-    """is the current environment Fedora 43?"""
-    if not is_fedora():
-        return False
-    return freedesktop_os_release().get("VERSION_ID") == "43"
-
-
 def is_macos() -> bool:
     """is the current platform macOS?"""
     return platform.system() == "Darwin"
