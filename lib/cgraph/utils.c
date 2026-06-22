@@ -30,7 +30,7 @@ int agdtclose(Dict_t *dict) {
 }
 
 void agdtdisc(Dict_t *dict, Dtdisc_t *disc) {
-  if (disc && dtdisc(dict, NULL) != disc) {
+  if (dtdisc(dict, NULL) != disc) {
     dtdisc(dict, disc);
   }
   /* else unchanged, disc is same as old disc */
