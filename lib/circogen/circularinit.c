@@ -15,6 +15,7 @@
 
 #include "config.h"
 
+#include    <cgraph/cghdr.h>
 #include    <circogen/circular.h>
 #include    <neatogen/adjust.h>
 #include    <pack/pack.h>
@@ -38,9 +39,9 @@ static void circular_init_node_edge(graph_t * g)
     node_t *n;
     edge_t *e;
     int i = 0;
-    ndata* alg = gv_calloc(agnnodes(g), sizeof(ndata));
+    ndata *alg = gv_calloc(agnnodes_z(g), sizeof(ndata));
 
-    GD_neato_nlist(g) = gv_calloc(agnnodes(g) + 1, sizeof(node_t*));
+    GD_neato_nlist(g) = gv_calloc(agnnodes_z(g) + 1, sizeof(node_t *));
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	neato_init_node(n);
 	ND_alg(n) = alg + i;
