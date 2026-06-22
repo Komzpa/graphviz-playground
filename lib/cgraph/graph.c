@@ -117,18 +117,18 @@ int agclose(Agraph_t * g)
     assert(node_set_is_empty(g->n_id));
     node_set_free(&g->n_id);
     assert(dtsize(g->n_seq) == 0);
-    if (agdtclose(g, g->n_seq)) return FAILURE;
+    if (agdtclose(g->n_seq)) return FAILURE;
 
     assert(dtsize(g->e_id) == 0);
-    if (agdtclose(g, g->e_id)) return FAILURE;
+    if (agdtclose(g->e_id)) return FAILURE;
     assert(dtsize(g->e_seq) == 0);
-    if (agdtclose(g, g->e_seq)) return FAILURE;
+    if (agdtclose(g->e_seq)) return FAILURE;
 
     assert(dtsize(g->g_seq) == 0);
-    if (agdtclose(g, g->g_seq)) return FAILURE;
+    if (agdtclose(g->g_seq)) return FAILURE;
 
     assert(dtsize(g->g_id) == 0);
-    if (agdtclose(g, g->g_id)) return FAILURE;
+    if (agdtclose(g->g_id)) return FAILURE;
 
     if (g->desc.has_attrs)
 	if (agraphattr_delete(g)) return FAILURE;

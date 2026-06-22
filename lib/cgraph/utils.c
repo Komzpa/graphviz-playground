@@ -22,8 +22,7 @@ Dict_t *agdtopen(Dtdisc_t *disc, Dtmethod_t *method) {
   return dtopen(disc, method);
 }
 
-int agdtclose(Agraph_t *g, Dict_t *dict) {
-  (void)g;
+int agdtclose(Dict_t *dict) {
   dtdisc(dict, NULL);
   if (dtclose(dict))
     return 1;
