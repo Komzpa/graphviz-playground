@@ -436,14 +436,15 @@ static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups, int GR
   int *ia, *ja;
   int one = 1, jj, i, j, ig1, ig2;
   SparseMatrix B, BB;
-  int min_grp, max_grp;
+  int max_grp;
   
-  min_grp = max_grp = groups[0];
+  max_grp = groups[0];
   for (i = 0; i < n; i++) {
     max_grp = MAX(groups[i], max_grp);
-    min_grp = MIN(groups[i], min_grp);
+    if (groups[i] <= 0) {
+      return NULL;
+    }
   }
-  if (min_grp <= 0) return NULL;
   B = SparseMatrix_new(max_grp, max_grp, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
   ia = A->ia;
   ja = A->ja;
