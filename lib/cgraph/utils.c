@@ -22,11 +22,6 @@ Dict_t *agdtopen(Dtdisc_t *disc, Dtmethod_t *method) {
   return dtopen(disc, method);
 }
 
-int agdtdelete(Agraph_t *g, Dict_t *dict, void *obj) {
-  (void)g;
-  return dtdelete(dict, obj) != NULL;
-}
-
 int agdtclose(Agraph_t *g, Dict_t *dict) {
   (void)g;
   dtdisc(dict, NULL);
