@@ -773,19 +773,6 @@ float *compute_apsp_artificial_weights_packed(vtx_data *graph, int n) {
     return Dij;
 }
 
-#if defined(DEBUG) && DEBUG > 1
-static void dumpMatrix(float *Dij, int n)
-{
-    int i, j, count = 0;
-    for (i = 0; i < n; i++) {
-	for (j = i; j < n; j++) {
-	    fprintf(stderr, "%.02f  ", Dij[count++]);
-	}
-	fputs("\n", stderr);
-    }
-}
-#endif
-
 /* Accumulator type for diagonal of Laplacian. Needs to be as large
  * as possible. Use long double; configure to double if necessary.
  */

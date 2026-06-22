@@ -244,7 +244,7 @@ __attribute__((format(printf, 1, 2)))
 #endif
 void exwarn(const char *, ...);
 Extype_t exeval(Expr_t *, Exnode_t *, void *);
-Exnode_t *exexpr(Expr_t *, const char *, Exid_t *, int);
+Exnode_t *exexpr(Expr_t *, const char *, int);
 void exfreenode(Expr_t *, Exnode_t *);
 Exnode_t *exnewnode(Expr_t *, long, bool, long, Exnode_t *, Exnode_t *);
 char *exnospace(void);

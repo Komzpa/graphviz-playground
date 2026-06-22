@@ -2225,7 +2225,7 @@ static Exnode_t *compile(Expr_t *prog, char *src, char *input, int line,
   fclose(sf);
 
   if (rv >= 0 && getErrorErrors() == 0)
-    e = exexpr(prog, lbl, NULL, kind);
+    e = exexpr(prog, lbl, kind);
 
   return e;
 }

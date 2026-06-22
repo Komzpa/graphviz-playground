@@ -398,9 +398,9 @@ int agraphattr_delete(Agraph_t * g)
     }
 
     if ((dd = agdatadict(g, false))) {
-	if (agdtclose(g, dd->dict.n)) return 1;
-	if (agdtclose(g, dd->dict.e)) return 1;
-	if (agdtclose(g, dd->dict.g)) return 1;
+	if (agdtclose(dd->dict.n)) return 1;
+	if (agdtclose(dd->dict.e)) return 1;
+	if (agdtclose(dd->dict.g)) return 1;
 	agdelrec(g, dd->h.name);
     }
     return 0;

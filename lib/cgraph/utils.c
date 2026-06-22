@@ -22,13 +22,7 @@ Dict_t *agdtopen(Dtdisc_t *disc, Dtmethod_t *method) {
   return dtopen(disc, method);
 }
 
-int agdtdelete(Agraph_t *g, Dict_t *dict, void *obj) {
-  (void)g;
-  return dtdelete(dict, obj) != NULL;
-}
-
-int agdtclose(Agraph_t *g, Dict_t *dict) {
-  (void)g;
+int agdtclose(Dict_t *dict) {
   dtdisc(dict, NULL);
   if (dtclose(dict))
     return 1;
@@ -36,7 +30,7 @@ int agdtclose(Agraph_t *g, Dict_t *dict) {
 }
 
 void agdtdisc(Dict_t *dict, Dtdisc_t *disc) {
-  if (disc && dtdisc(dict, NULL) != disc) {
+  if (dtdisc(dict, NULL) != disc) {
     dtdisc(dict, disc);
   }
   /* else unchanged, disc is same as old disc */
