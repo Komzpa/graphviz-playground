@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <cgraph/cghdr.h>
 #include <cgraph/cgraph.h>
 #include <common/utils.h>
 #include <dotgen/dot.h>
@@ -262,7 +263,7 @@ static void fixLabelOrder(graph_t *g, rank_t *rk) {
     return;
 
   sg = agsubg(g, "comp", 1);
-  int *indices = gv_calloc(agnnodes(g), sizeof(int));
+  int *indices = gv_calloc(agnnodes_z(g), sizeof(int));
 
   for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
     if (ND_x(n) || agdegree(g, n, 1, 1) == 0)
