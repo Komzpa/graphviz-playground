@@ -270,7 +270,7 @@ static void fixLabelOrder(graph_t *g, rank_t *rk) {
       continue;
     if (getComp(g, n, sg, indices)) {
       nodes_t arr = topsort(g, sg);
-      assert(LIST_SIZE(&arr) == (size_t)agnnodes(sg));
+      assert(LIST_SIZE(&arr) == agnnodes_z(sg));
       qsort(indices, LIST_SIZE(&arr), sizeof(int), ordercmpf);
       for (size_t i = 0; i < LIST_SIZE(&arr); i++) {
         ND_order(LIST_GET(&arr, i)) = indices[i];
