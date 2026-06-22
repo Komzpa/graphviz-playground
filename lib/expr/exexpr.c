@@ -20,17 +20,11 @@
 #include <expr/exlib.h>
 #include <stddef.h>
 
-/*
- * return the expression for name or sym coerced to type
- */
-
-Exnode_t*
-exexpr(Expr_t* ex, const char* name, Exid_t* sym, int type)
-{
+/// return the expression for name coerced to type
+Exnode_t *exexpr(Expr_t *ex, const char *name, int type) {
 	if (ex)
 	{
-		if (!sym)
-			sym = name ? dtmatch(ex->symbols, name) : &ex->main;
+		Exid_t *const sym = name ? dtmatch(ex->symbols, name) : &ex->main;
 		if (sym && sym->lex == PROCEDURE && sym->value)
 		{
 			if (type != DELETE_T)
