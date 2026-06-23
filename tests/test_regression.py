@@ -6553,6 +6553,29 @@ def test_2835():
     assert graph_style is None, "style attribute was added to the root graph"
 
 
+def test_698066():
+    """
+    Graphviz should not crash when processing this graph
+    https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=698066
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "698066.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    dot("dot", src)
+
+
+def test_698066_2():
+    """
+    Graphviz should not crash when processing this graph
+    https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=698066
+    """
+    src = r'digraph g {v [label="fmnosyy cemnnoopt definr\Einoprx\Eeionprssx  aceert"]}'
+    dot("dot", source=src)
+
+
 @pytest.mark.parametrize("package", ("Tcldot", "Tclpathplan"))
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 @pytest.mark.xfail(
