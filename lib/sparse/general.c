@@ -25,10 +25,9 @@ double drand(void){
   return rand()/(double) RAND_MAX;
 }
 
-double* vector_subtract_to(int n, double *x, double *y){
+double *vector_subtract_to(size_t n, double *x, double *y) {
   /* y = x-y */
-  int i;
-  for (i = 0; i < n; i++) y[i] = x[i] - y[i];
+  for (size_t i = 0; i < n; i++) y[i] = x[i] - y[i];
   return y;
 }
 double vector_product(int n, double *x, double *y){
@@ -38,28 +37,24 @@ double vector_product(int n, double *x, double *y){
   return res;
 }
 
-double* vector_saxpy(int n, double *x, double *y, double beta){
+double *vector_saxpy(size_t n, double *x, double *y, double beta) {
   /* y = x+beta*y */
-  int i;
-  for (i = 0; i < n; i++) y[i] = x[i] + beta*y[i];
+  for (size_t i = 0; i < n; i++) y[i] = x[i] + beta * y[i];
   return y;
 }
 
-double* vector_saxpy2(int n, double *x, double *y, double beta){
+double *vector_saxpy2(size_t n, double *x, double *y, double beta) {
   /* x = x+beta*y */
-  int i;
-  for (i = 0; i < n; i++) x[i] = x[i] + beta*y[i];
+  for (size_t i = 0; i < n; i++) x[i] += beta * y[i];
   return x;
 }
 
-void vector_float_take(int n, float *v, int m, int *p, float **u){
+void vector_float_take(size_t n, float *v, size_t m, int *p, float **u) {
   /* take m elements v[p[i]]],i=1,...,m and oput in u */
-  int i;
-
   if (!*u) *u = gv_calloc(m, sizeof(float));
 
-  for (i = 0; i < m; i++) {
-    assert(p[i] < n && p[i] >= 0);
+  for (size_t i = 0; i < m; i++) {
+    assert(p[i] >= 0 && (size_t)p[i] < n);
     (void)n;
     (*u)[i] = v[p[i]];
   }
@@ -90,24 +85,22 @@ static int comp_ascend_int(const void *s1, const void *s2){
   return 0;
 }
 
-void vector_ordering(int n, double *v, int **p){
+void vector_ordering(size_t n, double *v, int **p) {
   /* give the position of the smallest, second smallest etc in vector v.
      results in p. If *p == NULL, p is assigned.
   */
 
-  int i;
-
   if (!*p) *p = gv_calloc(n, sizeof(int));
   double *u = gv_calloc(2 * n, sizeof(double));
 
-  for (i = 0; i < n; i++) {
-    u[2*i+1] = i;
-    u[2*i] = v[i];
+  for (size_t i = 0; i < n; i++) {
+    u[2 * i + 1] = (double)i;
+    u[2 * i] = v[i];
   }
 
   qsort(u, n, sizeof(double)*2, comp_ascend);
 
-  for (i = 0; i < n; i++) (*p)[i] = (int) u[2*i+1];
+  for (size_t i = 0; i < n; i++) (*p)[i] = (int)u[2 * i + 1];
   free(u);
 }
 

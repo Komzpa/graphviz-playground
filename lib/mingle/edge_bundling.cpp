@@ -159,26 +159,26 @@ static void fprint_rgb(FILE* fp, int r, int g, int b, int alpha){
   fprintf(fp, "#%02x%02x%02x%02x", r, g, b, alpha);
 }
 
-void pedge_export_gv(FILE *fp, int ne, const std::vector<pedge> &edges) {
+void pedge_export_gv(FILE *fp, size_t ne, const std::vector<pedge> &edges) {
   double maxwgt = 0;
 
   fprintf(fp,"strict graph{\n");
   /* points */
-  for (int i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     const pedge &edge = edges[i];
     const std::vector<double> &x = edge.x;
     const int dim = edge.dim;
     const int sta = 0;
     const int sto = edge.npoints - 1;
 
-    fprintf(fp, "%d [pos=\"", i);
+    fprintf(fp, "%" PRISIZE_T " [pos=\"", i);
     for (int k = 0; k < dim; k++) {
       if (k != 0)  fprintf(fp, ",");
       fprintf(fp, "%f", x[sta*dim+k]);
     }
     fprintf(fp, "\"];\n");
 
-    fprintf(fp, "%d [pos=\"", i + ne);
+    fprintf(fp, "%" PRISIZE_T " [pos=\"", i + ne);
     for (int k = 0; k < dim; k++) {
       if (k != 0)  fprintf(fp, ",");
       fprintf(fp, "%f", x[sto*dim+k]);
@@ -188,7 +188,7 @@ void pedge_export_gv(FILE *fp, int ne, const std::vector<pedge> &edges) {
   }
 
   /* figure out max number of bundled original edges in a pedge */
-  for (int i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     const pedge &edge = edges[i];
     if (!edge.wgts.empty()) {
       for (int j = 0; j < edge.npoints - 1; j++) {
@@ -198,8 +198,8 @@ void pedge_export_gv(FILE *fp, int ne, const std::vector<pedge> &edges) {
   }
 
   /* spline and colors */
-  for (int i = 0; i < ne; i++){
-    fprintf(fp,"%d -- %d [pos=\"", i, i + ne);
+  for (size_t i = 0; i < ne; i++){
+    fprintf(fp,"%" PRISIZE_T " -- %" PRISIZE_T " [pos=\"", i, i + ne);
     const pedge &edge = edges[i];
     const std::vector<double> &x = edge.x;
     const int dim = edge.dim;
@@ -406,8 +406,8 @@ static void force_directed_edge_bundling(SparseMatrix A,
   
   if (Verbose > 1)
     fprintf(stderr, "total interaction pairs = %" PRISIZE_T
-            " out of %d, avg neighbors per edge = %f\n", A->nz, A->m * A->m,
-            (double)A->nz / A->m);
+            " out of %" PRISIZE_T ", avg neighbors per edge = %f\n", A->nz, A->m * A->m,
+            (double)A->nz / (double)A->m);
 
   std::vector<double> force_t(dim * np);
   std::vector<double> force_a(dim * np);
@@ -445,7 +445,7 @@ static void force_directed_edge_bundling(SparseMatrix A,
   }
 }
 
-static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
+static void modularity_ink_bundling(int dim, size_t ne, SparseMatrix B,
                                     std::vector<pedge> &edges,
                                     double angle_param, double angle) {
   int *assignment = nullptr, nclusters;
@@ -454,7 +454,7 @@ static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
   SparseMatrix D, C;
   point_t meet1, meet2;
   double ink0, ink1;
-  int i, j, jj;
+  int j, jj;
 
   SparseMatrix BB;
 
@@ -468,16 +468,16 @@ static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
   
   C = SparseMatrix_new(1, 1, 1, MATRIX_TYPE_PATTERN, FORMAT_COORD);
   
-  for (i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     jj = assignment[i];
-    SparseMatrix_coordinate_form_add_entry(C, jj, i, nullptr);
+    SparseMatrix_coordinate_form_add_entry(C, jj, (int)i, nullptr);
   }
   
   D = SparseMatrix_from_coordinate_format(C);
   SparseMatrix_delete(C);
   clusterp = D->ia;
   clusters = D->ja;
-  for (i = 0; i < nclusters; i++) {
+  for (int i = 0; i < nclusters; i++) {
     ink1 = ink(edges, clusterp[i + 1] - clusterp[i], &clusters[clusterp[i]],
                &ink0, &meet1, &meet2, angle_param, angle);
     if (Verbose > 1)
@@ -501,22 +501,22 @@ static void modularity_ink_bundling(int dim, int ne, SparseMatrix B,
   SparseMatrix_delete(D);
 }
 
-static SparseMatrix check_compatibility(SparseMatrix A, int ne,
+static SparseMatrix check_compatibility(SparseMatrix A, size_t ne,
                                         const std::vector<pedge> &edges,
                                         int compatibility_method, double tol) {
   /* go through the links and make sure edges are compatible */
   SparseMatrix B, C;
-  int *ia, *ja, i, j, jj;
+  int *ia, *ja, j, jj;
   double start;
   double dist;
 
   B = SparseMatrix_new(1, 1, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
   ia = A->ia; ja = A->ja;
   start = clock();
-  for (i = 0; i < ne; i++){
+  for (size_t i = 0; i < ne; i++){
     for (j = ia[i]; j < ia[i+1]; j++){
       jj = ja[j];
-      if (i == jj) continue;
+      if ((int)i == jj) continue;
       if (compatibility_method == COMPATIBILITY_DIST){
 	dist = edge_compatibility_full(edges[i], edges[jj]);
       } else if (compatibility_method == COMPATIBILITY_FULL){
@@ -524,8 +524,8 @@ static SparseMatrix check_compatibility(SparseMatrix A, int ne,
       } 
 
       if (fabs(dist) > tol){
-	B = SparseMatrix_coordinate_form_add_entry(B, i, jj, &dist);
-	B = SparseMatrix_coordinate_form_add_entry(B, jj, i, &dist);
+	B = SparseMatrix_coordinate_form_add_entry(B, (int)i, jj, &dist);
+	B = SparseMatrix_coordinate_form_add_entry(B, jj, (int)i, &dist);
       }
     }
   }
@@ -555,20 +555,19 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
      max_recursion: used only in agglomerative method. Specify how many level of recursion to do to bundle bundled edges again
 
   */
-  int ne = A0->m;
+  const size_t ne = A0->m;
   SparseMatrix A = A0, B = nullptr;
-  int i;
   double tol = 0.001;
   int k;
   double step0 = 0.1, start = 0.0;
   int maxit = 10;
 
-  assert(A->n == ne);
+  assert((size_t)A->n == ne);
   std::vector<pedge> edges;
   edges.reserve(ne);
 
-  for (i = 0; i < ne; i++){
-    edges.emplace_back(pedge_new(2, dim, &x.data()[dim * 2 * i]));
+  for (size_t i = 0; i < ne; i++){
+    edges.emplace_back(pedge_new(2, dim, &x.data()[dim * 2 * (int)i]));
   }
 
   A = SparseMatrix_symmetrize(A0, true);
@@ -594,7 +593,7 @@ std::vector<pedge> edge_bundling(SparseMatrix A0, int dim,
 
 
     for (k = 0; k < maxit_outer; k++){
-      for (i = 0; i < ne; i++){
+      for (size_t i = 0; i < ne; i++){
 	pedge_double(edges[i]);
       }
       step0 /= 2;

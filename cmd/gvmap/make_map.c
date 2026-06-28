@@ -19,6 +19,7 @@
 #include <sparse/QuadTree.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <cgraph/cgraph.h>
 #include "make_map.h"
@@ -49,7 +50,8 @@ void map_palette_optimal_coloring(char *color_scheme, SparseMatrix A0,
   /*color: On input an array of size n*cdim, if NULL, will be allocated. On exit the final color assignment for node i is [cdim*i,cdim*(i+1)), in RGB (between 0 to 1)
   */
   double *colors = NULL;
-  int n = A0->m, i, cdim;
+  size_t cdim;
+  const size_t n = A0->m;
 
   SparseMatrix A;
   bool weightedQ = true;
@@ -84,10 +86,10 @@ void map_palette_optimal_coloring(char *color_scheme, SparseMatrix A0,
   *rgb_g = gv_calloc(n + 1, sizeof(float));
   *rgb_b = gv_calloc(n + 1, sizeof(float));
 
-  for (i = 0; i < n; i++){
-    (*rgb_r)[i+1] = (float) colors[cdim*i];
-    (*rgb_g)[i+1] = (float) colors[cdim*i + 1];
-    (*rgb_b)[i+1] = (float) colors[cdim*i + 2];
+  for (size_t i = 0; i < n; i++){
+    (*rgb_r)[i + 1] = (float)colors[cdim * i];
+    (*rgb_g)[i + 1] = (float)colors[cdim * i + 1];
+    (*rgb_b)[i + 1] = (float)colors[cdim * i + 2];
   }
   free(colors);
 }
@@ -95,18 +97,17 @@ void map_palette_optimal_coloring(char *color_scheme, SparseMatrix A0,
 void map_optimal_coloring(int seed, SparseMatrix A, float *rgb_r,  float *rgb_g, float *rgb_b){
   int *p = NULL;
   float *u = NULL;
-  int n = A->m;
-  int i;
+  const size_t n = A->m;
 
   country_graph_coloring(seed, A, &p);
 
   rgb_r++; rgb_b++; rgb_g++;/* seems necessary, but need to better think about cases when clusters are not contiguous */
   vector_float_take(n, rgb_r, n, p, &u);
-  for (i = 0; i < n; i++) rgb_r[i] = u[i];
+  for (size_t i = 0; i < n; i++) rgb_r[i] = u[i];
   vector_float_take(n, rgb_g, n, p, &u);
-  for (i = 0; i < n; i++) rgb_g[i] = u[i];
+  for (size_t i = 0; i < n; i++) rgb_g[i] = u[i];
   vector_float_take(n, rgb_b, n, p, &u);
-  for (i = 0; i < n; i++) rgb_b[i] = u[i];
+  for (size_t i = 0; i < n; i++) rgb_b[i] = u[i];
   free(u);
   free(p);
 }
@@ -129,7 +130,7 @@ void improve_contiguity(int n, int dim, int *grouping, SparseMatrix poly_point_m
 
   D = SparseMatrix_get_real_adjacency_matrix_symmetrized(graph);
 
-  assert(graph->m == n);
+  assert(graph->m == (size_t)n);
   ia = D->ia; ja = D->ja;
   double *a = D->a;
 
@@ -222,16 +223,16 @@ static SparseMatrix matrix_add_entry(SparseMatrix A, int i, int j, int val){
 }
 
 static void plot_dot_edges(FILE *f, SparseMatrix A){
-  int i, *ia, *ja, j;
+  int *ia, *ja, j;
 
   
-  int n = A->m;
+  const size_t n = A->m;
   ia = A->ia;
   ja = A->ja;
-  for (i = 0; i < n; i++){
+  for (size_t i = 0; i < n; i++){
     for (j = ia[i]; j < ia[i+1]; j++){
-      if (ja[j] == i) continue;
-      fprintf(f,"%d -- %d;\n",i,ja[j]);
+      if (ja[j] == (int)i) continue;
+      fprintf(f,"%" PRISIZE_T " -- %d;\n", i, ja[j]);
     }
   }
 }
@@ -282,7 +283,8 @@ static void plot_dot_polygons(agxbuf *sbuff, double line_width,
                               const char *line_color, SparseMatrix polys,
                               double *x_poly, int *polys_groups, float *r,
                               float *g, float *b, const char *opacity) {
-  int i, j, *ia = polys->ia, *ja = polys->ja, *a = polys->a, npolys = polys->m, nverts = polys->n, ipoly,first;
+  int j, *ia = polys->ia, *ja = polys->ja, *a = polys->a, nverts = polys->n, ipoly,first;
+  const size_t npolys = polys->m;
   const bool fill = false;
   const bool use_line = line_width >= 0;
   
@@ -292,9 +294,9 @@ static void plot_dot_polygons(agxbuf *sbuff, double line_width,
   doubles_t xp = {0};
   doubles_t yp = {0};
 
-  GV_INFO("npolys = %d", npolys);
+  GV_INFO("npolys = %" PRISIZE_T, npolys);
   first = abs(a[0]); ipoly = first + 1;
-  for (i = 0; i < npolys; i++){
+  for (size_t i = 0; i < npolys; i++){
     for (j = ia[i]; j < ia[i+1]; j++){
       assert(ja[j] < nverts && ja[j] >= 0);
       (void)nverts;
@@ -406,7 +408,7 @@ static int get_tri(int n, int dim, double *x, int *nt, struct Triangle **T,
 
   *T = gv_calloc(ntri, sizeof(struct Triangle));
 
-  A = SparseMatrix_new(n, n, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
+  A = SparseMatrix_new((size_t)n, n, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
   for (i = 0; i < ntri; i++) {
     for (j = 0; j < 3; j++) {
       (*T)[i].vertices[j] = trilist[i * 3 + j];
@@ -445,7 +447,7 @@ static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups, int GR
       return NULL;
     }
   }
-  B = SparseMatrix_new(max_grp, max_grp, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
+  B = SparseMatrix_new((size_t)max_grp, max_grp, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
   ia = A->ia;
   ja = A->ja;
   for (i = 0; i < n; i++){
@@ -469,9 +471,10 @@ static void conn_comp(int n, SparseMatrix A, int *groups, SparseMatrix *poly_poi
   int *ia, *ja;
   int one = 1, jj, i, j;
   SparseMatrix B, BB;
-  int ncomps, *comps = NULL;
+  size_t ncomps;
+  int *comps = NULL;
 
-  B = SparseMatrix_new(n, n, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
+  B = SparseMatrix_new((size_t)n, n, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
   ia = A->ia;
   ja = A->ja;
   for (i = 0; i < n; i++){
@@ -497,7 +500,7 @@ static void conn_comp(int n, SparseMatrix A, int *groups, SparseMatrix *poly_poi
 
 }
 
-static void get_poly_lines(int nt, SparseMatrix E, int ncomps, int *comps_ptr,
+static void get_poly_lines(int nt, SparseMatrix E, size_t ncomps, int *comps_ptr,
                            int *comps, int *groups, SparseMatrix *poly_lines,
                            int **polys_groups, int GRP_RANDOM, int GRP_BBOX) {
   /*============================================================
@@ -525,7 +528,7 @@ static void get_poly_lines(int nt, SparseMatrix E, int ncomps, int *comps_ptr,
 
   ipoly = 1;
 
-  for (i = 0; i < ncomps; i++){
+  for (i = 0; (size_t)i < ncomps; i++) {
     nnt = 0;
     for (j = comps_ptr[i]; j < comps_ptr[i+1]; j++){
       ii = comps[j];
@@ -618,7 +621,7 @@ static int same_edge(int ecur, int elast, int *edge_table){
 	  || (edge_head(ecur) == edge_tail(elast) && edge_tail(ecur) == edge_head(elast));
 }
 
-static void get_polygon_solids(int nt, SparseMatrix E, int ncomps,
+static void get_polygon_solids(int nt, SparseMatrix E, size_t ncomps,
                                int *comps_ptr, int *comps, SparseMatrix *polys)
 {
   /*============================================================
@@ -635,7 +638,8 @@ static void get_polygon_solids(int nt, SparseMatrix E, int ncomps,
 		     numbered as e1 and e2. Likewise from v to u there are also two edges e1 and e2.
 		  */
 
-  int n = E->m, *ie = E->ia, *je = E->ja, *e = E->a, ne, i, j, t1, t2, jj, ii;
+  int *ie = E->ia, *je = E->ja, *e = E->a, ne, j, t1, t2, jj, ii;
+  const size_t n = E->m;
   int *cycle, cycle_head = 0;/* a list of edges that form a cycle that describe the polygon. cycle[e][0] gives the prev edge in the cycle from e,
 	       cycle[e][1] gives the next edge
 	     */
@@ -653,26 +657,26 @@ static void get_polygon_solids(int nt, SparseMatrix E, int ncomps,
 
   edge_table = gv_calloc(E->nz * 2, sizeof(int));
 
-  half_edges = SparseMatrix_new(n, n, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
+  half_edges = SparseMatrix_new(n, (int)n, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
 
   ne = 0;
-  for (i = 0; i < n; i++){
+  for (size_t i = 0; i < n; i++){
     for (j = ie[i]; j < ie[i+1]; j++){
-      if (j < ie[n] - ie[0] - 1 && i > je[j] && je[j] == je[j+1]){/* an triangle edge neighboring 2 triangles. Since E is symmetric, we only do one edge of E*/
+      if (j < ie[n] - ie[0] - 1 && (int)i > je[j] && je[j] == je[j+1]){/* an triangle edge neighboring 2 triangles. Since E is symmetric, we only do one edge of E*/
 	t1 = e[j];
 	t2 = e[j+1];
 	jj = je[j];	  
-	assert(jj < n);
+	assert(jj < (int)n);
 	edge_table[ne*2] = t1;/*t1->t2*/
 	edge_table[ne*2+1] = t2;
-	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, i, jj, &ne);
-	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, jj, i, &ne);
+	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, (int)i, jj, &ne);
+	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, jj, (int)i, &ne);
 	ne++;
 
 	edge_table[ne*2] = t2;/*t2->t1*/
 	edge_table[ne*2+1] = t1;
-	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, i, jj, &ne);
-	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, jj, i, &ne);	
+	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, (int)i, jj, &ne);
+	half_edges = SparseMatrix_coordinate_form_add_entry(half_edges, jj, (int)i, &ne);	
 
 
 	ne++;
@@ -688,18 +692,18 @@ static void get_polygon_solids(int nt, SparseMatrix E, int ncomps,
 
   edge_cycle_map = gv_calloc(ne, sizeof(int));
   emask = gv_calloc(ne, sizeof(int));
-  for (i = 0; i < ne; i++) edge_cycle_map[i] = NOT_ON_CYCLE;
-  for (i = 0; i < ne; i++) emask[i] = -1;
+  for (int i = 0; i < ne; i++) edge_cycle_map[i] = NOT_ON_CYCLE;
+  for (int i = 0; i < ne; i++) emask[i] = -1;
 
   ie = half_edges->ia;
   je = half_edges->ja;
   e = half_edges->a;
   elist = gv_calloc(nt * 3, sizeof(int));
-  for (i = 0; i < nt; i++) elist[i*edim + 2] = 0;
+  for (int i = 0; i < nt; i++) elist[i*edim + 2] = 0;
 
   *polys = SparseMatrix_new(ncomps, nt, 1, MATRIX_TYPE_INTEGER, FORMAT_COORD);
 
-  for (i = 0; i < ncomps; i++){
+  for (int i = 0; (size_t)i < ncomps; i++){
     if (DEBUG_CYCLE) fprintf(stderr, "\n ============  comp %d has %d members\n",i, comps_ptr[i+1]-comps_ptr[i]);
     for (k = comps_ptr[i]; k < comps_ptr[i+1]; k++){
       ii = comps[k];
@@ -875,10 +879,10 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
                          SparseMatrix *polys, int **polys_groups,
                          SparseMatrix *poly_point_map,
                          SparseMatrix *country_graph) {
-  int i, j;
+  int j;
   int *groups;
   int maxgrp;
-  int *comps = NULL, *comps_ptr = NULL, ncomps;
+  int *comps = NULL, *comps_ptr = NULL;
   int GRP_RANDOM, GRP_BBOX;
 
   assert(dim == 2);
@@ -886,39 +890,40 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
  
   groups = gv_calloc(n + nrandom, sizeof(int));
   maxgrp = grouping[0];
-  for (i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     maxgrp = MAX(maxgrp, grouping[i]);
     groups[i] = grouping[i];
   }
 
   GRP_RANDOM = maxgrp + 1; GRP_BBOX = maxgrp + 2;
-  for (i = n; i < n + nrandom - 4; i++) {/* all random points in the same group */
+  for (int i = n; i < n + nrandom - 4; i++) {/* all random points in the same group */
     groups[i] = GRP_RANDOM;
   }
-  for (i = n + nrandom - 4; i < n + nrandom; i++) {/* last 4 pts of the expanded bonding box in the same group */
+  for (int i = n + nrandom - 4; i < n + nrandom; i++) {/* last 4 pts of the expanded bonding box in the same group */
     groups[i] = GRP_BBOX;
   }
   
   /* finding connected components: vertices that are connected in the triangle graph, as well as in the same group */
   conn_comp(n + nrandom, E, groups, poly_point_map);
 
-  ncomps = (*poly_point_map)->m;
+  size_t ncomps = (*poly_point_map)->m;
   comps = (*poly_point_map)->ja;
   comps_ptr = (*poly_point_map)->ia;
 
   /* connected components are such that  the random points and the bounding box 4 points forms the last
      remaining components */
-  for (i = ncomps - 1; i >= 0; i--) {
+  size_t i;
+  for (i = ncomps - 1; i != SIZE_MAX; i--) {
     if (groups[comps[comps_ptr[i]]] != GRP_RANDOM &&
         groups[comps[comps_ptr[i]]] != GRP_BBOX) break;
   }
   ncomps = i + 1;
-  GV_INFO("ncomps = %d", ncomps);
+  GV_INFO("ncomps = %" PRISIZE_T, ncomps);
 
   *x_poly = gv_calloc(dim * nt, sizeof(double));
-  for (i = 0; i < nt; i++){
+  for (int i2 = 0; i2 < nt; i2++){
     for (j = 0; j < dim; j++){
-      (*x_poly)[i*dim+j] = Tp[i].center[j];
+      (*x_poly)[i2*dim+j] = Tp[i2].center[j];
     }
   }
   
@@ -953,7 +958,7 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
 
 
   double xmax[2], xmin[2], area, *x = x0;
-  int i, j;
+  int j;
   QuadTree qt = NULL;
   int dim2 = 2, nn = 0;
   int max_qtree_level = 10;
@@ -974,7 +979,7 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
     xmin[j] = x[j];
   }
 
-  for (i = 0; i < n; i++){
+  for (int i = 0; i < n; i++){
     for (j = 0; j < dim2; j++) {
       xmax[j] = fmax(xmax[j], x[i*dim+j]);
       xmin[j] = fmin(xmin[j], x[i*dim+j]);
@@ -1009,17 +1014,17 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
       assert(graph->nz <= INT_MAX);
       nz = (int)graph->nz;
       y = gv_calloc(dim * n + dim * nz * np, sizeof(double));
-      for (i = 0; i < n*dim; i++) y[i] = x[i];
+      for (int i = 0; i < n*dim; i++) y[i] = x[i];
       grouping = gv_calloc(n + nz * np, sizeof(int));
-      for (i = 0; i < n; i++) grouping[i] = grouping0[i];
+      for (int i = 0; i < n; i++) grouping[i] = grouping0[i];
       nz = n;
-      for (i = 0; i < graph->m; i++){
+      for (size_t i = 0; i < graph->m; i++){
 
 	for (j = graph->ia[i]; j < graph->ia[i+1]; j++){
 	  if (!HIGHLIGHT_SET || (grouping[i] == grouping[graph->ja[j]] && grouping[i] == HIGHLIGHT_SET)){
 	    for (t = 0; t < np; t++){
 	      for (k = 0; k < dim; k++){
-		y[nz*dim+k] = t/((double) np)*x[i*dim+k] + (1-t/((double) np))*x[(graph->ja[j])*dim + k];
+		y[nz*dim+k] = t/((double) np)*x[(int)i*dim+k] + (1-t/((double) np))*x[(graph->ja[j])*dim + k];
 	      }
 	      assert(n + (nz-n)*np + t < n + nz*np && n + (nz-n)*np + t >= 0);
 	      if (t/((double) np) > 0.5){
@@ -1043,7 +1048,7 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
 
   /* generate random points for lake/sea effect */
   if (nrandom != 0){
-    for (i = 0; i < dim2; i++) {
+    for (int i = 0; i < dim2; i++) {
       if (bounding_box_margin > 0){
 	xmin[i] -= bounding_box_margin;
 	xmax[i] += bounding_box_margin;
@@ -1086,7 +1091,7 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
     }
     nn = n;
 
-    for (i = 0; i < nrandom; i++){
+    for (int i = 0; i < nrandom; i++){
 
       for (j = 0; j < dim2; j++){
 	point[j] = xmin[j] + (xmax[j] - xmin[j])*drand();
@@ -1118,9 +1123,9 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
 
 
   /* add 4 corners even if nrandom = 0. The corners should be further away from the other points to avoid skinny triangles */
-  for (i = 0; i < dim2; i++) xmin[i] -= 0.2*(xmax[i]-xmin[i]);
-  for (i = 0; i < dim2; i++) xmax[i] += 0.2*(xmax[i]-xmin[i]);
-  i = nrandom;
+  for (int i = 0; i < dim2; i++) xmin[i] -= 0.2*(xmax[i]-xmin[i]);
+  for (int i = 0; i < dim2; i++) xmax[i] += 0.2*(xmax[i]-xmin[i]);
+  int i = nrandom;
   for (j = 0; j < dim2; j++) xran[i*dim2+j] = xmin[j];
   i++;
   for (j = 0; j < dim2; j++) xran[i*dim2+j] = xmax[j];

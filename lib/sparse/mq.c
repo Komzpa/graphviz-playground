@@ -64,6 +64,7 @@
 #include <sparse/SparseMatrix.h>
 #include <sparse/mq.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 #include <util/alloc.h>
 #include <util/list.h>
@@ -77,9 +78,9 @@ static double get_mq(SparseMatrix A, int *assignment, int *ncluster0, double *mq
    mq = 2*(mq_in/k - mq_out/(k*(k-1)));
   */
   int ncluster = 0;
-  int n = A->m;
+  const size_t n = A->m;
   bool test_pattern_symmetry_only = false;
-  int *counts, *ia = A->ia, *ja = A->ja, k, i, j, jj;
+  int *counts, *ia = A->ia, *ja = A->ja, k, j, jj;
   double mq_in = 0, mq_out = 0, *a = NULL, Vi, Vj;
   int c;
   double *dout;
@@ -87,27 +88,27 @@ static double get_mq(SparseMatrix A, int *assignment, int *ncluster0, double *mq
 
   assert(SparseMatrix_is_symmetric(A, test_pattern_symmetry_only));
   (void)test_pattern_symmetry_only;
-  assert(A->n == n);
+  assert((size_t)A->n == n);
   if (A->type == MATRIX_TYPE_REAL) a = A->a;
 
   counts = gv_calloc(n, sizeof(int));
 
-  for (i = 0; i < n; i++){
-    assert(assignment[i] >= 0 && assignment[i] < n);
+  for (size_t i = 0; i < n; i++){
+    assert(assignment[i] >= 0 && (size_t)assignment[i] < n);
     if (counts[assignment[i]] == 0) ncluster++;
     counts[assignment[i]]++;
   }
   k = ncluster;
-  assert(ncluster <= n);
+  assert(ncluster <= (int)n);
 
-  for (i = 0; i < n; i++){
+  for (size_t i = 0; i < n; i++){
     assert(assignment[i] < ncluster);
     c = assignment[i];
     Vi = counts[c];
     for (j = ia[i] ; j < ia[i+1]; j++){
       /* ASSUME UNDIRECTED */
       jj = ja[j];
-      if (jj >= i) continue;
+      if (jj >= (int)i) continue;
       assert(assignment[jj] < ncluster);
       Vj = counts[assignment[jj]];
       if (assignment[jj] == c){
@@ -129,10 +130,10 @@ static double get_mq(SparseMatrix A, int *assignment, int *ncluster0, double *mq
 
   /* calculate scaled out degree */
   dout = gv_calloc(n, sizeof(double));
-  for (i = 0; i < n; i++){
+  for (size_t i = 0; i < n; i++){
     for (j = ia[i]; j < ia[i+1]; j++){
       jj = ja[j];
-      if (jj == i) continue;
+      if (jj == (int)i) continue;
       if (a){
 	dout[i] += a[j]/(double) counts[assignment[jj]];
       } else {
@@ -163,7 +164,7 @@ static Multilevel_MQ_Clustering Multilevel_MQ_Clustering_init(SparseMatrix A, in
   assert(SparseMatrix_is_symmetric(A, false));
 
   if (!A) return NULL;
-  assert(A->m == n);
+  assert(A->m == (size_t)n);
   grid = gv_alloc(sizeof(struct Multilevel_MQ_Clustering_struct));
   grid->level = level;
   grid->n = n;
@@ -451,7 +452,7 @@ static Multilevel_MQ_Clustering Multilevel_MQ_Clustering_establish(Multilevel_MQ
     double one = 1.;
     Multilevel_MQ_Clustering cgrid;
 
-    R0 = SparseMatrix_new(nc, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+    R0 = SparseMatrix_new((size_t)nc, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
     for (i = 0; i < n; i++){
       jj = matching[i];
       SparseMatrix_coordinate_form_add_entry(R0, jj, i, &one);
@@ -514,7 +515,7 @@ static Multilevel_MQ_Clustering Multilevel_MQ_Clustering_new(SparseMatrix A0, in
   Multilevel_MQ_Clustering grid;
   SparseMatrix A = A0;
 
-  if (maxcluster <= 0) maxcluster = A->m;
+  if (maxcluster <= 0) maxcluster = (int)A->m;
   if (!SparseMatrix_is_symmetric(A, false) || A->type != MATRIX_TYPE_REAL){
     A = SparseMatrix_get_real_adjacency_matrix_symmetrized(A);
   }
@@ -540,7 +541,7 @@ static void hierachical_mq_clustering(SparseMatrix A, int maxcluster,
   Multilevel_MQ_Clustering grid, cgrid;
   int *matching, i;
   SparseMatrix P;
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
 
   *mq = 0.;
 
@@ -592,7 +593,7 @@ void mq_clustering(SparseMatrix A, int maxcluster,
    */
   SparseMatrix B;
 
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
 
   B = SparseMatrix_symmetrize(A, false);
 

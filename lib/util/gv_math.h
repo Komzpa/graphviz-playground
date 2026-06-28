@@ -28,6 +28,9 @@ static inline int imax(int a, int b) { return a > b ? a : b; }
 /// maximum of two sizes
 static inline size_t zmax(size_t a, size_t b) { return a > b ? a : b; }
 
+/// minimum of two sizes
+static inline size_t zmin(size_t a, size_t b) { return a < b ? a : b; }
+
 /// minimum of two integers
 static inline int imin(int a, int b) { return a < b ? a : b; }
 

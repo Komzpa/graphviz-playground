@@ -11,7 +11,8 @@
 #pragma once
 
 #include <sparse/SparseMatrix.h>
+#include <stddef.h>
 #include <util/api.h>
 
 PRIVATE SparseMatrix call_tri(int n, double * x);
-PRIVATE SparseMatrix call_tri2(int n, int dim, double * x);
+PRIVATE SparseMatrix call_tri2(size_t n, int dim, double *x);

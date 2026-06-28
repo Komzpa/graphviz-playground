@@ -78,7 +78,7 @@ static Agraph_t *makeDotGraph(SparseMatrix A, char *name, int dim,
     Agnode_t *n;
     Agnode_t *h;
     Agedge_t *e;
-    int i, j;
+    int j;
     Agsym_t *sym = NULL, *sym2 = NULL, *sym3 = NULL;
     int *ia = A->ia;
     int *ja = A->ja;
@@ -110,14 +110,14 @@ static Agraph_t *makeDotGraph(SparseMatrix A, char *name, int dim,
     }
     agxbuf xb = {0};
     if (with_label) {
-	agxbprint(&xb, "%s. %d nodes, %" PRISIZE_T " edges.", name, A->m, A->nz);
+	agxbprint(&xb, "%s. %" PRISIZE_T " nodes, %" PRISIZE_T " edges.", name, A->m, A->nz);
 	agattr_text(g, AGRAPH, "label", agxbuse (&xb));
     }
 
-    for (i = 0; i < A->m; i++) {
-	n = agnode(g, ITOS(i), 1);
+    for (size_t i = 0; i < A->m; i++) {
+	n = agnode(g, ITOS((int)i), 1);
 	agbindrec(n, "nodeinfo", sizeof(Agnodeinfo_t), true);
-	ND_id(n) = i;
+	ND_id(n) = (int)i;
 	arr[i] = n;
     }
 
@@ -131,7 +131,7 @@ static Agraph_t *makeDotGraph(SparseMatrix A, char *name, int dim,
 	agattr_text(g, AGRAPH, "bgcolor", "black");
 	color = gv_calloc(A->nz, sizeof(double));
 	for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	    i = ND_id(n);
+	    int i = ND_id(n);
 	    if (A->type != MATRIX_TYPE_REAL) {
 		for (j = ia[i]; j < ia[i + 1]; j++) {
 		    color[j] = distance(NULL, dim, i, ja[j]);
@@ -162,7 +162,7 @@ static Agraph_t *makeDotGraph(SparseMatrix A, char *name, int dim,
 	    }
 	}
 	for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	    i = ND_id(n);
+	    int i = ND_id(n);
 	    for (j = ia[i]; j < ia[i + 1]; j++) {
 		color[j] = (color[j] - mindist) / fmax(maxdist - mindist, 0.000001);
 	    }
@@ -170,7 +170,7 @@ static Agraph_t *makeDotGraph(SparseMatrix A, char *name, int dim,
     }
 
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	i = ND_id(n);
+	int i = ND_id(n);
 	for (j = ia[i]; j < ia[i + 1]; j++) {
 	    h = arr[ja[j]];
 	    e = agedge(g, n, h, NULL, 1);

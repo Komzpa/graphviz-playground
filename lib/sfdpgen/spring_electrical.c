@@ -152,15 +152,15 @@ static int oned_optimizer_get(const oned_optimizer opt) {
 
 double average_edge_length(SparseMatrix A, int dim, double *coord){
   double dist = 0, d;
-  int *ia = A->ia, *ja = A->ja, i, j, k;
+  int *ia = A->ia, *ja = A->ja, j, k;
   assert(SparseMatrix_is_symmetric(A, true));
 
   if (ia[A->m] == 0) return 1;
-  for (i = 0; i < A->m; i++){
+  for (size_t i = 0; i < A->m; i++){
     for (j = ia[i]; j < ia[i+1]; j++){
       d = 0;
       for (k = 0; k < dim; k++){
-	d += (coord[dim*i+k] - coord[dim*ja[j]])*(coord[dim*i+k] - coord[dim*ja[j]]);
+	d += (coord[dim*(int)i+k] - coord[dim*ja[j]])*(coord[dim*(int)i+k] - coord[dim*ja[j]]);
       }
       dist += sqrt(d);
     }
@@ -193,7 +193,8 @@ static void set_leaves(double *x, int dim, double dist, double ang, int i, int j
 }
 
 static void beautify_leaves(int dim, SparseMatrix A, double *x){
-  int m = A->m, i, j, *ia = A->ia, *ja = A->ja;
+  int j, *ia = A->ia, *ja = A->ja;
+  const size_t m = A->m;
   int p;
   double dist;
   double step;
@@ -202,7 +203,7 @@ static void beautify_leaves(int dim, SparseMatrix A, double *x){
 
   bitarray_t checked = bitarray_new(m);
 
-  for (i = 0; i < m; i++){
+  for (size_t i = 0; i < m; i++){
     if (ia[i+1] - ia[i] != 1) continue;
     if (bitarray_get(checked, i)) continue;
     p = ja[ia[i]];
@@ -244,7 +245,7 @@ static void spring_electrical_embedding_fast(int dim, SparseMatrix A0,
                                              double *x, int *flag) {
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j.  */
   SparseMatrix A = A0;
-  int m, n;
+  int n;
   int i, j, k;
   double p = ctrl->p, K = ctrl->K, CRK, maxiter = ctrl->maxiter, step = ctrl->step, KP;
   int *ia = NULL, *ja = NULL;
@@ -262,13 +263,14 @@ static void spring_electrical_embedding_fast(int dim, SparseMatrix A0,
 
   if (!A || maxiter <= 0) return;
 
-  m = A->m, n = A->n;
+  const size_t m = A->m;
+  n = A->n;
   if (n <= 0 || dim <= 0) return;
 
   oned_optimizer qtree_level_optimizer = oned_optimizer_new(max_qtree_level);
 
   *flag = 0;
-  if (m != n) {
+  if (m != (size_t)n) {
     *flag = ERROR_NOT_SQUARE_MATRIX;
     goto RETURN;
   }
@@ -396,7 +398,7 @@ static void spring_electrical_embedding_slow(int dim, SparseMatrix A0,
   /* a version that does vertex moves in one go, instead of one at a time, use for debugging the fast version. Quadtree is not used. */
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j.  */
   SparseMatrix A = A0;
-  int m, n;
+  int n;
   int i, j, k;
   double p = ctrl->p, K = ctrl->K, CRK, maxiter = ctrl->maxiter, step = ctrl->step, KP;
   int *ia = NULL, *ja = NULL;
@@ -413,12 +415,13 @@ static void spring_electrical_embedding_slow(int dim, SparseMatrix A0,
   fprintf(stderr,"spring_electrical_embedding_slow");
   if (!A || maxiter <= 0) return;
 
-  m = A->m, n = A->n;
+  const size_t m = A->m;
+  n = A->n;
   if (n <= 0 || dim <= 0) return;
   force = gv_calloc(n *dim, sizeof(double));
 
   *flag = 0;
-  if (m != n) {
+  if (m != (size_t)n) {
     *flag = ERROR_NOT_SQUARE_MATRIX;
     goto RETURN;
   }
@@ -523,7 +526,7 @@ static void spring_electrical_embedding(int dim, SparseMatrix A0,
                                         double *x, int *flag) {
   /* x is a point to a 1D array, x[i*dim+j] gives the coordinate of the i-th node at dimension j.  */
   SparseMatrix A = A0;
-  int m, n;
+  int n;
   int i, j, k;
   double p = ctrl->p, K = ctrl->K, CRK, maxiter = ctrl->maxiter, step = ctrl->step, KP;
   int *ia = NULL, *ja = NULL;
@@ -544,7 +547,8 @@ static void spring_electrical_embedding(int dim, SparseMatrix A0,
 
   if (!A || maxiter <= 0) return;
 
-  m = A->m, n = A->n;
+  const size_t m = A->m;
+  n = A->n;
   if (n <= 0 || dim <= 0) return;
 
   if (n >= quadtree_size) {
@@ -552,7 +556,7 @@ static void spring_electrical_embedding(int dim, SparseMatrix A0,
     qtree_level_optimizer = oned_optimizer_new(max_qtree_level);
   }
   *flag = 0;
-  if (m != n) {
+  if (m != (size_t)n) {
     *flag = ERROR_NOT_SQUARE_MATRIX;
     goto RETURN;
   }
@@ -713,7 +717,7 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
   if (n >= quadtree_size) {
     USE_QT = true;
   }
-  assert(A->m == n);
+  assert(A->m == (size_t)n);
   assert(A->format == FORMAT_CSR);
   A = SparseMatrix_symmetrize(A, true);
   ia = A->ia;
@@ -819,15 +823,15 @@ void spring_electrical_spring_embedding(int dim, SparseMatrix A0, SparseMatrix D
 }
 
 static void interpolate_coord(int dim, SparseMatrix A, double *x) {
-  int i, j, k, *ia = A->ia, *ja = A->ja, nz;
+  int j, k, *ia = A->ia, *ja = A->ja, nz;
   double alpha = 0.5, beta;
 
   double *y = gv_calloc(dim, sizeof(double));
-  for (i = 0; i < A->m; i++){
+  for (size_t i = 0; i < A->m; i++){
     for (k = 0; k < dim; k++) y[k] = 0;
     nz = 0;
     for (j = ia[i]; j < ia[i+1]; j++){
-      if (ja[j] == i) continue;
+      if (ja[j] == (int)i) continue;
       nz++;
       for (k = 0; k < dim; k++){
 	y[k] += x[ja[j]*dim + k];
@@ -835,21 +839,21 @@ static void interpolate_coord(int dim, SparseMatrix A, double *x) {
     }
     if (nz > 0){
       beta = (1-alpha)/nz;
-      for (k = 0; k < dim; k++) x[i*dim+k] = alpha*x[i*dim+k] +  beta*y[k];
+      for (k = 0; k < dim; k++) x[(int)i*dim+k] = alpha*x[(int)i*dim+k] +  beta*y[k];
     }
   }
 
   free(y);
 }
 static void prolongate(int dim, SparseMatrix A, SparseMatrix P, SparseMatrix R, double *x, double *y, double delta){
-  int nc, *ia, *ja, i, j, k;
+  int *ia, *ja, j, k;
   SparseMatrix_multiply_dense(P, x, y, dim);
 
   interpolate_coord(dim, A, y);
-  nc = R->m;
+  const size_t nc = R->m;
   ia = R->ia;
   ja = R->ja;
-  for (i = 0; i < nc; i++){
+  for (size_t i = 0; i < nc; i++){
     for (j = ia[i]+1; j < ia[i+1]; j++){
       for (k = 0; k < dim; k++){
         y[ja[j]*dim + k] += delta*(drand() - 0.5);
@@ -859,25 +863,25 @@ static void prolongate(int dim, SparseMatrix A, SparseMatrix P, SparseMatrix R, 
 }
 
 static bool power_law_graph(SparseMatrix A) {
-  int m, max = 0, i, *ia = A->ia, *ja = A->ja, j, deg;
+  int max = 0, *ia = A->ia, *ja = A->ja, j, deg;
   bool res = false;
-  m = A->m;
+  const size_t m = A->m;
   int *mask = gv_calloc(m + 1, sizeof(int));
 
-  for (i = 0; i < m + 1; i++){
+  for (size_t i = 0; i < m + 1; i++){
     mask[i] = 0;
   }
 
-  for (i = 0; i < m; i++){
+  for (size_t i = 0; i < m; i++){
     deg = 0;
     for (j = ia[i]; j < ia[i+1]; j++){
-      if (i == ja[j]) continue;
+      if ((int)i == ja[j]) continue;
       deg++;
     }
     mask[deg]++;
     max = MAX(max, mask[deg]);
   }
-  if (mask[1] > 0.8*max && mask[1] > 0.3*m) res = true;
+  if (mask[1] > 0.8*max && mask[1] > 0.3 * (double)m) res = true;
   free(mask);
   return res;
 }
@@ -965,29 +969,29 @@ static void rotate(int n, int dim, double *x, double angle){
 }
 
 static void attach_edge_label_coordinates(int dim, SparseMatrix A, int n_edge_label_nodes, int *edge_label_nodes, double *x, double *x2){
-  int i, ii, j, k;
+  int ii, j, k;
   int nnodes = 0;
   double len;
 
   int *mask = gv_calloc(A->m, sizeof(int));
 
-  for (i = 0; i < A->m; i++) mask[i] = 1;
-  for (i = 0; i < n_edge_label_nodes; i++) {
-    if (edge_label_nodes[i] >= 0 && edge_label_nodes[i] < A->m) mask[edge_label_nodes[i]] = -1;
+  for (size_t i = 0; i < A->m; i++) mask[i] = 1;
+  for (int i = 0; i < n_edge_label_nodes; i++) {
+    if (edge_label_nodes[i] >= 0 && (size_t)edge_label_nodes[i] < A->m) mask[edge_label_nodes[i]] = -1;
   }
 
-  for (i = 0; i < A->m; i++) {
+  for (size_t i = 0; i < A->m; i++) {
     if (mask[i] >= 0) mask[i] = nnodes++;
   }
 
 
-  for (i = 0; i < A->m; i++){
+  for (size_t i = 0; i < A->m; i++){
     if (mask[i] >= 0){
-      for (k = 0; k < dim; k++) x[i*dim+k] = x2[mask[i]*dim+k];
+      for (k = 0; k < dim; k++) x[(int)i * dim + k] = x2[mask[i]*dim+k];
     }
   }
 
-  for (i = 0; i < n_edge_label_nodes; i++){
+  for (int i = 0; i < n_edge_label_nodes; i++){
     ii = edge_label_nodes[i];
     len = A->ia[ii+1] - A->ia[ii];
     assert(len >= 2); /* should just be 2 */
@@ -1014,19 +1018,19 @@ static SparseMatrix shorting_edge_label_nodes(SparseMatrix A, int n_edge_label_n
 
   int *mask = gv_calloc(A->m, sizeof(int));
 
-  for (int i = 0; i < A->m; i++) mask[i] = 1;
+  for (size_t i = 0; i < A->m; i++) mask[i] = 1;
 
   for (int i = 0; i < n_edge_label_nodes; i++){
     mask[edge_label_nodes[i]] = -1;
   }
 
-  for (int i = 0; i < A->m; i++) {
+  for (size_t i = 0; i < A->m; i++) {
     if (mask[i] > 0) mask[i] = id++;
   }
 
   LIST(int) irn = {0};
   LIST(int) jcn = {0};
-  for (int i = 0; i < A->m; i++){
+  for (size_t i = 0; i < A->m; i++){
     if (mask[i] < 0) continue;
     for (int j = ia[i]; j < ia[i+1]; j++){
       if (mask[ja[j]] >= 0) {
@@ -1036,7 +1040,7 @@ static SparseMatrix shorting_edge_label_nodes(SparseMatrix A, int n_edge_label_n
       }
       const int ii = ja[j];
       for (int jj = ia[ii]; jj < ia[ii+1]; jj++){
-	if (ja[jj] != i && mask[ja[jj]] >= 0) {
+	if (ja[jj] != (int)i && mask[ja[jj]] >= 0) {
 	    LIST_APPEND(&irn, mask[i]);
 	    LIST_APPEND(&jcn, mask[ja[jj]]);
 	}

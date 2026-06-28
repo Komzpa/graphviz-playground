@@ -17,29 +17,31 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
+#include <util/gv_math.h>
+#include <util/prisize_t.h>
 
-static double get_local_12_norm(int n, int i, const int *ia, const int *ja,
-                                const int *p) {
-  double norm = n;
+static size_t get_local_12_norm(size_t n, size_t i, const int *ia,
+                                const int *ja, const int *p) {
+  size_t norm = n;
   for (int j = ia[i]; j < ia[i+1]; j++){
-    if (ja[j] == i) continue;
-    norm = fmin(norm, abs(p[i] - p[ja[j]]));
+    if (ja[j] >= 0 && (size_t)ja[j] == i) continue;
+    norm = zmin(norm, (size_t)abs(p[i] - p[ja[j]]));
   }
   return norm;
 }
 
-static void get_12_norm(int n, const int *ia, const int *ja, int *p,
-                        double *norm) {
+static void get_12_norm(size_t n, const int *ia, const int *ja, int *p,
+                        size_t *norm) {
   /* norm[0] := antibandwidth
      norm[1] := (\sum_{i\in V} (Min_{{j,i}\in E} |p[i] - p[j]|)/|V|
   */
   norm[0] = n; norm[1] = 0;
-  for (int i = 0; i < n; i++){
-    double tmp = n;
+  for (size_t i = 0; i < n; i++){
+    size_t tmp = n;
     for (int j = ia[i]; j < ia[i+1]; j++){
-      if (ja[j] == i) continue;
-      norm[0] = fmin(norm[0], abs(p[i] - p[ja[j]]));
-      tmp = fmin(tmp, abs(p[i] - p[ja[j]]));
+      if (ja[j] >= 0 && (size_t)ja[j] == i) continue;
+      norm[0] = zmin(norm[0], (size_t)abs(p[i] - p[ja[j]]));
+      tmp = zmin(tmp, (size_t)abs(p[i] - p[ja[j]]));
     }
     norm[1] += tmp;
   }
@@ -47,8 +49,9 @@ static void get_12_norm(int n, const int *ia, const int *ja, int *p,
 }
 
 void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
-  int cnt = 1, n = A->m, *ia = A->ia, *ja = A->ja;
-  double norm1[2];
+  int cnt = 1, *ia = A->ia, *ja = A->ja;
+  const size_t n = A->m;
+  size_t norm1[2];
   clock_t start = clock();
   FILE *fp = NULL;
   
@@ -59,18 +62,18 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
   assert(SparseMatrix_is_symmetric(A, true));
   for (bool improved = true; improved; ) {
     improved = false;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
       norm1[0] = get_local_12_norm(n, i, ia, ja, p);
-      for (int j = 0; j < n; j++) {
+      for (size_t j = 0; j < n; j++) {
 	if (j == i) continue;
-	const double norm2 = get_local_12_norm(n, j, ia, ja, p);
+	const size_t norm2 = get_local_12_norm(n, j, ia, ja, p);
 	const int pi = p[i];
 	const int pj = p[j];
 	p[i] = pj;
 	p[j] = pi;
-	const double norm11 = get_local_12_norm(n, i, ia, ja, p);
-	const double norm22 = get_local_12_norm(n, j, ia, ja, p);
-	if (fmin(norm11, norm22) > fmin(norm1[0], norm2)){
+	const size_t norm11 = get_local_12_norm(n, i, ia, ja, p);
+	const size_t norm22 = get_local_12_norm(n, j, ia, ja, p);
+	if (zmin(norm11, norm22) > zmin(norm1[0], norm2)){
 	  improved = true;
 	  norm1[0] = norm11;
 	  continue;
@@ -80,14 +83,14 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
       }
       if (i%100 == 0 && Verbose) {
 	get_12_norm(n, ia, ja, p, norm1);
-	fprintf(fp, "%f %f %f\n", ((double)(clock() - start)) / CLOCKS_PER_SEC,
+	fprintf(fp, "%f %" PRISIZE_T " %" PRISIZE_T "\n", (double)(clock() - start) / CLOCKS_PER_SEC,
 	        norm1[0], norm1[1]);
       }
     }
     if (Verbose) {
       get_12_norm(n, ia, ja, p, norm1);
-      fprintf(stderr, "[%d] aband = %f, aband_avg = %f\n", cnt++, norm1[0], norm1[1]);
-      fprintf(fp,"%f %f %f\n", ((double)(clock() - start)) / CLOCKS_PER_SEC,
+      fprintf(stderr, "[%d] aband = %" PRISIZE_T ", aband_avg = %" PRISIZE_T "\n", cnt++, norm1[0], norm1[1]);
+      fprintf(fp,"%f %" PRISIZE_T " %" PRISIZE_T "\n", (double)(clock() - start) / CLOCKS_PER_SEC,
               norm1[0], norm1[1]);
     }
   }
@@ -97,26 +100,26 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
 }
   
 void country_graph_coloring(int seed, SparseMatrix A, int **p) {
-  int n = A->m;
+  const size_t n = A->m;
 
   clock_t start = clock();
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
   SparseMatrix A2 = SparseMatrix_symmetrize(A, true);
   const int *const ia = A2->ia;
   const int *const ja = A2->ja;
 
   /* Laplacian */
-  SparseMatrix L = SparseMatrix_new(n, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
-  for (int i = 0; i < n; i++){
+  SparseMatrix L = SparseMatrix_new(n, (int)n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+  for (size_t i = 0; i < n; i++){
     double nrow = 0.;
     for (int j = ia[i]; j < ia[i+1]; j++){
       const int jj = ja[j];
-      if (jj != i){
+      if (jj != (int)i){
 	nrow ++;
-	L = SparseMatrix_coordinate_form_add_entry(L, i, jj, &(double){-1});
+	L = SparseMatrix_coordinate_form_add_entry(L, (int)i, jj, &(double){-1});
       }
     }
-    L = SparseMatrix_coordinate_form_add_entry(L, i, i, &nrow);
+    L = SparseMatrix_coordinate_form_add_entry(L, (int)i, (int)i, &nrow);
   }
   {
     SparseMatrix new = SparseMatrix_from_coordinate_format(L);

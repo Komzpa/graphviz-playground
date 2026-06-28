@@ -63,7 +63,7 @@ static aib_t Agglomerative_Ink_Bundling_init(SparseMatrix A,
   assert(SparseMatrix_is_symmetric(A, true));
 
   if (!A) return {};
-  assert(A->m == n);
+  assert(A->m == (size_t)n);
   Agglomerative_Ink_Bundling grid(level, n, A, edges);
   if (level == 0){
     double total_ink = 0;
@@ -333,7 +333,7 @@ static void agglomerative_ink_bundling_internal(
     int *recurse_level, int MAX_RECURSE_LEVEL, double angle_param, double angle,
     double *current_ink, double *ink00) {
 
-  int i, j, jj, k;
+  int j, jj, k;
   int *ia, *ja;
   int *pick;
   SparseMatrix R;
@@ -346,7 +346,7 @@ static void agglomerative_ink_bundling_internal(
   (*recurse_level)++;
   if (Verbose > 1) fprintf(stderr, "agglomerative_ink_bundling_internal, recurse level ------- %d\n",*recurse_level);
 
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
 
   start = clock();
   aib_t grid = Agglomerative_Ink_Bundling_new(A, edges, angle_param, angle);
@@ -383,7 +383,7 @@ static void agglomerative_ink_bundling_internal(
     if (R){
       ia = R->ia;
       ja = R->ja;
-      for (i = 0; i < R->m; i++){
+      for (size_t i = 0; i < R->m; i++){
 	pick = &ja[ia[i]];
 	
 	if (MINGLE_DEBUG) if (Verbose) fprintf(stderr,"calling ink2...\n");
@@ -439,7 +439,7 @@ static void agglomerative_ink_bundling_internal(
     ne = R->m;
     std::vector<pedge> mid_edges(ne);
     std::vector<double> xx(4 * ne);
-    for (i = 0; i < R->m; i++){
+    for (size_t i = 0; i < R->m; i++){
       pick = &ja[ia[i]];
       wgt = 0.;
       for (j = ia[i]; j < ia[i+1]; j++) wgt += edges[j].wgt;
@@ -461,7 +461,7 @@ static void agglomerative_ink_bundling_internal(
     SparseMatrix_delete(A_mid);
 
     /* patching edges with the new mid-section */
-    for (i = 0; i < R->m; i++){
+    for (size_t i = 0; i < R->m; i++){
       // middle section of edges that will be bundled again
       const pedge &midedge = mid_edges[i];
       npp = midedge.npoints + 2;
@@ -494,8 +494,7 @@ static void agglomerative_ink_bundling_internal(
       }
     }
 
-    for (i = 0; i < ne; i++) pedge_delete(mid_edges[i]);
-
+    for (int i = 0; i < ne; i++) pedge_delete(mid_edges[i]);
   }
 
   Agglomerative_Ink_Bundling_delete(grid);

@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <sparse/SparseMatrix.h>
 #include <vector>
 
@@ -30,7 +31,7 @@ std::vector<pedge> edge_bundling(SparseMatrix A, int dim,
                                  double angle_param, double angle);
 void pedge_delete(pedge &e);
 void pedge_wgts_realloc(pedge &e, int n);
-void pedge_export_gv(FILE *fp, int ne, const std::vector<pedge> &edges);
+void pedge_export_gv(FILE *fp, size_t ne, const std::vector<pedge> &edges);
 enum {METHOD_NONE = -1, METHOD_FD, METHOD_INK_AGGLOMERATE, METHOD_INK};
 enum {COMPATIBILITY_DIST = 0, COMPATIBILITY_FULL};
 pedge pedge_wgt_new(int np, int dim, double *x, double wgt);

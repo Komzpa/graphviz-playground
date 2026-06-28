@@ -12,6 +12,7 @@
 
 #include <cgraph.h>
 #include <sparse/SparseMatrix.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +36,7 @@ void initDotIO(Agraph_t *g);
 void setDotNodeID(Agnode_t *n, int v);
 int getDotNodeID(Agnode_t *n);
 
-void attach_edge_colors(Agraph_t *g, int dim, double *colors);
+void attach_edge_colors(Agraph_t *g, size_t dim, double *colors);
 
 SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format);
 SparseMatrix Import_coord_clusters_from_dot(

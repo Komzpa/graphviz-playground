@@ -6,6 +6,7 @@
 #include <sparse/SparseMatrix.h>
 #include <sparse/general.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 int stress_model(int dim, SparseMatrix B, double *x, int maxit_sm) {
   SparseMatrix A = B;
@@ -21,7 +22,7 @@ int stress_model(int dim, SparseMatrix B, double *x, int maxit_sm) {
   }
   A = SparseMatrix_remove_diagonal(A);
 
-  const int m = A->m;
+  const size_t m = A->m;
 
   SparseStressMajorizationSmoother sm = SparseStressMajorizationSmoother_new(
       A, dim, x); // weight the long distances
@@ -35,7 +36,7 @@ int stress_model(int dim, SparseMatrix B, double *x, int maxit_sm) {
                        accurately */
   sm->scheme = SM_SCHEME_STRESS;
   SparseStressMajorizationSmoother_smooth(sm, dim, x, maxit_sm);
-  for (int i = 0; i < dim * m; i++) {
+  for (size_t i = 0; i < (size_t)dim * m; i++) {
     x[i] /= sm->scaling;
   }
   SparseStressMajorizationSmoother_delete(sm);

@@ -25,7 +25,7 @@ static Multilevel_Modularity_Clustering Multilevel_Modularity_Clustering_init(Sp
   assert(A->type == MATRIX_TYPE_REAL);
   assert(SparseMatrix_is_symmetric(A, false));
 
-  assert(A->m == n);
+  assert(A->m == (size_t)n);
   Multilevel_Modularity_Clustering grid = gv_alloc(sizeof(struct Multilevel_Modularity_Clustering_struct));
   grid->level = level;
   grid->n = n;
@@ -206,7 +206,7 @@ static Multilevel_Modularity_Clustering Multilevel_Modularity_Clustering_establi
     double one = 1.;
     Multilevel_Modularity_Clustering cgrid;
 
-    R0 = SparseMatrix_new(nc, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+    R0 = SparseMatrix_new((size_t)nc, n, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
     for (i = 0; i < n; i++){
       jj = matching[i];
       SparseMatrix_coordinate_form_add_entry(R0, jj, i, &one);
@@ -299,7 +299,7 @@ static void hierachical_modularity_clustering(SparseMatrix A, int ncluster_targe
   Multilevel_Modularity_Clustering grid, cgrid;
   int *matching, i;
   SparseMatrix P;
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
 
   *modularity = 0.;
 
@@ -357,7 +357,7 @@ void modularity_clustering(SparseMatrix A, bool inplace, int ncluster_target,
    */
   SparseMatrix B;
 
-  assert(A->m == A->n);
+  assert(A->m == (size_t)A->n);
 
   B = SparseMatrix_symmetrize(A, false);
 

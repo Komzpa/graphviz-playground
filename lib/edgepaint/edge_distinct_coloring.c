@@ -10,9 +10,11 @@
 
 #include "config.h"
 
+#include <assert.h>
 #include <sparse/general.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 #include <time.h>
 #include <sparse/SparseMatrix.h>
@@ -142,7 +144,7 @@ Agraph_t *edge_distinct_coloring(const char *color_scheme, int *lightness,
   double *colors = NULL;
   int flag, ne;
   char **xsplines = NULL;
-  int cdim;
+  size_t cdim;
 
   A = SparseMatrix_import_dot(g, &x, FORMAT_COORD);
   if (!x){
@@ -165,7 +167,7 @@ Agraph_t *edge_distinct_coloring(const char *color_scheme, int *lightness,
   if (Verbose)
     fprintf(stderr,"cos = %f, nz2 = %d\n", cos_critical, nz2);
   /* now find edge collision */
-  B = SparseMatrix_new(nz2, nz2, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
+  B = SparseMatrix_new((size_t)nz2, nz2, 1, MATRIX_TYPE_REAL, FORMAT_COORD);
 
   if (Import_dot_splines(g, &ne, &xsplines)){
 #ifdef TIME
@@ -225,7 +227,7 @@ Agraph_t *edge_distinct_coloring(const char *color_scheme, int *lightness,
   }
 
   if (Verbose)
-    fprintf(stderr, "The edge conflict graph has %d nodes and %" PRISIZE_T
+    fprintf(stderr, "The edge conflict graph has %" PRISIZE_T " nodes and %" PRISIZE_T
             " edges\n", C->m, C->nz);
 
   attach_edge_colors(g, cdim, colors);
