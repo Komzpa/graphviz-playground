@@ -755,7 +755,6 @@ void updateSmGraph(Agraph_t * g,topview* t)
     Agnode_t *v;
     Agedge_t *e;
     float eLength=0;
-    float totalELength=0;
 
     t->Nodecount=0;
     t->maxedgelen=0;
@@ -772,7 +771,6 @@ void updateSmGraph(Agraph_t * g,topview* t)
 	    eLength=getEdgeLength(e);
 	    if(eLength > t->maxedgelen)
 		t->maxedgelen=eLength;
-	    totalELength += eLength;
 	}
 	t->Nodecount++;
 

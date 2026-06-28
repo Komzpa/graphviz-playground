@@ -39,7 +39,7 @@ from gvtest import (  # pylint: disable=wrong-import-position
     is_asan_instrumented,
     is_autotools,
     is_cmake,
-    is_fedora_43,
+    is_fedora,
     is_macos,
     is_mingw,
     is_rocky,
@@ -1280,7 +1280,7 @@ def test_1594():
         pytest.param(
             "png:cairo:gdk",
             marks=pytest.mark.xfail(
-                is_fedora_43() or is_ubuntu_2604(),
+                is_fedora() or is_ubuntu_2604(),
                 strict=True,
                 reason="https://gitlab.com/graphviz/graphviz/-/issues/2732",
             ),
@@ -6225,7 +6225,7 @@ def test_2731():
         pytest.param(
             "jpg",
             marks=pytest.mark.xfail(
-                is_fedora_43() or is_ubuntu_2604(),
+                is_fedora() or is_ubuntu_2604(),
                 strict=True,
                 reason="https://gitlab.com/graphviz/graphviz/-/issues/2732",
             ),
