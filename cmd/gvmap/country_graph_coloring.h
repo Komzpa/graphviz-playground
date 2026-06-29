@@ -13,6 +13,6 @@
 #include <sparse/SparseMatrix.h>
 #include <stddef.h>
 
-void country_graph_coloring(int seed, SparseMatrix A, size_t **p);
+size_t *country_graph_coloring(int seed, SparseMatrix A);
 
 void improve_antibandwidth_by_swapping(SparseMatrix A, size_t *p);

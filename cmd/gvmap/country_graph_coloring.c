@@ -105,7 +105,7 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, size_t *p) {
   }
 }
   
-void country_graph_coloring(int seed, SparseMatrix A, size_t **p) {
+size_t *country_graph_coloring(int seed, SparseMatrix A) {
   const size_t n = A->m;
 
   clock_t start = clock();
@@ -136,7 +136,7 @@ void country_graph_coloring(int seed, SparseMatrix A, size_t **p) {
   /* largest eigen vector */
   double *v = power_method(L, L->n, seed);
 
-  *p = vector_ordering(n, v);
+  size_t *const p = vector_ordering(n, v);
   free(v);
   if (Verbose)
     fprintf(stderr, "cpu time for spectral ordering (before greedy) = %f\n",
@@ -144,7 +144,7 @@ void country_graph_coloring(int seed, SparseMatrix A, size_t **p) {
 
   clock_t start2 = clock();
   /* swapping */
-  improve_antibandwidth_by_swapping(A2, *p);
+  improve_antibandwidth_by_swapping(A2, p);
   if (Verbose) {
     fprintf(stderr, "cpu time for greedy refinement = %f\n",
             ((double)(clock() - start2)) / CLOCKS_PER_SEC);
@@ -156,4 +156,5 @@ void country_graph_coloring(int seed, SparseMatrix A, size_t **p) {
 
   if (A2 != A) SparseMatrix_delete(A2);
   SparseMatrix_delete(L);
+  return p;
 }
