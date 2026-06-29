@@ -62,10 +62,11 @@ double *vector_saxpy2(size_t n, double *x, double *y, double beta); ///< x = x+b
 /* take m elements v[p[i]]],i=1,...,m and oput in u. u will be assigned if *u = NULL */
 void vector_float_take(size_t n, float *v, size_t m, size_t *p, float **u);
 
-/* give the position of the smallest, second smallest etc in vector v.
-   results in p. If *p == NULL, p is assigned.
-*/
-void vector_ordering(size_t n, double *v, size_t **p);
+/// give the position of the smallest, second smallest etc in vector v
+///
+/// @return Positional order
+size_t *vector_ordering(size_t n, double *v);
+
 void vector_sort_int(int n, int *v);
 
 #define MACHINEACC 1.0e-16

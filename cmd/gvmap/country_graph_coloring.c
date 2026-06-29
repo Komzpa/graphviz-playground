@@ -136,7 +136,7 @@ void country_graph_coloring(int seed, SparseMatrix A, size_t **p) {
   /* largest eigen vector */
   double *v = power_method(L, L->n, seed);
 
-  vector_ordering(n, v, p);
+  *p = vector_ordering(n, v);
   free(v);
   if (Verbose)
     fprintf(stderr, "cpu time for spectral ordering (before greedy) = %f\n",

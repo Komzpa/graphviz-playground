@@ -93,18 +93,15 @@ static int comp_ascend_int(const void *s1, const void *s2){
   return 0;
 }
 
-void vector_ordering(size_t n, double *v, size_t **p) {
-  /* give the position of the smallest, second smallest etc in vector v.
-     results in p. If *p == NULL, p is assigned.
-  */
-
-  if (!*p) *p = gv_calloc(n, sizeof(size_t));
+size_t *vector_ordering(size_t n, double *v) {
+  size_t *const p = gv_calloc(n, sizeof(size_t));
 
   for (size_t i = 0; i < n; i++) {
-    (*p)[i] = i;
+    p[i] = i;
   }
 
-  gv_sort(*p, n, sizeof((*p)[0]), comp_ascend, v);
+  gv_sort(p, n, sizeof(p[0]), comp_ascend, v);
+  return p;
 }
 
 void vector_sort_int(int n, int *v){
