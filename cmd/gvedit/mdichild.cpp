@@ -16,6 +16,8 @@
 #include <QtWidgets>
 #include <memory>
 
+#include "moc_mdichild.cpp"
+
 MdiChild::MdiChild() {
   setAttribute(Qt::WA_DeleteOnClose);
   isUntitled = true;
