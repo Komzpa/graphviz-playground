@@ -99,16 +99,12 @@ void vector_ordering(size_t n, double *v, int **p) {
   */
 
   if (!*p) *p = gv_calloc(n, sizeof(int));
-  int *const u = gv_calloc(n, sizeof(int));
 
   for (size_t i = 0; i < n; i++) {
-    u[i] = (int)i;
+    (*p)[i] = (int)i;
   }
 
-  gv_sort(u, n, sizeof(u[0]), comp_ascend, v);
-
-  for (size_t i = 0; i < n; i++) (*p)[i] = u[i];
-  free(u);
+  gv_sort(*p, n, sizeof((*p)[0]), comp_ascend, v);
 }
 
 void vector_sort_int(int n, int *v){
