@@ -36,7 +36,7 @@ static size_t get_local_12_norm(size_t n, size_t i, const int *ia,
   return norm;
 }
 
-static void get_12_norm(size_t n, const int *ia, const int *ja, size_t *p,
+static void get_12_norm(size_t n, const int *ia, const int *ja, const size_t *p,
                         size_t *norm) {
   /* norm[0] := antibandwidth
      norm[1] := (\sum_{i\in V} (Min_{{j,i}\in E} |p[i] - p[j]|)/|V|
