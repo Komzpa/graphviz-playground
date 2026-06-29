@@ -16,6 +16,7 @@
 #include <sparse/general.h>
 #include <errno.h>
 #include <util/alloc.h>
+#include <util/sort.h>
 
 #ifdef DEBUG
 double _statistics[10];
@@ -61,13 +62,20 @@ void vector_float_take(size_t n, float *v, size_t m, int *p, float **u) {
   
 }
 
-static int comp_ascend(const void *s1, const void *s2){
-  const double *ss1 = s1;
-  const double *ss2 = s2;
+/// compare two double vector values’ indices
+///
+/// @param s1 Index of the first value
+/// @param s2 Index of the second value
+/// @param values Values themselves
+/// @return Comparison result
+static int comp_ascend(const void *s1, const void *s2, void *values) {
+  const int *const ss1 = s1;
+  const int *const ss2 = s2;
+  const double *const v = values;
 
-  if (ss1[0] > ss2[0]){
+  if (v[*ss1] > v[*ss2]) {
     return 1;
-  } else if (ss1[0] < ss2[0]){
+  } else if (v[*ss1] < v[*ss2]) {
     return -1;
   }
   return 0;
@@ -91,16 +99,15 @@ void vector_ordering(size_t n, double *v, int **p) {
   */
 
   if (!*p) *p = gv_calloc(n, sizeof(int));
-  double *u = gv_calloc(2 * n, sizeof(double));
+  int *const u = gv_calloc(n, sizeof(int));
 
   for (size_t i = 0; i < n; i++) {
-    u[2 * i + 1] = (double)i;
-    u[2 * i] = v[i];
+    u[i] = (int)i;
   }
 
-  qsort(u, n, sizeof(double)*2, comp_ascend);
+  gv_sort(u, n, sizeof(u[0]), comp_ascend, v);
 
-  for (size_t i = 0; i < n; i++) (*p)[i] = (int)u[2 * i + 1];
+  for (size_t i = 0; i < n; i++) (*p)[i] = u[i];
   free(u);
 }
 
