@@ -50,12 +50,12 @@ double *vector_saxpy2(size_t n, double *x, double *y, double beta) {
   return x;
 }
 
-void vector_float_take(size_t n, float *v, size_t m, int *p, float **u) {
+void vector_float_take(size_t n, float *v, size_t m, size_t *p, float **u) {
   /* take m elements v[p[i]]],i=1,...,m and oput in u */
   if (!*u) *u = gv_calloc(m, sizeof(float));
 
   for (size_t i = 0; i < m; i++) {
-    assert(p[i] >= 0 && (size_t)p[i] < n);
+    assert(p[i] < n);
     (void)n;
     (*u)[i] = v[p[i]];
   }
@@ -69,8 +69,8 @@ void vector_float_take(size_t n, float *v, size_t m, int *p, float **u) {
 /// @param values Values themselves
 /// @return Comparison result
 static int comp_ascend(const void *s1, const void *s2, void *values) {
-  const int *const ss1 = s1;
-  const int *const ss2 = s2;
+  const size_t *const ss1 = s1;
+  const size_t *const ss2 = s2;
   const double *const v = values;
 
   if (v[*ss1] > v[*ss2]) {
@@ -93,15 +93,15 @@ static int comp_ascend_int(const void *s1, const void *s2){
   return 0;
 }
 
-void vector_ordering(size_t n, double *v, int **p) {
+void vector_ordering(size_t n, double *v, size_t **p) {
   /* give the position of the smallest, second smallest etc in vector v.
      results in p. If *p == NULL, p is assigned.
   */
 
-  if (!*p) *p = gv_calloc(n, sizeof(int));
+  if (!*p) *p = gv_calloc(n, sizeof(size_t));
 
   for (size_t i = 0; i < n; i++) {
-    (*p)[i] = (int)i;
+    (*p)[i] = i;
   }
 
   gv_sort(*p, n, sizeof((*p)[0]), comp_ascend, v);
