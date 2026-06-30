@@ -528,11 +528,10 @@ static br_item_t br_items[] = {
  * s is the name of the HTML element being processed.
  */
 #define doAttrs(ctx, tp, items, nel, atts, s) do { \
-    char *name; \
-    char *val; \
+    const char *name; \
 \
     while ((name = *(atts)++) != NULL) { \
-	val = *(atts)++; \
+	const char *val = *(atts)++; \
 	void *const ip = bsearch(name, (items), (nel), sizeof((items)[0]), icmp); \
 	if (ip) \
 	    (ctx)->warn |= CALL_ACTION((items), ip, (tp), val); \
