@@ -533,24 +533,23 @@ static attr_item br_items[] = {
  * Name/value pairs are in array atts, which is null terminated.
  * s is the name of the HTML element being processed.
  */
-static void doAttrs(htmllexstate_t *ctx, void *tp, attr_item *items, size_t nel, char **atts,
-                    char *s) {
-    char *name;
-    char *val;
-    attr_item *ip;
-
-    while ((name = *atts++) != NULL) {
-	val = *atts++;
-	ip = bsearch(name, items, nel, ISIZE, icmp);
-	if (ip)
-	    ctx->warn |= ip->action(tp, val);
-	else {
-	    agwarningf("Illegal attribute %s in %s - ignored\n", name,
-		  s);
-	    ctx->warn = 1;
-	}
-    }
-}
+#define doAttrs(ctx, tp, items, nel, atts, s) do { \
+    char *name; \
+    char *val; \
+    attr_item *ip; \
+\
+    while ((name = *(atts)++) != NULL) { \
+	val = *(atts)++; \
+	ip = bsearch(name, (items), (nel), ISIZE, icmp); \
+	if (ip) \
+	    (ctx)->warn |= ip->action((tp), val); \
+	else { \
+	    agwarningf("Illegal attribute %s in %s - ignored\n", name, \
+		  (s)); \
+	    (ctx)->warn = 1; \
+	} \
+    } \
+} while (0)
 
 static void mkBR(htmllexstate_t *ctx, char **atts)
 {
