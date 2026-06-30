@@ -80,26 +80,22 @@ static int icmp(const void *name, const void *item) {
   return strcasecmp(name, *j);
 }
 
-static int bgcolorfn(htmldata_t * p, char *v)
-{
+static int bgcolorfn(htmldata_t *p, const char *v) {
     p->bgcolor = strdup(v);
     return 0;
 }
 
-static int pencolorfn(htmldata_t * p, char *v)
-{
+static int pencolorfn(htmldata_t *p, const char *v) {
     p->pencolor = strdup(v);
     return 0;
 }
 
-static int hreffn(htmldata_t * p, char *v)
-{
+static int hreffn(htmldata_t *p, const char *v) {
     p->href = strdup(v);
     return 0;
 }
 
-static int sidesfn(htmldata_t * p, char *v)
-{
+static int sidesfn(htmldata_t *p, const char *v) {
     unsigned short flags = 0; 
     char c;
 
@@ -127,22 +123,19 @@ static int sidesfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int titlefn(htmldata_t * p, char *v)
-{
+static int titlefn(htmldata_t *p, const char *v) {
     p->title = strdup(v);
     return 0;
 }
 
-static int portfn(htmldata_t * p, char *v)
-{
+static int portfn(htmldata_t *p, const char *v) {
     p->port = strdup(v);
     return 0;
 }
 
 #define DELIM " ,"
 
-static int stylefn(htmldata_t * p, char *v)
-{
+static int stylefn(htmldata_t *p, const char *v) {
     int rv = 0;
     for (tok_t t = tok(v, DELIM); !tok_end(&t); tok_next(&t)) {
 	strview_t tk = tok_get(&t);
@@ -164,14 +157,12 @@ static int stylefn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int targetfn(htmldata_t * p, char *v)
-{
+static int targetfn(htmldata_t *p, const char *v) {
     p->target = strdup(v);
     return 0;
 }
 
-static int idfn(htmldata_t * p, char *v)
-{
+static int idfn(htmldata_t *p, const char *v) {
     p->id = strdup(v);
     return 0;
 }
@@ -203,8 +194,7 @@ static int doInt(const char *v, char *s, int min, int max, long *ul) {
 }
 
 
-static int gradientanglefn(htmldata_t * p, char *v)
-{
+static int gradientanglefn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "GRADIENTANGLE", 0, 360, &u))
@@ -214,8 +204,7 @@ static int gradientanglefn(htmldata_t * p, char *v)
 }
 
 
-static int borderfn(htmldata_t * p, char *v)
-{
+static int borderfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "BORDER", 0, UCHAR_MAX, &u))
@@ -225,8 +214,7 @@ static int borderfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int cellpaddingfn(htmldata_t * p, char *v)
-{
+static int cellpaddingfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "CELLPADDING", 0, UCHAR_MAX, &u))
@@ -236,8 +224,7 @@ static int cellpaddingfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int cellspacingfn(htmldata_t * p, char *v)
-{
+static int cellspacingfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "CELLSPACING", SCHAR_MIN, SCHAR_MAX, &u))
@@ -247,7 +234,7 @@ static int cellspacingfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int cellborderfn(htmldata_t *data, char *v) {
+static int cellborderfn(htmldata_t *data, const char *v) {
     long u;
     htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
 
@@ -257,7 +244,7 @@ static int cellborderfn(htmldata_t *data, char *v) {
     return 0;
 }
 
-static int columnsfn(htmldata_t *data, char *v) {
+static int columnsfn(htmldata_t *data, const char *v) {
     htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
     if (*v != '*') {
 	agwarningf("Unknown value %s for COLUMNS - ignored\n", v);
@@ -267,7 +254,7 @@ static int columnsfn(htmldata_t *data, char *v) {
     return 0;
 }
 
-static int rowsfn(htmldata_t *data, char *v) {
+static int rowsfn(htmldata_t *data, const char *v) {
     htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
     if (*v != '*') {
 	agwarningf("Unknown value %s for ROWS - ignored\n", v);
@@ -277,8 +264,7 @@ static int rowsfn(htmldata_t *data, char *v) {
     return 0;
 }
 
-static int fixedsizefn(htmldata_t * p, char *v)
-{
+static int fixedsizefn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "TRUE"))
 	p->flags |= FIXED_FLAG;
@@ -289,8 +275,7 @@ static int fixedsizefn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int valignfn(htmldata_t * p, char *v)
-{
+static int valignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "BOTTOM"))
 	p->flags |= VALIGN_BOTTOM;
@@ -303,8 +288,7 @@ static int valignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int halignfn(htmldata_t * p, char *v)
-{
+static int halignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "LEFT"))
 	p->flags |= HALIGN_LEFT;
@@ -317,8 +301,7 @@ static int halignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int cell_halignfn(htmldata_t * p, char *v)
-{
+static int cell_halignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "LEFT"))
 	p->flags |= HALIGN_LEFT;
@@ -333,8 +316,7 @@ static int cell_halignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int balignfn(htmldata_t * p, char *v)
-{
+static int balignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "LEFT"))
 	p->flags |= BALIGN_LEFT;
@@ -347,8 +329,7 @@ static int balignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int heightfn(htmldata_t * p, char *v)
-{
+static int heightfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "HEIGHT", 0, USHRT_MAX, &u))
@@ -357,8 +338,7 @@ static int heightfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int widthfn(htmldata_t * p, char *v)
-{
+static int widthfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "WIDTH", 0, USHRT_MAX, &u))
@@ -367,7 +347,7 @@ static int widthfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int rowspanfn(htmldata_t *data, char *v) {
+static int rowspanfn(htmldata_t *data, const char *v) {
     long u;
     htmlcell_t *const p = (htmlcell_t *)((uintptr_t)data - offsetof(htmlcell_t, data));
 
@@ -381,7 +361,7 @@ static int rowspanfn(htmldata_t *data, char *v) {
     return 0;
 }
 
-static int colspanfn(htmldata_t *data, char *v) {
+static int colspanfn(htmldata_t *data, const char *v) {
     long u;
     htmlcell_t *const p = (htmlcell_t *)((uintptr_t)data - offsetof(htmlcell_t, data));
 
@@ -446,8 +426,8 @@ static int alignfn(int *p, char *v)
 }
 
 typedef struct {
-  char *name;                          ///< attribute name
-  int (*action)(htmldata_t *, char *); ///< action to perform if name matches
+  char *name;                                ///< attribute name
+  int (*action)(htmldata_t *, const char *); ///< action to perform if name matches
 } html_item_t;
 
 /* Tables used in binary search; MUST be alphabetized */
