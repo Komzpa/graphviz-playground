@@ -375,20 +375,19 @@ static int colspanfn(htmldata_t *data, const char *v) {
     return 0;
 }
 
-static int fontcolorfn(textfont_t * p, char *v)
-{
-    p->color = v;
+static int fontcolorfn(textfont_t *p, const char *v) {
+    // no strdup because HTML font usage is contained
+    p->color = (char *)v;
     return 0;
 }
 
-static int facefn(textfont_t * p, char *v)
-{
-    p->name = v;
+static int facefn(textfont_t *p, const char *v) {
+    // no strdup because HTML font usage is contained
+    p->name = (char *)v;
     return 0;
 }
 
-static int ptsizefn(textfont_t * p, char *v)
-{
+static int ptsizefn(textfont_t *p, const char *v) {
     long u;
 
     if (doInt(v, "POINT-SIZE", 0, UCHAR_MAX, &u))
@@ -482,8 +481,8 @@ static html_item_t cell_items[] = {
 };
 
 typedef struct {
-  char *name;                          ///< attribute name
-  int (*action)(textfont_t *, char *); ///< action to perform if name matches
+  char *name;                                ///< attribute name
+  int (*action)(textfont_t *, const char *); ///< action to perform if name matches
 } font_item_t;
 
 static font_item_t font_items[] = {
