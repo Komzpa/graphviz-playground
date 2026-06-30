@@ -406,8 +406,7 @@ static int scalefn(htmlimg_t *p, const char *v) {
     return 0;
 }
 
-static int alignfn(int *p, char *v)
-{
+static int alignfn(int *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "RIGHT"))
 	*p = 'r';
@@ -500,8 +499,8 @@ static img_item_t img_items[] = {
 };
 
 typedef struct {
-  char *name;                   ///< attribute name
-  int (*action)(int *, char *); ///< action to perform if name matches
+  char *name;                         ///< attribute name
+  int (*action)(int *, const char *); ///< action to perform if name matches
 } br_item_t;
 
 static br_item_t br_items[] = {
