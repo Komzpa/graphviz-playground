@@ -381,9 +381,9 @@ static int widthfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int rowspanfn(htmlcell_t * p, char *v)
-{
+static int rowspanfn(htmldata_t *data, char *v) {
     long u;
+    htmlcell_t *const p = (htmlcell_t *)((uintptr_t)data - offsetof(htmlcell_t, data));
 
     if (doInt(v, "ROWSPAN", 0, UINT16_MAX, &u))
 	return 1;
@@ -395,9 +395,9 @@ static int rowspanfn(htmlcell_t * p, char *v)
     return 0;
 }
 
-static int colspanfn(htmlcell_t * p, char *v)
-{
+static int colspanfn(htmldata_t *data, char *v) {
     long u;
+    htmlcell_t *const p = (htmlcell_t *)((uintptr_t)data - offsetof(htmlcell_t, data));
 
     if (doInt(v, "COLSPAN", 0, UINT16_MAX, &u))
 	return 1;
@@ -485,29 +485,34 @@ static attr_item tbl_items[] = {
     {"width", (attrFn) widthfn},
 };
 
-static attr_item cell_items[] = {
-    {"align", (attrFn) cell_halignfn},
-    {"balign", (attrFn) balignfn},
-    {"bgcolor", (attrFn) bgcolorfn},
-    {"border", (attrFn) borderfn},
-    {"cellpadding", (attrFn) cellpaddingfn},
-    {"cellspacing", (attrFn) cellspacingfn},
-    {"color", (attrFn) pencolorfn},
-    {"colspan", (attrFn) colspanfn},
-    {"fixedsize", (attrFn) fixedsizefn},
-    {"gradientangle", (attrFn) gradientanglefn},
-    {"height", (attrFn) heightfn},
-    {"href", (attrFn) hreffn},
-    {"id", (attrFn) idfn},
-    {"port", (attrFn) portfn},
-    {"rowspan", (attrFn) rowspanfn},
-    {"sides", (attrFn) sidesfn},
-    {"style", (attrFn) stylefn},
-    {"target", (attrFn) targetfn},
-    {"title", (attrFn) titlefn},
-    {"tooltip", (attrFn) titlefn},
-    {"valign", (attrFn) valignfn},
-    {"width", (attrFn) widthfn},
+typedef struct {
+  char *name;                          ///< attribute name
+  int (*action)(htmldata_t *, char *); ///< action to perform if name matches
+} cell_item_t;
+
+static cell_item_t cell_items[] = {
+    {"align", cell_halignfn},
+    {"balign", balignfn},
+    {"bgcolor", bgcolorfn},
+    {"border", borderfn},
+    {"cellpadding", cellpaddingfn},
+    {"cellspacing", cellspacingfn},
+    {"color", pencolorfn},
+    {"colspan", colspanfn},
+    {"fixedsize", fixedsizefn},
+    {"gradientangle", gradientanglefn},
+    {"height", heightfn},
+    {"href", hreffn},
+    {"id", idfn},
+    {"port", portfn},
+    {"rowspan", rowspanfn},
+    {"sides", sidesfn},
+    {"style", stylefn},
+    {"target", targetfn},
+    {"title", titlefn},
+    {"tooltip", titlefn},
+    {"valign", valignfn},
+    {"width", widthfn},
 };
 
 typedef struct {
@@ -546,7 +551,8 @@ static br_item_t br_items[] = {
 /// `((typeof(&list[0]))elem)->action(tp, val)`.
 #define CALL_ACTION(list, elem, tp, val)                                       \
   (_Generic((list), attr_item *                                                \
-            : (attr_item *)(elem), font_item_t *                               \
+            : (attr_item *)(elem), cell_item_t *                               \
+            : (cell_item_t *)(elem), font_item_t *                             \
             : (font_item_t *)(elem), img_item_t *                              \
             : (img_item_t *)(elem), br_item_t *                                \
             : (br_item_t *)(elem))                                             \
@@ -611,7 +617,7 @@ static htmlcell_t *mkCell(htmllexstate_t *ctx, char **atts)
 
     cell->colspan = 1;
     cell->rowspan = 1;
-    doAttrs(ctx, cell, cell_items, sizeof(cell_items) / ISIZE, atts, "<TD>");
+    doAttrs(ctx, &cell->data, cell_items, sizeof(cell_items) / ISIZE, atts, "<TD>");
 
     return cell;
 }
