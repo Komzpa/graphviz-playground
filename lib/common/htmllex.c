@@ -83,8 +83,6 @@ typedef struct {
     attrFn action;		/* action to perform if name matches */
 } attr_item;
 
-#define ISIZE (sizeof(attr_item))
-
 /* icmp:
  * Compare an attr_item. Used in bsearch
  */
@@ -571,7 +569,7 @@ static br_item_t br_items[] = {
 \
     while ((name = *(atts)++) != NULL) { \
 	val = *(atts)++; \
-	void *const ip = bsearch(name, (items), (nel), ISIZE, icmp); \
+	void *const ip = bsearch(name, (items), (nel), sizeof((items)[0]), icmp); \
 	if (ip) \
 	    (ctx)->warn |= CALL_ACTION((items), ip, (tp), val); \
 	else { \
@@ -585,14 +583,14 @@ static br_item_t br_items[] = {
 static void mkBR(htmllexstate_t *ctx, char **atts)
 {
     ctx->htmllval->i = UNSET_ALIGN;
-    doAttrs(ctx, &ctx->htmllval->i, br_items, sizeof(br_items) / ISIZE, atts, "<BR>");
+    doAttrs(ctx, &ctx->htmllval->i, br_items, sizeof(br_items) / sizeof(br_items[0]), atts, "<BR>");
 }
 
 static htmlimg_t *mkImg(htmllexstate_t *ctx, char **atts)
 {
     htmlimg_t *img = gv_alloc(sizeof(htmlimg_t));
 
-    doAttrs(ctx, img, img_items, sizeof(img_items) / ISIZE, atts, "<IMG>");
+    doAttrs(ctx, img, img_items, sizeof(img_items) / sizeof(img_items[0]), atts, "<IMG>");
 
     return img;
 }
@@ -605,7 +603,7 @@ static textfont_t *mkFont(htmllexstate_t *ctx, char **atts, unsigned char flags)
     assert(flags <= FLAGS_MAX);
     tf.flags = (unsigned char)(flags & FLAGS_MAX);
     if (atts)
-	doAttrs(ctx, &tf, font_items, sizeof(font_items) / ISIZE, atts, "<FONT>");
+	doAttrs(ctx, &tf, font_items, sizeof(font_items) / sizeof(font_items[0]), atts, "<FONT>");
 
     return dtinsert(ctx->gvc->textfont_dt, &tf);
 }
@@ -616,7 +614,7 @@ static htmlcell_t *mkCell(htmllexstate_t *ctx, char **atts)
 
     cell->colspan = 1;
     cell->rowspan = 1;
-    doAttrs(ctx, &cell->data, cell_items, sizeof(cell_items) / ISIZE, atts, "<TD>");
+    doAttrs(ctx, &cell->data, cell_items, sizeof(cell_items) / sizeof(cell_items[0]), atts, "<TD>");
 
     return cell;
 }
@@ -628,7 +626,7 @@ static htmltbl_t *mkTbl(htmllexstate_t *ctx, char **atts)
     tbl->row_count = SIZE_MAX; // flag that table is a raw, parsed table
     tbl->rows = (rows_t){.dtor = free_ritem};
     tbl->cellborder = -1; // unset cell border attribute
-    doAttrs(ctx, &tbl->data, tbl_items, sizeof(tbl_items) / ISIZE, atts, "<TABLE>");
+    doAttrs(ctx, &tbl->data, tbl_items, sizeof(tbl_items) / sizeof(tbl_items[0]), atts, "<TABLE>");
 
     return tbl;
 }
