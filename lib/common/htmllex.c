@@ -543,14 +543,12 @@ static br_item_t br_items[] = {
     } \
 } while (0)
 
-static void mkBR(htmllexstate_t *ctx, char **atts)
-{
+static void mkBR(htmllexstate_t *ctx, const char **atts) {
     ctx->htmllval->i = UNSET_ALIGN;
     doAttrs(ctx, &ctx->htmllval->i, br_items, sizeof(br_items) / sizeof(br_items[0]), atts, "<BR>");
 }
 
-static htmlimg_t *mkImg(htmllexstate_t *ctx, char **atts)
-{
+static htmlimg_t *mkImg(htmllexstate_t *ctx, const char **atts) {
     htmlimg_t *img = gv_alloc(sizeof(htmlimg_t));
 
     doAttrs(ctx, img, img_items, sizeof(img_items) / sizeof(img_items[0]), atts, "<IMG>");
@@ -558,7 +556,7 @@ static htmlimg_t *mkImg(htmllexstate_t *ctx, char **atts)
     return img;
 }
 
-static textfont_t *mkFont(htmllexstate_t *ctx, char **atts, unsigned char flags) {
+static textfont_t *mkFont(htmllexstate_t *ctx, const char **atts, unsigned char flags) {
     textfont_t tf = {NULL,NULL,NULL,0.0,0,0};
 
     tf.size = -1.0;		/* unassigned */
@@ -571,8 +569,7 @@ static textfont_t *mkFont(htmllexstate_t *ctx, char **atts, unsigned char flags)
     return dtinsert(ctx->gvc->textfont_dt, &tf);
 }
 
-static htmlcell_t *mkCell(htmllexstate_t *ctx, char **atts)
-{
+static htmlcell_t *mkCell(htmllexstate_t *ctx, const char **atts) {
     htmlcell_t *cell = gv_alloc(sizeof(htmlcell_t));
 
     cell->colspan = 1;
@@ -582,8 +579,7 @@ static htmlcell_t *mkCell(htmllexstate_t *ctx, char **atts)
     return cell;
 }
 
-static htmltbl_t *mkTbl(htmllexstate_t *ctx, char **atts)
-{
+static htmltbl_t *mkTbl(htmllexstate_t *ctx, const char **atts) {
     htmltbl_t *tbl = gv_alloc(sizeof(htmltbl_t));
 
     tbl->row_count = SIZE_MAX; // flag that table is a raw, parsed table
@@ -594,8 +590,7 @@ static htmltbl_t *mkTbl(htmllexstate_t *ctx, char **atts)
     return tbl;
 }
 
-static void startElement(void *user, const char *name, char **atts)
-{
+static void startElement(void *user, const char *name, const char **atts) {
     htmllexstate_t *ctx = user;
 
     if (strcasecmp(name, "TABLE") == 0) {
@@ -749,9 +744,7 @@ int initHTMLlexer(htmlscan_t *scanner, char *src, agxbuf * xb, htmlenv_t *env)
     ctx->parser = XML_ParserCreate(charsetToStr(GD_charset(env->g)));
     ctx->gvc = GD_gvc(env->g);
     XML_SetUserData(ctx->parser, ctx);
-    XML_SetElementHandler(ctx->parser,
-			  (XML_StartElementHandler) startElement,
-			  endElement);
+    XML_SetElementHandler(ctx->parser, startElement, endElement);
     XML_SetCharacterDataHandler(ctx->parser, characterData);
     return 0;
 #else
