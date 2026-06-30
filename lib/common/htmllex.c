@@ -74,20 +74,10 @@ static void lexerror(htmllexstate_t *ctx, const char *name)
     agerrorf("Unknown HTML element <%s> on line %lu \n", name, htmllineno_ctx(ctx));
 }
 
-typedef int (*attrFn) (void *, char *);
-
-/* Mechanism for automatically processing attributes */
-typedef struct {
-    char *name;			/* attribute name */
-    attrFn action;		/* action to perform if name matches */
-} attr_item;
-
-/* icmp:
- * Compare an attr_item. Used in bsearch
- */
+/// Compare an attribute item. Used in bsearch
 static int icmp(const void *name, const void *item) {
-  const attr_item *j = item;
-  return strcasecmp(name, j->name);
+  const char *const *const j = item;
+  return strcasecmp(name, *j);
 }
 
 static int bgcolorfn(htmldata_t * p, char *v)
