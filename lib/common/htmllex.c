@@ -525,6 +525,13 @@ static attr_item br_items[] = {
     {"align", (attrFn) alignfn},
 };
 
+/// convert `elem` to its appropriate type and invoke `elem->action(tp, val)`
+///
+/// This is essentially a constrained C11 version of
+/// `((typeof(&list[0]))elem)->action(tp, val)`.
+#define CALL_ACTION(list, elem, tp, val)                                       \
+  (_Generic((list), attr_item * : (attr_item *)(elem))->action((tp), (val)))
+
 /* doAttrs:
  * General function for processing list of name/value attributes.
  * Do binary search on items table. If match found, invoke action
@@ -536,13 +543,12 @@ static attr_item br_items[] = {
 #define doAttrs(ctx, tp, items, nel, atts, s) do { \
     char *name; \
     char *val; \
-    attr_item *ip; \
 \
     while ((name = *(atts)++) != NULL) { \
 	val = *(atts)++; \
-	ip = bsearch(name, (items), (nel), ISIZE, icmp); \
+	void *const ip = bsearch(name, (items), (nel), ISIZE, icmp); \
 	if (ip) \
-	    (ctx)->warn |= ip->action((tp), val); \
+	    (ctx)->warn |= CALL_ACTION((items), ip, (tp), val); \
 	else { \
 	    agwarningf("Illegal attribute %s in %s - ignored\n", name, \
 		  (s)); \
