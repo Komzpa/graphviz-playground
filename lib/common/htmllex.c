@@ -516,9 +516,14 @@ static attr_item font_items[] = {
     {"point-size", (attrFn) ptsizefn},
 };
 
-static attr_item img_items[] = {
-    {"scale", (attrFn) scalefn},
-    {"src", (attrFn) srcfn},
+typedef struct {
+  char *name;                         ///< attribute name
+  int (*action)(htmlimg_t *, char *); ///< action to perform if name matches
+} img_item_t;
+
+static img_item_t img_items[] = {
+    {"scale", scalefn},
+    {"src", srcfn},
 };
 
 typedef struct {
@@ -536,7 +541,8 @@ static br_item_t br_items[] = {
 /// `((typeof(&list[0]))elem)->action(tp, val)`.
 #define CALL_ACTION(list, elem, tp, val)                                       \
   (_Generic((list), attr_item *                                                \
-            : (attr_item *)(elem), br_item_t *                                 \
+            : (attr_item *)(elem), img_item_t *                                \
+            : (img_item_t *)(elem), br_item_t *                                \
             : (br_item_t *)(elem))                                             \
        ->action((tp), (val)))
 
