@@ -261,9 +261,9 @@ static int cellspacingfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int cellborderfn(htmltbl_t * p, char *v)
-{
+static int cellborderfn(htmldata_t *data, char *v) {
     long u;
+    htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
 
     if (doInt(v, "CELLBORDER", 0, INT8_MAX, &u))
 	return 1;
@@ -271,8 +271,8 @@ static int cellborderfn(htmltbl_t * p, char *v)
     return 0;
 }
 
-static int columnsfn(htmltbl_t * p, char *v)
-{
+static int columnsfn(htmldata_t *data, char *v) {
+    htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
     if (*v != '*') {
 	agwarningf("Unknown value %s for COLUMNS - ignored\n", v);
 	return 1;
@@ -281,8 +281,8 @@ static int columnsfn(htmltbl_t * p, char *v)
     return 0;
 }
 
-static int rowsfn(htmltbl_t * p, char *v)
-{
+static int rowsfn(htmldata_t *data, char *v) {
+    htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
     if (*v != '*') {
 	agwarningf("Unknown value %s for ROWS - ignored\n", v);
 	return 1;
@@ -459,38 +459,38 @@ static int alignfn(int *p, char *v)
     return rv;
 }
 
-/* Tables used in binary search; MUST be alphabetized */
-static attr_item tbl_items[] = {
-    {"align", (attrFn) halignfn},
-    {"bgcolor", (attrFn) bgcolorfn},
-    {"border", (attrFn) borderfn},
-    {"cellborder", (attrFn) cellborderfn},
-    {"cellpadding", (attrFn) cellpaddingfn},
-    {"cellspacing", (attrFn) cellspacingfn},
-    {"color", (attrFn) pencolorfn},
-    {"columns", (attrFn) columnsfn},
-    {"fixedsize", (attrFn) fixedsizefn},
-    {"gradientangle", (attrFn) gradientanglefn},
-    {"height", (attrFn) heightfn},
-    {"href", (attrFn) hreffn},
-    {"id", (attrFn) idfn},
-    {"port", (attrFn) portfn},
-    {"rows", (attrFn) rowsfn},
-    {"sides", (attrFn) sidesfn},
-    {"style", (attrFn) stylefn},
-    {"target", (attrFn) targetfn},
-    {"title", (attrFn) titlefn},
-    {"tooltip", (attrFn) titlefn},
-    {"valign", (attrFn) valignfn},
-    {"width", (attrFn) widthfn},
-};
-
 typedef struct {
   char *name;                          ///< attribute name
   int (*action)(htmldata_t *, char *); ///< action to perform if name matches
-} cell_item_t;
+} html_item_t;
 
-static cell_item_t cell_items[] = {
+/* Tables used in binary search; MUST be alphabetized */
+static html_item_t tbl_items[] = {
+    {"align", halignfn},
+    {"bgcolor", bgcolorfn},
+    {"border", borderfn},
+    {"cellborder", cellborderfn},
+    {"cellpadding", cellpaddingfn},
+    {"cellspacing", cellspacingfn},
+    {"color", pencolorfn},
+    {"columns", columnsfn},
+    {"fixedsize", fixedsizefn},
+    {"gradientangle", gradientanglefn},
+    {"height", heightfn},
+    {"href", hreffn},
+    {"id", idfn},
+    {"port", portfn},
+    {"rows", rowsfn},
+    {"sides", sidesfn},
+    {"style", stylefn},
+    {"target", targetfn},
+    {"title", titlefn},
+    {"tooltip", titlefn},
+    {"valign", valignfn},
+    {"width", widthfn},
+};
+
+static html_item_t cell_items[] = {
     {"align", cell_halignfn},
     {"balign", balignfn},
     {"bgcolor", bgcolorfn},
@@ -550,9 +550,8 @@ static br_item_t br_items[] = {
 /// This is essentially a constrained C11 version of
 /// `((typeof(&list[0]))elem)->action(tp, val)`.
 #define CALL_ACTION(list, elem, tp, val)                                       \
-  (_Generic((list), attr_item *                                                \
-            : (attr_item *)(elem), cell_item_t *                               \
-            : (cell_item_t *)(elem), font_item_t *                             \
+  (_Generic((list), html_item_t *                                              \
+            : (html_item_t *)(elem), font_item_t *                             \
             : (font_item_t *)(elem), img_item_t *                              \
             : (img_item_t *)(elem), br_item_t *                                \
             : (br_item_t *)(elem))                                             \
@@ -629,7 +628,7 @@ static htmltbl_t *mkTbl(htmllexstate_t *ctx, char **atts)
     tbl->row_count = SIZE_MAX; // flag that table is a raw, parsed table
     tbl->rows = (rows_t){.dtor = free_ritem};
     tbl->cellborder = -1; // unset cell border attribute
-    doAttrs(ctx, tbl, tbl_items, sizeof(tbl_items) / ISIZE, atts, "<TABLE>");
+    doAttrs(ctx, &tbl->data, tbl_items, sizeof(tbl_items) / ISIZE, atts, "<TABLE>");
 
     return tbl;
 }
