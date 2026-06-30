@@ -521,8 +521,13 @@ static attr_item img_items[] = {
     {"src", (attrFn) srcfn},
 };
 
-static attr_item br_items[] = {
-    {"align", (attrFn) alignfn},
+typedef struct {
+  char *name;                   ///< attribute name
+  int (*action)(int *, char *); ///< action to perform if name matches
+} br_item_t;
+
+static br_item_t br_items[] = {
+    {"align", alignfn},
 };
 
 /// convert `elem` to its appropriate type and invoke `elem->action(tp, val)`
@@ -530,7 +535,10 @@ static attr_item br_items[] = {
 /// This is essentially a constrained C11 version of
 /// `((typeof(&list[0]))elem)->action(tp, val)`.
 #define CALL_ACTION(list, elem, tp, val)                                       \
-  (_Generic((list), attr_item * : (attr_item *)(elem))->action((tp), (val)))
+  (_Generic((list), attr_item *                                                \
+            : (attr_item *)(elem), br_item_t *                                 \
+            : (br_item_t *)(elem))                                             \
+       ->action((tp), (val)))
 
 /* doAttrs:
  * General function for processing list of name/value attributes.
