@@ -446,8 +446,10 @@ static void xdot_end_graph(graph_t* g)
     textflags[EMIT_GLABEL] = 0;
 }
 
-typedef int (*putstrfn) (void *chan, const char *str);
-typedef int (*flushfn) (void *chan);
+// wrappers to handle calling convention differences
+static int gvputs_(void *chan, const char *str) { return gvputs(chan, str); }
+static int gvflush_(void *chan) { return gvflush(chan); }
+
 static void dot_end_graph(GVJ_t *job)
 {
     graph_t *g = job->obj->u.g;
@@ -456,8 +458,8 @@ static void dot_end_graph(GVJ_t *job)
 
     if (io.afread == NULL) {
 	io.afread = AgIoDisc.afread;
-	io.putstr = (putstrfn)gvputs;
-	io.flush = (flushfn)gvflush;
+	io.putstr = gvputs_;
+	io.flush = gvflush_;
     }
 
     io_save = g->clos->disc.io;
