@@ -183,8 +183,7 @@ static int idfn(htmldata_t * p, char *v)
  * String s is name of value.
  * Return 0 if okay; 1 otherwise.
  */
-static int doInt(char *v, char *s, int min, int max, long *ul)
-{
+static int doInt(const char *v, char *s, int min, int max, long *ul) {
     int rv = 0;
     char *ep;
     long b = strtol(v, &ep, 10);
