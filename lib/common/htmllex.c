@@ -75,7 +75,6 @@ static void lexerror(htmllexstate_t *ctx, const char *name)
 }
 
 typedef int (*attrFn) (void *, char *);
-typedef int (*bcmpfn) (const void *, const void *);
 
 /* Mechanism for automatically processing attributes */
 typedef struct {
