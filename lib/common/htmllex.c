@@ -396,14 +396,12 @@ static int ptsizefn(textfont_t *p, const char *v) {
     return 0;
 }
 
-static int srcfn(htmlimg_t * p, char *v)
-{
+static int srcfn(htmlimg_t *p, const char *v) {
     p->src = strdup(v);
     return 0;
 }
 
-static int scalefn(htmlimg_t * p, char *v)
-{
+static int scalefn(htmlimg_t *p, const char *v) {
     p->scale = strdup(v);
     return 0;
 }
@@ -492,8 +490,8 @@ static font_item_t font_items[] = {
 };
 
 typedef struct {
-  char *name;                         ///< attribute name
-  int (*action)(htmlimg_t *, char *); ///< action to perform if name matches
+  char *name;                               ///< attribute name
+  int (*action)(htmlimg_t *, const char *); ///< action to perform if name matches
 } img_item_t;
 
 static img_item_t img_items[] = {
