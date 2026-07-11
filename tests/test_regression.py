@@ -4709,6 +4709,47 @@ def test_2559():
     ), "concentrated edge drawn as a regular straight edge"
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_edge_attributes(splines: str):
+    """`concentrate=true` should only merge equivalent edges."""
+
+    def drawn_colors(source: str) -> list[str]:
+        layout = json.loads(dot("json", source=source))
+        return [
+            operation["color"]
+            for edge in layout["edges"]
+            for operation in edge.get("_draw_", ())
+            if operation["op"] == "c"
+        ]
+
+    distinct = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          a -> b [color=blue]
+        }}
+    """
+    assert set(drawn_colors(distinct)) == {"#ff0000", "#0000ff"}
+
+    opposite = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          b -> a [color=blue]
+        }}
+    """
+    assert set(drawn_colors(opposite)) == {"#ff0000", "#0000ff"}
+
+    equivalent = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          a -> b [color=red]
+        }}
+    """
+    assert drawn_colors(equivalent) == ["#ff0000"]
+
+
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
 def test_2563():
     """

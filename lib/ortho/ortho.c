@@ -24,9 +24,11 @@
 #define DEBUG
 #include <assert.h>
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <ortho/maze.h>
 #include <ortho/fPQ.h>
 #include <ortho/ortho.h>
@@ -45,6 +47,18 @@ typedef struct {
     double d;
     Agedge_t* e;
 } epair_t;
+
+static bool ortho_edge_attrs_eq(Agedge_t *e, Agedge_t *f) {
+  Agraph_t *const g = agroot(agraphof(e));
+
+  for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
+       attr = agnxtattr(g, AGEDGE, attr)) {
+    if (strcmp(agxget(e, attr), agxget(f, attr)) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
 
 static UNUSED void emitSearchGraph(FILE *fp, sgraph *sg);
 static UNUSED void emitGraph(FILE *fp, maze *mp, size_t n_edges,
@@ -1159,9 +1173,17 @@ static bool swap_ends_p(edge_t * e)
 void orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
     PointSet* ps = NULL;
+    PointMap *edge_groups = NULL;
+    const size_t edge_capacity = agnedges(g);
+    size_t *next_in_group = NULL;
 
-    if (Concentrate) 
+    if (Concentrate) {
 	ps = newPS();
+	edge_groups = newPM();
+	next_in_group = gv_calloc(edge_capacity, sizeof(size_t));
+	for (size_t i = 0; i < edge_capacity; i++)
+	    next_in_group[i] = edge_capacity;
+    }
 
 #ifdef DEBUG
     {
@@ -1211,13 +1233,28 @@ void orthoEdges(Agraph_t *g, bool useLbls) {
 	    if (Concentrate) {
 		int ti = AGSEQ(agtail(e));
 		int hi = AGSEQ(aghead(e));
-		if (ti <= hi) {
-		    if (isInPS (ps,ti,hi)) continue;
-		    addPS(ps,ti,hi);
+		int lo = MIN(ti, hi);
+		int high = MAX(ti, hi);
+		if (isInPS(ps, lo, high)) {
+		    bool equivalent = false;
+		    size_t group = insertPM(edge_groups, lo, high, 0);
+		    for (size_t i = group; i != edge_capacity;
+			 i = next_in_group[i]) {
+			Agedge_t *const routed = es[i].e;
+			if (ortho_edge_attrs_eq(e, routed)) {
+			    equivalent = true;
+			    break;
+			}
+		    }
+		    if (equivalent)
+			continue;
+		    next_in_group[n_edges] = next_in_group[group];
+		    next_in_group[group] = n_edges;
 		}
 		else {
-		    if (isInPS (ps,hi,ti)) continue;
-		    addPS(ps,hi,ti);
+		    addPS(ps, lo, high);
+		    assert(n_edges <= INT_MAX);
+		    insertPM(edge_groups, lo, high, (int)n_edges);
 		}
 	    }
 	    es[n_edges].e = e;
@@ -1270,8 +1307,11 @@ void orthoEdges(Agraph_t *g, bool useLbls) {
     attachOrthoEdges(mp, n_edges, route_list, &sinfo, es);
 
 orthofinish:
-    if (Concentrate)
+    if (Concentrate) {
 	freePS (ps);
+	freePM(edge_groups);
+	free(next_in_group);
+    }
 
     for (size_t i=0; i < n_edges; i++)
 	free (route_list[i].segs);

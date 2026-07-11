@@ -35,8 +35,10 @@ static bool samedir(edge_t * e, edge_t * f)
 	return false;
     if (ED_conc_opp_flag(f0))
 	return false;
-    return ((ND_rank(agtail(f0)) - ND_rank(aghead(f0)))
-	    * (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) > 0);
+    return same_edge_attrs(e0, f0) &&
+           ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
+                (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
+            0);
 }
 
 static bool downcandidate(node_t * v)

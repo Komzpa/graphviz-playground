@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
 
+### Fixed
+
+- `concentrate=true` no longer merges edges with different attributes, such as
+  differently colored parallel or opposite-direction edges.
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
