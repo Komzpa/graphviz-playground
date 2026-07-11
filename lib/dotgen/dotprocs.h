@@ -68,6 +68,7 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern void reverse_edge(Agedge_t *);
     extern void safe_other_edge(Agedge_t *);
     extern void save_vlist(Agraph_t *);
+    extern bool same_edge_attrs(edge_t *, edge_t *);
     extern Agedge_t *virtual_edge(Agnode_t *, Agnode_t *, Agedge_t *);
     extern Agnode_t *virtual_node(Agraph_t *);
     extern void virtual_weight(Agedge_t *);
