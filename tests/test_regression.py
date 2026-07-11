@@ -7035,6 +7035,8 @@ def test_duplicate_hard_coded_metrics_warnings():
         text=True,
     )
 
+    p.check_returncode()
+
     assert (
         p.stderr.count("no hard-coded metrics for 'sans'") <= 1
     ), "multiple identical “no hard-coded metrics” warnings printed"

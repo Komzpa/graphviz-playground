@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `gvpack` no longer crashes while cloning nested subgraphs with default node
+  or edge attributes. #2239
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

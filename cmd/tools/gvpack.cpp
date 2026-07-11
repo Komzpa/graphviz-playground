@@ -448,61 +448,60 @@ static std::string xName(used_t &names, char *oldname) {
 
 #define MARK(e) (ED_alg(e) = e)
 #define MARKED(e) (ED_alg(e))
-#define SETCLUST(g,h) (GD_alg(g) = h)
-#define GETCLUST(g) ((Agraph_t*)GD_alg(g))
+using cluster_map_t = std::map<Agraph_t *, Agraph_t *>;
 
 /* cloneSubg:
  * Create a copy of g in ng, copying attributes, inserting nodes
  * and adding edges.
  */
-static void
-cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames) {
-    node_t *n;
-    node_t *nn;
-    edge_t *e;
-    edge_t *ne;
-    node_t *nt;
-    node_t *nh;
-    Agraph_t *subg;
-    Agraph_t *nsubg;
+static void cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames,
+                      cluster_map_t &cluster_clones) {
+  node_t *n;
+  node_t *nn;
+  edge_t *e;
+  edge_t *ne;
+  node_t *nt;
+  node_t *nh;
+  Agraph_t *subg;
+  Agraph_t *nsubg;
 
-    cloneGraphAttr(g, ng);
-    if (doPack)
-	agxset(ng, G_bb, "");	/* Unset all subgraph bb */
+  cloneGraphAttr(g, ng);
+  if (doPack)
+    agxset(ng, G_bb, ""); /* Unset all subgraph bb */
 
-    /* clone subgraphs */
-    for (subg = agfstsubg (g); subg; subg = agnxtsubg (subg)) {
-	nsubg = agsubg(ng, xName(gnames, agnameof(subg)).data(), 1);
-	agbindrec (nsubg, "Agraphinfo_t", sizeof(Agraphinfo_t), true);
-	cloneSubg(subg, nsubg, G_bb, gnames);
-	/* if subgraphs are clusters, point to the new 
-	 * one so we can find it later.
-	 */
-	if (is_a_cluster(subg))
-	    SETCLUST(subg, nsubg);
-    }
-
-    /* add remaining nodes */
-    for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	nn = NEWNODE(n);
-        agsubnode(ng, nn, 1);
-    }
-
-    /* add remaining edges. libgraph doesn't provide a way to find
-     * multiedges, so we add edges bottom up, marking edges when added.
+  /* clone subgraphs */
+  for (subg = agfstsubg(g); subg; subg = agnxtsubg(subg)) {
+    nsubg = agsubg(ng, xName(gnames, agnameof(subg)).data(), 1);
+    agbindrec(nsubg, "Agraphinfo_t", sizeof(Agraphinfo_t), true);
+    cloneSubg(subg, nsubg, G_bb, gnames, cluster_clones);
+    /* if subgraphs are clusters, point to the new
+     * one so we can find it later.
      */
-    for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
-	    if (MARKED(e))
-		continue;
-	    nt = NEWNODE(agtail(e));
-	    nh = NEWNODE(aghead(e));
-	    ne = agedge(ng, nt, nh, nullptr, 1);
-	    agbindrec (ne, "Agedgeinfo_t", sizeof(Agedgeinfo_t), true);
-	    cloneEdge(e, ne);
-	    MARK(e);
-	}
+    if (is_a_cluster(subg))
+      cluster_clones[subg] = nsubg;
+  }
+
+  /* add remaining nodes */
+  for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    nn = NEWNODE(n);
+    agsubnode(ng, nn, 1);
+  }
+
+  /* add remaining edges. libgraph doesn't provide a way to find
+   * multiedges, so we add edges bottom up, marking edges when added.
+   */
+  for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
+      if (MARKED(e))
+        continue;
+      nt = NEWNODE(agtail(e));
+      nh = NEWNODE(aghead(e));
+      ne = agedge(ng, nt, nh, nullptr, 1);
+      agbindrec(ne, "Agedgeinfo_t", sizeof(Agedgeinfo_t), true);
+      cloneEdge(e, ne);
+      MARK(e);
     }
+  }
 }
 
 /* cloneClusterTree:
@@ -510,22 +509,22 @@ cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames) {
  * clusters, recursively create the subtree of clusters
  * under ng using the subtree of clusters under g.
  */
-static void cloneClusterTree(Agraph_t * g, Agraph_t * ng)
-{
-    int i;
+static void cloneClusterTree(Agraph_t *g, Agraph_t *ng,
+                             const cluster_map_t &cluster_clones) {
+  int i;
 
-    cloneCluster(g, ng);
+  cloneCluster(g, ng);
 
-    if (GD_n_cluster(g)) {
-	GD_n_cluster(ng) = GD_n_cluster(g);
-	void *const p = gv_calloc(1 + GD_n_cluster(g), sizeof(Agraph_t *));
-	GD_clust(ng) = new (p) Agraph_t *[1 + GD_n_cluster(g)]{};
-	for (i = 1; i <= GD_n_cluster(g); i++) {
-	    Agraph_t *c = GETCLUST(GD_clust(g)[i]);
-	    GD_clust(ng)[i] = c;
-	    cloneClusterTree(GD_clust(g)[i], c);
-	}
+  if (GD_n_cluster(g)) {
+    GD_n_cluster(ng) = GD_n_cluster(g);
+    void *const p = gv_calloc(1 + GD_n_cluster(g), sizeof(Agraph_t *));
+    GD_clust(ng) = new (p) Agraph_t *[1 + GD_n_cluster(g)]{};
+    for (i = 1; i <= GD_n_cluster(g); i++) {
+      Agraph_t *c = cluster_clones.at(GD_clust(g)[i]);
+      GD_clust(ng)[i] = c;
+      cloneClusterTree(GD_clust(g)[i], c, cluster_clones);
     }
+  }
 }
 
 /* cloneGraph:
@@ -561,6 +560,7 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
 
     used_t gnames; // dict of used subgraph names
     used_t nnames; // dict of used node names
+    cluster_map_t cluster_clones;
     for (size_t i = 0; i < gs.size(); i++) {
 	Agraph_t *g = gs[i];
 	if (verbose)
@@ -585,7 +585,7 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
 	/* wrap the clone of g in a subgraph of root */
 	subg = agsubg(root, xName(gnames, agnameof(g)).data(), 1);
 	agbindrec (subg, "Agraphinfo_t", sizeof(Agraphinfo_t), true);
-	cloneSubg(g, subg, G_bb, gnames);
+        cloneSubg(g, subg, G_bb, gnames, cluster_clones);
     }
 
     /* set up cluster tree */
@@ -597,11 +597,11 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
 	idx = 1;
 	for (Agraph_t *g : gs) {
 	    for (j = 1; j <= GD_n_cluster(g); j++) {
-		Agraph_t *c = GETCLUST(GD_clust(g)[j]);
-		GD_clust(root)[idx++] = c;
-		cloneClusterTree(GD_clust(g)[j], c);
-	    }
-	}
+              Agraph_t *c = cluster_clones.at(GD_clust(g)[j]);
+              GD_clust(root)[idx++] = c;
+              cloneClusterTree(GD_clust(g)[j], c, cluster_clones);
+            }
+        }
     }
 
     return root;
