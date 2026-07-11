@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `concentrate=true` no longer merges edges with different attributes, such as
   differently colored parallel or opposite-direction edges.
+- `gvpack` no longer crashes while cloning nested subgraphs with default node
+  or edge attributes. #2239
 
 ## [15.1.0] – 2026-06-17
 
