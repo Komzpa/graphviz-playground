@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
 
+### Fixed
+
+- `gvpack` no longer crashes while cloning nested subgraphs with default node
+  or edge attributes. #2239
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
