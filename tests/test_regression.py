@@ -4756,6 +4756,15 @@ def _assert_points_close(
     assert math.isclose(left[1], right[1], abs_tol=abs_tol)
 
 
+def _assert_points_not_close(
+    left: tuple[float, float], right: tuple[float, float], abs_tol: float = 1e-3
+):
+    assert not (
+        math.isclose(left[0], right[0], abs_tol=abs_tol)
+        and math.isclose(left[1], right[1], abs_tol=abs_tol)
+    )
+
+
 def _edge_colors(layout: dict) -> list[str]:
     return [
         operation["color"]
@@ -5132,6 +5141,64 @@ def test_448_samehead_sameport_regular_anchor(concentrate: str):
     assert len(drawn) == 2
     _assert_points_close(
         _edge_endpoint(drawn[0], "head"), _edge_endpoint(drawn[1], "head")
+    )
+
+
+@pytest.mark.parametrize("concentrate", ("false", "true"))
+def test_448_explicit_ports_remain_distinct_without_sameport(concentrate: str):
+    """ordinary explicit port edges should not be merged as sameport."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate={concentrate}]
+                  node [shape=record]
+                  a [label="<p> p | <q> q | <r> r"]
+                  b [label="<p> p | <q> q"]
+                  c [label="<p> p | <q> q"]
+                  a:p -> b:q
+                  a:r -> b:q
+                  a:p -> c:p
+                  a:r -> c:p
+                }}
+            """,
+        )
+    )
+
+    drawn = _drawn_edges(layout)
+    assert len(drawn) == 4
+
+    # Same head port on different tail ports should stay physically distinct.
+    head_port_q = [
+        edge for edge in drawn if edge.get("headport") == "q" and edge.get("tailport") in
+        {"p", "r"}
+    ]
+    assert len(head_port_q) == 2
+    _assert_points_not_close(
+        _edge_endpoint(head_port_q[0], "tail"),
+        _edge_endpoint(head_port_q[1], "tail"),
+        abs_tol=1e-3,
+    )
+    _assert_points_close(
+        _edge_endpoint(head_port_q[0], "head"),
+        _edge_endpoint(head_port_q[1], "head"),
+        abs_tol=1e-3,
+    )
+
+    # Same head node/port with different tail ports should also stay distinct.
+    head_port_p = [edge for edge in drawn if edge.get("headport") == "p"]
+    assert len(head_port_p) == 2
+    _assert_points_not_close(
+        _edge_endpoint(head_port_p[0], "tail"),
+        _edge_endpoint(head_port_p[1], "tail"),
+        abs_tol=1e-3,
+    )
+    _assert_points_close(
+        _edge_endpoint(head_port_p[0], "head"),
+        _edge_endpoint(head_port_p[1], "head"),
+        abs_tol=1e-3,
     )
 
 
