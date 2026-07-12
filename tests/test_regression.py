@@ -5938,14 +5938,16 @@ def test_2648(tmp_path: Path):
 def test_2669():
     """
     `dpi=…` should scale the SVG `viewBox` as well as the overall size
+    without adding `pt` units that make browsers rescale the image
     https://gitlab.com/graphviz/graphviz/-/issues/2669
+    https://gitlab.com/graphviz/graphviz/-/issues/867
     """
 
     # locate our associated test case in this directory
     input = Path(__file__).parent / "2669.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    def parse(xml: str) -> tuple[int, int, tuple[float, float]]:
+    def parse(xml: str) -> tuple[float, float, tuple[float, float]]:
         """
         parse an SVG
 
@@ -5958,11 +5960,15 @@ def test_2669():
 
         root = ET.fromstring(xml)
 
-        assert root.attrib["width"].endswith("pt")
-        width = int(root.attrib["width"][:-2])
+        assert re.fullmatch(
+            r"\d+(\.\d+)?", root.attrib["width"]
+        ), "unexpected SVG width units"
+        width = float(root.attrib["width"])
 
-        assert root.attrib["height"].endswith("pt")
-        height = int(root.attrib["height"][:-2])
+        assert re.fullmatch(
+            r"\d+(\.\d+)?", root.attrib["height"]
+        ), "unexpected SVG height units"
+        height = float(root.attrib["height"])
 
         viewbox = re.match(
             r"\d+(\.\d+)?\s+\d+(\.\d+)?\s+(?P<width>\d+(\.\d+)?)\s+(?P<height>\d+(\.\d+)?)$",

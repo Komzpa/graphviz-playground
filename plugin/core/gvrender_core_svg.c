@@ -256,8 +256,7 @@ static void svg_begin_graph(GVJ_t * job)
     gvprintf(job, " Pages: %d -->\n",
 	     job->pagesArraySize.x * job->pagesArraySize.y);
 
-    gvprintf(job, "<svg width=\"%dpt\" height=\"%dpt\"\n",
-	     job->width, job->height);
+    gvprintf(job, "<svg width=\"%d\" height=\"%d\"\n", job->width, job->height);
     gvprintf(job, " viewBox=\"%d.00 %d.00 %d.00 %d.00\"",
 	job->pageBoundingBox.LL.x,
 	job->pageBoundingBox.LL.y,
