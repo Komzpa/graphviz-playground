@@ -24,6 +24,20 @@
 
 typedef LIST(edge_t *) edge_list_t;
 
+enum {
+    /* ED_gui_state bits 0..3 are the public GUI_STATE_* flags. sameport uses
+       private layout-pass bits because creating a late edge record trips
+       cgraph's move-to-front lock. */
+    SAMEPORT_TAIL_MASK = 1U << 4,
+    SAMEPORT_HEAD_MASK = 1U << 5,
+    SAMEPORT_MASK = SAMEPORT_TAIL_MASK | SAMEPORT_HEAD_MASK,
+};
+
+_Static_assert((SAMEPORT_MASK &
+                (GUI_STATE_ACTIVE | GUI_STATE_SELECTED | GUI_STATE_VISITED |
+                 GUI_STATE_DELETED)) == 0,
+               "sameport layout bits must not overlap GUI state bits");
+
 typedef struct same_t {
     char *id;			/* group id */
     edge_list_t l; // edges in the group
@@ -36,7 +50,73 @@ static void free_same(same_t s) {
 typedef LIST(same_t) same_list_t;
 
 static void sameedge(same_list_t *same, edge_t *e, char *id);
-static void sameport(node_t *u, edge_list_t l);
+static void sameport(node_t *u, edge_list_t l, sameport_endpoint_t endpoint);
+
+static edge_t *sameport_normal_edge(edge_t *e) {
+  while (e != NULL && ED_edge_type(e) != NORMAL)
+    e = ED_to_orig(e);
+  return e;
+}
+
+static unsigned char endpoint_mask(sameport_endpoint_t endpoint) {
+  return endpoint == SAMEPORT_ENDPOINT_HEAD ? SAMEPORT_HEAD_MASK
+                                            : SAMEPORT_TAIL_MASK;
+}
+
+static void mark_sameport_endpoint(edge_t *e, sameport_endpoint_t endpoint) {
+  edge_t *const normal = sameport_normal_edge(e);
+  if (normal == NULL)
+    return;
+  ED_gui_state(normal) |= endpoint_mask(endpoint);
+}
+
+static bool has_sameport_endpoint(edge_t *normal,
+                                  sameport_endpoint_t endpoint) {
+  return (ED_gui_state(normal) & endpoint_mask(endpoint)) != 0;
+}
+
+static void clear_sameport_endpoints(graph_t *g) {
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e))
+      ED_gui_state(e) &= (unsigned char)~SAMEPORT_MASK;
+  }
+}
+
+bool sameport_anchor(edge_t *route_edge, sameport_endpoint_t route_endpoint,
+                     pointf *anchor) {
+  edge_t *const normal = sameport_normal_edge(route_edge);
+  sameport_endpoint_t logical_endpoint;
+  port p;
+  node_t *n;
+
+  if (normal == NULL)
+    return false;
+
+  if ((route_endpoint == SAMEPORT_ENDPOINT_TAIL ? agtail(route_edge)
+                                                : aghead(route_edge)) ==
+      agtail(normal)) {
+    logical_endpoint = SAMEPORT_ENDPOINT_TAIL;
+  } else if ((route_endpoint == SAMEPORT_ENDPOINT_TAIL ? agtail(route_edge)
+                                                       : aghead(route_edge)) ==
+             aghead(normal)) {
+    logical_endpoint = SAMEPORT_ENDPOINT_HEAD;
+  } else {
+    return false;
+  }
+
+  if (!has_sameport_endpoint(normal, logical_endpoint))
+    return false;
+
+  p = logical_endpoint == SAMEPORT_ENDPOINT_HEAD ? ED_head_port(normal)
+                                                 : ED_tail_port(normal);
+  if (!p.defined || p.clip)
+    return false;
+
+  n = logical_endpoint == SAMEPORT_ENDPOINT_HEAD ? aghead(normal)
+                                                 : agtail(normal);
+  *anchor = add_pointf(ND_coord(n), p.p);
+  return true;
+}
 
 void dot_sameports(graph_t * g)
 /* merge edge ports in G */
@@ -49,6 +129,7 @@ void dot_sameports(graph_t * g)
 
     E_samehead = agattr_text(g, AGEDGE, "samehead", NULL);
     E_sametail = agattr_text(g, AGEDGE, "sametail", NULL);
+    clear_sameport_endpoints(g);
     if (!(E_samehead || E_sametail))
 	return;
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
@@ -63,12 +144,12 @@ void dot_sameports(graph_t * g)
 	}
 	for (size_t i = 0; i < LIST_SIZE(&samehead); i++) {
 	    if (LIST_SIZE(&LIST_AT(&samehead, i)->l) > 1)
-		sameport(n, LIST_GET(&samehead, i).l);
+		sameport(n, LIST_GET(&samehead, i).l, SAMEPORT_ENDPOINT_HEAD);
 	}
 	LIST_CLEAR(&samehead);
 	for (size_t i = 0; i < LIST_SIZE(&sametail); i++) {
 	    if (LIST_SIZE(&LIST_AT(&sametail, i)->l) > 1)
-		sameport(n, LIST_GET(&sametail, i).l);
+		sameport(n, LIST_GET(&sametail, i).l, SAMEPORT_ENDPOINT_TAIL);
 	}
 	LIST_CLEAR(&sametail);
     }
@@ -90,7 +171,7 @@ static void sameedge(same_list_t *same, edge_t *e, char *id) {
     LIST_APPEND(same, to_append);
 }
 
-static void sameport(node_t *u, edge_list_t l)
+static void sameport(node_t *u, edge_list_t l, sameport_endpoint_t endpoint)
 /* make all edges in L share the same port on U. The port is placed on the
    node boundary and the average angle between the edges. FIXME: this assumes
    naively that the edges are straight lines, which is wrong if they are long.
@@ -161,6 +242,7 @@ static void sameport(node_t *u, edge_list_t l)
     /* assign one of the ports to every edge */
     for (size_t i = 0; i < LIST_SIZE(&l); i++) {
 	edge_t *e = LIST_GET(&l, i);
+	mark_sameport_endpoint(e, endpoint);
 	for (; e; e = ED_to_virt(e)) {	/* assign to all virt edges of e */
 	    for (f = e; f;
 		 f = ED_edge_type(f) == VIRTUAL &&

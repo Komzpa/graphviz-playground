@@ -4725,6 +4725,37 @@ def _drawn_edge_count(layout: dict) -> int:
     return len(_drawn_edges(layout))
 
 
+def _parse_edge_pos(
+    edge: dict,
+) -> tuple[dict[str, tuple[float, float]], list[tuple[float, float]]]:
+    markers = {}
+    points = []
+    for token in edge["pos"].split():
+        if len(token) >= 2 and token[0] in {"e", "s"} and token[1] == ",":
+            marker, x, y = token.split(",")
+            markers[marker] = (float(x), float(y))
+        else:
+            x, y = token.split(",")
+            points.append((float(x), float(y)))
+    return markers, points
+
+
+def _edge_endpoint(edge: dict, endpoint: str) -> tuple[float, float]:
+    markers, points = _parse_edge_pos(edge)
+    if endpoint == "head":
+        return markers.get("e", points[-1])
+    if endpoint == "tail":
+        return markers.get("s", points[0])
+    raise ValueError(f"unexpected endpoint {endpoint!r}")
+
+
+def _assert_points_close(
+    left: tuple[float, float], right: tuple[float, float], abs_tol: float = 1e-3
+):
+    assert math.isclose(left[0], right[0], abs_tol=abs_tol)
+    assert math.isclose(left[1], right[1], abs_tol=abs_tol)
+
+
 def _edge_colors(layout: dict) -> list[str]:
     return [
         operation["color"]
@@ -5078,6 +5109,79 @@ def test_448_multirank_attributes():
 
     assert _drawn_edge_count(layout) == 2
     assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
+
+
+@pytest.mark.parametrize("concentrate", ("false", "true"))
+def test_448_samehead_sameport_regular_anchor(concentrate: str):
+    """samehead edges should share one physical head anchor."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate={concentrate}]
+                  a -> z [samehead=x]
+                  b -> z [samehead=x]
+                }}
+            """,
+        )
+    )
+
+    drawn = _drawn_edges(layout)
+    assert len(drawn) == 2
+    _assert_points_close(
+        _edge_endpoint(drawn[0], "head"), _edge_endpoint(drawn[1], "head")
+    )
+
+
+@pytest.mark.parametrize("concentrate", ("false", "true"))
+def test_448_sametail_sameport_regular_anchor(concentrate: str):
+    """sametail edges should share one physical tail anchor."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate={concentrate}]
+                  z -> a [sametail=x]
+                  z -> b [sametail=x]
+                }}
+            """,
+        )
+    )
+
+    drawn = _drawn_edges(layout)
+    assert len(drawn) == 2
+    _assert_points_close(
+        _edge_endpoint(drawn[0], "tail"), _edge_endpoint(drawn[1], "tail")
+    )
+
+
+@pytest.mark.parametrize("concentrate", ("false", "true"))
+def test_448_samehead_sameport_flat_anchor(concentrate: str):
+    """flat adjacent samehead edges should share one physical head anchor."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate={concentrate}]
+                  {{ rank=same; a; b; z; }}
+                  a -> z [samehead=x]
+                  b -> z [samehead=x]
+                }}
+            """,
+        )
+    )
+
+    drawn = _drawn_edges(layout)
+    assert len(drawn) == 2
+    _assert_points_close(
+        _edge_endpoint(drawn[0], "head"), _edge_endpoint(drawn[1], "head")
+    )
 
 
 def test_150():

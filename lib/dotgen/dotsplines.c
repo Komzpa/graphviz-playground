@@ -906,6 +906,70 @@ static pointf transformf(pointf p, pointf del, int flip) {
   return add_pointf(p, del);
 }
 
+static pointf inverse_transformf(pointf p, pointf del, int flip) {
+  p = sub_pointf(p, del);
+  if (flip) {
+    const double x = p.x;
+    p.x = -p.y;
+    p.y = x;
+  }
+  return p;
+}
+
+/* sameport selects one physical node-boundary anchor. Routing may offset that
+ * point for path-planner safety; regular, backward, and flat auxiliary routes
+ * restore only explicitly marked sameport anchors at their local boundary.
+ */
+static void restore_sameport_regular(edge_t *route_edge, pointf *ps, size_t pn) {
+  pointf anchor;
+
+  if (pn == 0)
+    return;
+  if (sameport_anchor(route_edge, SAMEPORT_ENDPOINT_TAIL, &anchor))
+    ps[0] = anchor;
+  if (sameport_anchor(route_edge, SAMEPORT_ENDPOINT_HEAD, &anchor))
+    ps[pn - 1] = anchor;
+}
+
+static void restore_sameport_flat(edge_t *e, bezier *bz) {
+  pointf anchor;
+
+  if (bz->size == 0)
+    return;
+  if (sameport_anchor(e, SAMEPORT_ENDPOINT_TAIL, &anchor)) {
+    bz->list[0] = anchor;
+    bz->sp = anchor;
+  }
+  if (sameport_anchor(e, SAMEPORT_ENDPOINT_HEAD, &anchor)) {
+    bz->list[bz->size - 1] = anchor;
+    bz->ep = anchor;
+  }
+}
+
+static void set_aux_sameport_anchor(edge_t *auxe, sameport_endpoint_t endpoint,
+                                    pointf anchor, pointf del, int flip) {
+  port *const aux_port =
+      endpoint == SAMEPORT_ENDPOINT_HEAD ? &ED_head_port(auxe)
+                                         : &ED_tail_port(auxe);
+  node_t *const aux_node =
+      endpoint == SAMEPORT_ENDPOINT_HEAD ? aghead(auxe) : agtail(auxe);
+  const pointf aux_point = inverse_transformf(anchor, del, flip);
+
+  aux_port->defined = true;
+  aux_port->clip = false;
+  aux_port->p = sub_pointf(aux_point, ND_coord(aux_node));
+}
+
+static void set_aux_sameport_anchors(edge_t *auxe, edge_t *orig, pointf del,
+                                     int flip) {
+  pointf anchor;
+
+  if (sameport_anchor(orig, SAMEPORT_ENDPOINT_TAIL, &anchor))
+    set_aux_sameport_anchor(auxe, SAMEPORT_ENDPOINT_TAIL, anchor, del, flip);
+  if (sameport_anchor(orig, SAMEPORT_ENDPOINT_HEAD, &anchor))
+    set_aux_sameport_anchor(auxe, SAMEPORT_ENDPOINT_HEAD, anchor, del, flip);
+}
+
 /* lexicographically order edges by
  *  - has label
  *  - label is wider
@@ -1137,6 +1201,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   edge_t *auxe;
   double midx, midy, leftx, rightx;
   pointf del;
+  pointf route_del;
   edge_t *hvye = NULL;
   static atomic_flag warned;
 
@@ -1233,6 +1298,27 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       ND_coord(n).y = midx;
   }
   dot_sameports(auxg);
+  /* Before dot_splines_()/dotneato_postprocess(), the auxiliary graph is still
+   * in the local coordinate system used for routing. Project sameport anchors
+   * into that space, but recompute the copy-back transform after postprocess
+   * to keep ordinary explicit ports byte-identical to the historical path.
+   */
+  if (GD_flip(g)) {
+    route_del.x = ND_coord(tn).x - ND_coord(auxt).y;
+    route_del.y = ND_coord(tn).y + ND_coord(auxt).x;
+  } else {
+    route_del.x = ND_coord(tn).x - ND_coord(auxt).x;
+    route_del.y = ND_coord(tn).y - ND_coord(auxt).y;
+  }
+  for (unsigned i = 0; i < cnt; i++) {
+    e = edges[i];
+    for (; ED_edge_type(e) != NORMAL; e = ED_to_orig(e))
+      ;
+    auxe = ED_alg(e);
+    if (auxe == NULL)
+      continue;
+    set_aux_sameport_anchors(auxe, e, route_del, GD_flip(g));
+  }
   const int rc = dot_splines_(auxg, 0);
   if (rc != 0) {
     return rc;
@@ -1276,6 +1362,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       cp[3] = transformf(auxbz->list[j], del, GD_flip(g));
       update_bb_bz(&GD_bb(g), cp);
     }
+    restore_sameport_flat(e, bz);
     if (ED_label(e)) {
       ED_label(e)->pos = transformf(ED_label(auxe)->pos, del, GD_flip(g));
       ED_label(e)->set = true;
@@ -1884,6 +1971,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
 
   if (cnt == 1) {
     LIST_SYNC(&pointfs);
+    restore_sameport_regular(fe, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs));
     clip_and_install(fe, hn, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs), &sinfo);
     LIST_FREE(&pointfs);
     LIST_FREE(&pointfs2);
@@ -1896,6 +1984,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
     LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
   LIST_SYNC(&pointfs2);
+  restore_sameport_regular(fe, LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2));
   clip_and_install(fe, hn, LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2), &sinfo);
   for (unsigned j = 1; j < cnt; j++) {
     e = edges[j];
@@ -1909,6 +1998,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
       LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
     LIST_SYNC(&pointfs2);
+    restore_sameport_regular(e, LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2));
     clip_and_install(e, aghead(e), LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2),
                      &sinfo);
   }
