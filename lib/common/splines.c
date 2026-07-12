@@ -324,6 +324,7 @@ conc_slope(node_t* n)
 	s_in += ND_coord(agtail(e)).x;
     for (cnt_out = 0; (e = ND_out(n).list[cnt_out]); cnt_out++)
 	s_out += ND_coord(aghead(e)).x;
+    /* Concentration can leave a virtual node with only one populated side. */
     if (cnt_in > 0) {
 	const double x1 = ND_coord(n).x - s_in / cnt_in;
 	const double y1 = ND_coord(n).y - ND_coord(agtail(ND_in(n).list[0])).y;

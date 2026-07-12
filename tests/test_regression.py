@@ -6205,7 +6205,7 @@ def test_2727():
 
 def test_2764():
     """
-    concentrated opposite-edge routing should not crash on this input
+    a one-sided concentrated virtual node should not crash spline routing
     https://gitlab.com/graphviz/graphviz/-/issues/2764
     """
 
