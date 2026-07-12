@@ -104,6 +104,10 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `concentrate=true` now concentrates equivalent reverse edges between nodes in
+  same-rank subgraphs. #150
 ## [15.1.0] – 2026-06-17
 
 ### Added

@@ -9800,6 +9800,40 @@ def test_concentrate_issue_2765_public_repro_renders_edge_splines():
     _assert_public_concentrate_crash_repro_renders(2765)
 
 
+def test_150():
+    """
+    `concentrate=true` should concentrate equivalent same-rank reverse edges
+    https://gitlab.com/graphviz/graphviz/-/issues/150
+    """
+
+    source = """
+        strict digraph {
+          concentrate=true
+          subgraph foo {
+            rank=same
+            a
+            b
+          }
+          a -> b
+          b -> a
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    drawn = [edge for edge in layout["edges"] if "_draw_" in edge]
+    assert len(drawn) == 1, "same-rank reverse edges were not concentrated"
+
+    distinct = source.replace("a -> b", "a -> b [color=red]").replace(
+        "b -> a", "b -> a [color=blue]"
+    )
+    colors = {
+        operation["color"]
+        for edge in json.loads(dot("json", source=distinct))["edges"]
+        for operation in edge.get("_draw_", ())
+        if operation["op"] == "c"
+    }
+    assert colors == {"#ff0000", "#0000ff"}
+
+
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
 def test_2563():
     """
