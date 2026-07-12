@@ -6327,6 +6327,23 @@ def test_2743():
     dot("dot", src)
 
 
+def test_2760():
+    """
+    Graphviz should not crash when processing this graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2760
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2760.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    output = dot("dot", src)
+
+    # a successful result must include a completed layout
+    assert "pos=" in output
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",
