@@ -201,12 +201,32 @@ static int rebuild_vlists(graph_t * g)
     return 0;
 }
 
+static void concentrate_single_rank(graph_t *g) {
+    for (node_t *n = GD_nlist(g); n != NULL; n = ND_next(n)) {
+        size_t i = 0;
+        while (ND_other(n).list[i] != NULL) {
+            edge_t *const e = ND_other(n).list[i];
+            edge_t *const rep = ED_to_virt(e);
+            /* flat_breakcycles() puts reverse flat edges in ND_other() */
+            if (rep != NULL && ED_label(e) == NULL && ED_label(rep) == NULL &&
+                ports_eq(e, rep) && same_edge_attrs(e, rep)) {
+                zapinlist(&ND_other(n), e);
+                ED_edge_type(e) = IGNORED;
+                continue;
+            }
+            i++;
+        }
+    }
+}
+
 int dot_concentrate(graph_t *g) {
     int c, r, leftpos, rightpos;
     node_t *left, *right;
 
-    if (GD_maxrank(g) - GD_minrank(g) <= 1)
+    if (GD_maxrank(g) - GD_minrank(g) <= 1) {
+	concentrate_single_rank(g);
 	return 0;
+    }
     /* this is the downward looking pass. r is a candidate rank. */
     for (r = 1; GD_rank(g)[r + 1].n; r++) {
 	for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {

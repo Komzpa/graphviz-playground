@@ -85,6 +85,8 @@ and this project adheres to
 
 ### Fixed
 
+- `concentrate=true` now concentrates equivalent reverse edges between nodes in
+  same-rank subgraphs. #150
 - `concentrate=true` no longer merges edges with different attributes, such as
   differently colored parallel or opposite-direction edges.
 
