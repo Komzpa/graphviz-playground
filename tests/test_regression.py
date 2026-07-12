@@ -3916,7 +3916,6 @@ def test_2355():
 
 
 @pytest.mark.parametrize("testcase", ("2368.dot", "2368_1.dot"))
-@pytest.mark.xfail(strict=True)  # FIXME
 def test_2368(testcase: str):
     """
     routesplines should not corrupt its `prev` and `next` indices

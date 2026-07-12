@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `dot` no longer fails to route some concentrated edges when repairing their
+  spline path collapses a routing box. #2368
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
