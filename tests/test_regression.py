@@ -467,6 +467,125 @@ def test_452(attribute: str):
     dot("svg", source=graph.getvalue())
 
 
+def _dot_json_from_source(source: str, *, splines: Optional[str] = None) -> dict:
+    args = ["dot", "-Tjson"]
+    if splines is not None:
+        args.append(f"-Gsplines={splines}")
+    return json.loads(run(*args, input=source))
+
+
+def _visible_edge_counts(source: str, *, splines: Optional[str] = None) -> tuple[int, int]:
+    layout = _dot_json_from_source(source, splines=splines)
+    edges = layout["edges"]
+    visible = sum(1 for edge in edges if edge.get("pos") is not None)
+    return visible, len(edges)
+
+
+def _issue_449_graph(direction: str, *, concentrate: bool) -> str:
+    lines = ["digraph {"]
+    if concentrate:
+        lines.append("  concentrate=true")
+    lines.extend(
+        [
+            '  problem [shape=record, label="<p1>p1|<p2>p2|<p3>p3"]',
+        ]
+    )
+    if direction == "down":
+        lines.extend(
+            [
+                "  subgraph { rank=source; source }",
+                "  some -> problem:p1",
+                "  source -> problem:p2",
+                "  source -> problem:p3",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "  subgraph { rank=sink; sink }",
+                "  problem:p1 -> some",
+                "  problem:p2 -> sink",
+                "  problem:p3 -> sink",
+            ]
+        )
+    lines.append("}")
+    return "\n".join(lines)
+
+
+_ISSUE_449_SPLINES = (
+    pytest.param(None, id="default"),
+    pytest.param("line", id="line"),
+    pytest.param("polyline", id="polyline"),
+    pytest.param("curved", id="curved"),
+    pytest.param("ortho", id="ortho"),
+)
+
+
+@pytest.mark.parametrize("direction", ("down", "up"))
+@pytest.mark.parametrize("splines", _ISSUE_449_SPLINES)
+def test_449_distinct_record_ports(direction: str, splines: Optional[str]):
+    """
+    concentrate=true should preserve distinct multi-rank record-port continuations
+    https://gitlab.com/graphviz/graphviz/-/issues/449
+    """
+
+    visible, total = _visible_edge_counts(
+        _issue_449_graph(direction, concentrate=True), splines=splines
+    )
+    assert (visible, total) == (3, 3), "distinct record-port routes were merged"
+
+    visible, total = _visible_edge_counts(
+        _issue_449_graph(direction, concentrate=False), splines=splines
+    )
+    assert (visible, total) == (3, 3), "non-concentrated control lost a route"
+
+
+@pytest.mark.parametrize("splines", _ISSUE_449_SPLINES)
+def test_449_same_port_duplicates_still_concentrate(splines: Optional[str]):
+    """
+    equivalent multi-rank duplicates sharing the same port should still concentrate
+    https://gitlab.com/graphviz/graphviz/-/issues/449
+    """
+
+    source = textwrap.dedent(
+        """\
+        digraph {
+          concentrate=true
+          problem [shape=record, label="<p1>p1|<p2>p2|<p3>p3"]
+          subgraph { rank=source; source }
+          some -> problem:p1
+          source -> problem:p2
+          source -> problem:p2
+        }
+        """
+    )
+
+    visible, total = _visible_edge_counts(source, splines=splines)
+    assert (visible, total) == (2, 3), "same-port duplicates stopped concentrating"
+
+
+@pytest.mark.parametrize("splines", _ISSUE_449_SPLINES)
+def test_449_equivalent_parallel_edges_still_concentrate(splines: Optional[str]):
+    """
+    equivalent parallel edges should still collapse to one visible route
+    https://gitlab.com/graphviz/graphviz/-/issues/449
+    """
+
+    source = textwrap.dedent(
+        """\
+        digraph {
+          concentrate=true
+          a -> b
+          a -> b
+          a -> b
+        }
+        """
+    )
+
+    visible, total = _visible_edge_counts(source, splines=splines)
+    assert (visible, total) == (1, 3), "equivalent parallel edges stopped concentrating"
+
+
 def test_510():
     """
     HSV colors should also support an alpha channel

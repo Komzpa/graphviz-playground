@@ -63,6 +63,17 @@ static bool upcandidate(node_t * v)
 	    && ND_in(v).size == 1 && ND_label(v) == NULL;
 }
 
+static bool compatible_continuation(edge_t *candidate, edge_t *edge, int dir)
+{
+    if (dir == DOWN) {
+	return aghead(candidate) == aghead(edge)
+	    && portcmp(ED_head_port(candidate), ED_head_port(edge)) == 0;
+    }
+
+    return agtail(candidate) == agtail(edge)
+	&& portcmp(ED_tail_port(candidate), ED_tail_port(edge)) == 0;
+}
+
 static bool bothupcandidates(node_t * u, node_t * v)
 {
     edge_t *e, *f;
@@ -88,7 +99,7 @@ static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
 	if (dir == DOWN) {
 	    while ((e = ND_out(right).list[0])) {
 		for (k = 0; (f = ND_out(left).list[k]); k++)
-		    if (aghead(f) == aghead(e))
+		    if (compatible_continuation(f, e, dir))
 			break;
 		if (f == NULL)
 		    f = virtual_edge(left, aghead(e), e);
@@ -101,7 +112,7 @@ static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
 	} else {
 	    while ((e = ND_in(right).list[0])) {
 		for (k = 0; (f = ND_in(left).list[k]); k++)
-		    if (agtail(f) == agtail(e))
+		    if (compatible_continuation(f, e, dir))
 			break;
 		if (f == NULL)
 		    f = virtual_edge(agtail(e), left, e);
