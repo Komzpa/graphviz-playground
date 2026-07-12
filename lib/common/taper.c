@@ -100,10 +100,24 @@ typedef struct {
 
 typedef LIST(pathpoint) vararr_t;
 
-static void
-insertArr (vararr_t* arr, pointf p, double l)
-{
-  pathpoint pt = {.x = p.x, .y = p.y, .lengthsofar = l};
+static double l2dist(pointf p0, pointf p1) {
+  double delx = p0.x - p1.x;
+  double dely = p0.y - p1.y;
+  return hypot(delx, dely);
+}
+
+static void insertArr(vararr_t *arr, pointf p, double *linelen) {
+  if (LIST_SIZE(arr) > 0) {
+    const pathpoint last = LIST_GET(arr, LIST_SIZE(arr) - 1);
+    const pointf last_point = {last.x, last.y};
+    const double seglen = l2dist(last_point, p);
+    if (seglen == 0) {
+      return;
+    }
+    *linelen += seglen;
+  }
+
+  const pathpoint pt = {.x = p.x, .y = p.y, .lengthsofar = *linelen};
   LIST_APPEND(arr, pt);
 }
 
@@ -118,49 +132,43 @@ printArr (vararr_t* arr, FILE* fp)
     }
 }
 
-static double l2dist (pointf p0, pointf p1)
-{
-    double delx = p0.x - p1.x;
-    double dely = p0.y - p1.y;
-    return hypot(delx, dely);
-}
-
 /* analyze current path, creating pathpoints array
  * turn all curves into lines
  */
-static vararr_t pathtolines(bezier *bez) {
-    int step;
-    double seglen, linelen = 0;
-    vararr_t arr = {0};
-    pointf p0, p1, V[4];
-    const size_t n = bez->size;
-    pointf* A = bez->list;
+static vararr_t pathtolines(splines *spl) {
+  int step;
+  double linelen = 0;
+  vararr_t arr = {0};
+  pointf p1, V[4];
 
-    insertArr(&arr, A[0], 0);
+  for (size_t bez_i = 0; bez_i < spl->size; bez_i++) {
+    bezier *bez = &spl->list[bez_i];
+    const size_t n = bez->size;
+    pointf *A = bez->list;
+
+    insertArr(&arr, A[0], &linelen);
     V[3] = A[0];
     for (size_t i = 0; i + 3 < n; i += 3) {
-	V[0] = V[3];
-	for (size_t j = 1; j <= 3; j++)
-	    V[j] = A[i + j];
-	p0 = V[0];
-	for (step = 1; step <= BEZIERSUBDIVISION; step++) {
-	    p1 = Bezier(V, (double) step / BEZIERSUBDIVISION, NULL, NULL);
-	    seglen = l2dist(p0, p1);
-	    /* If initwid is large, this may never happen, so turn off. I assume this is to prevent
-	     * too man points or too small a movement. Perhaps a better test can be made, but for now
-	     * we turn it off. 
-	     */
-	    /* if (seglen > initwid/10) { */
-		linelen += seglen;
-		insertArr(&arr, p1, linelen);
-	    /* } */
-	    p0 = p1;
-	}
+      V[0] = V[3];
+      for (size_t j = 1; j <= 3; j++) {
+        V[j] = A[i + j];
+      }
+      for (step = 1; step <= BEZIERSUBDIVISION; step++) {
+        p1 = Bezier(V, (double)step / BEZIERSUBDIVISION, NULL, NULL);
+        /* If initwid is large, this may never happen, so turn off. I assume
+         * this is to prevent too man points or too small a movement. Perhaps a
+         * better test can be made, but for now we turn it off.
+         */
+        /* if (seglen > initwid/10) { */
+        insertArr(&arr, p1, &linelen);
+        /* } */
+      }
     }
-    if (debug) {
-	printArr(&arr, stderr);
-    }
-    return arr;
+  }
+  if (debug) {
+    printArr(&arr, stderr);
+  }
+  return arr;
 }
 
 static void drawbevel(double x, double lineout, bool forward, double dir,
@@ -178,136 +186,136 @@ static void drawbevel(double x, double lineout, bool forward, double dir,
 typedef double (*radfunc_t) (double curlen, double totallen, double initwid);
 
 /* taper:
- * Given a B-spline bez, returns a polygon that represents spline as a tapered
+ * Given B-splines spl, returns a polygon that represents them as a tapered
  * edge, starting with width initwid.
  * The radfunc determines the half-width along the curve. Typically, this will
  * decrease from initwid to 0 as the curlen goes from 0 to totallen.
  */
-stroke_t taper(bezier *bez, radfunc_t radfunc, double initwid) {
-    double direction=0, direction_2=0;
-    vararr_t arr = pathtolines(bez);
-    pathpoint cur_point, last_point, next_point;
-    double x=0, y=0, dist;
-    double nx, ny, ndir;
-    double lx, ly, ldir;
-    double lineout=0, linerad=0, linelen=0;
-    double theta, phi;
+stroke_t taper(splines *spl, radfunc_t radfunc, double initwid) {
+  double direction = 0, direction_2 = 0;
+  vararr_t arr = pathtolines(spl);
+  pathpoint cur_point, last_point, next_point;
+  double x = 0, y = 0, dist;
+  double nx, ny, ndir;
+  double lx, ly, ldir;
+  double lineout = 0, linerad = 0, linelen = 0;
+  double theta, phi;
 
-    size_t pathcount;
-    pathpoint *pathpoints;
-    LIST_DETACH(&arr, &pathpoints, &pathcount);
-    linelen = pathpoints[pathcount-1].lengthsofar;
+  size_t pathcount;
+  pathpoint *pathpoints;
+  LIST_DETACH(&arr, &pathpoints, &pathcount);
+  linelen = pathpoints[pathcount - 1].lengthsofar;
 
-    /* determine miter and bevel points and directions */
-    for (size_t i = 0; i < pathcount; i++) {
-	const size_t l = i == 0 ? pathcount - 1 : i - 1;
-	const size_t n = (i + 1) % pathcount;
+  /* determine miter and bevel points and directions */
+  for (size_t i = 0; i < pathcount; i++) {
+    const size_t l = i == 0 ? pathcount - 1 : i - 1;
+    const size_t n = (i + 1) % pathcount;
 
-	cur_point = pathpoints[i];
-	x = cur_point.x;
-	y = cur_point.y;
-	dist = cur_point.lengthsofar;
+    cur_point = pathpoints[i];
+    x = cur_point.x;
+    y = cur_point.y;
+    dist = cur_point.lengthsofar;
 
-	next_point = pathpoints[n];
-	nx = next_point.x;
-	ny = next_point.y;
-	ndir = myatan (ny-y, nx-x);
+    next_point = pathpoints[n];
+    nx = next_point.x;
+    ny = next_point.y;
+    ndir = myatan(ny - y, nx - x);
 
-	last_point = pathpoints[l];
-	lx = last_point.x;
-	ly = last_point.y;
-	ldir = myatan (ly-y, lx-x);
+    last_point = pathpoints[l];
+    lx = last_point.x;
+    ly = last_point.y;
+    ldir = myatan(ly - y, lx - x);
 
-	bool bevel = false;
-	direction_2 = 0;
+    bool bevel = false;
+    direction_2 = 0;
 
-	    /* effective line radius at this point */
-	linerad = radfunc(dist, linelen, initwid);
+    /* effective line radius at this point */
+    linerad = radfunc(dist, linelen, initwid);
 
- 	if (i == 0 || i == pathcount-1) {
-	    lineout = linerad;
-	    if (i == 0) {
-		direction = ndir + D2R(90);
-	    } else {
-		direction = ldir - D2R(90);
-	    }
-	    direction_2 = direction;
-	} else {
-	    theta = ndir-ldir;
-	    if (theta < 0) {
-		theta += D2R(360);
-	    }
-	    phi = D2R(90) - theta / 2;
-		 /* actual distance to junction point */
-	    if (cos(phi) == 0) {
-		lineout = 0;
-	    } else {
-		lineout = linerad / cos(phi);
-	    }
-		 /* direction to junction point */
-	    direction = ndir+D2R(90)+phi;
-	    if (lineout > currentmiterlimit * linerad) {
-		bevel = true;
-		lineout = linerad;
-		direction = mymod(ldir-D2R(90),D2R(360));
-		direction_2 = mymod(ndir+D2R(90),D2R(360));
-		if (i == pathcount-1) {
-		    bevel = false;
-		}
-	    } else {
-		direction_2 = direction;
-	    }
-	}
-	pathpoints[i].x = x;
-	pathpoints[i].y = y;
-	pathpoints[i].lengthsofar = dist;
-	pathpoints[i].type = 'l';
-	pathpoints[i].dir = direction;
-	pathpoints[i].lout = lineout;
-	pathpoints[i].bevel = bevel;
-	pathpoints[i].dir2 = direction_2;
+    if (i == 0 || i == pathcount - 1) {
+      lineout = linerad;
+      if (i == 0) {
+        direction = ndir + D2R(90);
+      } else {
+        direction = ldir - D2R(90);
+      }
+      direction_2 = direction;
+    } else {
+      theta = ndir - ldir;
+      if (theta < 0) {
+        theta += D2R(360);
+      }
+      phi = D2R(90) - theta / 2;
+      /* actual distance to junction point */
+      if (cos(phi) == 0) {
+        lineout = 0;
+      } else {
+        lineout = linerad / cos(phi);
+      }
+      /* direction to junction point */
+      direction = ndir + D2R(90) + phi;
+      if (lineout > currentmiterlimit * linerad) {
+        bevel = true;
+        lineout = linerad;
+        direction = mymod(ldir - D2R(90), D2R(360));
+        direction_2 = mymod(ndir + D2R(90), D2R(360));
+        if (i == pathcount - 1) {
+          bevel = false;
+        }
+      } else {
+        direction_2 = direction;
+      }
     }
+    pathpoints[i].x = x;
+    pathpoints[i].y = y;
+    pathpoints[i].lengthsofar = dist;
+    pathpoints[i].type = 'l';
+    pathpoints[i].dir = direction;
+    pathpoints[i].lout = lineout;
+    pathpoints[i].bevel = bevel;
+    pathpoints[i].dir2 = direction_2;
+  }
 
-	 /* draw line */
-    stroke_t p = {0};
-	 /* side 1 */
-    for (size_t i = 0; i < pathcount; i++) {
-	cur_point = pathpoints[i];
-	x = cur_point.x;
-	y = cur_point.y;
-	direction = cur_point.dir;
-	lineout = cur_point.lout;
-	bool bevel = cur_point.bevel;
-	direction_2 = cur_point.dir2;
-	if (i == 0) {
-	    moveto(&p, x+cos(direction)*lineout, y+sin(direction)*lineout);
-	} else {
-	    lineto(&p, x+cos(direction)*lineout, y+sin(direction)*lineout);
-	}
-	if (bevel) {
-	    drawbevel(x, lineout, true, direction, direction_2, &p);
-	}
+  /* draw line */
+  stroke_t p = {0};
+  /* side 1 */
+  for (size_t i = 0; i < pathcount; i++) {
+    cur_point = pathpoints[i];
+    x = cur_point.x;
+    y = cur_point.y;
+    direction = cur_point.dir;
+    lineout = cur_point.lout;
+    bool bevel = cur_point.bevel;
+    direction_2 = cur_point.dir2;
+    if (i == 0) {
+      moveto(&p, x + cos(direction) * lineout, y + sin(direction) * lineout);
+    } else {
+      lineto(&p, x + cos(direction) * lineout, y + sin(direction) * lineout);
     }
-	 /* end circle as needed */
-    direction += D2R(180);
-    lineto(&p, x+cos(direction)*lineout, y+sin(direction)*lineout);
-	 /* side 2 */
-    assert(pathcount > 0);
-    for (size_t i = pathcount - 2; i != SIZE_MAX; i--) {
-	cur_point = pathpoints[i];
-	x = cur_point.x;
-	y = cur_point.y;
-	direction = cur_point.dir + D2R(180);
-	lineout = cur_point.lout;
-	bool bevel = cur_point.bevel;
-	direction_2 = cur_point.dir2 + D2R(180);
-	lineto(&p, x+cos(direction_2)*lineout, y+sin(direction_2)*lineout);
-	if (bevel) { 
-	    drawbevel(x, lineout, false, direction, direction_2, &p);
-	}
+    if (bevel) {
+      drawbevel(x, lineout, true, direction, direction_2, &p);
     }
-    free(pathpoints);
-    return p;
+  }
+  /* end circle as needed */
+  direction += D2R(180);
+  lineto(&p, x + cos(direction) * lineout, y + sin(direction) * lineout);
+  /* side 2 */
+  assert(pathcount > 0);
+  for (size_t i = pathcount - 2; i != SIZE_MAX; i--) {
+    cur_point = pathpoints[i];
+    x = cur_point.x;
+    y = cur_point.y;
+    direction = cur_point.dir + D2R(180);
+    lineout = cur_point.lout;
+    bool bevel = cur_point.bevel;
+    direction_2 = cur_point.dir2 + D2R(180);
+    lineto(&p, x + cos(direction_2) * lineout, y + sin(direction_2) * lineout);
+    if (bevel) {
+      drawbevel(x, lineout, false, direction, direction_2, &p);
+    }
+  }
+  free(pathpoints);
+  return p;
 }
 
 #ifdef TEST

@@ -83,6 +83,10 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Tapered edges now retain shared segments created by `concentrate=true`. #2075
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

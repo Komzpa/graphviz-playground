@@ -147,7 +147,9 @@ RENDER_API textlabel_t *make_label(void *obj, char *str, bool is_html,
     RENDER_API void make_simple_label (GVC_t * gvc, textlabel_t* rv);
     RENDER_API int stripedBox(GVJ_t *job, pointf *AF, const char *clrs,
                               int rotate);
-    RENDER_API stroke_t taper (bezier*, double (*radfunc_t)(double,double,double), double initwid);
+    RENDER_API stroke_t taper(splines *,
+                              double (*radfunc_t)(double, double, double),
+                              double initwid);
     RENDER_API pointf textspan_size(GVC_t * gvc, textspan_t * span);
     RENDER_API void textfont_dict_open(GVC_t *gvc);
     RENDER_API void textfont_dict_close(GVC_t *gvc);
