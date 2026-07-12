@@ -13,6 +13,7 @@
 
 #include "config.h"
 
+#include <common/concentrate_compat.h>
 #include <dotgen/dot.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -20,16 +21,17 @@
 #include <util/alloc.h>
 #include <util/gv_math.h>
 
-bool same_edge_attrs(edge_t *e, edge_t *f) {
-  graph_t *const g = agroot(agraphof(e));
+static bool mergeable_with_state(const concentrate_compat_state_t *attr_state,
+                                 edge_t *e, edge_t *f) {
+  concentrate_edge_pair_compat_t compat;
 
-  for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
-       attr = agnxtattr(g, AGEDGE, attr)) {
-    if (strcmp(agxget(e, attr), agxget(f, attr)) != 0) {
-      return false;
-    }
+  if (!(e && f && agtail(e) == agtail(f) && aghead(e) == aghead(f) &&
+        ED_label(e) == ED_label(f))) {
+    return false;
   }
-  return true;
+
+  concentrate_edge_pair_compat_init(attr_state, e, f, &compat);
+  return compat.parallel_mergeable;
 }
 
 static node_t*
@@ -161,8 +163,13 @@ void merge_chain(graph_t *g, edge_t *e, edge_t *f, bool update_count) {
 }
 
 bool mergeable(edge_t *e, edge_t *f) {
-  return e && f && agtail(e) == agtail(f) && aghead(e) == aghead(f) &&
-         ED_label(e) == ED_label(f) && ports_eq(e, f);
+  concentrate_compat_state_t attr_state;
+
+  if (!(e && f)) {
+    return false;
+  }
+  concentrate_compat_state_init(agroot(agraphof(e)), &attr_state);
+  return mergeable_with_state(&attr_state, e, f);
 }
 
 void class2(graph_t * g)
@@ -170,8 +177,10 @@ void class2(graph_t * g)
     int c;
     node_t *n, *t, *h;
     edge_t *e, *prev, *opp;
+    concentrate_compat_state_t attr_state;
 
     GD_nlist(g) = NULL;
+    concentrate_compat_state_init(agroot(g), &attr_state);
 
     mark_clusters(g);
     for (c = 1; c <= GD_n_cluster(g); c++)
@@ -200,7 +209,7 @@ void class2(graph_t * g)
 	    /* edges involving sub-clusters of g */
 	    if (is_cluster_edge(e)) {
 		/* following is new cluster multi-edge code */
-		if (mergeable(prev, e)) {
+		if (mergeable_with_state(&attr_state, prev, e)) {
 		    if (ED_to_virt(prev)) {
 			merge_chain(g, e, ED_to_virt(prev), false);
 			other_edge(e);
@@ -222,8 +231,10 @@ void class2(graph_t * g)
 		    other_edge(e);
 		    continue;
 		}
+		concentrate_edge_pair_compat_t compat;
+		concentrate_edge_pair_compat_init(&attr_state, e, prev, &compat);
 		if (ED_label(e) == NULL && ED_label(prev) == NULL
-		    && ports_eq(e, prev) && same_edge_attrs(e, prev)) {
+		    && compat.parallel_mergeable) {
 		    if (Concentrate)
 			ED_edge_type(e) = IGNORED;
 		    else {
@@ -277,8 +288,11 @@ void class2(graph_t * g)
 		    /* shadows a forward edge */
 		    if (ED_to_virt(opp) == NULL)
 			make_chain(g, agtail(opp), aghead(opp), opp);
+		    concentrate_edge_pair_compat_t compat;
+		    concentrate_edge_pair_compat_init(&attr_state, e, opp,
+                                                      &compat);
 		    if (ED_label(e) == NULL && ED_label(opp) == NULL
-			&& ports_eq(e, opp) && same_edge_attrs(e, opp)) {
+			&& compat.opposite_mergeable) {
 			if (Concentrate) {
 			    ED_edge_type(e) = IGNORED;
 			    ED_conc_opp_flag(opp) = true;

@@ -32,10 +32,11 @@
 #include <ortho/maze.h>
 #include <ortho/fPQ.h>
 #include <ortho/ortho.h>
+#include <common/concentrate_compat.h>
 #include <common/geomprocs.h>
 #include <common/globals.h>
-#include <common/render.h>
 #include <common/pointset.h>
+#include <common/render.h>
 #include <util/alloc.h>
 #include <util/exit.h>
 #include <util/gv_math.h>
@@ -47,18 +48,6 @@ typedef struct {
     double d;
     Agedge_t* e;
 } epair_t;
-
-static bool ortho_edge_attrs_eq(Agedge_t *e, Agedge_t *f) {
-  Agraph_t *const g = agroot(agraphof(e));
-
-  for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
-       attr = agnxtattr(g, AGEDGE, attr)) {
-    if (strcmp(agxget(e, attr), agxget(f, attr)) != 0) {
-      return false;
-    }
-  }
-  return true;
-}
 
 static UNUSED void emitSearchGraph(FILE *fp, sgraph *sg);
 static UNUSED void emitGraph(FILE *fp, maze *mp, size_t n_edges,
@@ -1178,6 +1167,9 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     PointMap *edge_groups = NULL;
     const size_t edge_capacity = agnedges(g);
     size_t *next_in_group = NULL;
+    concentrate_compat_state_t attr_state;
+
+    concentrate_compat_state_init(agroot(g), &attr_state);
 
     if (Concentrate) {
 	ps = newPS();
@@ -1239,6 +1231,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
         for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
+	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
 		int ti = AGSEQ(agtail(e));
 		int hi = AGSEQ(aghead(e));
@@ -1250,7 +1243,15 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
 		    for (size_t i = group; i != edge_capacity;
 			 i = next_in_group[i]) {
 			Agedge_t *const routed = es[i].e;
-			if (ortho_edge_attrs_eq(e, routed)) {
+			concentrate_edge_pair_compat_t compat;
+			concentrate_edge_relation_t relation =
+                            concentrate_edge_relation(e, routed);
+			concentrate_edge_pair_compat_init(&attr_state, e, routed,
+                                                          &compat);
+			if ((relation == CONCENTRATE_RELATION_PARALLEL &&
+                             compat.parallel_mergeable) ||
+                            (relation == CONCENTRATE_RELATION_OPPOSITE &&
+                             compat.opposite_mergeable)) {
 			    equivalent = true;
 			    break;
 			}

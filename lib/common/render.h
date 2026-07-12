@@ -59,6 +59,10 @@ extern "C" {
 #endif
 
 	RENDER_API void add_box(path *, boxf);
+    RENDER_API void arrow_flags_with_attrs(Agedge_t *e, Agsym_t *dir_attr,
+                                           Agsym_t *arrowhead_attr,
+                                           Agsym_t *arrowtail_attr,
+                                           uint32_t *sflag, uint32_t *eflag);
     RENDER_API void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag);
     RENDER_API boxf arrow_bb(pointf p, pointf u, double arrowsize);
     RENDER_API void arrow_gen(GVJ_t * job, emit_state_t emit_state, pointf p, pointf u,

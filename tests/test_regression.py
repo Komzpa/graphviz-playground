@@ -4717,45 +4717,367 @@ def test_2559():
     ), "concentrated edge drawn as a regular straight edge"
 
 
+def _drawn_edges(layout: dict) -> list[dict]:
+    return [edge for edge in layout["edges"] if "pos" in edge]
+
+
+def _drawn_edge_count(layout: dict) -> int:
+    return len(_drawn_edges(layout))
+
+
+def _edge_colors(layout: dict) -> list[str]:
+    return [
+        operation["color"]
+        for edge in _drawn_edges(layout)
+        for operation in edge.get("_draw_", ())
+        if operation["op"] == "c"
+    ]
+
+
+def _draw_op_count(layout: dict, op: str) -> int:
+    return sum(
+        1
+        for edge in _drawn_edges(layout)
+        for key in ("_tdraw_", "_hdraw_")
+        for operation in edge.get(key, ())
+        if operation["op"] == op
+    )
+
+
+def test_448_plain_opposite_edges():
+    """
+    plain opposite edges should still share one route with arrows at both ends
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  a -> b
+                  b -> a
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+    assert _draw_op_count(layout, "P") == 2
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_preserves_edge_attributes(splines: str):
-    """`concentrate=true` should only merge equivalent edges."""
+def test_448_plain_opposite_edges_with_splines(splines: str):
+    """opposite plain edges should keep arrows at both physical ends."""
 
-    def drawn_colors(source: str) -> list[str]:
-        layout = json.loads(dot("json", source=source))
-        return [
-            operation["color"]
-            for edge in layout["edges"]
-            for operation in edge.get("_draw_", ())
-            if operation["op"] == "c"
-        ]
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b
+                  b -> a
+                }}
+            """,
+        )
+    )
 
-    distinct = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=blue]
-        }}
+    assert _drawn_edge_count(layout) == 1
+    assert _draw_op_count(layout, "P") == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_opposite_arrow_semantics(splines: str):
     """
-    assert set(drawn_colors(distinct)) == {"#ff0000", "#0000ff"}
-
-    opposite = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          b -> a [color=blue]
-        }}
+    incompatible opposite arrows should not collapse into one dot-only route
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
     """
-    assert set(drawn_colors(opposite)) == {"#ff0000", "#0000ff"}
 
-    equivalent = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=red]
-        }}
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [dir=both, arrowhead=vee, arrowtail=dot]
+                  b -> a [dir=both, arrowhead=vee, arrowtail=dot]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert _draw_op_count(layout, "P") == 2
+    assert _draw_op_count(layout, "E") == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_opposite_ports_incompatible(splines: str):
     """
-    assert drawn_colors(equivalent) == ["#ff0000"]
+    opposite edges with different physical endpoints should stay distinct
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  node [shape=record]
+                  a [label="<p> p | <q> q"]
+                  b [label="<p> p | <q> q"]
+                  a:p -> b:q
+                  b:p -> a:q
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_opposite_ports_cross_compatible(splines: str):
+    """
+    opposite edges using the same physical endpoint pair should still merge
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  node [shape=record]
+                  a [label="<p> p | <q> q"]
+                  b [label="<p> p | <q> q"]
+                  a:p -> b:q
+                  b:q -> a:p
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_equivalent_parallel_edges(splines: str):
+    """
+    equivalent parallel edges should still concentrate into one route
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [color=red]
+                  a -> b [color=red]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+    assert _edge_colors(layout) == ["#ff0000"]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_distinct_edge_attributes(splines: str):
+    """
+    `concentrate=true` should keep distinct attributes separate
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    distinct = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [color=red]
+                  a -> b [color=blue]
+                }}
+            """,
+        )
+    )
+    assert _drawn_edge_count(distinct) == 2
+    assert set(_edge_colors(distinct)) == {"#ff0000", "#0000ff"}
+
+    opposite = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [color=red]
+                  b -> a [color=blue]
+                }}
+            """,
+        )
+    )
+    assert _drawn_edge_count(opposite) == 2
+    assert set(_edge_colors(opposite)) == {"#ff0000", "#0000ff"}
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+@pytest.mark.parametrize("order", ("none-first", "forward-first"))
+def test_448_parallel_dir_none_is_order_independent(splines: str, order: str):
+    """parallel dir=none and dir=forward edges must not merge by input order."""
+
+    first, second = (
+        ('a -> b [dir=none, color=red]', 'a -> b [dir=forward, color=blue]')
+        if order == "none-first"
+        else ('a -> b [dir=forward, color=blue]', 'a -> b [dir=none, color=red]')
+    )
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  {first}
+                  {second}
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_parallel_distinct_arrowheads_remain_separate(splines: str):
+    """parallel edges with different arrowhead shapes must not merge."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [arrowhead=vee, color=red]
+                  a -> b [arrowhead=dot, color=blue]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
+
+
+def test_448_parallel_labels_remain_separate():
+    """parallel edges with different labels must stay distinct."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  a -> b [label="left", color=red]
+                  a -> b [label="right", color=blue]
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
+
+
+@pytest.mark.parametrize("attribute", ("samehead", "sametail"))
+def test_448_parallel_grouped_vs_plain_edges_remain_separate(attribute: str):
+    """samehead/sametail grouping must not absorb a plain multirank edge."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true]
+                  s0 -> z [{attribute}=x, minlen=2, color=red]
+                  s1 -> z [minlen=2, color=blue]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
+
+
+@pytest.mark.parametrize("attribute", ("samehead", "sametail"))
+def test_448_parallel_different_groups_remain_separate(attribute: str):
+    """different samehead/sametail groups must not merge."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true]
+                  s0 -> z [{attribute}=x, minlen=2, color=red]
+                  s1 -> z [{attribute}=y, minlen=2, color=blue]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
+
+
+def test_448_multirank_equivalent_edges_merge():
+    """equivalent multirank samehead edges should still concentrate."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  a -> z [samehead=x, minlen=2, color=red]
+                  a -> z [samehead=x, minlen=2, color=red]
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+    assert _edge_colors(layout) == ["#ff0000"]
+
+
+def test_448_multirank_attributes():
+    """
+    multirank concentrated edges should preserve each edge's own color
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  s0 -> z [color=red, samehead=x, minlen=2]
+                  s1 -> z [color=blue, samehead=x, minlen=2]
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
 
 
 def test_150():

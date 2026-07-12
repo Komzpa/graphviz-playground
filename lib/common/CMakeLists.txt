@@ -39,6 +39,7 @@ add_library(common_obj OBJECT
   args.c
   arrows.c
   colxlate.c
+  concentrate_compat.c
   ellipse.c
   emit.c
   geom.c

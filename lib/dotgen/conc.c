@@ -15,27 +15,27 @@
 
 #include "config.h"
 
+#include <common/concentrate_compat.h>
 #include	<dotgen/dot.h>
 #include	<stdbool.h>
 
 #define		UP		0
 #define		DOWN	1
 
-static bool samedir(edge_t * e, edge_t * f)
+static bool same_direction_compatible(
+    const concentrate_compat_state_t *attr_state,
+                                      edge_t *e, edge_t *f)
 {
-    edge_t *e0, *f0;
+    concentrate_edge_pair_compat_t compat;
+    edge_t *const e0 = concentrate_normal_edge(e);
+    edge_t *const f0 = concentrate_normal_edge(f);
 
-    for (e0 = e; e0 != NULL && ED_edge_type(e0) != NORMAL; e0 = ED_to_orig(e0));
-    if (e0 == NULL)
-	return false;
-    for (f0 = f; f0 != NULL && ED_edge_type(f0) != NORMAL; f0 = ED_to_orig(f0));
-    if (f0 == NULL)
-	return false;
-    if (ED_conc_opp_flag(e0))
-	return false;
-    if (ED_conc_opp_flag(f0))
-	return false;
-    return same_edge_attrs(e0, f0) &&
+    if (e0 == NULL || f0 == NULL)
+        return false;
+    if (ED_conc_opp_flag(e0) || ED_conc_opp_flag(f0))
+        return false;
+    concentrate_edge_pair_compat_init(attr_state, e, f, &compat);
+    return compat.parallel_mergeable &&
            ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
                 (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
             0);
@@ -47,14 +47,14 @@ static bool downcandidate(node_t * v)
 	    && ND_out(v).size == 1 && ND_label(v) == NULL;
 }
 
-static bool bothdowncandidates(node_t * u, node_t * v)
+static bool bothdowncandidates(const concentrate_compat_state_t *attr_state,
+                               node_t *u, node_t *v)
 {
     edge_t *e, *f;
     e = ND_in(u).list[0];
     f = ND_in(v).list[0];
     if (downcandidate(v) && agtail(e) == agtail(f)) {
-	return samedir(e, f)
-	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0;
+	return same_direction_compatible(attr_state, e, f);
     }
     return false;
 }
@@ -65,14 +65,15 @@ static bool upcandidate(node_t * v)
 	    && ND_in(v).size == 1 && ND_label(v) == NULL;
 }
 
-static bool bothupcandidates(node_t * u, node_t * v)
+static bool bothupcandidates(const concentrate_compat_state_t *attr_state,
+                             node_t *u,
+                             node_t *v)
 {
     edge_t *e, *f;
     e = ND_out(u).list[0];
     f = ND_out(v).list[0];
     if (upcandidate(v) && aghead(e) == aghead(f)) {
-	return samedir(e, f)
-	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0;
+	return same_direction_compatible(attr_state, e, f);
     }
     return false;
 }
@@ -222,11 +223,13 @@ static void concentrate_single_rank(graph_t *g) {
 int dot_concentrate(graph_t *g) {
     int c, r, leftpos, rightpos;
     node_t *left, *right;
+    concentrate_compat_state_t attr_state;
 
     if (GD_maxrank(g) - GD_minrank(g) <= 1) {
 	concentrate_single_rank(g);
 	return 0;
     }
+    concentrate_compat_state_init(agroot(g), &attr_state);
     /* this is the downward looking pass. r is a candidate rank. */
     for (r = 1; GD_rank(g)[r + 1].n; r++) {
 	for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {
@@ -236,7 +239,7 @@ int dot_concentrate(graph_t *g) {
 	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
 		 rightpos++) {
 		right = GD_rank(g)[r].v[rightpos];
-		if (!bothdowncandidates(left, right))
+		if (!bothdowncandidates(&attr_state, left, right))
 		    break;
 	    }
 	    if (rightpos - leftpos > 1)
@@ -252,7 +255,7 @@ int dot_concentrate(graph_t *g) {
 	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
 		 rightpos++) {
 		right = GD_rank(g)[r].v[rightpos];
-		if (!bothupcandidates(left, right))
+		if (!bothupcandidates(&attr_state, left, right))
 		    break;
 	    }
 	    if (rightpos - leftpos > 1)
