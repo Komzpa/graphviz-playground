@@ -6129,6 +6129,63 @@ def test_2717():
     run(fdp, "-o", os.devnull, input)
 
 
+@pytest.mark.skipif(which("fdp") is None, reason="fdp is not available")
+def test_2701():
+    """
+    fdp should preserve pinned node y-coordinates when a fully fixed cluster is
+    collapsed into a derived node
+    https://gitlab.com/graphviz/graphviz/-/issues/2701
+    """
+
+    input = Path(__file__).parent / "2701.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    fdp = which("fdp")
+
+    def node_positions(source: str) -> dict[str, tuple[float, float]]:
+        output = run(fdp, "-Tplain", input=source)
+        positions = {}
+        for line in output.splitlines():
+            fields = line.split()
+            if len(fields) >= 4 and fields[0] == "node":
+                positions[fields[1]] = (float(fields[2]), float(fields[3]))
+        return positions
+
+    control = node_positions(
+        textwrap.dedent(
+            """\
+            digraph G {
+              splines=false
+              node [pin=true]
+              1 [pos="0,0", label="A"]
+              2 [pos="1,0", label="B"]
+              3 [pos="2,0", label="C"]
+              4 [pos="3,0", label="D"]
+              1 -> 2
+              2 -> 3
+              3 -> 4
+            }
+            """
+        )
+    )
+    assert len(control) == 4, "control graph lost nodes"
+    control_y = next(iter(control.values()))[1]
+    assert all(
+        math.isclose(y, control_y, abs_tol=1e-6) for _, y in control.values()
+    ), "control graph is not flat without a cluster"
+
+    clustered = node_positions(input.read_text(encoding="utf-8"))
+    assert len(clustered) == 4, "clustered graph lost nodes"
+    clustered_y = next(iter(clustered.values()))[1]
+    assert all(
+        math.isclose(y, clustered_y, abs_tol=1e-6)
+        for _, y in clustered.values()
+    ), "clustered pinned nodes were moved onto different y bands"
+
+    clustered_x = [clustered[str(i)][0] for i in range(1, 5)]
+    assert clustered_x == sorted(clustered_x), "clustered pinned nodes reordered"
+
+
 @pytest.mark.skipif(which("osage") is None, reason="osage is not available")
 def test_2721():
     """

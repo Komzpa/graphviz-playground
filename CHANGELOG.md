@@ -83,6 +83,13 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The fdp layout engine now keeps a fully fixed cluster anchored to its pinned
+  descendants when collapsing that cluster into a derived node. Previously the
+  derived cluster node could move and pull those pinned descendants onto a
+  different y-band. #2701
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

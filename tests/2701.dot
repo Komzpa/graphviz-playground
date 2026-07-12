@@ -1,0 +1,15 @@
+digraph G {
+  splines=false
+  node [pin=true]
+  subgraph cluster_s1 {
+    1
+    2
+  }
+  1 [pos="0,0", label="A"]
+  2 [pos="1,0", label="B"]
+  3 [pos="2,0", label="C"]
+  4 [pos="3,0", label="D"]
+  1 -> 2
+  2 -> 3
+  3 -> 4
+}
