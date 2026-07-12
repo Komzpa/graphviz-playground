@@ -4158,9 +4158,6 @@ def test_2429():
 
 
 @pytest.mark.skipif(which("nop") is None, reason="nop not available")
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2436"
-)
 def test_2436():
     """
     nop should preserve empty labels
@@ -4177,6 +4174,64 @@ def test_2436():
 
     # the empty label should be present
     assert re.search(r'\blabel\s*=\s*""', output), "empty label was not preserved"
+
+
+@pytest.mark.skipif(which("unflatten") is None, reason="unflatten not available")
+def test_1337(tmp_path: Path):
+    """
+    unflatten should preserve explicit empty node labels
+    https://gitlab.com/graphviz/graphviz/-/issues/1337
+    """
+
+    # a graph with one explicit empty node label, one inherited label, and one
+    # non-empty label as a nearby negative control
+    source = textwrap.dedent(
+        """\
+        digraph example {
+          node [fixedsize=true]
+          a [height=0, label="", style=invis, width=0]
+          b [height=0, style=invis, width=0]
+          c [height=0, label="x", style=invis, width=0]
+        }
+        """
+    )
+
+    # write it to a temporary file so unflatten sees the same file-input path as
+    # the original issue report
+    input = tmp_path / "1337.dot"
+    input.write_text(source, encoding="utf-8")
+
+    # run it through unflatten
+    unflatten = which("unflatten")
+    output = run(unflatten, input)
+
+    # the explicit empty label should survive
+    assert re.search(r"\ba\b\s+\[.*\blabel\s*=\s*\"\"", output, re.DOTALL), (
+        "explicit empty label was not preserved"
+    )
+
+    # the neighboring unlabeled node should remain unchanged
+    assert re.search(r"\bb\b\s+\[.*\blabel\s*=\s*\"\"", output, re.DOTALL) is None, (
+        "inherited label gained an explicit empty label"
+    )
+
+    assert 'node [label="\\N"]' not in output, (
+        "unrelated node labels changed while preserving the empty label"
+    )
+
+    # existing non-empty labels should continue to round-trip
+    assert re.search(r"\bc\b\s+\[.*\blabel\s*=\s*x\b", output, re.DOTALL), (
+        "non-empty label was not preserved"
+    )
+
+    # multi-graph input should retain the existing first-graph-only behavior
+    multi = tmp_path / "1337-multi.dot"
+    multi.write_text(
+        'digraph first { a [label=""] } digraph second { b }', encoding="utf-8"
+    )
+    assert run(unflatten, multi) == (
+        'digraph first {\n\ta\t[label=""];\n}\n'
+    )
 
 
 @pytest.mark.skipif(

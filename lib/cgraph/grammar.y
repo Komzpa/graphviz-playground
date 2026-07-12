@@ -333,6 +333,7 @@ static void applyattrs(aagextra_t *ctx, void *obj)
 				} else {
 				  agxset(obj, aptr->u.asym, aptr->str);
 				}
+				agmarkattrexplicit(obj, aptr->u.asym);
 			}
 		}
 		else {
@@ -652,4 +653,3 @@ Agraph_t *agconcat(Agraph_t *g, const char *filename, void *chan,
 Agraph_t *agread(void *fp, Agdisc_t *disc) {
   return agconcat(NULL, NULL, fp, disc);
 }
-

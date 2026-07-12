@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Cgraph-based DOT readers preserve explicit empty node labels instead of
+  dropping them while rewriting DOT source. #1337 #2436
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
