@@ -25,18 +25,11 @@
 typedef LIST(edge_t *) edge_list_t;
 
 enum {
-    /* ED_gui_state bits 0..3 are the public GUI_STATE_* flags. sameport uses
-       private layout-pass bits because creating a late edge record trips
-       cgraph's move-to-front lock. */
-    SAMEPORT_TAIL_MASK = 1U << 4,
-    SAMEPORT_HEAD_MASK = 1U << 5,
+    /* sameport owns a dedicated per-edge byte in Agedgeinfo_t. */
+    SAMEPORT_TAIL_MASK = 1U << 0,
+    SAMEPORT_HEAD_MASK = 1U << 1,
     SAMEPORT_MASK = SAMEPORT_TAIL_MASK | SAMEPORT_HEAD_MASK,
 };
-
-_Static_assert((SAMEPORT_MASK &
-                (GUI_STATE_ACTIVE | GUI_STATE_SELECTED | GUI_STATE_VISITED |
-                 GUI_STATE_DELETED)) == 0,
-               "sameport layout bits must not overlap GUI state bits");
 
 typedef struct same_t {
     char *id;			/* group id */
@@ -67,18 +60,18 @@ static void mark_sameport_endpoint(edge_t *e, sameport_endpoint_t endpoint) {
   edge_t *const normal = sameport_normal_edge(e);
   if (normal == NULL)
     return;
-  ED_gui_state(normal) |= endpoint_mask(endpoint);
+  ED_sameport_state(normal) |= endpoint_mask(endpoint);
 }
 
 static bool has_sameport_endpoint(edge_t *normal,
                                   sameport_endpoint_t endpoint) {
-  return (ED_gui_state(normal) & endpoint_mask(endpoint)) != 0;
+  return (ED_sameport_state(normal) & endpoint_mask(endpoint)) != 0;
 }
 
 static void clear_sameport_endpoints(graph_t *g) {
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e))
-      ED_gui_state(e) &= (unsigned char)~SAMEPORT_MASK;
+      ED_sameport_state(e) &= (unsigned char)~SAMEPORT_MASK;
   }
 }
 
