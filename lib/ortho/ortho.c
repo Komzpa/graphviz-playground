@@ -33,7 +33,6 @@
 #include <common/geomprocs.h>
 #include <common/globals.h>
 #include <common/render.h>
-#include <common/pointset.h>
 #include <util/alloc.h>
 #include <util/exit.h>
 #include <util/gv_math.h>
@@ -58,8 +57,6 @@ typedef struct {
     Dtlink_t link;
     edge_key_id_t id;
 } edge_key_t;
-
-typedef Dict_t EdgeKeySet;
 
 static UNUSED void emitSearchGraph(FILE *fp, sgraph *sg);
 static UNUSED void emitGraph(FILE *fp, maze *mp, size_t n_edges,
@@ -131,11 +128,11 @@ static edge_key_id_t edgekeyid(Agedge_t *e) {
     return key;
 }
 
-static EdgeKeySet *newEdgeKeySet(void) {
+static Dt_t *newEdgeKeySet(void) {
     return dtopen(&edgeKeyDisc, Dtoset);
 }
 
-static bool addEdgeKey(EdgeKeySet *set, Agedge_t *e) {
+static bool addEdgeKey(Dt_t *set, Agedge_t *e) {
     edge_key_t *key = gv_alloc(sizeof(edge_key_t));
     key->id = edgekeyid(e);
 
@@ -1251,7 +1248,7 @@ static bool swap_ends_p(edge_t * e)
  */
 int orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
-    EdgeKeySet *keys = NULL;
+    Dt_t *keys = NULL;
 
     if (Concentrate) 
 	keys = newEdgeKeySet();

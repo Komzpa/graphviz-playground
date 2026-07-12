@@ -66,6 +66,7 @@ static bool upcandidate(node_t * v)
 static bool compatible_continuation(edge_t *candidate, edge_t *edge, int dir)
 {
     if (dir == DOWN) {
+	/* Concentrated virtual trunks may be merged, but must keep endpoint port. */
 	return aghead(candidate) == aghead(edge)
 	    && portcmp(ED_head_port(candidate), ED_head_port(edge)) == 0;
     }
