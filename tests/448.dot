@@ -1,0 +1,14 @@
+digraph {
+  graph [concentrate=true]
+  rankdir=TB
+
+  s0 -> A [samehead=x]
+  s1 -> A [samehead=x]
+  A -> back_anchor [style=invis, weight=100]
+  back_anchor -> A [samehead=x]
+  { rank=same; flat; A; }
+  flat -> A [samehead=x]
+
+  b0 -> B [samehead=y]
+  b1 -> B [samehead=z]
+}

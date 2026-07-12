@@ -36,6 +36,7 @@
 #include <common/globals.h>
 #include <common/render.h>
 #include <common/pointset.h>
+#include <common/utils.h>
 #include <util/alloc.h>
 #include <util/exit.h>
 #include <util/gv_math.h>
@@ -47,18 +48,6 @@ typedef struct {
     double d;
     Agedge_t* e;
 } epair_t;
-
-static bool ortho_edge_attrs_eq(Agedge_t *e, Agedge_t *f) {
-  Agraph_t *const g = agroot(agraphof(e));
-
-  for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
-       attr = agnxtattr(g, AGEDGE, attr)) {
-    if (strcmp(agxget(e, attr), agxget(f, attr)) != 0) {
-      return false;
-    }
-  }
-  return true;
-}
 
 static UNUSED void emitSearchGraph(FILE *fp, sgraph *sg);
 static UNUSED void emitGraph(FILE *fp, maze *mp, size_t n_edges,
@@ -1239,6 +1228,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
         for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
+	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
 		int ti = AGSEQ(agtail(e));
 		int hi = AGSEQ(aghead(e));
@@ -1250,7 +1240,24 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
 		    for (size_t i = group; i != edge_capacity;
 			 i = next_in_group[i]) {
 			Agedge_t *const routed = es[i].e;
-			if (ortho_edge_attrs_eq(e, routed)) {
+			edge_t *const e0 = normal_edge(e);
+			edge_t *const routed0 = normal_edge(routed);
+			if (e0 == NULL || routed0 == NULL) {
+			    continue;
+			}
+			const bool same_dir =
+			    agtail(e0) == agtail(routed0) &&
+			    aghead(e0) == aghead(routed0);
+			const bool opposite =
+			    agtail(e0) == aghead(routed0) &&
+			    aghead(e0) == agtail(routed0);
+			if (same_edge_attrs(e, routed) &&
+			    ((same_dir &&
+			      concentratable_endpoint(e, false, routed, false) &&
+			      concentratable_endpoint(e, true, routed, true)) ||
+			     (opposite &&
+			      concentratable_endpoint(e, false, routed, true) &&
+			      concentratable_endpoint(e, true, routed, false)))) {
 			    equivalent = true;
 			    break;
 			}

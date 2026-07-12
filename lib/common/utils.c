@@ -102,6 +102,100 @@ bool late_bool(void *obj, attrsym_t *attr, bool defaultValue) {
     return mapbool(agxget(obj, attr));
 }
 
+edge_t *normal_edge(edge_t *e) {
+    while (e != NULL && ED_edge_type(e) != NORMAL) {
+        e = ED_to_orig(e);
+    }
+    return e;
+}
+
+bool same_port(port p0, port p1) {
+    return p0.defined == p1.defined &&
+           (!p0.defined || (p0.p.x == p1.p.x && p0.p.y == p1.p.y));
+}
+
+static bool is_endpoint_attr(const Agsym_t *attr, const Agsym_t *samehead,
+                             const Agsym_t *sametail, const Agsym_t *headport,
+                             const Agsym_t *tailport, const Agsym_t *arrowhead,
+                             const Agsym_t *arrowtail, const Agsym_t *dir) {
+    return attr == samehead || attr == sametail || attr == headport ||
+           attr == tailport || attr == arrowhead || attr == arrowtail ||
+           attr == dir;
+}
+
+bool same_edge_attrs(edge_t *e, edge_t *f) {
+    graph_t *const g = agroot(agraphof(e));
+    Agsym_t *const samehead = agfindedgeattr(g, "samehead");
+    Agsym_t *const sametail = agfindedgeattr(g, "sametail");
+    Agsym_t *const headport = agfindedgeattr(g, "headport");
+    Agsym_t *const tailport = agfindedgeattr(g, "tailport");
+    Agsym_t *const arrowhead = agfindedgeattr(g, "arrowhead");
+    Agsym_t *const arrowtail = agfindedgeattr(g, "arrowtail");
+    Agsym_t *const dir = agfindedgeattr(g, "dir");
+
+    for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
+         attr = agnxtattr(g, AGEDGE, attr)) {
+        if (is_endpoint_attr(attr, samehead, sametail, headport, tailport,
+                             arrowhead, arrowtail, dir)) {
+            continue;
+        }
+        if (strcmp(agxget(e, attr), agxget(f, attr)) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static const char *endpoint_group(edge_t *e, bool head) {
+    graph_t *const g = agroot(agraphof(e));
+    Agsym_t *const attr =
+        agfindedgeattr(g, head ? "samehead" : "sametail");
+    if (attr == NULL) {
+        return "";
+    }
+    return agxget(e, attr);
+}
+
+static uint32_t endpoint_arrow(edge_t *e, bool head) {
+    uint32_t sflag = 0;
+    uint32_t eflag = 0;
+
+    arrow_flags(e, &sflag, &eflag);
+    return head ? eflag : sflag;
+}
+
+static bool compatible_arrows(uint32_t lhs, uint32_t rhs) {
+    return lhs == rhs || lhs == 0 || rhs == 0;
+}
+
+bool concentratable_endpoint(edge_t *e, bool e_head, edge_t *f, bool f_head) {
+    edge_t *const e0 = normal_edge(e);
+    edge_t *const f0 = normal_edge(f);
+    const char *eg;
+    const char *fg;
+
+    if (e0 == NULL || f0 == NULL) {
+        return false;
+    }
+    eg = endpoint_group(e0, e_head);
+    fg = endpoint_group(f0, f_head);
+    if (e_head == f_head) {
+        if (strcmp(eg, fg) != 0) {
+            return false;
+        }
+    } else if (eg[0] != '\0' || fg[0] != '\0') {
+        return false;
+    }
+
+    if (!same_port(e_head ? ED_head_port(e0) : ED_tail_port(e0),
+                   f_head ? ED_head_port(f0) : ED_tail_port(f0))) {
+        return false;
+    }
+
+    return compatible_arrows(endpoint_arrow(e0, e_head),
+                             endpoint_arrow(f0, f_head));
+}
+
 node_t *UF_find(node_t * n)
 {
     while (ND_UF_parent(n) && ND_UF_parent(n) != n) {

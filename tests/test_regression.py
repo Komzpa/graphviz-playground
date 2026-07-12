@@ -4717,45 +4717,374 @@ def test_2559():
     ), "concentrated edge drawn as a regular straight edge"
 
 
+def _drawn_edges(layout: dict) -> list[dict]:
+    return [edge for edge in layout["edges"] if "pos" in edge]
+
+
+def _drawn_edge_count(layout: dict) -> int:
+    return len(_drawn_edges(layout))
+
+
+def _edge_colors(layout: dict) -> list[str]:
+    return [
+        operation["color"]
+        for edge in _drawn_edges(layout)
+        for operation in edge.get("_draw_", ())
+        if operation["op"] == "c"
+    ]
+
+
+def _draw_op_count(layout: dict, op: str) -> int:
+    return sum(
+        1
+        for edge in _drawn_edges(layout)
+        for key in ("_tdraw_", "_hdraw_")
+        for operation in edge.get(key, ())
+        if operation["op"] == op
+    )
+
+
+def _objects_by_id(layout: dict) -> dict[int, dict]:
+    return {obj["_gvid"]: obj for obj in layout["objects"]}
+
+
+def _node_center(layout: dict, node_name: str) -> tuple[float, float]:
+    for obj in layout["objects"]:
+        if obj["name"] == node_name:
+            x, y = obj["pos"].split(",")
+            return (float(x), float(y))
+    raise AssertionError(f"missing node {node_name!r}")
+
+
+def _pos_tokens(pos: str) -> tuple[list[tuple[str, tuple[float, float]]], list[tuple[float, float]]]:
+    markers: list[tuple[str, tuple[float, float]]] = []
+    points: list[tuple[float, float]] = []
+
+    for token in pos.split():
+        kind = ""
+        coords = token
+        if token.startswith(("e,", "s,")):
+            kind = token[0]
+            coords = token[2:]
+        x_text, y_text = coords.split(",", 1)
+        point = (float(x_text), float(y_text))
+        if kind:
+            markers.append((kind, point))
+        else:
+            points.append(point)
+
+    return markers, points
+
+
+def _physical_endpoint_marker(
+    layout: dict, edge: dict, node_name: str, *, at_head: bool
+) -> tuple[float, float]:
+    center = _node_center(layout, node_name)
+    markers, points = _pos_tokens(edge["pos"])
+    wanted = "e" if at_head else "s"
+    matching_markers = [point for kind, point in markers if kind == wanted]
+    if matching_markers:
+        return min(
+            matching_markers,
+            key=lambda marker: (marker[0] - center[0]) ** 2
+            + (marker[1] - center[1]) ** 2,
+        )
+    assert points, "missing spline points in edge pos"
+    return points[-1] if at_head else points[0]
+
+
+def _anchors_at(
+    layout: dict,
+    *,
+    node_name: str,
+    at_head: bool,
+    attr_name: str,
+    attr_values: tuple[str, ...],
+) -> set[tuple[float, float]]:
+    objects = _objects_by_id(layout)
+    anchors = set()
+    endpoint = "head" if at_head else "tail"
+
+    for edge in _drawn_edges(layout):
+        if objects[edge[endpoint]]["name"] != node_name:
+            continue
+        if edge.get(attr_name, "") not in attr_values:
+            continue
+        anchor = _physical_endpoint_marker(
+            layout, edge, node_name, at_head=at_head
+        )
+        anchors.add((round(anchor[0], 3), round(anchor[1], 3)))
+
+    return anchors
+
+
+def _samehead_fixture(concentrate: bool, b_groups: tuple[str, str]) -> str:
+    def attr(group: str) -> str:
+        return "" if group == "" else f" [samehead={group}]"
+
+    return f"""
+        digraph {{
+          graph [concentrate={"true" if concentrate else "false"}]
+          rankdir=TB
+
+          s0 -> A [samehead=x]
+          s1 -> A [samehead=x]
+          A -> back_anchor [style=invis, weight=100]
+          back_anchor -> A [samehead=x]
+          {{ rank=same; flat; A; }}
+          flat -> A [samehead=x]
+
+          b0 -> B{attr(b_groups[0])}
+          b1 -> B{attr(b_groups[1])}
+        }}
+    """
+
+
+def _sametail_fixture(concentrate: bool) -> str:
+    return f"""
+        digraph {{
+          graph [concentrate={"true" if concentrate else "false"}]
+          rankdir=TB
+
+          A -> t0 [sametail=x]
+          A -> t1 [sametail=x]
+          back -> A [style=invis, weight=100]
+          A -> back [sametail=x]
+          {{ rank=same; A; flat; }}
+          A -> flat [sametail=x]
+
+          A -> u0 [sametail=y]
+          A -> u1 [sametail=z]
+        }}
+    """
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_448_samehead_concentrated_g1(concentrate: bool):
+    """
+    equal `samehead` groups should share one physical head anchor, while
+    different groups still remain separate
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(dot("json", source=_samehead_fixture(concentrate, ("y", "z"))))
+
+    assert len(_anchors_at(layout, node_name="A", at_head=True, attr_name="samehead",
+                           attr_values=("x",))) == 1
+    assert len(_anchors_at(layout, node_name="B", at_head=True, attr_name="samehead",
+                           attr_values=("y", "z"))) == 2
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_448_samehead_concentrated_g2(concentrate: bool):
+    """
+    grouped and plain edges should not collapse into one shared head anchor
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(dot("json", source=_samehead_fixture(concentrate, ("", "z"))))
+
+    assert len(_anchors_at(layout, node_name="A", at_head=True, attr_name="samehead",
+                           attr_values=("x",))) == 1
+    assert len(_anchors_at(layout, node_name="B", at_head=True, attr_name="samehead",
+                           attr_values=("", "z"))) == 2
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_448_sametail_concentrated(concentrate: bool):
+    """
+    equal `sametail` groups should share one physical tail anchor
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(dot("json", source=_sametail_fixture(concentrate)))
+
+    assert len(_anchors_at(layout, node_name="A", at_head=False, attr_name="sametail",
+                           attr_values=("x",))) == 1
+    assert len(_anchors_at(layout, node_name="A", at_head=False, attr_name="sametail",
+                           attr_values=("y", "z"))) == 2
+
+
+def test_448_plain_opposite_edges():
+    """
+    plain opposite edges should still share one route with arrows at both ends
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  a -> b
+                  b -> a
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+    assert _draw_op_count(layout, "P") == 2
+
+
+def test_448_opposite_arrow_semantics():
+    """
+    incompatible opposite arrows should not collapse into one dot-only route
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  a -> b [dir=both, arrowhead=vee, arrowtail=dot]
+                  b -> a [dir=both, arrowhead=vee, arrowtail=dot]
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert _draw_op_count(layout, "P") == 2
+    assert _draw_op_count(layout, "E") == 2
+
+
+def test_448_opposite_ports_incompatible():
+    """
+    opposite edges with different physical endpoints should stay distinct
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  node [shape=record]
+                  a [label="<p> p | <q> q"]
+                  b [label="<p> p | <q> q"]
+                  a:p -> b:q
+                  b:p -> a:q
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+
+
+def test_448_opposite_ports_cross_compatible():
+    """
+    opposite edges using the same physical endpoint pair should still merge
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  node [shape=record]
+                  a [label="<p> p | <q> q"]
+                  b [label="<p> p | <q> q"]
+                  a:p -> b:q
+                  b:q -> a:p
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_preserves_edge_attributes(splines: str):
-    """`concentrate=true` should only merge equivalent edges."""
-
-    def drawn_colors(source: str) -> list[str]:
-        layout = json.loads(dot("json", source=source))
-        return [
-            operation["color"]
-            for edge in layout["edges"]
-            for operation in edge.get("_draw_", ())
-            if operation["op"] == "c"
-        ]
-
-    distinct = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=blue]
-        }}
+def test_448_equivalent_parallel_edges(splines: str):
     """
-    assert set(drawn_colors(distinct)) == {"#ff0000", "#0000ff"}
-
-    opposite = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          b -> a [color=blue]
-        }}
+    equivalent parallel edges should still concentrate into one route
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
     """
-    assert set(drawn_colors(opposite)) == {"#ff0000", "#0000ff"}
 
-    equivalent = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=red]
-        }}
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [color=red]
+                  a -> b [color=red]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+    assert _edge_colors(layout) == ["#ff0000"]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_distinct_edge_attributes(splines: str):
     """
-    assert drawn_colors(equivalent) == ["#ff0000"]
+    `concentrate=true` should keep distinct attributes separate
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    distinct = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [color=red]
+                  a -> b [color=blue]
+                }}
+            """,
+        )
+    )
+    assert _drawn_edge_count(distinct) == 2
+    assert set(_edge_colors(distinct)) == {"#ff0000", "#0000ff"}
+
+    opposite = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [color=red]
+                  b -> a [color=blue]
+                }}
+            """,
+        )
+    )
+    assert _drawn_edge_count(opposite) == 2
+    assert set(_edge_colors(opposite)) == {"#ff0000", "#0000ff"}
+
+
+def test_448_multirank_attributes():
+    """
+    multirank concentrated edges should preserve each edge's own color
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  s0 -> z [color=red, samehead=x, minlen=2]
+                  s1 -> z [color=blue, samehead=x, minlen=2]
+                }
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert set(_edge_colors(layout)) == {"#ff0000", "#0000ff"}
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")

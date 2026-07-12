@@ -16,6 +16,7 @@
 #include "config.h"
 
 #include <math.h>
+#include <common/utils.h>
 #include	<dotgen/dot.h>
 #include	<stdbool.h>
 #include	<stddef.h>
@@ -37,6 +38,11 @@ typedef LIST(same_t) same_list_t;
 
 static void sameedge(same_list_t *same, edge_t *e, char *id);
 static void sameport(node_t *u, edge_list_t l);
+static void assign_sameport(node_t *u, edge_t *e, port prt);
+static void assign_sameport_chain(node_t *u, edge_t *e, port prt);
+static bool in_same_group(edge_list_t l, edge_t *e);
+static void assign_sameport_list(node_t *u, elist l, edge_list_t same,
+                                 port prt);
 
 void dot_sameports(graph_t * g)
 /* merge edge ports in G */
@@ -101,7 +107,6 @@ static void sameport(node_t *u, edge_list_t l)
 */
 {
     node_t *v;
-    edge_t *f;
     double x = 0, y = 0, x1, y1, x2, y2, r;
 
     /* Compute the direction vector (x,y) of the average direction. We compute
@@ -158,32 +163,68 @@ static void sameport(node_t *u, edge_list_t l)
     prt.side = 0;
     prt.name = NULL;
 
-    /* assign one of the ports to every edge */
     for (size_t i = 0; i < LIST_SIZE(&l); i++) {
-	edge_t *e = LIST_GET(&l, i);
-	for (; e; e = ED_to_virt(e)) {	/* assign to all virt edges of e */
-	    for (f = e; f;
-		 f = ED_edge_type(f) == VIRTUAL &&
-		 ND_node_type(aghead(f)) == VIRTUAL &&
-		 ND_out(aghead(f)).size == 1 ?
-		 ND_out(aghead(f)).list[0] : NULL) {
-		if (aghead(f) == u)
-		    ED_head_port(f) = prt;
-		if (agtail(f) == u)
-		    ED_tail_port(f) = prt;
-	    }
-	    for (f = e; f;
-		 f = ED_edge_type(f) == VIRTUAL &&
-		 ND_node_type(agtail(f)) == VIRTUAL &&
-		 ND_in(agtail(f)).size == 1 ?
-		 ND_in(agtail(f)).list[0] : NULL) {
-		if (aghead(f) == u)
-		    ED_head_port(f) = prt;
-		if (agtail(f) == u)
-		    ED_tail_port(f) = prt;
-	    }
-	}
+	edge_t *const e = LIST_GET(&l, i);
+	assign_sameport(u, e, prt);
+	assign_sameport_chain(u, e, prt);
     }
+    assign_sameport_list(u, ND_in(u), l, prt);
+    assign_sameport_list(u, ND_out(u), l, prt);
+    assign_sameport_list(u, ND_flat_in(u), l, prt);
+    assign_sameport_list(u, ND_flat_out(u), l, prt);
+    assign_sameport_list(u, ND_other(u), l, prt);
 
     ND_has_port(u) = true;	/* kinda pointless, because mincross is already done */
+}
+
+static void assign_sameport(node_t *u, edge_t *e, port prt) {
+    if (aghead(e) == u) {
+        ED_head_port(e) = prt;
+    }
+    if (agtail(e) == u) {
+        ED_tail_port(e) = prt;
+    }
+}
+
+static void assign_sameport_chain(node_t *u, edge_t *e, port prt) {
+    for (; e != NULL; e = ED_to_virt(e)) {
+        for (edge_t *f = e; f != NULL;
+             f = ED_edge_type(f) == VIRTUAL &&
+                         ND_node_type(aghead(f)) == VIRTUAL &&
+                         ND_out(aghead(f)).size == 1
+                     ? ND_out(aghead(f)).list[0]
+                     : NULL) {
+            assign_sameport(u, f, prt);
+        }
+        for (edge_t *f = e; f != NULL;
+             f = ED_edge_type(f) == VIRTUAL &&
+                         ND_node_type(agtail(f)) == VIRTUAL &&
+                         ND_in(agtail(f)).size == 1
+                     ? ND_in(agtail(f)).list[0]
+                     : NULL) {
+            assign_sameport(u, f, prt);
+        }
+    }
+}
+
+static bool in_same_group(edge_list_t l, edge_t *e) {
+    edge_t *const orig = normal_edge(e);
+
+    for (size_t i = 0; i < LIST_SIZE(&l); i++) {
+        if (LIST_GET(&l, i) == orig) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void assign_sameport_list(node_t *u, elist l, edge_list_t same,
+                                 port prt) {
+    for (size_t i = 0; i < l.size; i++) {
+        edge_t *const e = l.list[i];
+        if (e == NULL || !in_same_group(same, e)) {
+            continue;
+        }
+        assign_sameport(u, e, prt);
+    }
 }

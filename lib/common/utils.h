@@ -110,6 +110,12 @@ UTILS_API void get_gradient_points(pointf *A, pointf *G, size_t n, double angle,
 
 UTILS_API void processClusterEdges(graph_t *g);
 
+UTILS_API edge_t *normal_edge(edge_t *e);
+UTILS_API bool same_port(port p0, port p1);
+UTILS_API bool same_edge_attrs(edge_t *e, edge_t *f);
+UTILS_API bool concentratable_endpoint(edge_t *e, bool e_head, edge_t *f,
+                                       bool f_head);
+
 UTILS_API char *latin1ToUTF8(char *);
 UTILS_API char *htmlEntityUTF8(char *, graph_t *g);
 UTILS_API char *utf8ToLatin1(char *ins);
