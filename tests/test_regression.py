@@ -380,6 +380,40 @@ def test_218():
     assert warnings.strip() != "", "no warning issued for a font name containing space"
 
 
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_222(concentrate: bool):
+    """
+    concentrated backward edges should keep their arrow at the real head node
+    https://gitlab.com/graphviz/graphviz/-/issues/222
+    """
+
+    input = Path(__file__).parent / "222.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    source = input.read_text(encoding="utf-8").replace(
+        "concentrate=true",
+        f"concentrate={'true' if concentrate else 'false'}",
+        1,
+    )
+    layout = json.loads(dot("json", source=source))
+
+    objects_by_name = {obj["name"]: obj for obj in layout["objects"]}
+    names_by_id = {obj["_gvid"]: obj["name"] for obj in layout["objects"]}
+    edge = next(
+        edge
+        for edge in layout["edges"]
+        if (names_by_id[edge["tail"]], names_by_id[edge["head"]]) == ("h", "a")
+    )
+    arrowhead = next(op for op in edge["_hdraw_"] if op["op"] == "P")
+    arrow_y = arrowhead["points"][0][1]
+    a_y = float(objects_by_name["a"]["pos"].split(",")[1])
+    h_y = float(objects_by_name["h"]["pos"].split(",")[1])
+
+    assert abs(arrow_y - a_y) < abs(
+        arrow_y - h_y
+    ), "h->a arrowhead is closer to the fork than to node a"
+
+
 @pytest.mark.parametrize("test_case", ("241_0.dot", "241_1.dot"))
 def test_241(test_case: str):
     """

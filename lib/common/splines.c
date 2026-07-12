@@ -77,14 +77,14 @@ arrow_clip(edge_t * fe, node_t * hn,
 	j = info->swapEnds(e);
     uint32_t sflag, eflag;
     arrow_flags(e, &sflag, &eflag);
-    if (info->splineMerge(hn))
-	eflag = ARR_NONE;
-    if (info->splineMerge(agtail(fe)))
-	sflag = ARR_NONE;
     /* swap the two ends */
     if (j) {
 	SWAP(&sflag, &eflag);
     }
+    if (info->splineMerge(hn))
+	eflag = ARR_NONE;
+    if (info->splineMerge(agtail(fe)))
+	sflag = ARR_NONE;
     if (info->isOrtho) {
 	if (eflag || sflag)
 	    arrowOrthoClip(e, ps, *startp, *endp, spl, sflag, eflag);
@@ -1370,4 +1370,3 @@ splines *getsplinepoints(edge_t * e)
 	    agnameof(agtail(e)), agnameof(aghead(e)));
     return sp;
 }
-

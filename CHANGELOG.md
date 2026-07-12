@@ -83,6 +83,12 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Backward edges that are concentrated onto a shared path once again keep their
+  arrowhead at the real head node instead of placing it at the concentration
+  fork. #222
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
