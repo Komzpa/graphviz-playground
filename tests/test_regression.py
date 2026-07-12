@@ -6203,6 +6203,20 @@ def test_2727():
     dot("svg", input)
 
 
+def test_2764():
+    """
+    concentrated opposite-edge routing should not crash on this input
+    https://gitlab.com/graphviz/graphviz/-/issues/2764
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2764.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process this
+    dot("dot", input)
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
 def test_2731():
     """
