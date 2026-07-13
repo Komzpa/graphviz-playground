@@ -36,7 +36,7 @@ static const double BOX_DIMENSION_TOLERANCE = .01;
 
 static int routeinit;
 
-static int checkpath(size_t *, boxf *, path *);
+static bool checkpath(size_t *, boxf *, path *);
 static void printpath(path * pp);
 #ifdef DEBUG
 static void printboxes(size_t boxn, boxf *boxes) {
@@ -631,7 +631,7 @@ static double overlap(double i0, double i1, double j0, double j1) {
  * fixing all the bugs, at least try to engineer around them!
  * in postmodern CS, we could call this "self-healing code."
  *
- * Return 1 on failure; 0 on success.
+ * Return true on failure; false on success.
  */
 static bool is_degenerate_box(const boxf *boxp) {
   return fabs(boxp->LL.y - boxp->UR.y) < BOX_DIMENSION_TOLERANCE ||
@@ -648,7 +648,7 @@ static size_t remove_degenerate_boxes(size_t boxn, boxf *boxes) {
     return count;
 }
 
-static int checkpath(size_t *boxnp, boxf *boxes, path *thepath) {
+static bool checkpath(size_t *boxnp, boxf *boxes, path *thepath) {
     boxf *ba, *bb;
     int errs, l, r, d, u;
 
