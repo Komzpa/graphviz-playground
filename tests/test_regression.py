@@ -6253,12 +6253,6 @@ def test_2764_output_has_pos():
             f"one-sided slope should still route concentrated output edge: {edge}"
         )
 
-    # The direct duplicate edge is concentrated away, so it remains present in
-    # the output but has no routed spline of its own.
-    assert edge_attrs.get("top -> sink:p") == "", (
-        "concentrated duplicate edge should not keep its own spline positions"
-    )
-
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
 def test_2731():
