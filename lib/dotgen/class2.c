@@ -226,18 +226,16 @@ void class2(graph_t * g)
 	    }
 	    /* merge multi-edges */
 	    if (prev && agtail(e) == agtail(prev) && aghead(e) == aghead(prev)) {
-		if (ND_rank(agtail(e)) == ND_rank(aghead(e))) {
-		    merge_oneway(e, prev);
-		    other_edge(e);
-		    continue;
-		}
 		concentrate_edge_pair_compat_t compat;
 		concentrate_edge_pair_compat_init(&attr_state, e, prev, &compat);
-		if (ED_label(e) == NULL && ED_label(prev) == NULL
-		    && compat.parallel_mergeable) {
-		    if (Concentrate)
+		if (ED_label(e) == NULL && ED_label(prev) == NULL &&
+		    compat.parallel_mergeable) {
+		    if (ND_rank(agtail(e)) == ND_rank(aghead(e))) {
+			merge_oneway(e, prev);
+			other_edge(e);
+		    } else if (Concentrate) {
 			ED_edge_type(e) = IGNORED;
-		    else {
+		    } else {
 			merge_chain(g, e, ED_to_virt(prev), true);
 			other_edge(e);
 		    }

@@ -4944,6 +4944,11 @@ def _draw_op_count(layout: dict, op: str) -> int:
     )
 
 
+def _endpoint_label_count(layout: dict, endpoint: str) -> int:
+    key = {"head": "_hldraw_", "tail": "_tldraw_"}[endpoint]
+    return sum(1 for edge in layout["edges"] if edge.get(key) is not None)
+
+
 def test_448_plain_opposite_edges():
     """
     plain opposite edges should still share one route with arrows at both ends
@@ -5211,6 +5216,32 @@ def test_448_parallel_equal_labels_remain_separate():
     )
 
     assert _drawn_edge_count(layout) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+@pytest.mark.parametrize(
+    ("label_attr", "endpoint"), (("headlabel", "head"), ("taillabel", "tail"))
+)
+def test_448_opposite_endpoint_labels_remain_separate(
+    splines: str, label_attr: str, endpoint: str
+):
+    """opposite edges with endpoint labels must keep both routes and labels."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [{label_attr}=X]
+                  b -> a [{label_attr}=X]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+    assert _endpoint_label_count(layout, endpoint) == 2
 
 
 @pytest.mark.parametrize("attribute", ("samehead", "sametail"))
@@ -5497,6 +5528,7 @@ def test_150():
     layout = json.loads(dot("json", source=source))
     drawn = [edge for edge in layout["edges"] if "_draw_" in edge]
     assert len(drawn) == 1, "same-rank reverse edges were not concentrated"
+    assert _draw_op_count(layout, "P") == 2
 
     distinct = source.replace("a -> b", "a -> b [color=red]").replace(
         "b -> a", "b -> a [color=blue]"
@@ -5508,6 +5540,62 @@ def test_150():
         if operation["op"] == "c"
     }
     assert colors == {"#ff0000", "#0000ff"}
+
+
+@pytest.mark.parametrize("edge_order", ("forward_first", "reverse_first"))
+def test_448_same_rank_parallel_bidirectional_edges_concentrate(edge_order: str):
+    """equivalent same-rank parallel edges with arrows should still merge."""
+
+    edges = [
+        "a -> b [dir=both, arrowhead=vee, arrowtail=dot]",
+        "a -> b [dir=both, arrowhead=vee, arrowtail=dot]",
+    ]
+    if edge_order == "reverse_first":
+        edges.reverse()
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true]
+                  {{ rank=same; a; b; }}
+                  {";".join(edges)}
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 1
+    assert _draw_op_count(layout, "P") == 1
+    assert _draw_op_count(layout, "E") == 1
+
+
+@pytest.mark.parametrize("edge_order", ("forward_first", "reverse_first"))
+def test_448_same_rank_parallel_distinct_arrows_remain_separate(edge_order: str):
+    """same-rank parallel edges with different arrows are not equivalent."""
+
+    edges = [
+        "a -> b [dir=both, arrowhead=vee, arrowtail=dot]",
+        "a -> b [dir=both, arrowhead=dot, arrowtail=vee]",
+    ]
+    if edge_order == "reverse_first":
+        edges.reverse()
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true]
+                  {{ rank=same; a; b; }}
+                  {";".join(edges)}
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")

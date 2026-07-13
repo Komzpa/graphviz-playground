@@ -1243,15 +1243,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
 		    for (size_t i = group; i != edge_capacity;
 			 i = next_in_group[i]) {
 			Agedge_t *const routed = es[i].e;
-			concentrate_edge_pair_compat_t compat;
-			concentrate_edge_relation_t relation =
-                            concentrate_edge_relation(e, routed);
-			concentrate_edge_pair_compat_init(&attr_state, e, routed,
-                                                          &compat);
-			if ((relation == CONCENTRATE_RELATION_PARALLEL &&
-                             compat.parallel_mergeable) ||
-                            (relation == CONCENTRATE_RELATION_OPPOSITE &&
-                             compat.opposite_mergeable)) {
+			if (concentrate_edges_mergeable(&attr_state, e, routed)) {
 			    equivalent = true;
 			    break;
 			}

@@ -208,14 +208,24 @@ static void concentrate_single_rank(
         size_t i = 0;
         while (ND_other(n).list[i] != NULL) {
             edge_t *const e = ND_other(n).list[i];
-            edge_t *const rep = ED_to_virt(e);
+            edge_t *const virtual_edge = ED_to_virt(e);
             concentrate_edge_pair_compat_t compat;
+            concentrate_edge_relation_t relation;
             /* flat_breakcycles() puts reverse flat edges in ND_other() */
-            if (rep != NULL && ED_label(e) == NULL && ED_label(rep) == NULL) {
-                concentrate_edge_pair_compat_init(attr_state, e, rep, &compat);
-                if (!compat.opposite_mergeable) {
+            if (virtual_edge != NULL && ED_label(e) == NULL &&
+                ED_label(virtual_edge) == NULL) {
+                edge_t *const normal_virtual =
+                    concentrate_normal_edge(virtual_edge);
+                relation = concentrate_edge_relation(e, virtual_edge);
+                concentrate_edge_pair_compat_init(attr_state, e, virtual_edge,
+                                                  &compat);
+                if (!concentrate_edge_pair_mergeable(&compat, relation)) {
                     i++;
                     continue;
+                }
+                if (relation == CONCENTRATE_RELATION_OPPOSITE &&
+                    normal_virtual != NULL) {
+                    ED_conc_opp_flag(normal_virtual) = true;
                 }
                 zapinlist(&ND_other(n), e);
                 ED_edge_type(e) = IGNORED;
