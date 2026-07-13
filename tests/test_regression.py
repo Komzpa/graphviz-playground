@@ -6206,7 +6206,7 @@ def test_2727():
 @pytest.mark.parametrize(
     "concentrate", (False, True), ids=("ordinary-edges", "concentrated-edges")
 )
-def test_2764(concentrate: bool):
+def test_2764_no_crash(concentrate: bool):
     """
     a one-sided concentrated virtual node should not crash spline routing;
     the ordinary-edge control confirms the input itself is valid
@@ -6222,9 +6222,23 @@ def test_2764(concentrate: bool):
     source = input.read_text().replace(
         "concentrate=true", f"concentrate={str(concentrate).lower()}"
     )
+    dot("dot", source=source)
+
+
+def test_2764_output_has_pos():
+    """
+    concentrated one-sided virtual-node graphs should retain spline edge positions
+    https://gitlab.com/graphviz/graphviz/-/issues/2764
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2764.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # only concentrated mode exercises the one-sided conc_slope path
+    source = input.read_text()
     layout = dot("dot", source=source)
-    if concentrate:
-        assert re.search(r"->.*\bpos=", layout), "one-sided slope should produce edge positions"
+    assert re.search(r"->.*\bpos=", layout), "one-sided slope should produce edge positions"
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
