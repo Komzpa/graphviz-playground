@@ -324,22 +324,25 @@ conc_slope(node_t* n)
 	s_in += ND_coord(agtail(e)).x;
     for (cnt_out = 0; (e = ND_out(n).list[cnt_out]); cnt_out++)
 	s_out += ND_coord(aghead(e)).x;
+    const bool has_incoming_edges = cnt_in > 0;
+    const bool has_outgoing_edges = cnt_out > 0;
+
     /* Concentration can leave a virtual node with only one populated side. */
-    if (cnt_in > 0) {
+    if (has_incoming_edges) {
 	const double x1 = ND_coord(n).x - s_in / cnt_in;
 	const double y1 = ND_coord(n).y - ND_coord(agtail(ND_in(n).list[0])).y;
 	m_in = atan2(y1, x1);
     }
-    if (cnt_out > 0) {
+    if (has_outgoing_edges) {
 	const double x2 = s_out / cnt_out - ND_coord(n).x;
 	const double y2 = ND_coord(aghead(ND_out(n).list[0])).y - ND_coord(n).y;
 	m_out = atan2(y2, x2);
     }
-    if (cnt_in > 0 && cnt_out > 0)
+    if (has_incoming_edges && has_outgoing_edges)
 	return (m_in + m_out) / 2.0;
-    if (cnt_out > 0)
+    if (has_outgoing_edges)
 	return m_out;
-    if (cnt_in > 0)
+    if (has_incoming_edges)
 	return m_in;
     return M_PI / 2.0;
 }

@@ -6203,9 +6203,13 @@ def test_2727():
     dot("svg", input)
 
 
-def test_2764():
+@pytest.mark.parametrize(
+    "concentrate", (False, True), ids=("ordinary-edges", "concentrated-edges")
+)
+def test_2764(concentrate: bool):
     """
-    a one-sided concentrated virtual node should not crash spline routing
+    a one-sided concentrated virtual node should not crash spline routing;
+    the ordinary-edge control confirms the input itself is valid
     https://gitlab.com/graphviz/graphviz/-/issues/2764
     """
 
@@ -6213,8 +6217,12 @@ def test_2764():
     input = Path(__file__).parent / "2764.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    # process this
-    dot("dot", input)
+    # Keep the same graph as an ordinary-edge control. Only concentration
+    # creates the one-sided virtual node that previously triggered the crash.
+    source = input.read_text().replace(
+        "concentrate=true", f"concentrate={str(concentrate).lower()}"
+    )
+    dot("dot", source=source)
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
