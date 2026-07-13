@@ -141,19 +141,22 @@ static int reallyroutespline(Pedge_t *edges, size_t edgen, Ppoint_t *inps,
 	    maxi = i;
 	}
     }
-    free(tnas);
-    const int spliti = maxi;
-    const Pvector_t splitv1 = normv(sub(inps[spliti], inps[spliti - 1]));
-    const Pvector_t splitv2 = normv(sub(inps[spliti + 1], inps[spliti]));
-    const Pvector_t splitv = normv(add(splitv1, splitv2));
-    if (reallyroutespline(edges, edgen, inps, spliti + 1, ev0, splitv) < 0) {
-	return -1;
-    }
-    if (reallyroutespline(edges, edgen, &inps[spliti], inpn - spliti, splitv,
-                          ev1) < 0) {
-	return -1;
-    }
-    return 0;
+	free(tnas);
+	const int spliti = maxi;
+	if (spliti <= 0 || spliti >= inpn - 1) {
+		return 0;
+	}
+	const Pvector_t splitv1 = normv(sub(inps[spliti], inps[spliti - 1]));
+	const Pvector_t splitv2 = normv(sub(inps[spliti + 1], inps[spliti]));
+	const Pvector_t splitv = normv(add(splitv1, splitv2));
+	if (reallyroutespline(edges, edgen, inps, spliti + 1, ev0, splitv) < 0) {
+		return -1;
+	}
+	if (reallyroutespline(edges, edgen, &inps[spliti], inpn - spliti, splitv,
+			      ev1) < 0) {
+		return -1;
+	}
+	return 0;
 }
 
 static int mkspline(Ppoint_t * inps, int inpn, const tna_t *tnas, Ppoint_t ev0,
