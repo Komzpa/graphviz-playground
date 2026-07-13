@@ -6370,20 +6370,33 @@ def test_2782():
             raise
 
 
-@pytest.mark.xfail(
-    platform.system() == "Windows",
-    raises=subprocess.CalledProcessError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2784",
-    strict=which("dot") is not None and is_asan_instrumented(which("dot")),
+@pytest.mark.parametrize(
+    "issue",
+    (
+        2772,
+        2783,
+        pytest.param(
+            2784,
+            marks=pytest.mark.xfail(
+                platform.system() == "Windows",
+                raises=subprocess.CalledProcessError,
+                reason="https://gitlab.com/graphviz/graphviz/-/issues/2784",
+                strict=which("dot") is not None
+                and is_asan_instrumented(which("dot")),
+            ),
+        ),
+    ),
 )
-def test_2784():
+def test_ortho_partition_issue_family(issue: int):
     """
-    Graphviz should not crash when processing this graph
+    Graphviz should not crash when processing these malformed ortho inputs
+    https://gitlab.com/graphviz/graphviz/-/issues/2772
+    https://gitlab.com/graphviz/graphviz/-/issues/2783
     https://gitlab.com/graphviz/graphviz/-/issues/2784
     """
 
     # locate our associated test case in this directory
-    src = Path(__file__).parent / "2784.dot"
+    src = Path(__file__).parent / f"{issue}.dot"
     assert src.exists(), "unexpectedly missing test case"
 
     # run this through Graphviz
