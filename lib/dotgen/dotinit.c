@@ -511,6 +511,13 @@ void dot_layout(Agraph_t * g)
 {
     if (agnnodes(g)) {
 	if (doDot(g) != 0) { // error?
+	    /*
+	     * graph_init() allocated GD_drawing(g). The generic render path
+	     * treats this field as the "layout completed" marker, so clear it
+	     * when dot layout fails.
+	     */
+	    free(GD_drawing(g));
+	    GD_drawing(g) = NULL;
 	    return;
 	}
     }

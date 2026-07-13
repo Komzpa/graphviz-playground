@@ -6327,6 +6327,32 @@ def test_2743():
     dot("dot", src)
 
 
+@pytest.mark.skipif(which("dot") is None, reason="dot not available")
+def test_2761():
+    """
+    Malformed input should not render a partially laid-out graph.
+    https://gitlab.com/graphviz/graphviz/-/issues/2761
+    """
+
+    src = Path(__file__).parent / "2761.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    dot_bin = which("dot")
+    assert dot_bin is not None, "dot not available"
+    # Prefer the no-plugin binary in in-tree builds. This keeps the regression
+    # aimed at dot layout/rendering rather than the local plugin registry.
+    dot_builtins = which("dot_builtins")
+    dot_command = dot_builtins if dot_builtins is not None else dot_bin
+
+    ret = subprocess.call(
+        [dot_command, "-Kdot", "-Tdot", src],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    assert ret != -signal.SIGSEGV, "Graphviz segfaulted"
+    assert ret != -signal.SIGABRT, "Graphviz aborted"
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",
