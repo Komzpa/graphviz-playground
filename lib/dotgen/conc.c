@@ -99,6 +99,8 @@ static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
 	node_t *const right = GD_rank(g)[r].v[i];
 	if (dir == DOWN) {
 	    while ((e = ND_out(right).list[0])) {
+		/* Only the left survivor's already-concentrated continuations compete
+		 * here, so a short scan keeps the port-preserving merge rule explicit. */
 		for (k = 0; (f = ND_out(left).list[k]); k++)
 		    if (compatible_continuation(f, e, dir))
 			break;
@@ -112,6 +114,8 @@ static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
 	    }
 	} else {
 	    while ((e = ND_in(right).list[0])) {
+		/* Only the left survivor's already-concentrated continuations compete
+		 * here, so a short scan keeps the port-preserving merge rule explicit. */
 		for (k = 0; (f = ND_in(left).list[k]); k++)
 		    if (compatible_continuation(f, e, dir))
 			break;
