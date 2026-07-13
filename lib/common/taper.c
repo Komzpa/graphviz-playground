@@ -141,6 +141,8 @@ static vararr_t pathtolines(splines *spl) {
   vararr_t arr = {0};
   pointf p1, V[4];
 
+  // A concentrated edge can span several adjacent Bezier segments; taper the
+  // complete ordered path so the shared tail remains visible.
   for (size_t bez_i = 0; bez_i < spl->size; bez_i++) {
     bezier *bez = &spl->list[bez_i];
     const size_t n = bez->size;
