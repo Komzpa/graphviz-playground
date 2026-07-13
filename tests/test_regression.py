@@ -5202,6 +5202,53 @@ def test_448_explicit_ports_remain_distinct_without_sameport(concentrate: str):
     )
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+@pytest.mark.parametrize("direction", ("down", "up"))
+@pytest.mark.parametrize("order", ("explicit-first", "undefined-first"))
+def test_448_mixed_defined_and_undefined_ports_remain_distinct(
+    splines: str, direction: str, order: str
+):
+    """mixed explicit and implicit ports must not concentrate by input order."""
+
+    if direction == "down":
+        leading = "some -> problem:p1"
+        explicit = "source -> problem:p2"
+        undefined = "source -> problem"
+    else:
+        leading = "problem:p1 -> some"
+        explicit = "problem:p2 -> sink"
+        undefined = "problem -> sink"
+
+    parallel = (explicit, undefined)
+    if order == "undefined-first":
+        parallel = tuple(reversed(parallel))
+
+    def render(*edges: str) -> dict:
+        return json.loads(
+            dot(
+                "json",
+                source=f"""
+                    digraph {{
+                      graph [concentrate=true {splines}]
+                      problem [shape=record, label="<p1> p1 | <p2> p2"]
+                      {leading}
+                      {edges[0]}
+                      {edges[1]}
+                    }}
+                """,
+            )
+        )
+
+    mixed = render(*parallel)
+    assert len(mixed["edges"]) == 3
+    assert _drawn_edge_count(mixed) == 3
+
+    # Equivalent explicit-port duplicates still concentrate.
+    equivalent = render(explicit, explicit)
+    assert len(equivalent["edges"]) == 3
+    assert _drawn_edge_count(equivalent) == 2
+
+
 @pytest.mark.parametrize("concentrate", ("false", "true"))
 def test_448_sametail_sameport_regular_anchor(concentrate: str):
     """sametail edges should share one physical tail anchor."""
