@@ -46,6 +46,11 @@ static Agdesc_t ProtoDesc = {.directed = true, .no_loop = true,
                              .no_write = true};
 static Agraph_t *ProtoGraph;
 
+/*
+ * Attribute values do not reveal whether an assignment was explicit when it
+ * matches the default, as with label="". Preserve that parser information in
+ * internal per-object bit sets for the writer.
+ */
 enum { AttrsPerExplicitRecord = 64 };
 
 typedef struct {

@@ -4172,8 +4172,12 @@ def test_2436():
     nop = which("nop")
     output = run(nop, input)
 
-    # the empty label should be present
-    assert re.search(r'\blabel\s*=\s*""', output), "empty label was not preserved"
+    # the explicit empty label should remain attached to the original node
+    match = re.search(r"\bmyNodeImg\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+    assert match is not None, "labeled node was not preserved"
+    assert re.search(r'\blabel\s*=\s*""', match["attrs"]), (
+        "empty label was not preserved"
+    )
 
 
 @pytest.mark.skipif(which("unflatten") is None, reason="unflatten not available")
@@ -4205,13 +4209,18 @@ def test_1337(tmp_path: Path):
     unflatten = which("unflatten")
     output = run(unflatten, input)
 
-    # the explicit empty label should survive
-    assert re.search(r"\ba\b\s+\[.*\blabel\s*=\s*\"\"", output, re.DOTALL), (
+    def node_attrs(name: str) -> str:
+        match = re.search(rf"\b{name}\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+        assert match is not None, f"node {name} was not preserved"
+        return match["attrs"]
+
+    # the explicit empty label should remain attached to node a
+    assert re.search(r'\blabel\s*=\s*""', node_attrs("a")), (
         "explicit empty label was not preserved"
     )
 
     # the neighboring unlabeled node should remain unchanged
-    assert re.search(r"\bb\b\s+\[.*\blabel\s*=\s*\"\"", output, re.DOTALL) is None, (
+    assert re.search(r'\blabel\s*=\s*""', node_attrs("b")) is None, (
         "inherited label gained an explicit empty label"
     )
 
@@ -4220,7 +4229,7 @@ def test_1337(tmp_path: Path):
     )
 
     # existing non-empty labels should continue to round-trip
-    assert re.search(r"\bc\b\s+\[.*\blabel\s*=\s*x\b", output, re.DOTALL), (
+    assert re.search(r"\blabel\s*=\s*x\b", node_attrs("c")), (
         "non-empty label was not preserved"
     )
 
