@@ -2420,280 +2420,265 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 	color = pencolor;
 
 	if (tapered) {
-          splines *spl = ED_spl(e);
-          if (*color == '\0')
-            color = DEFAULT_COLOR;
-          if (*fillcolor == '\0')
-            fillcolor = DEFAULT_COLOR;
-          gvrender_set_pencolor(job, "transparent");
-          gvrender_set_fillcolor(job, color);
-          stroke_t stp = taper(spl, taperfun(e), penwidth);
-          assert(stp.nvertices <= INT_MAX);
-          gvrender_polygon(job, stp.vertices, stp.nvertices, 1);
-          free_stroke(stp);
-          gvrender_set_pencolor(job, color);
-          if (fillcolor != color)
-            gvrender_set_fillcolor(job, fillcolor);
-          bz = spl->list[0];
-          if (bz.sflag) {
-            arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], arrowsize, penwidth,
-                      bz.sflag);
-          }
-          bz = spl->list[spl->size - 1];
-          if (bz.eflag) {
-            arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize,
-                      penwidth, bz.eflag);
-          }
-        }
-        /* if more than one color - then generate parallel Béziers, one per
-           color */
-        else if (numc) {
-          /* calculate and save offset vector spline and initialize first offset
-           * spline */
-          tmpspl.size = offspl.size = ED_spl(e)->size;
-          offspl.list = gv_calloc(offspl.size, sizeof(bezier));
-          tmpspl.list = gv_calloc(tmpspl.size, sizeof(bezier));
-          numc2 = (2 + (double)numc) / 2.0;
-          for (size_t i = 0; i < offspl.size; i++) {
-            bz = ED_spl(e)->list[i];
-            tmpspl.list[i].size = offspl.list[i].size = bz.size;
-            offlist = offspl.list[i].list = gv_calloc(bz.size, sizeof(pointf));
-            tmplist = tmpspl.list[i].list = gv_calloc(bz.size, sizeof(pointf));
-            pf3 = bz.list[0];
-            size_t j;
-            for (j = 0; j < bz.size - 1; j += 3) {
-              pf0 = pf3;
-              pf1 = bz.list[j + 1];
-              /* calculate perpendicular vectors for each Bézier point */
-              if (j == 0) /* first segment, no previous pf2 */
-                offlist[j] = computeoffset_p(pf0, pf1, SEP);
-              else /* i.e. pf2 is available from previous segment */
-                offlist[j] = computeoffset_p(pf2, pf1, SEP);
-              pf2 = bz.list[j + 2];
-              pf3 = bz.list[j + 3];
-              offlist[j + 1] = offlist[j + 2] =
-                  computeoffset_qr(pf0, pf1, pf2, pf3, SEP);
-              /* initialize tmpspl to outermost position */
-              tmplist[j].x = pf0.x - numc2 * offlist[j].x;
-              tmplist[j].y = pf0.y - numc2 * offlist[j].y;
-              tmplist[j + 1].x = pf1.x - numc2 * offlist[j + 1].x;
-              tmplist[j + 1].y = pf1.y - numc2 * offlist[j + 1].y;
-              tmplist[j + 2].x = pf2.x - numc2 * offlist[j + 2].x;
-              tmplist[j + 2].y = pf2.y - numc2 * offlist[j + 2].y;
-            }
-            /* last segment, no next pf1 */
-            offlist[j] = computeoffset_p(pf2, pf3, SEP);
-            tmplist[j].x = pf3.x - numc2 * offlist[j].x;
-            tmplist[j].y = pf3.y - numc2 * offlist[j].y;
-          }
-          lastcolor = headcolor = tailcolor = color;
-          colors = gv_strdup(color);
-          for (cnum = 0, color = strtok(colors, ":"); color;
-               cnum++, color = strtok(0, ":")) {
-            if (!color[0])
-              color = DEFAULT_COLOR;
-            if (color != lastcolor) {
-              if (!(ED_gui_state(e) &
-                    (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
-                gvrender_set_pencolor(job, color);
-                gvrender_set_fillcolor(job, color);
-              }
-              lastcolor = color;
-            }
-            if (cnum == 0)
-              headcolor = tailcolor = color;
-            if (cnum == 1)
-              tailcolor = color;
-            for (size_t i = 0; i < tmpspl.size; i++) {
-              tmplist = tmpspl.list[i].list;
-              offlist = offspl.list[i].list;
-              for (size_t j = 0; j < tmpspl.list[i].size; j++) {
-                tmplist[j].x += offlist[j].x;
-                tmplist[j].y += offlist[j].y;
-              }
-              gvrender_beziercurve(job, tmplist, tmpspl.list[i].size, 0);
-            }
-          }
-          if (bz.sflag) {
-            if (color != tailcolor) {
-              color = tailcolor;
-              if (!(ED_gui_state(e) &
-                    (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
-                gvrender_set_pencolor(job, color);
-                gvrender_set_fillcolor(job, color);
-              }
-            }
-            arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], arrowsize, penwidth,
-                      bz.sflag);
-          }
-          if (bz.eflag) {
-            if (color != headcolor) {
-              color = headcolor;
-              if (!(ED_gui_state(e) &
-                    (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
-                gvrender_set_pencolor(job, color);
-                gvrender_set_fillcolor(job, color);
-              }
-            }
-            arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize,
-                      penwidth, bz.eflag);
-          }
-          free(colors);
-          for (size_t i = 0; i < offspl.size; i++) {
-            free(offspl.list[i].list);
-            free(tmpspl.list[i].list);
-          }
-          free(offspl.list);
-          free(tmpspl.list);
-        } else {
-          if (!(ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
-            if (color[0]) {
-              gvrender_set_pencolor(job, color);
-              gvrender_set_fillcolor(job, fillcolor);
-            } else {
-              gvrender_set_pencolor(job, DEFAULT_COLOR);
-              if (fillcolor[0])
-                gvrender_set_fillcolor(job, fillcolor);
-              else
-                gvrender_set_fillcolor(job, DEFAULT_COLOR);
-            }
-          }
-          for (size_t i = 0; i < ED_spl(e)->size; i++) {
-            bz = ED_spl(e)->list[i];
+	    splines *spl = ED_spl(e);
+	    if (*color == '\0') color = DEFAULT_COLOR;
+	    if (*fillcolor == '\0') fillcolor = DEFAULT_COLOR;
+	    gvrender_set_pencolor(job, "transparent");
+	    gvrender_set_fillcolor(job, color);
+	    bz = spl->list[0];
+	    stroke_t stp = taper(spl, taperfun (e), penwidth);
+	    assert(stp.nvertices <= INT_MAX);
+	    gvrender_polygon(job, stp.vertices, stp.nvertices, 1);
+	    free_stroke(stp);
+	    gvrender_set_pencolor(job, color);
+	    if (fillcolor != color)
+		gvrender_set_fillcolor(job, fillcolor);
+	    if (bz.sflag) {
+		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], arrowsize, penwidth, bz.sflag);
+	    }
+	    bz = spl->list[spl->size - 1];
+	    if (bz.eflag) {
+		arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize, penwidth, bz.eflag);
+	    }
+	}
+	/* if more than one color - then generate parallel Béziers, one per color */
+	else if (numc) {
+	    /* calculate and save offset vector spline and initialize first offset spline */
+	    tmpspl.size = offspl.size = ED_spl(e)->size;
+	    offspl.list = gv_calloc(offspl.size, sizeof(bezier));
+	    tmpspl.list = gv_calloc(tmpspl.size, sizeof(bezier));
+	    numc2 = (2 + (double)numc) / 2.0;
+	    for (size_t i = 0; i < offspl.size; i++) {
+		bz = ED_spl(e)->list[i];
+		tmpspl.list[i].size = offspl.list[i].size = bz.size;
+		offlist = offspl.list[i].list = gv_calloc(bz.size, sizeof(pointf));
+		tmplist = tmpspl.list[i].list = gv_calloc(bz.size, sizeof(pointf));
+		pf3 = bz.list[0];
+		size_t j;
+		for (j = 0; j < bz.size - 1; j += 3) {
+		    pf0 = pf3;
+		    pf1 = bz.list[j + 1];
+		    /* calculate perpendicular vectors for each Bézier point */
+		    if (j == 0)	/* first segment, no previous pf2 */
+			offlist[j] = computeoffset_p(pf0, pf1, SEP);
+		    else	/* i.e. pf2 is available from previous segment */
+			offlist[j] = computeoffset_p(pf2, pf1, SEP);
+		    pf2 = bz.list[j + 2];
+		    pf3 = bz.list[j + 3];
+		    offlist[j + 1] = offlist[j + 2] =
+			computeoffset_qr(pf0, pf1, pf2, pf3, SEP);
+		    /* initialize tmpspl to outermost position */
+		    tmplist[j].x = pf0.x - numc2 * offlist[j].x;
+		    tmplist[j].y = pf0.y - numc2 * offlist[j].y;
+		    tmplist[j + 1].x = pf1.x - numc2 * offlist[j + 1].x;
+		    tmplist[j + 1].y = pf1.y - numc2 * offlist[j + 1].y;
+		    tmplist[j + 2].x = pf2.x - numc2 * offlist[j + 2].x;
+		    tmplist[j + 2].y = pf2.y - numc2 * offlist[j + 2].y;
+		}
+		/* last segment, no next pf1 */
+		offlist[j] = computeoffset_p(pf2, pf3, SEP);
+		tmplist[j].x = pf3.x - numc2 * offlist[j].x;
+		tmplist[j].y = pf3.y - numc2 * offlist[j].y;
+	    }
+	    lastcolor = headcolor = tailcolor = color;
+	    colors = gv_strdup(color);
+	    for (cnum = 0, color = strtok(colors, ":"); color;
+		cnum++, color = strtok(0, ":")) {
+		if (!color[0])
+		    color = DEFAULT_COLOR;
+		if (color != lastcolor) {
+	            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+		        gvrender_set_pencolor(job, color);
+		        gvrender_set_fillcolor(job, color);
+		    }
+		    lastcolor = color;
+		}
+		if (cnum == 0)
+		    headcolor = tailcolor = color;
+		if (cnum == 1)
+		    tailcolor = color;
+		for (size_t i = 0; i < tmpspl.size; i++) {
+		    tmplist = tmpspl.list[i].list;
+		    offlist = offspl.list[i].list;
+		    for (size_t j = 0; j < tmpspl.list[i].size; j++) {
+			tmplist[j].x += offlist[j].x;
+			tmplist[j].y += offlist[j].y;
+		    }
+		    gvrender_beziercurve(job, tmplist, tmpspl.list[i].size, 0);
+		}
+	    }
+	    if (bz.sflag) {
+		if (color != tailcolor) {
+		    color = tailcolor;
+	            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+		        gvrender_set_pencolor(job, color);
+		        gvrender_set_fillcolor(job, color);
+		    }
+		}
+		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
+			arrowsize, penwidth, bz.sflag);
+	    }
+	    if (bz.eflag) {
+		if (color != headcolor) {
+		    color = headcolor;
+	            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+		        gvrender_set_pencolor(job, color);
+		        gvrender_set_fillcolor(job, color);
+		    }
+		}
+		arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1],
+			arrowsize, penwidth, bz.eflag);
+	    }
+	    free(colors);
+	    for (size_t i = 0; i < offspl.size; i++) {
+		free(offspl.list[i].list);
+		free(tmpspl.list[i].list);
+	    }
+	    free(offspl.list);
+	    free(tmpspl.list);
+	} else {
+	    if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+	        if (color[0]) {
+		    gvrender_set_pencolor(job, color);
+		    gvrender_set_fillcolor(job, fillcolor);
+	        } else {
+		    gvrender_set_pencolor(job, DEFAULT_COLOR);
+		    if (fillcolor[0])
+			gvrender_set_fillcolor(job, fillcolor);
+		    else
+			gvrender_set_fillcolor(job, DEFAULT_COLOR);
+	        }
+	    }
+	    for (size_t i = 0; i < ED_spl(e)->size; i++) {
+		bz = ED_spl(e)->list[i];
 
-            /* Check if this edge has orthogonal routing and wants rounded
-             * corners */
-            char *splines_attr = agget(agraphof(aghead(e)), "splines");
-            bool is_ortho = splines_attr && streq(splines_attr, "ortho");
+		/* Check if this edge has orthogonal routing and wants rounded corners */
+		char *splines_attr = agget(agraphof(aghead(e)), "splines");
+		bool is_ortho = splines_attr && streq(splines_attr, "ortho");
 
-            /* Check for rounded style or explicit radius attribute */
-            bool want_rounded = false;
-            double radius = 0.0;
+		/* Check for rounded style or explicit radius attribute */
+		bool want_rounded = false;
+		double radius = 0.0;
 
-            /* First check if style=rounded */
-            if (styles) {
-              for (char **sp = styles; *sp; sp++) {
-                if (streq(*sp, "rounded")) {
-                  want_rounded = true;
-                  break;
-                }
-              }
-            }
+		/* First check if style=rounded */
+		if (styles) {
+		    for (char **sp = styles; *sp; sp++) {
+			if (streq(*sp, "rounded")) {
+			    want_rounded = true;
+			    break;
+			}
+		    }
+		}
 
-            /* Then check for explicit radius attribute (overrides style) */
-            char *radius_attr = agget(e, "radius");
-            if (radius_attr && radius_attr[0]) {
-              radius = atof(radius_attr);
-              want_rounded = radius > 0;
-            }
+		/* Then check for explicit radius attribute (overrides style) */
+		char *radius_attr = agget(e, "radius");
+		if (radius_attr && radius_attr[0]) {
+		    radius = atof(radius_attr);
+		    want_rounded = radius > 0;
+		}
 
-            /* If no explicit radius, use default when style=rounded */
-            if (want_rounded && radius == 0.0) {
-              radius = fmax(12.0, penwidth * 8.0);
-            }
+		/* If no explicit radius, use default when style=rounded */
+		if (want_rounded && radius == 0.0) {
+		    radius = fmax(12.0, penwidth * 8.0);
+		}
 
-            if (is_ortho && want_rounded && radius > 0) {
-              /* Truncate edge at corners and draw arcs */
-              corners_t corners = {0};
-              LIST_RESERVE(&corners, bz.size);
-              find_ortho_corners(bz.list, bz.size, radius, &corners);
+		if (is_ortho && want_rounded && radius > 0) {
+		    /* Truncate edge at corners and draw arcs */
+		    corners_t corners = {0};
+		    LIST_RESERVE(&corners, bz.size);
+		    find_ortho_corners(bz.list, bz.size, radius, &corners);
 
-              if (!LIST_IS_EMPTY(&corners)) {
-                /* Sort corners by index */
-                LIST_SORT(&corners, compare_corners);
+		    if (!LIST_IS_EMPTY(&corners)) {
+		        /* Sort corners by index */
+		        LIST_SORT(&corners, compare_corners);
 
-                /* Render segments between corners */
-                const double CORNER_TOL = 0.01;
-                size_t seg_start_idx = 0;
-                pointf seg_start_pt = bz.list[0];
+		        /* Render segments between corners */
+		        const double CORNER_TOL = 0.01;
+		        size_t seg_start_idx = 0;
+		        pointf seg_start_pt = bz.list[0];
 
-                for (size_t c = 0; c <= LIST_SIZE(&corners); c++) {
-                  size_t seg_end_idx;
-                  pointf seg_end_pt;
+		        for (size_t c = 0; c <= LIST_SIZE(&corners); c++) {
+		            size_t seg_end_idx;
+		            pointf seg_end_pt;
 
-                  if (c < LIST_SIZE(&corners)) {
-                    /* Segment ends at this corner's trunc_prev */
-                    seg_end_idx = LIST_GET(&corners, c).idx;
-                    seg_end_pt = LIST_GET(&corners, c).trunc_prev;
-                  } else {
-                    /* Last segment ends at final point */
-                    seg_end_idx = bz.size - 1;
-                    seg_end_pt = bz.list[bz.size - 1];
-                  }
+		            if (c < LIST_SIZE(&corners)) {
+		                /* Segment ends at this corner's trunc_prev */
+		                seg_end_idx = LIST_GET(&corners, c).idx;
+		                seg_end_pt = LIST_GET(&corners, c).trunc_prev;
+		            } else {
+		                /* Last segment ends at final point */
+		                seg_end_idx = bz.size - 1;
+		                seg_end_pt = bz.list[bz.size - 1];
+		            }
 
-                  /* Build segment */
-                  LIST(pointf) seg_pts = {0};
-                  LIST_APPEND(&seg_pts, seg_start_pt);
-                  for (size_t pt = seg_start_idx + 1; pt < seg_end_idx; pt++) {
-                    bool at_corner = false;
-                    for (size_t cc = 0; cc < LIST_SIZE(&corners); cc++) {
-                      pointf corner_pt = bz.list[LIST_GET(&corners, cc).idx];
-                      if (hypot(bz.list[pt].x - corner_pt.x,
-                                bz.list[pt].y - corner_pt.y) < CORNER_TOL) {
-                        at_corner = true;
-                        break;
-                      }
-                    }
-                    if (!at_corner) {
-                      LIST_APPEND(&seg_pts, bz.list[pt]);
-                    }
-                  }
-                  LIST_APPEND(&seg_pts, seg_end_pt);
+		            /* Build segment */
+		            LIST(pointf) seg_pts = {0};
+		            LIST_APPEND(&seg_pts, seg_start_pt);
+		            for (size_t pt = seg_start_idx + 1; pt < seg_end_idx; pt++) {
+		                bool at_corner = false;
+		                for (size_t cc = 0; cc < LIST_SIZE(&corners); cc++) {
+		                    pointf corner_pt = bz.list[LIST_GET(&corners, cc).idx];
+		                    if (hypot(bz.list[pt].x - corner_pt.x, bz.list[pt].y - corner_pt.y) < CORNER_TOL) {
+		                        at_corner = true;
+		                        break;
+		                    }
+		                }
+		                if (!at_corner) {
+		                    LIST_APPEND(&seg_pts, bz.list[pt]);
+		                }
+		            }
+		            LIST_APPEND(&seg_pts, seg_end_pt);
 
-                  /* Render this segment as polyline (straight lines, not
-                   * bezier) */
-                  gvrender_polyline(job, LIST_FRONT(&seg_pts),
-                                    LIST_SIZE(&seg_pts));
-                  LIST_FREE(&seg_pts);
+		            /* Render this segment as polyline (straight lines, not bezier) */
+		            gvrender_polyline(job, LIST_FRONT(&seg_pts), LIST_SIZE(&seg_pts));
+		            LIST_FREE(&seg_pts);
 
-                  /* Prepare for next segment */
-                  if (c < LIST_SIZE(&corners)) {
-                    /* Skip all duplicates of this corner */
-                    size_t next_idx = LIST_GET(&corners, c).idx + 1;
-                    while (next_idx < bz.size) {
-                      bool at_corner = false;
-                      for (size_t cc = 0; cc < LIST_SIZE(&corners); cc++) {
-                        pointf corner_pt = bz.list[LIST_GET(&corners, cc).idx];
-                        if (hypot(bz.list[next_idx].x - corner_pt.x,
-                                  bz.list[next_idx].y - corner_pt.y) <
-                            CORNER_TOL) {
-                          at_corner = true;
-                          break;
-                        }
-                      }
-                      if (!at_corner)
-                        break;
-                      next_idx++;
-                    }
-                    seg_start_idx = next_idx;
-                    seg_start_pt = LIST_GET(&corners, c).trunc_next;
-                  }
-                }
+		            /* Prepare for next segment */
+		            if (c < LIST_SIZE(&corners)) {
+		                /* Skip all duplicates of this corner */
+		                size_t next_idx = LIST_GET(&corners, c).idx + 1;
+		                while (next_idx < bz.size) {
+		                    bool at_corner = false;
+		                    for (size_t cc = 0; cc < LIST_SIZE(&corners); cc++) {
+		                        pointf corner_pt = bz.list[LIST_GET(&corners, cc).idx];
+		                        if (hypot(bz.list[next_idx].x - corner_pt.x,
+		                                 bz.list[next_idx].y - corner_pt.y) < CORNER_TOL) {
+		                            at_corner = true;
+		                            break;
+		                        }
+		                    }
+		                    if (!at_corner) break;
+		                    next_idx++;
+		                }
+		                seg_start_idx = next_idx;
+		                seg_start_pt = LIST_GET(&corners, c).trunc_next;
+		            }
+		        }
 
-                /* Draw corner arcs to fill the gaps */
-                draw_ortho_corner_markers(job, &corners, radius, color);
-              } else {
-                /* No corners found, render normally */
-                gvrender_beziercurve(job, bz.list, bz.size, 0);
-              }
-              LIST_FREE(&corners);
-            } else {
-              /* Non-orthogonal edge, render normally */
-              gvrender_beziercurve(job, bz.list, bz.size, 0);
-            }
+		        /* Draw corner arcs to fill the gaps */
+		        draw_ortho_corner_markers(job, &corners, radius, color);
+		    } else {
+		        /* No corners found, render normally */
+		        gvrender_beziercurve(job, bz.list, bz.size, 0);
+		    }
+		    LIST_FREE(&corners);
+		} else {
+		    /* Non-orthogonal edge, render normally */
+		    gvrender_beziercurve(job, bz.list, bz.size, 0);
+		}
 
-            if (bz.sflag) {
-              arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], arrowsize, penwidth,
-                        bz.sflag);
-            }
-            if (bz.eflag) {
-              arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize,
-                        penwidth, bz.eflag);
-            }
-            if (ED_spl(e)->size > 1 && (bz.sflag || bz.eflag) && styles)
-              gvrender_set_style(job, styles);
-          }
-        }
+		if (bz.sflag) {
+		    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
+		              arrowsize, penwidth, bz.sflag);
+		}
+		if (bz.eflag) {
+		    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1],
+		              arrowsize, penwidth, bz.eflag);
+		}
+		if (ED_spl(e)->size > 1 && (bz.sflag || bz.eflag) && styles)
+		    gvrender_set_style(job, styles);
+		}
+	}
     }
 
 done:
