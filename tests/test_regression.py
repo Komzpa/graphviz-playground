@@ -6327,6 +6327,38 @@ def test_2743():
     dot("dot", src)
 
 
+def test_2771():
+    """
+    Graphviz should not trigger a buffer overflow on this malformed graph
+    https://gitlab.com/graphviz/graphviz/-/work_items/2771
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2771.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    which_dot = which("dot")
+    assert which_dot is not None
+
+    proc = subprocess.run(
+        [which_dot, "-Tdot", "-o", os.devnull, src],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert proc.returncode in (0, 1), "Graphviz returned unexpected exit status"
+
+    if is_asan_instrumented(which_dot):
+        assert (
+            re.search(rb"\bAddressSanitizer: heap-buffer-overflow\b", proc.stderr)
+            is None
+        ), "malformed input caused a heap-buffer-overflow"
+        assert (
+            re.search(rb"\bAddressSanitizer: heap-use-after-free\b", proc.stderr)
+            is None
+        ), "malformed input caused a use-after-free"
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",
