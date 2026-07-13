@@ -6222,7 +6222,9 @@ def test_2764(concentrate: bool):
     source = input.read_text().replace(
         "concentrate=true", f"concentrate={str(concentrate).lower()}"
     )
-    dot("dot", source=source)
+    layout = dot("dot", source=source)
+    if concentrate:
+        assert "pos=" in layout, "one-sided slope should produce edge positions"
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
