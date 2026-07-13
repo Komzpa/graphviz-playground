@@ -15,6 +15,18 @@
 #include <common/render.h>
 #include <string.h>
 
+/*
+ * Concentration is safe only when the two original edges describe the same
+ * rendered edge after accounting for their relation.  Ordinary parallel edges
+ * compare tail with tail and head with head.  Opposite edges compare tail with
+ * head, because the same physical route is traversed in reverse.
+ *
+ * Keep this relation-aware compatibility test in one common helper so the
+ * rank-spanning and same-rank concentrate paths do not grow separate, subtly
+ * different interpretations of ports, samehead/sametail groups, arrowheads, or
+ * non-endpoint attributes.
+ */
+
 typedef enum {
     CONCENTRATE_ENDPOINT_TAIL,
     CONCENTRATE_ENDPOINT_HEAD,
