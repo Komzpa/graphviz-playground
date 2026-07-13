@@ -5937,8 +5937,7 @@ def test_2648(tmp_path: Path):
 
 def test_2669():
     """
-    `dpi=…` should scale the SVG `viewBox` as well as the overall size
-    without adding `pt` units that make browsers rescale the image
+    core SVG root dimensions must be unitless and scale with the `viewBox`
     https://gitlab.com/graphviz/graphviz/-/issues/2669
     https://gitlab.com/graphviz/graphviz/-/issues/867
     """
@@ -5985,17 +5984,30 @@ def test_2669():
     svg1 = dot("svg", input)
 
     # confirm the width and height roughly match the `viewBox`
-    width, height, viewbox = parse(svg1)
-    assert math.isclose(width, viewbox[0], abs_tol=1.0), "mismatched SVG widths"
-    assert math.isclose(height, viewbox[1], abs_tol=1.0), "mismatched SVG heights"
+    default_width, default_height, default_viewbox = parse(svg1)
+    assert math.isclose(
+        default_width, default_viewbox[0], abs_tol=1.0
+    ), "mismatched SVG widths"
+    assert math.isclose(
+        default_height, default_viewbox[1], abs_tol=1.0
+    ), "mismatched SVG heights"
 
     # run this with a modified DPI
     svg2 = run("dot", "-Tsvg", "-Gdpi=60", input)
 
     # confirm the width and height roughly match the `viewBox`
-    width, height, viewbox = parse(svg2)
-    assert math.isclose(width, viewbox[0], abs_tol=1.0), "mismatched SVG widths"
-    assert math.isclose(height, viewbox[1], abs_tol=1.0), "mismatched SVG heights"
+    dpi_width, dpi_height, dpi_viewbox = parse(svg2)
+    assert math.isclose(dpi_width, dpi_viewbox[0], abs_tol=1.0), "mismatched SVG widths"
+    assert math.isclose(
+        dpi_height, dpi_viewbox[1], abs_tol=1.0
+    ), "mismatched SVG heights"
+
+    # The default SVG DPI is 72, so all root and viewBox dimensions scale by 60/72.
+    for original, scaled in zip(
+        (*default_viewbox, default_width, default_height),
+        (*dpi_viewbox, dpi_width, dpi_height),
+    ):
+        assert math.isclose(scaled, original * 60 / 72, abs_tol=1.0)
 
 
 def test_2682():
