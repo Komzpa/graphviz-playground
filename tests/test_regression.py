@@ -7017,19 +7017,17 @@ def test_changelog_dates():
 
 
 @pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
-def test_duplicate_hard_coded_metrics_warnings():
+def test_gvpack_2239():
     """
-    Check #2239 through `-u` and verify warnings do not repeat.
+    `gvpack -u` should not fail on #2239.
 
     Its nested subgraphs inherit node and edge defaults, exercising gvpack's
-    clone path as well as the warning check below.
+    clone path through nested clusters.
     """
 
-    # Reuse the #2239 regression input for both contracts.
     input = Path(__file__).parent / "2239.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    # run it through gvpack
     gvpack = which("gvpack")
     p = subprocess.run(
         [gvpack, "-u", "-o", os.devnull, input],
@@ -7038,7 +7036,27 @@ def test_duplicate_hard_coded_metrics_warnings():
         text=True,
     )
 
-    p.check_returncode()
+    assert p.returncode == 0, f"gvpack -u failed on #2239:\n{p.stderr}"
+
+
+@pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
+def test_duplicate_hard_coded_metrics_warnings():
+    """
+    Check #2239 through `-u` and verify warnings do not repeat.
+    """
+
+    input = Path(__file__).parent / "2239.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    gvpack = which("gvpack")
+    p = subprocess.run(
+        [gvpack, "-u", "-o", os.devnull, input],
+        stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+    )
+
+    assert p.returncode == 0, f"gvpack -u failed on #2239:\n{p.stderr}"
 
     assert (
         p.stderr.count("no hard-coded metrics for 'sans'") <= 1
