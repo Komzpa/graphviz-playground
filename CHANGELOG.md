@@ -83,6 +83,12 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Subgraph node defaults are now applied consistently, regardless of statement
+  ordering, and explicit node attributes are no longer overwritten by nested
+  defaults. #2264
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
