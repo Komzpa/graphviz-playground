@@ -3963,6 +3963,32 @@ def test_2368(testcase: str, expected_labels: Counter[str]):
     assert labels == expected_labels, "routed edges were lost or duplicated"
 
 
+def test_2747():
+    """
+    All-degenerate routing boxes should produce a controlled error, not a crash.
+    https://gitlab.com/graphviz/graphviz/-/work_items/2747
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2747.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    dot_exe = which("dot")
+    assert dot_exe is not None
+
+    proc = subprocess.run(
+        [dot_exe, "-Tsvg", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    assert proc.returncode not in (
+        -signal.SIGABRT,
+        -signal.SIGSEGV,
+    ), "malformed concentrated edges should return a controlled error code"
+
+
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 def test_2370():
     """
