@@ -353,10 +353,10 @@ static void addEdge(edge_t * de, edge_t * e)
 
 /*
  * If every real descendant of a cluster is fixed, pin the derived cluster node
- * to the descendant bounding-box center so root-level layout preserves those
- * absolute coordinates.
+ * to the descendant bounding-box center so root-level layout preserves their
+ * relative coordinates.
  */
-static bool fixedClusterBounds(graph_t *subg, boxf *bb, bool *have_fixed) {
+static bool fixedClusterBounds(graph_t *subg, boxf *bb) {
     bool all_fixed = true;
     bool have_bounds = false;
     node_t *n;
@@ -387,8 +387,7 @@ static bool fixedClusterBounds(graph_t *subg, boxf *bb, bool *have_fixed) {
         }
     }
 
-    *have_fixed = have_bounds;
-    return all_fixed;
+    return have_bounds && all_fixed;
 }
 
 /// copy given attribute from g to dg
@@ -448,7 +447,6 @@ static graph_t *deriveGraph(graph_t * g, layout_info * infop)
     /* create derived nodes from clusters */
     for (i = 1; i <= GD_n_cluster(g); i++) {
 	boxf fix_bb = {{DBL_MAX, DBL_MAX}, {-DBL_MAX, -DBL_MAX}};
-	bool have_fix_bb = false;
 	subg = GD_clust(g)[i];
 
 	do_graph_label(subg);
@@ -457,8 +455,7 @@ static graph_t *deriveGraph(graph_t * g, layout_info * infop)
 	ND_id(dn) = id++;
 	if (infop->G_coord)
 		chkPos(subg, dn, infop, &fix_bb);
-	if (!ND_pinned(dn) && fixedClusterBounds(subg, &fix_bb, &have_fix_bb) &&
-	    have_fix_bb) {
+	if (!ND_pinned(dn) && fixedClusterBounds(subg, &fix_bb)) {
 	    ND_pinned(dn) = P_PIN;
 	}
 	for (n = agfstnode(subg); n; n = agnxtnode(subg, n)) {
