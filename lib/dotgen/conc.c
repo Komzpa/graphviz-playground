@@ -202,15 +202,21 @@ static int rebuild_vlists(graph_t * g)
     return 0;
 }
 
-static void concentrate_single_rank(graph_t *g) {
+static void concentrate_single_rank(
+    const concentrate_compat_state_t *attr_state, graph_t *g) {
     for (node_t *n = GD_nlist(g); n != NULL; n = ND_next(n)) {
         size_t i = 0;
         while (ND_other(n).list[i] != NULL) {
             edge_t *const e = ND_other(n).list[i];
             edge_t *const rep = ED_to_virt(e);
+            concentrate_edge_pair_compat_t compat;
             /* flat_breakcycles() puts reverse flat edges in ND_other() */
-            if (rep != NULL && ED_label(e) == NULL && ED_label(rep) == NULL &&
-                ports_eq(e, rep) && same_edge_attrs(e, rep)) {
+            if (rep != NULL && ED_label(e) == NULL && ED_label(rep) == NULL) {
+                concentrate_edge_pair_compat_init(attr_state, e, rep, &compat);
+                if (!compat.opposite_mergeable) {
+                    i++;
+                    continue;
+                }
                 zapinlist(&ND_other(n), e);
                 ED_edge_type(e) = IGNORED;
                 continue;
@@ -225,11 +231,11 @@ int dot_concentrate(graph_t *g) {
     node_t *left, *right;
     concentrate_compat_state_t attr_state;
 
+    concentrate_compat_state_init(agroot(g), &attr_state);
     if (GD_maxrank(g) - GD_minrank(g) <= 1) {
-	concentrate_single_rank(g);
+	concentrate_single_rank(&attr_state, g);
 	return 0;
     }
-    concentrate_compat_state_init(agroot(g), &attr_state);
     /* this is the downward looking pass. r is a candidate rank. */
     for (r = 1; GD_rank(g)[r + 1].n; r++) {
 	for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {
