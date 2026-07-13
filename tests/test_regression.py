@@ -4179,6 +4179,20 @@ def test_2436():
         "empty label was not preserved"
     )
 
+    # graph defaults explicitly set to an empty label must also remain
+    source = textwrap.dedent(
+        """\
+        graph {
+          graph [label=""]
+          a
+        }
+        """
+    )
+    output = run(nop, input=source)
+    assert re.search(r"\bgraph\s+\[\s*label\s*=\s*\"\"\s*\]", output), (
+        "explicit graph default empty label was not preserved"
+    )
+
     # The explicitness marker is generic: it must not be limited to node
     # labels. Graph defaults follow the existing dictionary-printing path,
     # while object assignments need the marker to retain default-equal values.
