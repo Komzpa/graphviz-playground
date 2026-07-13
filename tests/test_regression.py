@@ -6238,7 +6238,26 @@ def test_2764_output_has_pos():
     # only concentrated mode exercises the one-sided conc_slope path
     source = input.read_text()
     layout = dot("dot", source=source)
-    assert re.search(r"->.*\bpos=", layout), "one-sided slope should produce edge positions"
+    edge_attrs = {}
+    for line in layout.splitlines():
+        line = line.strip()
+        if "->" not in line:
+            continue
+        match = re.match(r"(?P<edge>.+?)(?:\s+\[(?P<attrs>.*)\])?;$", line)
+        assert match is not None, f"unexpected edge line in dot output: {line}"
+        edge_attrs[match.group("edge")] = match.group("attrs") or ""
+
+    for edge in ("left -> sink:p", "top:p -> sink:p", "top -> t", "t -> sink:p"):
+        assert edge in edge_attrs, f"missing routed edge in concentrated output: {edge}"
+        assert "pos=" in edge_attrs[edge], (
+            f"one-sided slope should still route concentrated output edge: {edge}"
+        )
+
+    # The direct duplicate edge is concentrated away, so it remains present in
+    # the output but has no routed spline of its own.
+    assert edge_attrs.get("top -> sink:p") == "", (
+        "concentrated duplicate edge should not keep its own spline positions"
+    )
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
