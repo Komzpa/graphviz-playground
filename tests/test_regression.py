@@ -6329,7 +6329,7 @@ def test_2743():
 
 def test_2760():
     """
-    Graphviz should not crash when processing this graph
+    Graphviz should successfully lay out this graph
     https://gitlab.com/graphviz/graphviz/-/issues/2760
     """
 

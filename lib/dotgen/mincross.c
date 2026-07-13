@@ -913,6 +913,7 @@ void rec_reset_vlists(graph_t *g) {
     for (int r = GD_minrank(g); r <= GD_maxrank(g); r++) {
       node_t *u = NULL;
       node_t *w = NULL;
+      // Rankleaders may have been removed; rebuild the bounds from live nodes.
       for (int i = 0; i < GD_rank(dot_root(g))[r].n; i++) {
         node_t *const v = GD_rank(dot_root(g))[r].v[i];
         if (!inside_cluster(g, v)) {
