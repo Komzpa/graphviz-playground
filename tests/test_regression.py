@@ -2314,22 +2314,24 @@ def test_2075():
     input = Path(__file__).parent / "2075.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    # render the concentrated graph and find the multi-segment b→d edge
+    # render the concentrated graph and find their tapered polygons
     svg = ET.fromstring(dot("svg", input))
-    edge = next(
-        group
-        for group in svg.findall(".//{*}g")
-        if (title := group.find("{*}title")) is not None and title.text == "b->d"
-    )
+    def taper_vertex_count(name: str) -> int:
+        edge = next(
+            group
+            for group in svg.findall(".//{*}g")
+            if (title := group.find("{*}title")) is not None and title.text == name
+        )
+        return max(
+            len(polygon.attrib["points"].split())
+            for polygon in edge.findall("{*}polygon")
+        )
 
-    # its tapered polygon should span both the private prefix and shared tail
-    polygons = edge.findall("{*}polygon")
-    vertical_spans = []
-    for polygon in polygons:
-        points = polygon.attrib["points"].split()
-        ys = [float(point.rsplit(",", 1)[1]) for point in points]
-        vertical_spans.append(max(ys) - min(ys))
-    assert max(vertical_spans) > 100, "tapered edge is missing its shared tail"
+    # b→d has a private prefix plus the c→d shared tail. It must therefore
+    # produce more taper vertices than either adjacent one-segment edge.
+    shared_path = taper_vertex_count("b->d")
+    assert shared_path > taper_vertex_count("b->c")
+    assert shared_path > taper_vertex_count("c->d")
 
 
 def test_2078():
