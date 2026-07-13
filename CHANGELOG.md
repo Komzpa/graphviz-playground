@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `neato -n3` no longer repositions edges that already provide clipped spline
+  endpoints in their input `pos` data. #2845
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

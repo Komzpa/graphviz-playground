@@ -45,6 +45,20 @@ static bool swap_ends_p(edge_t * e)
 static splineInfo sinfo = {.swapEnds = swap_ends_p,
                            .splineMerge = spline_merge};
 
+static void keep_first_spline(edge_t * e)
+{
+    if (ED_spl(e) == NULL || ED_spl(e)->size <= 1) {
+        return;
+    }
+
+    for (size_t i = 1; i < ED_spl(e)->size; ++i) {
+        free(ED_spl(e)->list[i].list);
+    }
+    ED_spl(e)->list =
+        gv_recalloc(ED_spl(e)->list, ED_spl(e)->size, 1, sizeof(bezier));
+    ED_spl(e)->size = 1;
+}
+
 static void make_barriers(Ppoly_t **poly, int npoly, int pp, int qp,
                           Pedge_t **barriers, size_t *n_barriers) {
     int i, j, k;
@@ -654,18 +668,22 @@ static int spline_edges_(graph_t *g, expand_t *pmargin, int edgetype) {
 	    if (useEdges && ED_spl(e)) {
 		addEdgeLabels(e);
 		if (Nop == 3 && ED_spl(e)->size > 0) {
-		    // use first bezier, start point and end point will lost
+		    // use only the first bezier under -n3
 		    if (ED_spl(e)->size > 1) {
 			agwarningf("edge %s -> %s : set more than one spline. First used, other dropped.\n", agnameof(n), agnameof(head));
 		    }
 		    bezier *bez = ED_spl(e)->list;
-		    size_t sz = bez->size;
-		    bez->size = 0;
-		    pointf *pb = bez->list;
-		    bez->list = NULL;
-		    gv_free_splines(e);
-		    clip_and_install(e, head, pb, sz, &sinfo);
-		    free(pb);
+		    if (bez->sflag || bez->eflag) {
+			keep_first_spline(e);
+		    } else {
+			size_t sz = bez->size;
+			bez->size = 0;
+			pointf *pb = bez->list;
+			bez->list = NULL;
+			gv_free_splines(e);
+			clip_and_install(e, head, pb, sz, &sinfo);
+			free(pb);
+		    }
 		}
 	    } 
 	    else if (ED_count(e) == 0) continue;  /* only do representative */
@@ -1121,4 +1139,3 @@ bool neato_set_aspect(graph_t * g)
     }
     return moved;
 }
-
