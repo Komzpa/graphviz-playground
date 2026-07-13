@@ -424,10 +424,10 @@ static bool not_default_attrs(Agraph_t * g, Agnode_t * n)
 
     (void)g;
     if ((data = agattrrec(n))) {
-      for (sym = dtfirst(data->dict); sym; sym = dtnext(data->dict, sym)) {
-        if (agattrexplicit(n, sym) || data->str[sym->id] != sym->defval)
-          return true;
-      }
+	for (sym = dtfirst(data->dict); sym; sym = dtnext(data->dict, sym)) {
+	    if (agattrexplicit(n, sym) || data->str[sym->id] != sym->defval)
+		return true;
+	}
     }
     return false;
 }
@@ -492,19 +492,19 @@ static int write_nondefault_attrs(void *obj, iochan_t * ofile,
 		if (Headport && sym->id == Headport->id)
 		    continue;
 	    }
-            if (agattrexplicit(obj, sym) || data->str[sym->id] != sym->defval) {
-              if (cnt++ == 0) {
-                CHKRV(ioput(g, ofile, "\t["));
-                wr_info->level++;
-              } else {
-                CHKRV(ioput(g, ofile, ",\n"));
-                CHKRV(indent(g, ofile, *wr_info));
-              }
-              CHKRV(write_canonstr(g, ofile, sym->name, true));
-              CHKRV(ioput(g, ofile, "="));
-              CHKRV(write_canonstr(g, ofile, data->str[sym->id], true));
-            }
-        }
+	    if (agattrexplicit(obj, sym) || data->str[sym->id] != sym->defval) {
+		if (cnt++ == 0) {
+		    CHKRV(ioput(g, ofile, "\t["));
+		    wr_info->level++;
+		} else {
+		    CHKRV(ioput(g, ofile, ",\n"));
+		    CHKRV(indent(g, ofile, *wr_info));
+		}
+		CHKRV(write_canonstr(g, ofile, sym->name, true));
+		CHKRV(ioput(g, ofile, "="));
+		CHKRV(write_canonstr(g, ofile, data->str[sym->id], true));
+	    }
+	}
     if (cnt > 0) {
 	CHKRV(ioput(g, ofile, "]"));
 	wr_info->level--;
