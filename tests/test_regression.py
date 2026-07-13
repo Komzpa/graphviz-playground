@@ -7792,14 +7792,9 @@ def test_postaction():
 def test_unflatten_graph_attributes():
     """dot can apply unflatten preprocessing from root graph attributes."""
 
-    dotbin = which("dot")
-    neatobin = which("neato")
-    assert dotbin is not None, "dot not available"
-    assert neatobin is not None, "neato not available"
-
-    def canon(program: Path, source: str, *args: str) -> subprocess.CompletedProcess:
+    def canon(source: str, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [program, *args, "-Tcanon"],
+            ["dot", *args, "-Tcanon"],
             input=source,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -7808,28 +7803,23 @@ def test_unflatten_graph_attributes():
         )
 
     leaves = "digraph { a [label=\"\"]; a -> hub; b -> hub; c -> hub; }"
-    control = canon(dotbin, leaves).stdout
+    control = canon(leaves).stdout
     assert "minlen=" not in control
     assert "style=invis" not in control
 
-    transformed = canon(
-        dotbin, "digraph { graph [unflattenminlen=3]; " + leaves[10:]
-    ).stdout
+    transformed = canon("digraph { graph [unflattenminlen=3]; " + leaves[10:]).stdout
     assert sorted(map(int, re.findall(r"\bminlen=(\d+)\b", transformed))) == [1, 2, 3]
 
-    overridden = canon(dotbin, leaves, "-Gunflattenminlen=3").stdout
+    overridden = canon(leaves, "-Gunflattenminlen=3").stdout
     assert sorted(map(int, re.findall(r"\bminlen=(\d+)\b", overridden))) == [1, 2, 3]
 
     explicit = canon(
-        dotbin,
         "digraph { graph [unflattenminlen=3]; a -> hub; b -> hub; "
         "c -> hub; explicit -> hub [minlen=7]; }",
     ).stdout
     assert re.search(r"explicit -> hub\s+\[minlen=7\]", explicit) is not None
 
-    chains = canon(
-        dotbin, "digraph { graph [unflattenchainlimit=2]; a; b; c; }"
-    ).stdout
+    chains = canon("digraph { graph [unflattenchainlimit=2]; a; b; c; }").stdout
     assert {("a", "b"), ("b", "c")} <= set(
         re.findall(r"(\w+) -> (\w+)\s+\[style=invis\]", chains)
     )
@@ -7840,10 +7830,9 @@ def test_unflatten_graph_attributes():
       hub -> b -> bb;
       hub -> c -> cc;
     }"""
-    no_fanout = canon(dotbin, fan_source).stdout
+    no_fanout = canon(fan_source).stdout
     assert re.search(r"hub -> [abc]\s+\[minlen=", no_fanout) is None
     fanout = canon(
-        dotbin,
         fan_source.replace(
             "unflattenminlen=3", "unflattenminlen=3, unflattenfanout=true"
         ),
@@ -7856,21 +7845,19 @@ def test_unflatten_graph_attributes():
     ) == [1, 2, 3]
 
     warning = canon(
-        dotbin,
         "digraph { graph [unflattenchainlimit=2, unflattenfanout=true]; a; b; c; }",
     )
     assert "unflattenfanout" in warning.stderr
     assert "unflattenminlen" in warning.stderr
 
     subgraph = canon(
-        dotbin,
         "digraph { subgraph { graph [unflattenminlen=3]; a -> hub; b -> hub; c -> hub; } }",
     ).stdout
     assert re.search(r"\bminlen=", subgraph) is None
 
     non_dot = canon(
-        neatobin,
         "digraph { graph [unflattenminlen=3]; a -> hub; b -> hub; c -> hub; }",
+        "-Kneato",
     ).stdout
     assert re.search(r"\bminlen=", non_dot) is None
 
