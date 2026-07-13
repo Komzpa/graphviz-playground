@@ -111,6 +111,8 @@ static size_t continuation_index_size(graph_t *g, int r, int lpos, int rpos, int
 	continuations += dir == DOWN ? ND_out(n).size : ND_in(n).size;
     }
 
+    /* One entry per input continuation keeps this linear-probe table at most
+     * one quarter full. */
     size_t slot_count = 8;
     while (slot_count < continuations * 4)
 	slot_count *= 2;
