@@ -3896,6 +3896,33 @@ def test_2352_2():
     assert '<image xlink:href="EDA_2.svg" ' in svg, "external file reference missing"
 
 
+def test_1891():
+    """
+    HTML font spans in SVG should not be split into separate text elements
+    that introduce renderer-created whitespace
+    https://gitlab.com/graphviz/graphviz/-/issues/1891
+    """
+
+    input = Path(__file__).parent / "1891.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    svg = run("dot", "-Tsvg", input, cwd=Path(__file__).parent)
+    root = ET.fromstring(svg)
+
+    ns = {"svg": "http://www.w3.org/2000/svg"}
+    node = root.find(".//svg:g[@id='node1']", ns)
+    assert node is not None, "could not find expected node"
+
+    texts = node.findall("./svg:text", ns)
+    assert len(texts) == 1, "HTML label was split into multiple SVG text elements"
+
+    tspans = texts[0].findall("./svg:tspan", ns)
+    assert len(tspans) == 6, "unexpected HTML label span decomposition"
+
+    combined = "".join(tspan.text or "" for tspan in tspans)
+    assert combined == "main( _1: impl Fn(), _2: usize )", "HTML label text changed"
+
+
 def test_2355():
     """
     Using >127 layers should not crash Graphviz
