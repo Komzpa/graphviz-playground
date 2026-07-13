@@ -4179,6 +4179,36 @@ def test_2436():
         "empty label was not preserved"
     )
 
+    # The explicitness marker is generic: it must not be limited to node
+    # labels. Graph defaults follow the existing dictionary-printing path,
+    # while object assignments need the marker to retain default-equal values.
+    source = '''\
+    digraph G {
+      graph [rankdir=TB]
+      a [tooltip=""]
+      b
+      a -> b [label="", tooltip=""]
+    }
+    '''
+    output = run(nop, input=source)
+
+    assert re.search(r"\bgraph\s+\[\s*rankdir\s*=\s*TB\s*\]", output), (
+        "explicit graph default was not preserved"
+    )
+    match = re.search(r"\ba\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+    assert match is not None, "node with explicit non-label attribute was omitted"
+    assert re.search(r'\btooltip\s*=\s*""', match["attrs"]), (
+        "explicit default-equal node attribute was not preserved"
+    )
+    match = re.search(r"\ba\s+->\s+b\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+    assert match is not None, "edge with explicit default-equal attributes was omitted"
+    assert re.search(r'\blabel\s*=\s*""', match["attrs"]), (
+        "explicit default-equal edge label was not preserved"
+    )
+    assert re.search(r'\btooltip\s*=\s*""', match["attrs"]), (
+        "explicit default-equal edge non-label attribute was not preserved"
+    )
+
 
 @pytest.mark.skipif(which("unflatten") is None, reason="unflatten not available")
 def test_1337(tmp_path: Path):
