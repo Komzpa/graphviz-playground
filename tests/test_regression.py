@@ -6353,19 +6353,20 @@ def test_2778():
 
 def test_2767():
     """
-    Graphviz should not crash when processing this graph
+    issue #2767: `rebuild_vlists` may return -1 for this graph,
+    and Graphviz must exit with a controlled error code instead of crashing
     https://gitlab.com/graphviz/graphviz/-/issues/2767
     """
 
     # locate our associated test case in this directory
-    src = Path(__file__).parent / "2767.dot"
-    assert src.exists(), "unexpectedly missing test case"
+    input = Path(__file__).parent / "2767.dot"
+    assert input.exists(), "unexpectedly missing test case"
 
     # run this through Graphviz
     try:
-        dot("dot", src)
+        dot("dot", input)
     except subprocess.CalledProcessError as e:
-        # allow failure; only fail this test case on a crash
+        # return code 1 is the expected controlled failure here
         if e.returncode != 1:
             raise
 
