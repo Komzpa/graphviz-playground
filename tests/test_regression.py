@@ -3918,7 +3918,8 @@ def test_2355():
 @pytest.mark.parametrize("testcase", ("2368.dot", "2368_1.dot"))
 def test_2368(testcase: str):
     """
-    routesplines should not corrupt its `prev` and `next` indices
+    An overlap repair can collapse a routing box. Pruning it must keep the
+    box count and later `prev`/`next` indices consistent.
     https://gitlab.com/graphviz/graphviz/-/issues/2368
     """
 

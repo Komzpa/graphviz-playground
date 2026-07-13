@@ -31,6 +31,8 @@
 
 static int nedges; ///< total no. of edges used in routing
 static size_t nboxes; ///< total no. of boxes used in routing
+/* Boxes below this size are numerically unusable as routing subdivisions. */
+static const double BOX_DIMENSION_TOLERANCE = .01;
 
 static int routeinit;
 
@@ -631,12 +633,15 @@ static double overlap(double i0, double i1, double j0, double j1) {
  *
  * Return 1 on failure; 0 on success.
  */
+static bool is_degenerate_box(const boxf *boxp) {
+    return fabs(boxp->LL.y - boxp->UR.y) < BOX_DIMENSION_TOLERANCE ||
+           fabs(boxp->LL.x - boxp->UR.x) < BOX_DIMENSION_TOLERANCE;
+}
+
 static size_t remove_degenerate_boxes(size_t boxn, boxf *boxes) {
     size_t count = 0;
     for (size_t bi = 0; bi < boxn; bi++) {
-	if (fabs(boxes[bi].LL.y - boxes[bi].UR.y) < .01)
-	    continue;
-	if (fabs(boxes[bi].LL.x - boxes[bi].UR.x) < .01)
+	if (is_degenerate_box(&boxes[bi]))
 	    continue;
 	boxes[count++] = boxes[bi];
     }
