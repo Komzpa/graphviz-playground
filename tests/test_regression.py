@@ -7016,6 +7016,21 @@ def test_changelog_dates():
             ), f"CHANGELOG.md:{lineno}: date in incorrect format: {line}"
 
 
+def _run_gvpack_2239():
+    input = Path(__file__).parent / "2239.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    gvpack = which("gvpack")
+    p = subprocess.run(
+        [gvpack, "-u", "-o", os.devnull, input],
+        stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+    )
+    p.check_returncode()
+    return p
+
+
 @pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
 def test_gvpack_2239():
     """
@@ -7025,18 +7040,7 @@ def test_gvpack_2239():
     clone path through nested clusters.
     """
 
-    input = Path(__file__).parent / "2239.dot"
-    assert input.exists(), "unexpectedly missing test case"
-
-    gvpack = which("gvpack")
-    p = subprocess.run(
-        [gvpack, "-u", "-o", os.devnull, input],
-        stderr=subprocess.PIPE,
-        check=False,
-        text=True,
-    )
-
-    assert p.returncode == 0, f"gvpack -u failed on #2239:\n{p.stderr}"
+    _run_gvpack_2239()
 
 
 @pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
@@ -7045,18 +7049,7 @@ def test_duplicate_hard_coded_metrics_warnings():
     Check #2239 through `-u` and verify warnings do not repeat.
     """
 
-    input = Path(__file__).parent / "2239.dot"
-    assert input.exists(), "unexpectedly missing test case"
-
-    gvpack = which("gvpack")
-    p = subprocess.run(
-        [gvpack, "-u", "-o", os.devnull, input],
-        stderr=subprocess.PIPE,
-        check=False,
-        text=True,
-    )
-
-    assert p.returncode == 0, f"gvpack -u failed on #2239:\n{p.stderr}"
+    p = _run_gvpack_2239()
 
     assert (
         p.stderr.count("no hard-coded metrics for 'sans'") <= 1
