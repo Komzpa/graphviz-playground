@@ -2314,24 +2314,26 @@ def test_2075():
     input = Path(__file__).parent / "2075.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    # render the concentrated graph and find their tapered polygons
+    # Render the concentrated graph and compare its tapered polygons.
     svg = ET.fromstring(dot("svg", input))
-    def taper_vertex_count(name: str) -> int:
+
+    def taper_vertex_count(edge_name: str) -> int:
         edge = next(
             group
             for group in svg.findall(".//{*}g")
-            if (title := group.find("{*}title")) is not None and title.text == name
+            if (title := group.find("{*}title")) is not None
+            and title.text == edge_name
         )
         return max(
             len(polygon.attrib["points"].split())
             for polygon in edge.findall("{*}polygon")
         )
 
-    # b→d has a private prefix plus the c→d shared tail. It must therefore
-    # produce more taper vertices than either adjacent one-segment edge.
-    shared_path = taper_vertex_count("b->d")
-    assert shared_path > taper_vertex_count("b->c")
-    assert shared_path > taper_vertex_count("c->d")
+    # b->d has a private prefix plus the c->d shared tail. Its tapered polygon
+    # must therefore have more vertices than either adjacent one-segment edge.
+    concentrated_path_vertices = taper_vertex_count("b->d")
+    assert concentrated_path_vertices > taper_vertex_count("b->c")
+    assert concentrated_path_vertices > taper_vertex_count("c->d")
 
 
 def test_2078():
