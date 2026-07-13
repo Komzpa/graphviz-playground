@@ -41,10 +41,19 @@ Dtdisc_t AgDataDictDisc = {
 };
 
 static char DataDictName[] = "_AG_datadict";
+static const char AttrProvenanceName[] = "_AG_attrprovenance";
 static void init_all_attrs(Agraph_t * g);
 static Agdesc_t ProtoDesc = {.directed = true, .no_loop = true,
                              .no_write = true};
 static Agraph_t *ProtoGraph;
+
+// A node has one effective attribute array shared by every subgraph image.
+// Keep explicit writes separate because value equality is not provenance.
+typedef struct {
+    Agrec_t h;
+    size_t size;
+    bool *explicit;
+} Agattr_provenance_t;
 
 Agdatadict_t *agdatadict(Agraph_t *g, bool cflag) {
     Agdatadict_t *rv = (Agdatadict_t *) aggetrec(g, DataDictName, 0);
@@ -251,7 +260,8 @@ static void unviewsubgraphsattr(Agraph_t *parent, char *name) {
   }
 }
 
-static int agxset_(void *obj, Agsym_t *sym, const char *value, bool is_html);
+static int agxset_(void *obj, Agsym_t *sym, const char *value, bool is_html,
+                   bool is_explicit);
 
 /// @param is_html Is `value` an HTML-like string?
 static Agsym_t *setattr(Agraph_t * g, int kind, char *name, const char *value,
@@ -303,7 +313,7 @@ static Agsym_t *setattr(Agraph_t * g, int kind, char *name, const char *value,
 	}
     }
     if (rv && kind == AGRAPH)
-	agxset_(g, rv, value, is_html);
+	agxset_(g, rv, value, is_html, true);
     agmethod_upd(g, g, rv);
     return rv;
 }
@@ -423,6 +433,13 @@ void agnodeattr_delete(Agnode_t * n)
 	freeattr(&n->base, rec);
 	agdelrec(n, AgDataRecName);
     }
+
+    Agattr_provenance_t *const provenance =
+	(Agattr_provenance_t *)aggetrec(n, AttrProvenanceName, 0);
+    if (provenance) {
+	free(provenance->explicit);
+	agdelrec(n, AttrProvenanceName);
+    }
 }
 
 void agedgeattr_init(Agraph_t * g, Agedge_t * e)
@@ -494,7 +511,32 @@ int agset_html(void *obj, char *name, const char *value) {
   return agset_(obj, name, value, true);
 }
 
-static int agxset_(void *obj, Agsym_t *sym, const char *value, bool is_html) {
+static void mark_explicit_node_attr(void *obj, const Agsym_t *sym) {
+    if (AGTYPE(obj) != AGNODE)
+	return;
+
+    Agattr_provenance_t *provenance =
+	(Agattr_provenance_t *)agbindrec(obj, AttrProvenanceName,
+	                                sizeof(Agattr_provenance_t), false);
+    const size_t required = (size_t)sym->id + 1;
+    if (provenance->size < required) {
+	provenance->explicit =
+	    gv_recalloc(provenance->explicit, provenance->size, required,
+	                 sizeof(bool));
+	provenance->size = required;
+    }
+    provenance->explicit[sym->id] = true;
+}
+
+bool agnodeattr_is_explicit(Agnode_t *n, Agsym_t *sym) {
+    const Agattr_provenance_t *const provenance =
+	(Agattr_provenance_t *)aggetrec(n, AttrProvenanceName, 0);
+    return provenance && (size_t)sym->id < provenance->size &&
+	   provenance->explicit[sym->id];
+}
+
+static int agxset_(void *obj, Agsym_t *sym, const char *value, bool is_html,
+                   bool is_explicit) {
     Agsym_t *lsym;
 
     Agraph_t *g = agraphof(obj);
@@ -514,6 +556,8 @@ static int agxset_(void *obj, Agsym_t *sym, const char *value, bool is_html) {
 	    dtinsert(dict, lsym);
 	}
     }
+    if (is_explicit)
+	mark_explicit_node_attr(obj, sym);
     agmethod_upd(g, obj, sym);
     return SUCCESS;
 }
@@ -534,11 +578,16 @@ int agxset(void *obj, Agsym_t *sym, const char *value) {
 }
 
 int agxset_text(void *obj, Agsym_t *sym, const char *value) {
-  return agxset_(obj, sym, value, false);
+  return agxset_(obj, sym, value, false, true);
 }
 
 int agxset_html(void *obj, Agsym_t *sym, const char *value) {
-  return agxset_(obj, sym, value, true);
+  return agxset_(obj, sym, value, true, true);
+}
+
+int agnodeattr_set_default(Agnode_t *n, Agsym_t *sym) {
+  // Do not mark this write: a deeper subgraph default may still replace it.
+  return agxset_(n, sym, sym->defval, aghtmlstr(sym->defval), false);
 }
 
 int agsafeset_text(void *obj, char *name, const char *value, const char *def) {

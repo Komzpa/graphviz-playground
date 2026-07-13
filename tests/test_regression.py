@@ -3571,6 +3571,106 @@ def test_2258():
         assert "G2" in gradient.get("id"), "ID was not applied to linear gradients"
 
 
+@pytest.mark.parametrize(
+    "source",
+    (
+        """digraph {
+  1 -> 2
+  subgraph {
+    node [shape=rectangle]
+    1
+    2
+  }
+}""",
+        """digraph {
+  subgraph {
+    node [shape=rectangle]
+    1
+    2
+  }
+  1 -> 2
+}""",
+    ),
+    ids=("edge-first", "subgraph-first"),
+)
+def test_2264(source: str):
+    """
+    Subgraph node defaults should not depend on statement ordering
+    https://gitlab.com/graphviz/graphviz/-/issues/2264
+    """
+
+    output = json.loads(dot("json", source=source))
+    nodes = {
+        obj["name"]: obj
+        for obj in output["objects"]
+        if obj["name"] in {"1", "2"}
+    }
+
+    assert nodes.keys() == {"1", "2"}
+    assert all(node["shape"] == "rectangle" for node in nodes.values())
+
+
+def test_2264_preserves_explicit_node_attributes():
+    """A subgraph default should not replace an explicit node attribute."""
+
+    source = """digraph {
+  3 [shape=hexagon]
+  subgraph {
+    node [shape=rectangle]
+    3
+  }
+}"""
+    output = json.loads(dot("json", source=source))
+    node = next(obj for obj in output["objects"] if obj["name"] == "3")
+
+    assert node["shape"] == "hexagon"
+
+
+def test_2264_preserves_explicit_node_attribute_equal_to_parent_default():
+    """Attribute value equality is not proof that the value was a default."""
+
+    source = """digraph {
+  node [shape=ellipse]
+  3 [shape=ellipse]
+  subgraph {
+    node [shape=rectangle]
+    3
+  }
+}"""
+    output = json.loads(dot("json", source=source))
+    node = next(obj for obj in output["objects"] if obj["name"] == "3")
+
+    assert node["shape"] == "ellipse"
+
+
+def test_2264_nested_subgraph_node_defaults():
+    """Nested defaults cascade until an explicit attribute blocks them."""
+
+    source = """digraph {
+  node [shape=ellipse]
+  5 [shape=ellipse]
+  4 -> 5
+  subgraph {
+    node [shape=rectangle]
+    subgraph {
+      node [shape=hexagon, color=red]
+      4
+      5
+    }
+  }
+}"""
+    output = json.loads(dot("json", source=source))
+    nodes = {
+        obj["name"]: obj
+        for obj in output["objects"]
+        if obj["name"] in {"4", "5"}
+    }
+
+    assert nodes["4"]["shape"] == "hexagon"
+    assert nodes["5"]["shape"] == "ellipse"
+    assert nodes["5"]["color"] == "red"
+
+
 def test_2270(tmp_path: Path):
     """
     `-O` should result in the expected output filename
