@@ -512,6 +512,33 @@ def _issue_449_graph(direction: str, *, concentrate: bool) -> str:
     return "\n".join(lines)
 
 
+def _issue_449_mixed_port_graph(direction: str, *, concentrate: bool) -> str:
+    lines = ["digraph {"]
+    if concentrate:
+        lines.append("  concentrate=true")
+    lines.append('  problem [shape=record, label="<p1>p1|<p2>p2|<p3>p3"]')
+    if direction == "down":
+        lines.extend(
+            [
+                "  subgraph { rank=source; source }",
+                "  some -> problem:p1",
+                "  source -> problem:p2",
+                "  source -> problem",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "  subgraph { rank=sink; sink }",
+                "  problem:p1 -> some",
+                "  problem:p2 -> sink",
+                "  problem -> sink",
+            ]
+        )
+    lines.append("}")
+    return "\n".join(lines)
+
+
 _ISSUE_449_SPLINES = (
     pytest.param(None, id="default"),
     pytest.param("line", id="line"),
@@ -538,6 +565,24 @@ def test_449_distinct_record_ports(direction: str, splines: Optional[str]):
         _issue_449_graph(direction, concentrate=False), splines=splines
     )
     assert (visible, total) == (3, 3), "non-concentrated control lost a route"
+
+
+@pytest.mark.parametrize("direction", ("down", "up"))
+@pytest.mark.parametrize("splines", (None, "ortho"))
+@pytest.mark.parametrize("concentrate", (True, False))
+def test_449_mixed_defined_and_undefined_ports(
+    direction: str, splines: Optional[str], concentrate: bool
+):
+    """
+    defined and undefined endpoint ports should stay distinct in both directions
+    https://gitlab.com/graphviz/graphviz/-/issues/449
+    """
+
+    visible, total = _visible_edge_counts(
+        _issue_449_mixed_port_graph(direction, concentrate=concentrate),
+        splines=splines,
+    )
+    assert (visible, total) == (3, 3), "mixed endpoint ports were merged"
 
 
 @pytest.mark.parametrize("splines", _ISSUE_449_SPLINES)
