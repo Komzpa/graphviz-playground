@@ -6564,6 +6564,18 @@ def test_2835():
 
     assert re.search(r"\bcolor\s*=\s*purple\b", cluster) is not None
     assert re.search(r'\bstyle\s*=\s*"dashed,rounded"', cluster) is not None
+    assert re.search(r"\bmargin\s*=\s*22\b", cluster) is None
+    assert re.search(r'\bstyle\s*=\s*"dotted,bold"', cluster) is None
+
+    cluster_y = re.search(
+        r"subgraph clusterY \{\n(?P<cluster>(.|\n)+?)\n\t\}", graph, flags=re.MULTILINE
+    )
+    assert cluster_y is not None, "failed to find cloned clusterY output"
+    cluster = cluster_y.group("cluster")
+
+    assert re.search(r"\bcolor\s*=\s*green\b", cluster) is not None
+    assert re.search(r"\bmargin\s*=\s*22\b", cluster) is not None
+    assert re.search(r'\bstyle\s*=\s*"dotted,bold"', cluster) is not None
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
