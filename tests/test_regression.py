@@ -5,6 +5,7 @@ The test cases in this file relate to previously observed bugs. A failure of one
 of these indicates that a past bug has been reintroduced.
 """
 
+from collections import Counter
 import dataclasses
 import hashlib
 import io
@@ -3915,11 +3916,38 @@ def test_2355():
     dot("svg", source=graph.getvalue())
 
 
-@pytest.mark.parametrize("testcase", ("2368.dot", "2368_1.dot"))
-def test_2368(testcase: str):
+@pytest.mark.parametrize(
+    ("testcase", "expected_labels"),
+    (
+        (
+            "2368.dot",
+            Counter(
+                {
+                    "from1": 2,
+                    "to1": 2,
+                    "ignore": 2,
+                    "from2": 2,
+                    "to2": 2,
+                    "as": 1,
+                }
+            ),
+        ),
+        (
+            "2368_1.dot",
+            Counter(
+                {
+                    "to1": 2,
+                    "to2": 1,
+                }
+            ),
+        ),
+    ),
+)
+def test_2368(testcase: str, expected_labels: Counter[str]):
     """
     An overlap repair can collapse a routing box. Pruning it must keep the
-    box count and later `prev`/`next` indices consistent.
+    box count and later `prev`/`next` indices consistent without dropping
+    routed edges.
     https://gitlab.com/graphviz/graphviz/-/issues/2368
     """
 
@@ -3929,6 +3957,10 @@ def test_2368(testcase: str):
 
     # run it through Graphviz
     dot("svg", input)
+    laid_out = json.loads(dot("json", input))
+
+    labels = Counter(edge["label"] for edge in laid_out["edges"] if edge["label"] != "")
+    assert labels == expected_labels, "routed edges were lost or duplicated"
 
 
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
