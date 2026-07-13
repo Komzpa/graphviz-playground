@@ -379,7 +379,10 @@ mclimit
      Multiplicative scale factor used to alter the MinQuit (default = 8) and
      MaxIter (default = 24) parameters used during crossing minimization.
      These correspond to the number of tries without improvement before
-     quitting and the maximum number of iterations in each pass.
+     quitting and the maximum number of iterations in each pass. If omitted,
+     dot may use a smaller internal default for pathologically expanded
+     graphs to keep layout renderable. Set mclimit explicitly to force a
+     specific crossing minimization budget.
 minlen
      Minimum edge length (rank difference between head and tail).
 model
@@ -396,7 +399,9 @@ nslimit1
      Used to set number of iterations in network simplex applications.
      nslimit is used in computing node x coordinates, nslimit1 for ranking
      nodes. If defined, # iterations = nslimit(1) * # nodes; otherwise, #
-     iterations = MAXINT.
+     iterations = MAXINT. For pathologically expanded dot graphs, omitted
+     nslimit may receive a smaller internal default to keep layout renderable.
+     Set nslimit explicitly to force a specific x-coordinate simplex budget.
 ordering
      If "out" for a graph G, and n is a node in G, then edges n->* appear
      left-to-right in the same order in which they are defined.

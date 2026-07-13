@@ -134,6 +134,9 @@ static int64_t mincross_clust(graph_t *g);
 static int64_t mincross(graph_t *g, int startpass);
 static void mincross_step(graph_t *g, int pass);
 static void mincross_options(graph_t *g);
+static size_t estimated_expanded_node_count(graph_t *g);
+static bool use_expanded_graph_budget(graph_t *g, size_t *input_nodes,
+                                      size_t *expanded_nodes);
 static void save_best(graph_t *g);
 static void restore_best(graph_t *g);
 
@@ -1019,11 +1022,11 @@ static void init_mincross(graph_t *g) {
   size = agnedges(dot_root(g)) + 1;
   TE_list = gv_calloc(size, sizeof(edge_t *));
   TI_list = gv_calloc(size, sizeof(int));
-  mincross_options(g);
   if (GD_flags(g) & NEW_RANK)
     fillRanks(g);
   class2(g);
   decompose(g, 1);
+  mincross_options(g);
   allocate_ranks(g);
   ordered_edges(g);
   GlobalMinRank = GD_minrank(g);
@@ -1754,10 +1757,66 @@ static void mincross_options(graph_t *g) {
   MaxIter = 24;
 
   p = agget(g, "mclimit");
-  if (p && (f = atof(p)) > 0.0) {
-    MinQuit = MAX(1, scale_clamp(MinQuit, f));
-    MaxIter = MAX(1, scale_clamp(MaxIter, f));
+  if (p) {
+    if ((f = atof(p)) > 0.0) {
+      MinQuit = MAX(1, scale_clamp(MinQuit, f));
+      MaxIter = MAX(1, scale_clamp(MaxIter, f));
+    }
+    return;
   }
+
+  size_t input_nodes = 0;
+  size_t expanded_nodes = 0;
+  const bool use_adaptive_budget =
+      use_expanded_graph_budget(g, &input_nodes, &expanded_nodes);
+  if (Verbose) {
+    fprintf(stderr,
+            "mincross: expanded graph estimate input nodes=%" PRISIZE_T
+            ", expanded nodes=%" PRISIZE_T "\n",
+            input_nodes, expanded_nodes);
+  }
+  if (use_adaptive_budget) {
+    MinQuit = 1;
+    MaxIter = 1;
+    if (Verbose) {
+      fprintf(stderr,
+              "mincross: adaptive mclimit=0.05 for expanded graph "
+              "(input nodes=%" PRISIZE_T ", expanded nodes=%" PRISIZE_T ")\n",
+              input_nodes, expanded_nodes);
+    }
+  }
+}
+
+static size_t estimated_expanded_node_count(graph_t *g) {
+  size_t nodes = (size_t)agnnodes(dot_root(g));
+
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+      const int tail_rank = ND_rank(agtail(e));
+      const int head_rank = ND_rank(aghead(e));
+      const int span =
+          tail_rank > head_rank ? tail_rank - head_rank : head_rank - tail_rank;
+      if (span > 1) {
+        nodes += (size_t)span - 1;
+      }
+    }
+  }
+
+  return nodes;
+}
+
+static bool use_expanded_graph_budget(graph_t *g, size_t *input_nodes,
+                                      size_t *expanded_nodes) {
+  enum { MIN_INPUT_NODES = 1000 };
+  enum { MIN_EXPANDED_NODES = 100000 };
+  enum { MIN_EXPANSION_RATIO = 60 };
+
+  *input_nodes = (size_t)agnnodes(dot_root(g));
+  *expanded_nodes = estimated_expanded_node_count(g);
+
+  return *input_nodes >= MIN_INPUT_NODES &&
+         *expanded_nodes >= MIN_EXPANDED_NODES &&
+         *expanded_nodes / MIN_EXPANSION_RATIO >= *input_nodes;
 }
 
 #ifdef DEBUG
