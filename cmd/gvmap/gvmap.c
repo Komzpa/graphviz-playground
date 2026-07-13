@@ -89,7 +89,7 @@ static const char usestr[] =
     -m v - bounding box margin. If 0, auto-assigned (0)\n\
     -o <file> - put output in <file> (stdout)\n\
     -O   - do NOT do color assignment optimization that maximizes color difference between neighboring countries\n\
-    -r k - number of random points k used to define sea and lake boundaries. If 0, auto assigned. (0)\n\
+    -r k - number of random points k used to define sea and lake boundaries. If 0, auto assigned. If k < 0, the number of random points is set to (-k * n). (0)\n\
     -s v - depth of the sea and lake shores in points. If < 0, auto assigned. (0)\n\
     -t n - improve contiguity up to n times. (0)\n\
     -v   - verbose\n\
