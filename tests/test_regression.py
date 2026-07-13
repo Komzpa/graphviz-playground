@@ -391,12 +391,15 @@ def assert_arrowhead_near_head(layout: dict, tail: str, head: str) -> None:
         if (names_by_id[edge["tail"]], names_by_id[edge["head"]]) == (tail, head)
     )
     arrowhead = next(op for op in edge["_hdraw_"] if op["op"] == "P")
-    arrow_y = arrowhead["points"][0][1]
-    head_y = float(objects_by_name[head]["pos"].split(",")[1])
-    tail_y = float(objects_by_name[tail]["pos"].split(",")[1])
+    arrow_tip = tuple(arrowhead["points"][0])
+    head_pos = tuple(float(coord) for coord in objects_by_name[head]["pos"].split(",")[:2])
+    tail_pos = tuple(float(coord) for coord in objects_by_name[tail]["pos"].split(",")[:2])
+    # Compare along the dominant endpoint axis. Concentrated splines can loop
+    # near the tail, so a full 2D distance check is too strict here.
+    axis = 1 if abs(head_pos[1] - tail_pos[1]) >= abs(head_pos[0] - tail_pos[0]) else 0
 
-    assert abs(arrow_y - head_y) < abs(
-        arrow_y - tail_y
+    assert abs(arrow_tip[axis] - head_pos[axis]) < abs(
+        arrow_tip[axis] - tail_pos[axis]
     ), f"{tail}->{head} arrowhead is closer to {tail} than to {head}"
 
 
