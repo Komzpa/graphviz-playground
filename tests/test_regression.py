@@ -6358,15 +6358,16 @@ def test_2767():
     """
 
     # locate our associated test case in this directory
-    input = Path(__file__).parent / "2767.dot"
-    assert input.exists(), "unexpectedly missing test case"
+    source = Path(__file__).parent / "2767.dot"
+    assert source.exists(), "unexpectedly missing test case"
 
     # run this through Graphviz
     try:
-        dot("dot", input)
+        dot("dot", source)
     except subprocess.CalledProcessError as e:
-        # Current behavior reports the layout failure with rc=1. A future
-        # successful layout is also acceptable; a crash is not.
+        # Known behavior is a graceful layout rejection (rc=1). A future
+        # successful layout is also acceptable; only non-1 exits indicate a
+        # fatal runtime failure.
         if e.returncode != 1:
             raise
 
