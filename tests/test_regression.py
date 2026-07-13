@@ -380,6 +380,26 @@ def test_218():
     assert warnings.strip() != "", "no warning issued for a font name containing space"
 
 
+def assert_arrowhead_near_head(layout: dict, tail: str, head: str) -> None:
+    """Check that an edge's arrowhead remains closest to its DOT head node."""
+
+    objects_by_name = {obj["name"]: obj for obj in layout["objects"]}
+    names_by_id = {obj["_gvid"]: obj["name"] for obj in layout["objects"]}
+    edge = next(
+        edge
+        for edge in layout["edges"]
+        if (names_by_id[edge["tail"]], names_by_id[edge["head"]]) == (tail, head)
+    )
+    arrowhead = next(op for op in edge["_hdraw_"] if op["op"] == "P")
+    arrow_y = arrowhead["points"][0][1]
+    head_y = float(objects_by_name[head]["pos"].split(",")[1])
+    tail_y = float(objects_by_name[tail]["pos"].split(",")[1])
+
+    assert abs(arrow_y - head_y) < abs(
+        arrow_y - tail_y
+    ), f"{tail}->{head} arrowhead is closer to {tail} than to {head}"
+
+
 @pytest.mark.parametrize("concentrate", (False, True))
 def test_222(concentrate: bool):
     """
@@ -397,21 +417,10 @@ def test_222(concentrate: bool):
     )
     layout = json.loads(dot("json", source=source))
 
-    objects_by_name = {obj["name"]: obj for obj in layout["objects"]}
-    names_by_id = {obj["_gvid"]: obj["name"] for obj in layout["objects"]}
-    edge = next(
-        edge
-        for edge in layout["edges"]
-        if (names_by_id[edge["tail"]], names_by_id[edge["head"]]) == ("h", "a")
-    )
-    arrowhead = next(op for op in edge["_hdraw_"] if op["op"] == "P")
-    arrow_y = arrowhead["points"][0][1]
-    a_y = float(objects_by_name["a"]["pos"].split(",")[1])
-    h_y = float(objects_by_name["h"]["pos"].split(",")[1])
-
-    assert abs(arrow_y - a_y) < abs(
-        arrow_y - h_y
-    ), "h->a arrowhead is closer to the fork than to node a"
+    # h->a exercises the backward concentrated path that swaps endpoints.
+    assert_arrowhead_near_head(layout, "h", "a")
+    # a->b is an ordinary forward control in the same graph.
+    assert_arrowhead_near_head(layout, "a", "b")
 
 
 @pytest.mark.parametrize("test_case", ("241_0.dot", "241_1.dot"))

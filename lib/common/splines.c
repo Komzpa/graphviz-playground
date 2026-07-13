@@ -55,6 +55,20 @@ static void showPoints(pointf ps[], int pn)
 }
 #endif
 
+/* Suppress arrowheads at concentrator merge points.
+ *
+ * The flags describe the drawn spline's start and end, not necessarily the
+ * original edge's tail and head. Call this only after any endpoint swap.
+ */
+static void suppress_merge_endpoint_arrows(splineInfo *info, node_t *start,
+                                           node_t *end, uint32_t *sflag,
+                                           uint32_t *eflag) {
+  if (info->splineMerge(end))
+    *eflag = ARR_NONE;
+  if (info->splineMerge(start))
+    *sflag = ARR_NONE;
+}
+
 /* Clip arrow to node boundary.
  * The real work is done elsewhere. Here we get the real edge,
  * check that the edge has arrowheads, and that an endpoint
@@ -67,24 +81,23 @@ arrow_clip(edge_t * fe, node_t * hn,
 	   bezier * spl, splineInfo * info)
 {
     edge_t *e;
-    bool j;
+    bool swap_ends;
 
     for (e = fe; ED_to_orig(e); e = ED_to_orig(e));
 
     if (info->ignoreSwap)
-	j = false;
+	swap_ends = false;
     else
-	j = info->swapEnds(e);
+	swap_ends = info->swapEnds(e);
     uint32_t sflag, eflag;
     arrow_flags(e, &sflag, &eflag);
-    /* swap the two ends */
-    if (j) {
-	SWAP(&sflag, &eflag);
+    /* Align arrow flags with the drawn spline before masking merge points. */
+    if (swap_ends) {
+	uint32_t i = sflag;
+	sflag = eflag;
+	eflag = i;
     }
-    if (info->splineMerge(hn))
-	eflag = ARR_NONE;
-    if (info->splineMerge(agtail(fe)))
-	sflag = ARR_NONE;
+    suppress_merge_endpoint_arrows(info, agtail(fe), hn, &sflag, &eflag);
     if (info->isOrtho) {
 	if (eflag || sflag)
 	    arrowOrthoClip(e, ps, *startp, *endp, spl, sflag, eflag);
