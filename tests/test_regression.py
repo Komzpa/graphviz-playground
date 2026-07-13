@@ -6353,8 +6353,8 @@ def test_2778():
 
 def test_2767():
     """
-    issue #2767: `rebuild_vlists` may return -1 for this graph,
-    and Graphviz must exit with a controlled error code instead of crashing
+    issue #2767: a failed concentrated layout must not continue into
+    low-cluster processing and crash
     https://gitlab.com/graphviz/graphviz/-/issues/2767
     """
 
@@ -6366,7 +6366,8 @@ def test_2767():
     try:
         dot("dot", input)
     except subprocess.CalledProcessError as e:
-        # return code 1 is the expected controlled failure here
+        # Current behavior rejects this invalid concentrated state with rc=1.
+        # A future successful layout is also acceptable; a crash is not.
         if e.returncode != 1:
             raise
 
