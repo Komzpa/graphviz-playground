@@ -9800,7 +9800,7 @@ def test_concentrate_issue_2765_public_repro_renders_edge_splines():
     _assert_public_concentrate_crash_repro_renders(2765)
 
 
-def test_150():
+def test_concentrate_same_rank_reverse_edges():
     """
     `concentrate=true` should concentrate equivalent same-rank reverse edges
     https://gitlab.com/graphviz/graphviz/-/issues/150
@@ -9818,8 +9818,7 @@ def test_150():
           b -> a
         }
     """
-    def drawn_edges(source: str) -> list[dict]:
-        layout = json.loads(dot("json", source=source))
+    def drawn_edges(layout: dict) -> list[dict]:
         return [edge for edge in layout["edges"] if "_draw_" in edge]
 
     def drawn_colors(layout: dict) -> list[str]:
@@ -9830,16 +9829,20 @@ def test_150():
             if operation["op"] == "c"
         ]
 
-    drawn = drawn_edges(source)
+    layout = json.loads(dot("json", source=source))
+    drawn = drawn_edges(layout)
     assert len(drawn) == 1, "same-rank reverse edges were not concentrated"
 
     disabled = source.replace("concentrate=true", "concentrate=false")
-    assert len(drawn_edges(disabled)) == 2, "concentrate=false changed edge drawing"
+    disabled_layout = json.loads(dot("json", source=disabled))
+    assert len(drawn_edges(disabled_layout)) == 2, "concentrate=false changed edge drawing"
 
     distinct = source.replace("a -> b", "a -> b [color=red]").replace(
         "b -> a", "b -> a [color=blue]"
     )
-    assert set(drawn_colors(json.loads(dot("json", source=distinct)))) == {
+    distinct_layout = json.loads(dot("json", source=distinct))
+    assert len(drawn_edges(distinct_layout)) == 2, "distinct reverse edges were concentrated"
+    assert set(drawn_colors(distinct_layout)) == {
         "#ff0000",
         "#0000ff",
     }
