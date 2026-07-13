@@ -634,8 +634,8 @@ static double overlap(double i0, double i1, double j0, double j1) {
  * Return 1 on failure; 0 on success.
  */
 static bool is_degenerate_box(const boxf *boxp) {
-    return fabs(boxp->LL.y - boxp->UR.y) < BOX_DIMENSION_TOLERANCE ||
-           fabs(boxp->LL.x - boxp->UR.x) < BOX_DIMENSION_TOLERANCE;
+  return fabs(boxp->LL.y - boxp->UR.y) < BOX_DIMENSION_TOLERANCE ||
+         fabs(boxp->LL.x - boxp->UR.x) < BOX_DIMENSION_TOLERANCE;
 }
 
 static size_t remove_degenerate_boxes(size_t boxn, boxf *boxes) {
