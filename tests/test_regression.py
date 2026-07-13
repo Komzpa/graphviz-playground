@@ -7019,10 +7019,13 @@ def test_changelog_dates():
 @pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
 def test_duplicate_hard_coded_metrics_warnings():
     """
-    Check “no hard-coded metrics” warnings are not repeated
+    Check that #2239 completes without repeated hard-coded metrics warnings.
+
+    Its nested subgraphs inherit node and edge defaults, exercising gvpack's
+    clone path as well as the warning check below.
     """
 
-    # use the #2239 test case that happens to provoke this
+    # Reuse the #2239 regression input for both contracts.
     input = Path(__file__).parent / "2239.dot"
     assert input.exists(), "unexpectedly missing test case"
 
