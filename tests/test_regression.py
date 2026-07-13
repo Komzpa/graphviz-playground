@@ -6230,14 +6230,7 @@ def test_2731():
                 reason="GDK plugin not supported",
             ),
         ),
-        pytest.param(
-            "jpg",
-            marks=pytest.mark.xfail(
-                is_fedora() or is_ubuntu_2604(),
-                strict=True,
-                reason="https://gitlab.com/graphviz/graphviz/-/issues/2732",
-            ),
-        ),
+        "jpg",
         pytest.param(
             "jpg:cairo:gd",
             marks=pytest.mark.skipif(
