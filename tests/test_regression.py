@@ -6361,13 +6361,39 @@ def test_2781():
     src = Path(__file__).parent / "2781.dot"
     assert src.exists(), "unexpectedly missing test case"
 
-    # run this through Graphviz
-    try:
-        dot("dot", src)
-    except subprocess.CalledProcessError as e:
-        # allow failure; only fail this test case on a crash
-        if e.returncode != 1:
-            raise
+    # malformed input should be rejected without overflowing while processing
+    proc = subprocess.run(["dot", "-Tdot", "-o", os.devnull, src], stderr=subprocess.PIPE)
+
+    assert proc.returncode == 1, "invalid input was not rejected"
+    assert (
+        re.search(rb"\bAddressSanitizer: heap-buffer-overflow\b", proc.stderr) is None
+    ), "malformed input caused a buffer overflow"
+
+
+def test_2781_negative_control():
+    """
+    Well-formed adjacent flat splines should still lay out normally
+    """
+
+    src = """
+    digraph {
+      graph [rankdir=LR]
+      { rank=same; a; b }
+      a -> b [label="x"]
+      b -> a [label="y"]
+    }
+    """
+
+    proc = subprocess.run(
+        ["dot", "-Tdot", "-o", os.devnull],
+        input=textwrap.dedent(src),
+        text=True,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+    stderr = remove_asan_summary(remove_xtype_warnings(proc.stderr)).strip()
+    assert stderr == "", "legal adjacent flat splines produced warnings"
 
 
 def test_2782():
