@@ -6224,7 +6224,7 @@ def test_2764(concentrate: bool):
     )
     layout = dot("dot", source=source)
     if concentrate:
-        assert "pos=" in layout, "one-sided slope should produce edge positions"
+        assert re.search(r"->.*\bpos=", layout), "one-sided slope should produce edge positions"
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
