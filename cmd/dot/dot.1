@@ -262,6 +262,14 @@ according to their file sequence.
 .PP
 \fBcolor=\fIcolorvalue\fR sets foreground color (\fBbgcolor\fP for background).
 .PP
+\fBunflattenminlen=\fIn\fR, \fBunflattenfanout=\fIbool\fR and
+\fBunflattenchainlimit=\fIn\fR enable an optional \fBdot\fR preprocessing
+phase equivalent to \fBunflatten -l\fR, \fB-f\fR and \fB-c\fR respectively.
+It is disabled by default and applies only when \fBunflattenminlen\fR or
+\fBunflattenchainlimit\fR is positive. These root graph attributes can also be
+set with \fB-G\fR; \fBunflattenfanout\fR requires a positive
+\fBunflattenminlen\fR.
+.PP
 \fBoverlap=\fImode\fR. This specifies what algorithm should do if
 any nodes overlap. If mode is \fBfalse\fP, the program uses the Prism algorithm
 to adjust the nodes to eliminate overlaps. If mode is \fBscale\fP,

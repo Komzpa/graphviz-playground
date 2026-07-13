@@ -507,8 +507,35 @@ static int doDot(Agraph_t *g) {
     return 0;
 }
 
+static void dot_unflatten(Agraph_t *g) {
+    Agraph_t *const root = agroot(g);
+    graphviz_unflatten_options_t opts = {
+        .MaxMinlen = late_int(root, agfindgraphattr(root, "unflattenminlen"),
+                              0, 0),
+        .Do_fans = mapbool(agget(root, "unflattenfanout")),
+        .ChainLimit = late_int(root,
+                               agfindgraphattr(root, "unflattenchainlimit"),
+                               0, 0),
+    };
+
+    if (opts.Do_fans && opts.MaxMinlen < 1) {
+        agwarningf("unflattenfanout requires unflattenminlen > 0; "
+                   "ignoring unflattenfanout\n");
+        opts.Do_fans = false;
+    }
+    if (opts.MaxMinlen < 1 && opts.ChainLimit < 1)
+        return;
+
+    graphviz_unflatten(root, &opts);
+
+    /* graphviz_unflatten may have created these after graph_init cached them. */
+    E_minlen = agfindedgeattr(root, "minlen");
+    E_style = agfindedgeattr(root, "style");
+}
+
 void dot_layout(Agraph_t * g)
 {
+    dot_unflatten(g);
     if (agnnodes(g)) {
 	if (doDot(g) != 0) { // error?
 	    return;

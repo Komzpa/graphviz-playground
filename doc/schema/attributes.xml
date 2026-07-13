@@ -2360,6 +2360,46 @@
 		</xsd:annotation>
 	</xsd:attribute>
 	
+	<xsd:attribute name="unflattenchainlimit" type="xsd:integer">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					For <html:code>dot</html:code>, this root graph attribute enables
+					unflatten preprocessing of
+					disconnected nodes by placing them in invisible chains of at most this
+					many edges. The default is 0, which disables this behavior.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="unflattenfanout" type="xsd:boolean">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					For <html:code>dot</html:code> root graph unflatten preprocessing, include
+					immediate fanout chains when assigning edge minimum lengths. This
+					is equivalent to <html:code>unflatten -f</html:code> and requires a
+					positive <html:a rel="attr">unflattenminlen</html:a> value.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="unflattenminlen" type="xsd:integer">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					For <html:code>dot</html:code>, this root graph attribute enables
+					unflatten preprocessing for
+					tall or sparse directed graphs. Leaf-edge minimum lengths are cycled
+					from 1 through this value, equivalent to <html:code>unflatten -l</html:code>.
+					The default is 0, which disables this behavior.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
 	<xsd:attribute name="vertices" type="pointfList">
 		<xsd:annotation>
 			<xsd:documentation>
@@ -2447,7 +2487,7 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
-		
+
 	<!-- COMPONENTS -->
 	
 	<xsd:complexType name="edge">
