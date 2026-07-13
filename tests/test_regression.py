@@ -5071,6 +5071,59 @@ def test_448_opposite_ports_cross_compatible(splines: str):
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_opposite_clip_semantics(splines: str):
+    """opposite edges must compare clipping at the same physical end."""
+
+    incompatible = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [tailclip=true, headclip=false]
+                  b -> a [tailclip=true, headclip=false]
+                }}
+            """,
+        )
+    )
+    assert _drawn_edge_count(incompatible) == 2
+
+    compatible = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [tailclip=true, headclip=false]
+                  b -> a [tailclip=false, headclip=true]
+                }}
+            """,
+        )
+    )
+    assert _drawn_edge_count(compatible) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_448_opposite_endpoint_metadata_remains_separate(splines: str):
+    """opposite edges with endpoint metadata must not lose its attachment."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source=f"""
+                digraph {{
+                  graph [concentrate=true {splines}]
+                  a -> b [headURL="https://example.invalid/a"]
+                  b -> a [headURL="https://example.invalid/a"]
+                }}
+            """,
+        )
+    )
+
+    assert _drawn_edge_count(layout) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_448_equivalent_parallel_edges(splines: str):
     """
     equivalent parallel edges should still concentrate into one route

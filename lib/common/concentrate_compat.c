@@ -13,6 +13,7 @@
 #include <common/concentrate_compat.h>
 
 #include <common/render.h>
+#include <common/utils.h>
 #include <string.h>
 
 /*
@@ -38,9 +39,11 @@ typedef struct {
   const char *sametail;
   port tail_port;
   port head_port;
+  bool tail_clip;
+  bool head_clip;
   uint32_t tail_arrow;
   uint32_t head_arrow;
-  bool has_head_or_tail_label;
+  bool has_unmappable_endpoint_attrs;
 } concentrate_normalized_edge_t;
 
 edge_t *concentrate_normal_edge(edge_t *e) {
@@ -56,6 +59,8 @@ void concentrate_compat_state_init(graph_t *g,
       .sametail = agfindedgeattr(g, "sametail"),
       .headport = agfindedgeattr(g, "headport"),
       .tailport = agfindedgeattr(g, "tailport"),
+      .headclip = agfindedgeattr(g, "headclip"),
+      .tailclip = agfindedgeattr(g, "tailclip"),
       .arrowhead = agfindedgeattr(g, "arrowhead"),
       .arrowtail = agfindedgeattr(g, "arrowtail"),
       .dir = agfindedgeattr(g, "dir"),
@@ -67,6 +72,7 @@ is_concentrate_endpoint_attr(const concentrate_compat_state_t *state,
                              const Agsym_t *attr) {
   return attr == state->samehead || attr == state->sametail ||
          attr == state->headport || attr == state->tailport ||
+         attr == state->headclip || attr == state->tailclip ||
          attr == state->arrowhead || attr == state->arrowtail ||
          attr == state->dir;
 }
@@ -102,6 +108,12 @@ static port endpoint_port(const concentrate_normalized_edge_t *edge,
                                                : edge->tail_port;
 }
 
+static bool endpoint_clip(const concentrate_normalized_edge_t *edge,
+                          concentrate_endpoint_t endpoint) {
+  return endpoint == CONCENTRATE_ENDPOINT_HEAD ? edge->head_clip
+                                               : edge->tail_clip;
+}
+
 static uint32_t endpoint_arrow(const concentrate_normalized_edge_t *edge,
                                concentrate_endpoint_t endpoint) {
   return endpoint == CONCENTRATE_ENDPOINT_HEAD ? edge->head_arrow
@@ -131,6 +143,9 @@ static bool endpoint_compatible(const concentrate_normalized_edge_t *lhs,
     return false;
   }
 
+  if (endpoint_clip(lhs, lhs_endpoint) != endpoint_clip(rhs, rhs_endpoint))
+    return false;
+
   if (!same_port(endpoint_port(lhs, lhs_endpoint),
                  endpoint_port(rhs, rhs_endpoint))) {
     return false;
@@ -138,6 +153,32 @@ static bool endpoint_compatible(const concentrate_normalized_edge_t *lhs,
 
   return arrows_compatible(endpoint_arrow(lhs, lhs_endpoint),
                            endpoint_arrow(rhs, rhs_endpoint));
+}
+
+static bool edge_clips(edge_t *edge, Agsym_t *attr) {
+  if (attr == NULL)
+    return true;
+
+  const char *const value = agxget(edge, attr);
+  return value == NULL || value[0] == '\0' || mapbool(value);
+}
+
+static bool has_unmappable_endpoint_attrs(edge_t *edge) {
+  static char *const endpoint_attrs[] = {
+      "headURL", "headhref", "headtarget", "headtooltip",
+      "tailURL", "tailhref", "tailtarget", "tailtooltip",
+  };
+
+  if (ED_head_label(edge) != NULL || ED_tail_label(edge) != NULL)
+    return true;
+
+  for (size_t i = 0; i < sizeof(endpoint_attrs) / sizeof(endpoint_attrs[0]);
+       i++) {
+    const char *const value = agget(edge, endpoint_attrs[i]);
+    if (value != NULL && value[0] != '\0')
+      return true;
+  }
+  return false;
 }
 
 static void normalize_edge(const concentrate_compat_state_t *state, edge_t *e,
@@ -153,9 +194,10 @@ static void normalize_edge(const concentrate_compat_state_t *state, edge_t *e,
       state->sametail == NULL ? "" : agxget(normalized->edge, state->sametail);
   normalized->head_port = ED_head_port(normalized->edge);
   normalized->tail_port = ED_tail_port(normalized->edge);
-  normalized->has_head_or_tail_label =
-      ED_head_label(normalized->edge) != NULL ||
-      ED_tail_label(normalized->edge) != NULL;
+  normalized->head_clip = edge_clips(normalized->edge, state->headclip);
+  normalized->tail_clip = edge_clips(normalized->edge, state->tailclip);
+  normalized->has_unmappable_endpoint_attrs =
+      has_unmappable_endpoint_attrs(normalized->edge);
   arrow_flags_with_attrs(normalized->edge, state->dir, state->arrowhead,
                          state->arrowtail, &normalized->tail_arrow,
                          &normalized->head_arrow);
@@ -173,12 +215,11 @@ void concentrate_edge_pair_compat_init(const concentrate_compat_state_t *state,
   if (lhs.edge == NULL || rhs.edge == NULL)
     return;
   /*
-   * Endpoint labels are anchored to a concrete head or tail. A concentrated
-   * edge has only one head-label and one tail-label drawing slot, so merging
-   * labeled endpoint pairs would either drop a label or attach it to the
-   * wrong physical end of the shared route.
+   * Endpoint labels and hyperlink metadata are anchored to a concrete head or
+   * tail. A concentrated edge has one drawing slot per end, so merging would
+   * either drop the endpoint data or attach it to the wrong physical end.
    */
-  if (lhs.has_head_or_tail_label || rhs.has_head_or_tail_label)
+  if (lhs.has_unmappable_endpoint_attrs || rhs.has_unmappable_endpoint_attrs)
     return;
 
   compat->same_nonendpoint_attrs =

@@ -31,6 +31,8 @@ typedef struct {
   Agsym_t *sametail;
   Agsym_t *headport;
   Agsym_t *tailport;
+  Agsym_t *headclip;
+  Agsym_t *tailclip;
   Agsym_t *arrowhead;
   Agsym_t *arrowtail;
   Agsym_t *dir;
