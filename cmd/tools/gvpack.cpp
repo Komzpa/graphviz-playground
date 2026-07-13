@@ -559,7 +559,7 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
 
     used_t gnames; // dict of used subgraph names
     used_t nnames; // dict of used node names
-    cluster_map_t cluster_clones;
+    cluster_clone_map_t cluster_clones;
     for (size_t i = 0; i < gs.size(); i++) {
 	Agraph_t *g = gs[i];
 	if (verbose)
