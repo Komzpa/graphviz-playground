@@ -276,19 +276,19 @@ flat_edges(graph_t * g)
 	}
     }
 
-    if (GD_rank(g)[0].flat || GD_n_cluster(g) > 0) {
-	bool found = false;
-	for (i = 0; (n = GD_rank(g)[0].v[i]); i++) {
-	    for (size_t j = 0; (e = ND_flat_in(n).list[j]); j++) {
-		if (ED_label(e) && !ED_adjacent(e)) {
-		    abomination(g);
-		    found = true;
-		    break;
+	if (GD_rank(g)[GD_minrank(g)].flat || GD_n_cluster(g) > 0) {
+	    bool found = false;
+	    for (i = 0; (n = GD_rank(g)[GD_minrank(g)].v[i]); i++) {
+		for (size_t j = 0; (e = ND_flat_in(n).list[j]); j++) {
+		    if (ED_label(e) && !ED_adjacent(e)) {
+			abomination(g);
+			found = true;
+			break;
+		    }
 		}
+		if (found)
+		    break;
 	    }
-	    if (found)
-		break;
-	}
     }
 
     rec_save_vlists(g);
