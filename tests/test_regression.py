@@ -3931,18 +3931,7 @@ def test_2368(testcase: str):
     dot("svg", input)
 
 
-@pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
-@pytest.mark.skipif(shutil.which("wish") is None, reason="wish not available")
-def test_173(tmp_path: Path):
-    """
-    Tcldot should recompute layout after a graph mutation
-    https://gitlab.com/graphviz/graphviz/-/issues/173
-    """
-
-    # locate the exact TCL script for this regression
-    prelude = Path(__file__).parent / "173.tcl"
-    assert prelude.exists(), "unexpectedly missing test collateral"
-
+def _prepare_tcldot_test(tmp_path: Path):
     dot_exe = which("dot")
     wish_exe = shutil.which("wish")
     assert dot_exe is not None, "`dot` not found"
@@ -3993,6 +3982,23 @@ def test_173(tmp_path: Path):
     )
     assert (plugin_dir / "config8").exists(), "dot -c did not create config8"
 
+    return wish_exe, env
+
+
+@pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
+@pytest.mark.skipif(shutil.which("wish") is None, reason="wish not available")
+def test_173(tmp_path: Path):
+    """
+    Tcldot should recompute layout after a graph mutation
+    https://gitlab.com/graphviz/graphviz/-/issues/173
+    """
+
+    # locate the exact TCL script for this regression
+    prelude = Path(__file__).parent / "173.tcl"
+    assert prelude.exists(), "unexpectedly missing test collateral"
+
+    wish_exe, env = _prepare_tcldot_test(tmp_path)
+
     runner = tmp_path / "run-173.tcl"
     runner.write_text(f'source "{prelude}"\nexit\n', encoding="utf-8")
 
@@ -4041,6 +4047,30 @@ def test_173(tmp_path: Path):
         f"one-layout control exited with {control.returncode}:\n"
         f"stdout:\n{control.stdout}\n"
         f"stderr:\n{control.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
+@pytest.mark.skipif(shutil.which("wish") is None, reason="wish not available")
+def test_173_default_attributes(tmp_path: Path):
+    """Graph-handle default attribute changes should recompute layout."""
+
+    prelude = Path(__file__).parent / "173-default-attributes.tcl"
+    assert prelude.exists(), "unexpectedly missing test collateral"
+
+    wish_exe, env = _prepare_tcldot_test(tmp_path)
+    proc = subprocess.run(
+        [wish_exe, str(prelude)],
+        check=False,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert proc.returncode == 0, (
+        f"wish exited with {proc.returncode}:\n"
+        f"stdout:\n{proc.stdout}\n"
+        f"stderr:\n{proc.stderr}"
     )
 
 

@@ -433,6 +433,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
         return TCL_ERROR;
       }
       char **argv2_copy = tcldot_argv_dup(argc2, argv2);
+      tcldot_invalidate_layout(gvc, g);
       setedgeattributes(g, NULL, argv2_copy, argc2);
       tcldot_argv_free(argc2, argv2_copy);
       Tcl_Free((char *)argv2);
@@ -443,6 +444,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
                          "?attributename attributevalue? ?...?",
                          NULL);
       }
+      tcldot_invalidate_layout(gvc, g);
       setedgeattributes(g, NULL, &argv[2], (Tcl_Size)argc - 2);
     }
     return TCL_OK;
@@ -461,6 +463,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
         return TCL_ERROR;
       }
       char **argv2_copy = tcldot_argv_dup(argc2, argv2);
+      tcldot_invalidate_layout(gvc, g);
       setnodeattributes(g, NULL, argv2_copy, argc2);
       tcldot_argv_free(argc2, argv2_copy);
       Tcl_Free((char *)argv2);
@@ -471,6 +474,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
                          "?attributename attributevalue? ?...?",
                          NULL);
       }
+      tcldot_invalidate_layout(gvc, g);
       setnodeattributes(g, NULL, &argv[2], (Tcl_Size)argc - 2);
     }
     return TCL_OK;
