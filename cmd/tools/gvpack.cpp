@@ -448,14 +448,15 @@ static std::string xName(used_t &names, char *oldname) {
 
 #define MARK(e) (ED_alg(e) = e)
 #define MARKED(e) (ED_alg(e))
-using cluster_map_t = std::map<Agraph_t *, Agraph_t *>;
+// GD_alg is owned by layout code, so retain clone correspondence locally.
+using cluster_clone_map_t = std::map<Agraph_t *, Agraph_t *>;
 
 /* cloneSubg:
  * Create a copy of g in ng, copying attributes, inserting nodes
  * and adding edges.
  */
 static void cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames,
-                      cluster_map_t &cluster_clones) {
+                      cluster_clone_map_t &cluster_clones) {
   node_t *n;
   node_t *nn;
   edge_t *e;
@@ -474,9 +475,7 @@ static void cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames,
     nsubg = agsubg(ng, xName(gnames, agnameof(subg)).data(), 1);
     agbindrec(nsubg, "Agraphinfo_t", sizeof(Agraphinfo_t), true);
     cloneSubg(subg, nsubg, G_bb, gnames, cluster_clones);
-    /* if subgraphs are clusters, point to the new
-     * one so we can find it later.
-     */
+    // Keep the original-to-clone mapping for cloneClusterTree().
     if (is_a_cluster(subg))
       cluster_clones[subg] = nsubg;
   }
@@ -510,7 +509,7 @@ static void cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames,
  * under ng using the subtree of clusters under g.
  */
 static void cloneClusterTree(Agraph_t *g, Agraph_t *ng,
-                             const cluster_map_t &cluster_clones) {
+                             const cluster_clone_map_t &cluster_clones) {
   int i;
 
   cloneCluster(g, ng);
