@@ -14,7 +14,6 @@
 #include <gvc/gvplugin_device.h>
 #include <gvc/gvio.h>
 #include <limits.h>
-#include <string.h>
 #include <util/gv_math.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <util/agxbuf.h>
@@ -50,36 +49,36 @@ static void gdk_format(GVJ_t * job)
 
     argb2rgba(job->width, job->height, job->imagedata);
 
-    GdkPixbuf *pixbuf;
-    if (job->device.id == FORMAT_JPEG) {
-        // Glycin's JPEG encoder does not accept an alpha channel.
-        pixbuf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8,
-                                (int)job->width, (int)job->height);
-        guchar *const pixels = gdk_pixbuf_get_pixels(pixbuf);
-        const int rowstride = gdk_pixbuf_get_rowstride(pixbuf);
+    const gboolean has_alpha = job->device.id != FORMAT_JPEG;
+    if (!has_alpha) {
+        // GDKPixbuf 2.44's Glycin-backed JPEG encoder rejects alpha channels.
+        // Compact the borrowed RGBA pixels to RGB in place before saving.
         for (size_t y = 0; y < job->height; ++y) {
             const guchar *src =
                 job->imagedata + y * job->width * BYTES_PER_PIXEL;
-            guchar *dst = pixels + y * (size_t)rowstride;
+            guchar *dst = job->imagedata + y * job->width * 3;
             for (size_t x = 0; x < job->width; ++x) {
-                memcpy(dst, src, 3);
+                dst[0] = src[0];
+                dst[1] = src[1];
+                dst[2] = src[2];
                 src += BYTES_PER_PIXEL;
                 dst += 3;
             }
         }
-    } else {
-        pixbuf = gdk_pixbuf_new_from_data(
-                    job->imagedata,         // data
-                    GDK_COLORSPACE_RGB,     // colorspace
-                    TRUE,                   // has_alpha
-                    8,                      // bits_per_sample
-                    (int)job->width,        // width
-                    (int)job->height,       // height
-                    BYTES_PER_PIXEL * (int)job->width, // rowstride
-                    NULL,                   // destroy_fn
-                    NULL                    // destroy_fn_data
-                   );
     }
+    const int rowstride =
+        (has_alpha ? BYTES_PER_PIXEL : 3) * (int)job->width;
+    GdkPixbuf *const pixbuf = gdk_pixbuf_new_from_data(
+        job->imagedata,         // data
+        GDK_COLORSPACE_RGB,     // colorspace
+        has_alpha,              // has_alpha
+        8,                      // bits_per_sample
+        (int)job->width,        // width
+        (int)job->height,       // height
+        rowstride,              // rowstride
+        NULL,                   // destroy_fn
+        NULL                    // destroy_fn_data
+    );
 
     agxbuf x_dpi = {0};
     agxbprint(&x_dpi, "%.0f", job->dpi.x);
