@@ -203,6 +203,121 @@ static void normalize_edge(const concentrate_compat_state_t *state, edge_t *e,
                          &normalized->head_arrow);
 }
 
+static void hash_bytes(uint64_t *hash, const void *bytes, size_t size) {
+  const unsigned char *const data = bytes;
+
+  for (size_t i = 0; i < size; i++) {
+    *hash ^= data[i];
+    *hash *= UINT64_C(1099511628211);
+  }
+}
+
+static void hash_string(uint64_t *hash, const char *value) {
+  const char *const string = value == NULL ? "" : value;
+
+  hash_bytes(hash, string, strlen(string) + 1);
+}
+
+static void hash_bool(uint64_t *hash, bool value) {
+  const unsigned char byte = value;
+
+  hash_bytes(hash, &byte, sizeof(byte));
+}
+
+static void hash_uint32(uint64_t *hash, uint32_t value) {
+  hash_bytes(hash, &value, sizeof(value));
+}
+
+static void hash_double(uint64_t *hash, double value) {
+  if (value == 0.0)
+    value = 0.0;
+  hash_bytes(hash, &value, sizeof(value));
+}
+
+static void hash_port(uint64_t *hash, port value) {
+  hash_bool(hash, value.defined);
+  if (!value.defined)
+    return;
+  hash_double(hash, value.p.x);
+  hash_double(hash, value.p.y);
+}
+
+static bool port_is_indexable(port value) {
+  return !value.defined || (value.p.x == value.p.x && value.p.y == value.p.y);
+}
+
+static uint64_t
+nonendpoint_edge_attrs_hash(const concentrate_compat_state_t *state,
+                            edge_t *edge) {
+  graph_t *const g = agroot(agraphof(edge));
+  uint64_t hash = UINT64_C(1469598103934665603);
+
+  for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
+       attr = agnxtattr(g, AGEDGE, attr)) {
+    if (!is_concentrate_endpoint_attr(state, attr))
+      hash_string(&hash, agxget(edge, attr));
+  }
+  return hash;
+}
+
+static void hash_endpoint(uint64_t *hash,
+                          const concentrate_normalized_edge_t *edge,
+                          concentrate_endpoint_t endpoint, bool include_group,
+                          bool include_arrow) {
+  if (include_group)
+    hash_string(hash, endpoint_group(edge, endpoint));
+  hash_port(hash, endpoint_port(edge, endpoint));
+  hash_bool(hash, endpoint_clip(edge, endpoint));
+  if (include_arrow)
+    hash_uint32(hash, endpoint_arrow(edge, endpoint));
+}
+
+void concentrate_edge_fingerprint_init(
+    const concentrate_compat_state_t *state, edge_t *e,
+    concentrate_edge_fingerprint_t *fingerprint) {
+  concentrate_normalized_edge_t edge;
+  concentrate_endpoint_t low_endpoint;
+  concentrate_endpoint_t high_endpoint;
+  uint64_t hash;
+
+  *fingerprint = (concentrate_edge_fingerprint_t){0};
+  normalize_edge(state, e, &edge);
+  if (edge.edge == NULL || edge.has_unmappable_endpoint_attrs ||
+      !port_is_indexable(edge.tail_port) ||
+      !port_is_indexable(edge.head_port)) {
+    return;
+  }
+
+  hash = nonendpoint_edge_attrs_hash(state, edge.edge);
+  hash_endpoint(&hash, &edge, CONCENTRATE_ENDPOINT_TAIL, true, true);
+  hash_endpoint(&hash, &edge, CONCENTRATE_ENDPOINT_HEAD, true, true);
+  fingerprint->parallel = hash;
+  fingerprint->parallel_indexable = true;
+
+  if (agtail(edge.edge) == aghead(edge.edge) || edge.samehead[0] != '\0' ||
+      edge.sametail[0] != '\0') {
+    return;
+  }
+
+  low_endpoint = AGSEQ(agtail(edge.edge)) < AGSEQ(aghead(edge.edge))
+                     ? CONCENTRATE_ENDPOINT_TAIL
+                     : CONCENTRATE_ENDPOINT_HEAD;
+  high_endpoint = low_endpoint == CONCENTRATE_ENDPOINT_TAIL
+                      ? CONCENTRATE_ENDPOINT_HEAD
+                      : CONCENTRATE_ENDPOINT_TAIL;
+  hash = nonendpoint_edge_attrs_hash(state, edge.edge);
+  hash_endpoint(&hash, &edge, low_endpoint, false, false);
+  hash_endpoint(&hash, &edge, high_endpoint, false, false);
+  fingerprint->opposite_base = hash;
+  fingerprint->opposite_has_wildcard_arrow =
+      endpoint_arrow(&edge, low_endpoint) == 0 ||
+      endpoint_arrow(&edge, high_endpoint) == 0;
+  hash_endpoint(&hash, &edge, low_endpoint, false, true);
+  hash_endpoint(&hash, &edge, high_endpoint, false, true);
+  fingerprint->opposite = hash;
+  fingerprint->opposite_indexable = true;
+}
+
 void concentrate_edge_pair_compat_init(const concentrate_compat_state_t *state,
                                        edge_t *e, edge_t *f,
                                        concentrate_edge_pair_compat_t *compat) {

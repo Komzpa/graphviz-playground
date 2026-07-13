@@ -15,6 +15,7 @@
 
 #include <common/types.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,20 @@ typedef struct {
   bool opposite_mergeable;
 } concentrate_edge_pair_compat_t;
 
+/*
+ * Hashes for the two relations used by concentrate. They are filters, not
+ * proofs: callers must still use concentrate_edges_mergeable() before
+ * suppressing an edge.
+ */
+typedef struct {
+  uint64_t parallel;
+  uint64_t opposite;
+  uint64_t opposite_base;
+  bool parallel_indexable;
+  bool opposite_indexable;
+  bool opposite_has_wildcard_arrow;
+} concentrate_edge_fingerprint_t;
+
 void concentrate_compat_state_init(graph_t *g,
                                    concentrate_compat_state_t *state);
 void concentrate_edge_pair_compat_init(const concentrate_compat_state_t *state,
@@ -56,6 +71,9 @@ bool concentrate_edge_pair_mergeable(
     concentrate_edge_relation_t relation);
 bool concentrate_edges_mergeable(const concentrate_compat_state_t *state,
                                  edge_t *e, edge_t *f);
+void concentrate_edge_fingerprint_init(
+    const concentrate_compat_state_t *state, edge_t *e,
+    concentrate_edge_fingerprint_t *fingerprint);
 concentrate_edge_relation_t concentrate_edge_relation(edge_t *e, edge_t *f);
 edge_t *concentrate_normal_edge(edge_t *e);
 
