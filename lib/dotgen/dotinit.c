@@ -485,6 +485,9 @@ static int doDot(Agraph_t *g) {
 	    packSubgraphs(ncc, ccs, g, &pinfo);
 	    resetCoord (g);
 	    copyClusterInfo (ncc, ccs, g);
+	    if (GD_n_cluster(g) > 0)
+		GD_has_labels(g) |= GRAPH_LABEL;
+	    setEdgeType(g, EDGETYPE_SPLINE);
 	} else {
 	    /* Not sure what semantics should be for non-trivial ratio
              * attribute with multiple components.

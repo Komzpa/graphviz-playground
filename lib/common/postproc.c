@@ -417,13 +417,6 @@ static void addXLabels(Agraph_t * gp)
     Agsym_t* force;
     int et = EDGE_TYPE(gp);
 
-    if (!(GD_has_labels(gp) & NODE_XLABEL) &&
-	!(GD_has_labels(gp) & EDGE_XLABEL) &&
-	!(GD_has_labels(gp) & TAIL_LABEL) &&
-	!(GD_has_labels(gp) & HEAD_LABEL) &&
-	(!(GD_has_labels(gp) & EDGE_LABEL) || EdgeLabelsDone))
-	return;
-
     for (np = agfstnode(gp); np; np = agnxtnode(gp, np)) {
 	if (ND_xlabel(np)) {
 	    if (ND_xlabel(np)->set)
