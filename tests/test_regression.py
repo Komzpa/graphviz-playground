@@ -6129,6 +6129,16 @@ def test_2717():
     run(fdp, "-o", os.devnull, input)
 
 
+def _node_positions(fdp: Path, source: str) -> dict[str, tuple[float, float]]:
+    output = run(fdp, "-Tplain", input=source)
+    positions = {}
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 4 and fields[0] == "node":
+            positions[fields[1]] = (float(fields[2]), float(fields[3]))
+    return positions
+
+
 @pytest.mark.skipif(which("fdp") is None, reason="fdp is not available")
 def test_2701():
     """
@@ -6142,16 +6152,8 @@ def test_2701():
 
     fdp = which("fdp")
 
-    def node_positions(source: str) -> dict[str, tuple[float, float]]:
-        output = run(fdp, "-Tplain", input=source)
-        positions = {}
-        for line in output.splitlines():
-            fields = line.split()
-            if len(fields) >= 4 and fields[0] == "node":
-                positions[fields[1]] = (float(fields[2]), float(fields[3]))
-        return positions
-
-    control = node_positions(
+    control = _node_positions(
+        fdp,
         textwrap.dedent(
             """\
             digraph G {
@@ -6166,7 +6168,7 @@ def test_2701():
               3 -> 4
             }
             """
-        )
+        ),
     )
     assert len(control) == 4, "control graph lost nodes"
     control_y = next(iter(control.values()))[1]
@@ -6174,7 +6176,7 @@ def test_2701():
         math.isclose(y, control_y, abs_tol=1e-6) for _, y in control.values()
     ), "control graph is not flat without a cluster"
 
-    clustered = node_positions(input.read_text(encoding="utf-8"))
+    clustered = _node_positions(fdp, input.read_text(encoding="utf-8"))
     assert len(clustered) == 4, "clustered graph lost nodes"
     clustered_y = next(iter(clustered.values()))[1]
     assert all(
@@ -6185,6 +6187,71 @@ def test_2701():
     clustered_x = [clustered[str(i)][0] for i in range(1, 5)]
     assert clustered_x == sorted(clustered_x), "clustered pinned nodes reordered"
 
+
+@pytest.mark.skipif(which("fdp") is None, reason="fdp is not available")
+def test_2701_partial_cluster_membership():
+    """
+    fdp should not pin a partially fixed cluster
+    https://gitlab.com/graphviz/graphviz/-/issues/2701
+    """
+
+    input = Path(__file__).parent / "2701_partial.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    fdp = which("fdp")
+
+    control = _node_positions(
+        fdp,
+        textwrap.dedent(
+            """\
+            digraph G {
+              splines=false
+              node [pin=true]
+              1 [pos="0,0", label="A"]
+              2 [pos="1,0", label="B", pin=false]
+              3 [pos="2,0", label="C"]
+              4 [pos="3,0", label="D"]
+              1 -> 2
+              2 -> 3
+              3 -> 4
+            }
+            """
+        ),
+    )
+    assert len(control) == 4, "control graph lost nodes"
+
+    clustered = _node_positions(fdp, input.read_text(encoding="utf-8"))
+    assert len(clustered) == 4, "partial cluster graph lost nodes"
+
+    assert not all(
+        math.isclose(node[1], next(iter(clustered.values()))[1], abs_tol=1e-6)
+        for node in clustered.values()
+    ), "cluster was pinned despite partial membership"
+
+    assert any(
+        not math.isclose(clustered[str(i)][1], control[str(i)][1], abs_tol=1e-6)
+        for i in range(1, 5)
+    ), "partial-cluster control path produced unchanged y for clustered nodes"
+
+
+@pytest.mark.skipif(which("fdp") is None, reason="fdp is not available")
+def test_2701_nested_cluster_partial():
+    """
+    fdp should not pin a nested cluster when any nested descendant is unpinned
+    https://gitlab.com/graphviz/graphviz/-/issues/2701
+    """
+
+    input = Path(__file__).parent / "2701_nested_partial.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    fdp = which("fdp")
+    clustered = _node_positions(fdp, input.read_text(encoding="utf-8"))
+    assert len(clustered) == 4, "nested partial cluster graph lost nodes"
+
+    assert not all(
+        math.isclose(node[1], next(iter(clustered.values()))[1], abs_tol=1e-6)
+        for node in clustered.values()
+    ), "nested cluster was pinned despite nested partial membership"
 
 @pytest.mark.skipif(which("osage") is None, reason="osage is not available")
 def test_2721():
