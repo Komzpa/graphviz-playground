@@ -9844,7 +9844,8 @@ def test_150():
         "#0000ff",
     }
 
-    # `c -> a` adds a second rank, so this takes the rank-span-1 boundary.
+    # dot_concentrate() takes its early path for rank spans of zero and one.
+    # `c -> a` makes the span one while `a` and `b` remain in the same rank.
     rank_span_one = """
         strict digraph {
           concentrate=true
