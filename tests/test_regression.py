@@ -9802,11 +9802,14 @@ def test_concentrate_issue_2765_public_repro_renders_edge_splines():
 
 def test_concentrate_same_rank_reverse_edges():
     """
-    `concentrate=true` should concentrate equivalent same-rank reverse edges
+    `concentrate=true` should only concentrate equivalent same-rank edges.
     https://gitlab.com/graphviz/graphviz/-/issues/150
     """
 
-    source = """
+    def json_layout(source: str) -> dict:
+        return json.loads(dot("json", source=source))
+
+    same_rank_source = """
         strict digraph {
           concentrate=true
           subgraph foo {
@@ -9818,6 +9821,14 @@ def test_concentrate_same_rank_reverse_edges():
           b -> a
         }
     """
+
+    def rank_positions(layout: dict) -> dict[str, tuple[float, float]]:
+        return {
+            node["name"]: tuple(float(coord) for coord in node["pos"].split(","))
+            for node in layout["objects"]
+            if node.get("name") in {"a", "b", "c"}
+        }
+
     def drawn_edges(layout: dict) -> list[dict]:
         return [edge for edge in layout["edges"] if "_draw_" in edge]
 
@@ -9829,18 +9840,24 @@ def test_concentrate_same_rank_reverse_edges():
             if operation["op"] == "c"
         ]
 
-    layout = json.loads(dot("json", source=source))
+    layout = json_layout(same_rank_source)
+    assert math.isclose(
+        rank_positions(layout)["a"][1],
+        rank_positions(layout)["b"][1],
+        rel_tol=0,
+        abs_tol=0,
+    ), "same-rank nodes were not placed on the same Y coordinate"
     drawn = drawn_edges(layout)
     assert len(drawn) == 1, "same-rank reverse edges were not concentrated"
 
-    disabled = source.replace("concentrate=true", "concentrate=false")
-    disabled_layout = json.loads(dot("json", source=disabled))
+    disabled = same_rank_source.replace("concentrate=true", "concentrate=false")
+    disabled_layout = json_layout(disabled)
     assert len(drawn_edges(disabled_layout)) == 2, "concentrate=false changed edge drawing"
 
-    distinct = source.replace("a -> b", "a -> b [color=red]").replace(
+    distinct = same_rank_source.replace("a -> b", "a -> b [color=red]").replace(
         "b -> a", "b -> a [color=blue]"
     )
-    distinct_layout = json.loads(dot("json", source=distinct))
+    distinct_layout = json_layout(distinct)
     assert len(drawn_edges(distinct_layout)) == 2, "distinct reverse edges were concentrated"
     assert set(drawn_colors(distinct_layout)) == {
         "#ff0000",
