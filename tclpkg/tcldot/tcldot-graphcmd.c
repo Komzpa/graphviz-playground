@@ -73,6 +73,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
                        NULL);
       return TCL_ERROR;
     }
+    tcldot_invalidate_layout(gvc, g);
     e = agedge(g, tail, head, NULL, 1);
     Tcl_AppendResult(interp, obj2cmd(e), NULL);
     setedgeattributes(agroot(g), e, &argv[4], (Tcl_Size)argc - 4);
@@ -82,9 +83,11 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
     int i;
     if (argc % 2) {
       /* if odd number of args then argv[2] is name */
+      tcldot_invalidate_layout(gvc, g);
       n = agnode(g, argv[2], 1);
       i = 3;
     } else {
+      tcldot_invalidate_layout(gvc, g);
       n = agnode(g, NULL, 1); /* anon node */
       i = 2;
     }
@@ -99,6 +102,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
           interp, "wrong # args: should be \"", argv[0],
           "\" addsubgraph ?name? ?attributename attributevalue? ?...?", NULL);
     }
+    tcldot_invalidate_layout(gvc, g);
     if (argc % 2) {
       /* if odd number of args then argv[2] is name */
       sg = agsubg(g, argv[2], 1);
@@ -160,7 +164,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
 
   } else if (streq("layout", argv[1])) {
     g = agroot(g);
-    if (!aggetrec(g, "Agraphinfo_t", 0))
+    if (!gvLayoutDone(g))
       tcldot_layout(gvc, g, (argc > 2) ? argv[2] : NULL);
     return TCL_OK;
 
@@ -369,7 +373,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
 
     /* make sure that layout is done */
     g = agroot(g);
-    if (!aggetrec(g, "Agraphinfo_t", 0) || argc > 3)
+    if (!gvLayoutDone(g) || argc > 3)
       tcldot_layout(gvc, g, (argc > 3) ? argv[3] : NULL);
 
     /* render graph TK canvas commands */
@@ -394,6 +398,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
         return TCL_ERROR;
       }
       char **argv2_copy = tcldot_argv_dup(argc2, argv2);
+      tcldot_invalidate_layout(gvc, g);
       setgraphattributes(g, argv2_copy, argc2);
       tcldot_argv_free(argc2, argv2_copy);
       Tcl_Free((char *)argv2);
@@ -409,6 +414,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
                          NULL);
         return TCL_ERROR;
       }
+      tcldot_invalidate_layout(gvc, g);
       setgraphattributes(g, &argv[2], (Tcl_Size)argc - 2);
     }
     return TCL_OK;
@@ -501,7 +507,7 @@ static int graphcmd_internal(ClientData clientData, Tcl_Interp *interp,
     }
 
     /* make sure that layout is done  - unless canonical output */
-    if (!aggetrec(g, "Agraphinfo_t", 0) || argc > 4)
+    if (!gvLayoutDone(g) || argc > 4)
       tcldot_layout(gvc, g, (argc > 4) ? argv[4] : NULL);
 
     gvc->common.viewNum = 0;

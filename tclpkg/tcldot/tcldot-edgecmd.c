@@ -24,6 +24,7 @@ static int edgecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
   Agedge_t *e;
   Agsym_t *a;
   gctx_t *gctx = (gctx_t *)clientData;
+  GVC_t *gvc = gctx->ictx->gvc;
 
   if (argc < 2) {
     Tcl_AppendResult(interp, "wrong # args: should be \"", argv[0],
@@ -38,6 +39,7 @@ static int edgecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
   g = agraphof(agtail(e));
 
   if (streq("delete", argv[1])) {
+    tcldot_invalidate_layout(gvc, g);
     deleteEdge(gctx, g, e);
     return TCL_OK;
 
@@ -115,6 +117,7 @@ static int edgecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
         return TCL_ERROR;
       }
       char **argv2_copy = tcldot_argv_dup(argc2, argv2);
+      tcldot_invalidate_layout(gvc, g);
       setedgeattributes(agroot(g), e, argv2_copy, argc2);
       tcldot_argv_free(argc2, argv2_copy);
       Tcl_Free((char *)argv2);
@@ -126,6 +129,7 @@ static int edgecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
                          NULL);
         return TCL_ERROR;
       }
+      tcldot_invalidate_layout(gvc, g);
       setedgeattributes(agroot(g), e, &argv[2], (Tcl_Size)argc - 2);
     }
     return TCL_OK;

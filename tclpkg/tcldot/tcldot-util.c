@@ -210,6 +210,13 @@ void listEdgeAttrs (Tcl_Interp * interp, Agraph_t* g)
     }
 }
 
+void tcldot_invalidate_layout(GVC_t *gvc, Agraph_t *g)
+{
+    g = agroot(g);
+    if (gvLayoutDone(g))
+        gvFreeLayout(gvc, g);
+}
+
 void tcldot_layout(GVC_t *gvc, Agraph_t * g, const char *engine)
 {
     gvFreeLayout(gvc, g);               /* in case previously drawn */
