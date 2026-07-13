@@ -339,10 +339,15 @@ main ()
 {
     stroke_t* sp;
     bezier bez;
+    splines spl;
 
     bez.size = sizeof(pts)/sizeof(pointf);
     bez.list = pts;
-    sp = taper(&bez, halffunc, 20.0);
+    spl.size = 1;
+    spl.list = &bez;
+    spl.bb.LL.x = spl.bb.LL.y = 0;
+    spl.bb.UR.x = spl.bb.UR.y = 0;
+    sp = taper(&spl, halffunc, 20.0);
     printf ("newpath\n");
     printf ("%.02f %.02f moveto\n", sp->vertices[0].x, sp->vertices[0].y);
     for (size_t i = 1; i < sp->nvertices; i++)
