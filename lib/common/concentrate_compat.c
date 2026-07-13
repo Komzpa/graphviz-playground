@@ -318,55 +318,41 @@ void concentrate_edge_fingerprint_init(
   fingerprint->opposite_indexable = true;
 }
 
-void concentrate_edge_pair_compat_init(const concentrate_compat_state_t *state,
-                                       edge_t *e, edge_t *f,
-                                       concentrate_edge_pair_compat_t *compat) {
+bool concentrate_edges_compatible_for_relation(
+    const concentrate_compat_state_t *state, edge_t *e, edge_t *f,
+    concentrate_edge_relation_t relation) {
   concentrate_normalized_edge_t lhs;
   concentrate_normalized_edge_t rhs;
 
-  *compat = (concentrate_edge_pair_compat_t){0};
   normalize_edge(state, e, &lhs);
   normalize_edge(state, f, &rhs);
   if (lhs.edge == NULL || rhs.edge == NULL)
-    return;
+    return false;
   /*
    * Endpoint labels and hyperlink metadata are anchored to a concrete head or
    * tail. A concentrated edge has one drawing slot per end, so merging would
    * either drop the endpoint data or attach it to the wrong physical end.
    */
   if (lhs.has_unmappable_endpoint_attrs || rhs.has_unmappable_endpoint_attrs)
-    return;
+    return false;
+  if (!same_nonendpoint_edge_attrs(state, lhs.edge, rhs.edge))
+    return false;
 
-  compat->same_nonendpoint_attrs =
-      same_nonendpoint_edge_attrs(state, lhs.edge, rhs.edge);
-  compat->parallel_endpoints_compatible =
-      endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_TAIL, &rhs,
-                          CONCENTRATE_ENDPOINT_TAIL,
-                          parallel_endpoint_arrows_compatible) &&
-      endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_HEAD, &rhs,
-                          CONCENTRATE_ENDPOINT_HEAD,
-                          parallel_endpoint_arrows_compatible);
-  compat->opposite_endpoints_compatible =
-      endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_TAIL, &rhs,
-                          CONCENTRATE_ENDPOINT_HEAD,
-                          opposite_endpoint_arrows_compatible) &&
-      endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_HEAD, &rhs,
-                          CONCENTRATE_ENDPOINT_TAIL,
-                          opposite_endpoint_arrows_compatible);
-  compat->parallel_mergeable =
-      compat->same_nonendpoint_attrs && compat->parallel_endpoints_compatible;
-  compat->opposite_mergeable =
-      compat->same_nonendpoint_attrs && compat->opposite_endpoints_compatible;
-}
-
-bool concentrate_edge_pair_mergeable(
-    const concentrate_edge_pair_compat_t *compat,
-    concentrate_edge_relation_t relation) {
   switch (relation) {
   case CONCENTRATE_RELATION_PARALLEL:
-    return compat->parallel_mergeable;
+    return endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_TAIL, &rhs,
+                               CONCENTRATE_ENDPOINT_TAIL,
+                               parallel_endpoint_arrows_compatible) &&
+           endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_HEAD, &rhs,
+                               CONCENTRATE_ENDPOINT_HEAD,
+                               parallel_endpoint_arrows_compatible);
   case CONCENTRATE_RELATION_OPPOSITE:
-    return compat->opposite_mergeable;
+    return endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_TAIL, &rhs,
+                               CONCENTRATE_ENDPOINT_HEAD,
+                               opposite_endpoint_arrows_compatible) &&
+           endpoint_compatible(&lhs, CONCENTRATE_ENDPOINT_HEAD, &rhs,
+                               CONCENTRATE_ENDPOINT_TAIL,
+                               opposite_endpoint_arrows_compatible);
   case CONCENTRATE_RELATION_NONE:
     return false;
   }
@@ -375,11 +361,8 @@ bool concentrate_edge_pair_mergeable(
 
 bool concentrate_edges_mergeable(const concentrate_compat_state_t *state,
                                  edge_t *e, edge_t *f) {
-  concentrate_edge_pair_compat_t compat;
-
-  concentrate_edge_pair_compat_init(state, e, f, &compat);
-  return concentrate_edge_pair_mergeable(&compat,
-                                         concentrate_edge_relation(e, f));
+  return concentrate_edges_compatible_for_relation(
+      state, e, f, concentrate_edge_relation(e, f));
 }
 
 concentrate_edge_relation_t concentrate_edge_relation(edge_t *e, edge_t *f) {

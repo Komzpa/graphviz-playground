@@ -26,7 +26,6 @@ static bool same_direction_compatible(
     const concentrate_compat_state_t *attr_state,
                                       edge_t *e, edge_t *f)
 {
-    concentrate_edge_pair_compat_t compat;
     edge_t *const e0 = concentrate_normal_edge(e);
     edge_t *const f0 = concentrate_normal_edge(f);
 
@@ -34,8 +33,8 @@ static bool same_direction_compatible(
         return false;
     if (ED_conc_opp_flag(e0) || ED_conc_opp_flag(f0))
         return false;
-    concentrate_edge_pair_compat_init(attr_state, e, f, &compat);
-    return compat.parallel_mergeable &&
+    return concentrate_edges_compatible_for_relation(
+               attr_state, e, f, CONCENTRATE_RELATION_PARALLEL) &&
            ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
                 (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
             0);
@@ -209,7 +208,6 @@ static void concentrate_single_rank(
         while (ND_other(n).list[i] != NULL) {
             edge_t *const e = ND_other(n).list[i];
             edge_t *const virtual_edge = ED_to_virt(e);
-            concentrate_edge_pair_compat_t compat;
             concentrate_edge_relation_t relation;
             /* flat_breakcycles() puts reverse flat edges in ND_other() */
             if (virtual_edge != NULL && ED_label(e) == NULL &&
@@ -217,9 +215,8 @@ static void concentrate_single_rank(
                 edge_t *const normal_virtual =
                     concentrate_normal_edge(virtual_edge);
                 relation = concentrate_edge_relation(e, virtual_edge);
-                concentrate_edge_pair_compat_init(attr_state, e, virtual_edge,
-                                                  &compat);
-                if (!concentrate_edge_pair_mergeable(&compat, relation)) {
+                if (!concentrate_edges_compatible_for_relation(
+                        attr_state, e, virtual_edge, relation)) {
                     i++;
                     continue;
                 }

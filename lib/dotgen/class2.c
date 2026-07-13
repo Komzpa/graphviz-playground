@@ -23,15 +23,12 @@
 
 static bool mergeable_with_state(const concentrate_compat_state_t *attr_state,
                                  edge_t *e, edge_t *f) {
-  concentrate_edge_pair_compat_t compat;
-
   if (!(e && f && agtail(e) == agtail(f) && aghead(e) == aghead(f) &&
         ED_label(e) == ED_label(f))) {
     return false;
   }
 
-  concentrate_edge_pair_compat_init(attr_state, e, f, &compat);
-  return compat.parallel_mergeable;
+  return concentrate_edges_mergeable(attr_state, e, f);
 }
 
 static node_t*
@@ -226,10 +223,8 @@ void class2(graph_t * g)
 	    }
 	    /* merge multi-edges */
 	    if (prev && agtail(e) == agtail(prev) && aghead(e) == aghead(prev)) {
-		concentrate_edge_pair_compat_t compat;
-		concentrate_edge_pair_compat_init(&attr_state, e, prev, &compat);
 		if (ED_label(e) == NULL && ED_label(prev) == NULL &&
-		    compat.parallel_mergeable) {
+		    concentrate_edges_mergeable(&attr_state, e, prev)) {
 		    if (ND_rank(agtail(e)) == ND_rank(aghead(e))) {
 			merge_oneway(e, prev);
 			other_edge(e);
@@ -286,11 +281,8 @@ void class2(graph_t * g)
 		    /* shadows a forward edge */
 		    if (ED_to_virt(opp) == NULL)
 			make_chain(g, agtail(opp), aghead(opp), opp);
-		    concentrate_edge_pair_compat_t compat;
-		    concentrate_edge_pair_compat_init(&attr_state, e, opp,
-                                                      &compat);
 		    if (ED_label(e) == NULL && ED_label(opp) == NULL
-			&& compat.opposite_mergeable) {
+			&& concentrate_edges_mergeable(&attr_state, e, opp)) {
 			if (Concentrate) {
 			    ED_edge_type(e) = IGNORED;
 			    ED_conc_opp_flag(opp) = true;

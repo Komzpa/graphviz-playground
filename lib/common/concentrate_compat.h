@@ -39,18 +39,10 @@ typedef struct {
   Agsym_t *dir;
 } concentrate_compat_state_t;
 
-typedef struct {
-  bool same_nonendpoint_attrs;
-  bool parallel_endpoints_compatible;
-  bool opposite_endpoints_compatible;
-  bool parallel_mergeable;
-  bool opposite_mergeable;
-} concentrate_edge_pair_compat_t;
-
 /*
  * Hashes for the two relations used by concentrate. They are filters, not
- * proofs: callers must still use concentrate_edges_mergeable() before
- * suppressing an edge.
+ * proofs. Relation-aware compatibility decides whether an edge may be
+ * suppressed.
  */
 typedef struct {
   uint64_t parallel;
@@ -63,11 +55,8 @@ typedef struct {
 
 void concentrate_compat_state_init(graph_t *g,
                                    concentrate_compat_state_t *state);
-void concentrate_edge_pair_compat_init(const concentrate_compat_state_t *state,
-                                       edge_t *e, edge_t *f,
-                                       concentrate_edge_pair_compat_t *compat);
-bool concentrate_edge_pair_mergeable(
-    const concentrate_edge_pair_compat_t *compat,
+bool concentrate_edges_compatible_for_relation(
+    const concentrate_compat_state_t *state, edge_t *e, edge_t *f,
     concentrate_edge_relation_t relation);
 bool concentrate_edges_mergeable(const concentrate_compat_state_t *state,
                                  edge_t *e, edge_t *f);
