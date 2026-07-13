@@ -925,6 +925,11 @@ void rec_reset_vlists(graph_t *g) {
         w = v;
       }
       if (u == NULL) {
+        // Cluster ranks should not go empty here; if they do, drop the stale
+        // pre-removal slice instead of preserving it.
+        GD_rankleader(g)[r] = NULL;
+        GD_rank(g)[r].v = GD_rank(dot_root(g))[r].v + GD_rank(dot_root(g))[r].n;
+        GD_rank(g)[r].n = 0;
         continue;
       }
       GD_rankleader(g)[r] = u;
