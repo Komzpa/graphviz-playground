@@ -7019,7 +7019,7 @@ def test_changelog_dates():
 @pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
 def test_duplicate_hard_coded_metrics_warnings():
     """
-    Check that #2239 completes without repeated hard-coded metrics warnings.
+    Check #2239 through `-u` and verify warnings do not repeat.
 
     Its nested subgraphs inherit node and edge defaults, exercising gvpack's
     clone path as well as the warning check below.
@@ -7042,7 +7042,7 @@ def test_duplicate_hard_coded_metrics_warnings():
 
     assert (
         p.stderr.count("no hard-coded metrics for 'sans'") <= 1
-    ), "multiple identical “no hard-coded metrics” warnings printed"
+    ), "unexpected count of hard-coded metrics warnings"
 
 
 @pytest.mark.parametrize("branch", (0, 1, 2, 3))
