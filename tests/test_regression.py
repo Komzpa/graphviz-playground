@@ -9818,20 +9818,57 @@ def test_150():
           b -> a
         }
     """
-    layout = json.loads(dot("json", source=source))
-    drawn = [edge for edge in layout["edges"] if "_draw_" in edge]
+    def drawn_edges(source: str) -> list[dict]:
+        layout = json.loads(dot("json", source=source))
+        return [edge for edge in layout["edges"] if "_draw_" in edge]
+
+    def drawn_colors(layout: dict) -> list[str]:
+        return [
+            operation["color"]
+            for edge in layout["edges"]
+            for operation in edge.get("_draw_", ())
+            if operation["op"] == "c"
+        ]
+
+    drawn = drawn_edges(source)
     assert len(drawn) == 1, "same-rank reverse edges were not concentrated"
+
+    disabled = source.replace("concentrate=true", "concentrate=false")
+    assert len(drawn_edges(disabled)) == 2, "concentrate=false changed edge drawing"
 
     distinct = source.replace("a -> b", "a -> b [color=red]").replace(
         "b -> a", "b -> a [color=blue]"
     )
-    colors = {
-        operation["color"]
-        for edge in json.loads(dot("json", source=distinct))["edges"]
-        for operation in edge.get("_draw_", ())
-        if operation["op"] == "c"
+    assert set(drawn_colors(json.loads(dot("json", source=distinct)))) == {
+        "#ff0000",
+        "#0000ff",
     }
-    assert colors == {"#ff0000", "#0000ff"}
+
+    # `c -> a` adds a second rank, so this takes the rank-span-1 boundary.
+    rank_span_one = """
+        strict digraph {
+          concentrate=true
+          subgraph foo {
+            rank=same
+            a
+            b
+          }
+          c -> a [color="#00aa00"]
+          a -> b [color=red]
+          b -> a [color=red]
+        }
+    """
+    layout = json.loads(dot("json", source=rank_span_one))
+    positions = {
+        node["name"]: node["pos"].rsplit(",", 1)[1]
+        for node in layout["objects"]
+        if node["name"] in {"a", "b", "c"}
+    }
+    assert positions["a"] == positions["b"]
+    assert positions["a"] != positions["c"], "expected exactly two rank layers"
+    colors = drawn_colors(layout)
+    assert colors.count("#ff0000") == 1, "rank-span-1 reverse edges were not concentrated"
+    assert colors.count("#00aa00") == 1
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
