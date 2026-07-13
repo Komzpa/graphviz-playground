@@ -707,6 +707,11 @@ static void rerank(Agnode_t * v, int delta)
 static int
 update(network_simplex_ctx_t *ctx, edge_t * e, edge_t * f)
 {
+    if (!e || !f) {
+        agerrorf("update: null entering/leaf edge (e=%p,f=%p)\n", (void *)e, (void *)f);
+        return 2;
+    }
+
     const int delta = SLACK(f);
     /* "for (v = in nodes in tail side of e) do ND_rank(v) -= delta;" */
     if (delta > 0) {
@@ -988,6 +993,10 @@ int rank2(graph_t * g, int balance, int maxiter, int search_size)
 
     while ((e = leave_edge(&ctx))) {
 	edge_t *const f = enter_edge(e);
+	if (!f) {
+	    agwarningf("rank: no entering edge found for %s\n", agnameof(agtail(e)));
+	    break;
+	}
 	const int err = update(&ctx, e, f);
 	if (err != 0) {
 	    freeTreeList(&ctx, g);
