@@ -19,6 +19,7 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
+#include <stdio.h>
 #include <gvc/gvc.h>
 #include <stdatomic.h>
 #include <stddef.h>
@@ -424,6 +425,15 @@ struct fontinfo {
     char *fontcolor;
 };
 
+static void set_label_position(void *obj, textlabel_t *l, const char *name) {
+    double x, y;
+    char *lp = agget(obj, (char *)name);
+    if (lp && sscanf(lp, "%lf,%lf", &x, &y) == 2) {
+	l->pos = (pointf){x, y};
+	l->set = true;
+    }
+}
+
 void common_init_node(node_t * n)
 {
     struct fontinfo fi;
@@ -443,6 +453,7 @@ void common_init_node(node_t * n)
     if (N_xlabel && (str = agxget(n, N_xlabel)) && str[0]) {
 	ND_xlabel(n) = make_label(n, str, aghtmlstr(str), false,
 				fi.fontsize, fi.fontname, fi.fontcolor);
+	set_label_position(n, ND_xlabel(n), "xlp");
 	GD_has_labels(agraphof(n)) |= NODE_XLABEL;
     }
 
@@ -527,6 +538,7 @@ void common_init_edge(edge_t *e) {
 	    initFontEdgeAttr(e, &fi);
 	ED_xlabel(e) = make_label(e, str, aghtmlstr(str), false,
 				fi.fontsize, fi.fontname, fi.fontcolor);
+	set_label_position(e, ED_xlabel(e), "xlp");
 	GD_has_labels(sg) |= EDGE_XLABEL;
     }
 

@@ -331,6 +331,39 @@ def test_167():
     assert ret != -signal.SIGSEGV, "Graphviz segfaulted"
 
 
+def test_299():
+    """
+    dot should respect user-provided external label positions
+    https://gitlab.com/graphviz/graphviz/-/issues/299
+    """
+
+    source = """
+        digraph {
+          forcelabels=true;
+          node [shape=point, height=0.1];
+          a [xlabel="abc", xlp="-1,1"];
+          b [xlabel="abc", xlp="10,-10"];
+          c [xlabel="abc", xlp="1000,1000"];
+          a -> b;
+          a -> c;
+        }
+    """
+
+    data = json.loads(dot("json", source=textwrap.dedent(source)))
+    xlp = {}
+    for obj in data["objects"]:
+        if obj["name"] in {"a", "b", "c"}:
+            x, y = (float(v) for v in obj["xlp"].split(","))
+            xlp[obj["name"]] = (x, y)
+
+    # Graphviz may translate the final graph to keep the bounding box positive,
+    # but the user-requested xlp offsets should survive that translation.
+    assert math.isclose(xlp["b"][0] - xlp["a"][0], 11)
+    assert math.isclose(xlp["b"][1] - xlp["a"][1], -11)
+    assert math.isclose(xlp["c"][0] - xlp["b"][0], 990)
+    assert math.isclose(xlp["c"][1] - xlp["b"][1], 1010)
+
+
 def test_191():
     """
     a comma-separated list without quotes should cause a hard error, not a warning
