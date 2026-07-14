@@ -1005,6 +1005,36 @@ def test_1447_1():
     dot("png", input)
 
 
+def test_1415():
+    """
+    ortho edges to a north port should clip to the north side of the node
+    https://gitlab.com/graphviz/graphviz/-/issues/1415
+    """
+
+    source = """
+        digraph {
+          graph [splines = ortho];
+          A;
+          B;
+          C;
+          { A; B; C; } -> D:n;
+        }
+    """
+
+    data = json.loads(dot("json", source=textwrap.dedent(source)))
+    objects = {o["name"]: o for o in data["objects"]}
+    d_center_y = float(objects["D"]["pos"].split(",")[1])
+
+    edges_to_d = [
+        e for e in data["edges"] if data["objects"][e["head"]]["name"] == "D"
+    ]
+    assert len(edges_to_d) == 3
+    for edge in edges_to_d:
+        endpoint = edge["pos"].split()[0]
+        _, _, y = endpoint.split(",")
+        assert float(y) > d_center_y
+
+
 def test_1449():
     """
     using the SVG color scheme should not cause warnings
@@ -1659,7 +1689,6 @@ def test_1845():
     dot("ps", input)
 
 
-@pytest.mark.xfail(strict=True)  # FIXME
 def test_1856():
     """
     headports and tailports should be respected
@@ -1674,16 +1703,10 @@ def test_1856():
     out = dot("json", input)
     data = json.loads(out)
 
-    # find the two nodes, “3” and “5”
+    # find the three nodes, “2”, “3”, and “5”
+    two = [x for x in data["objects"] if x["name"] == "2"][0]
     three = [x for x in data["objects"] if x["name"] == "3"][0]
     five = [x for x in data["objects"] if x["name"] == "5"][0]
-
-    # find the edge from “3” to “5”
-    edge = [
-        x
-        for x in data["edges"]
-        if x["tail"] == three["_gvid"] and x["head"] == five["_gvid"]
-    ][0]
 
     # The edge should look something like:
     #
@@ -1710,9 +1733,17 @@ def test_1856():
 
     top_of_five = max(y for _, y in five["_draw_"][1]["points"])
 
-    waypoints_y = [y for _, y in edge["_draw_"][1]["points"]]
+    for tail in (two, three):
+        # find the edge from the tail to “5”
+        edge = [
+            x
+            for x in data["edges"]
+            if x["tail"] == tail["_gvid"] and x["head"] == five["_gvid"]
+        ][0]
 
-    assert all(y >= top_of_five for y in waypoints_y), "edge dips below 5"
+        waypoints_y = [y for _, y in edge["_draw_"][1]["points"]]
+
+        assert all(y >= top_of_five for y in waypoints_y), "edge dips below 5"
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")

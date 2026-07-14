@@ -1086,19 +1086,33 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 	pointf p;
 	if (seg->isVert) {
 		p = (pointf){.x = vtrack(seg, mp), .y = p1.y};
+		if (ED_tail_port(e).defined &&
+		    (ED_tail_port(e).side & (LEFT | RIGHT)))
+			p.x = p1.x;
 	}
 	else {
 		p = (pointf){.x = p1.x, .y = htrack(seg, mp)};
+		if (ED_tail_port(e).defined &&
+		    (ED_tail_port(e).side & (TOP | BOTTOM)))
+			p.y = p1.y;
 	}
 	LIST_APPEND(&ispline, p);
 	LIST_APPEND(&ispline, p);
 
 	for (size_t i = 1;i<rte.n;i++) {
 		seg = rte.segs+i;
-		if (seg->isVert)
+		if (seg->isVert) {
 		    p.x = vtrack(seg, mp);
-		else
+		    if (i + 1 == rte.n && ED_head_port(e).defined &&
+		        (ED_head_port(e).side & (LEFT | RIGHT)))
+			p.x = q1.x;
+		}
+		else {
 		    p.y = htrack(seg, mp);
+		    if (i + 1 == rte.n && ED_head_port(e).defined &&
+		        (ED_head_port(e).side & (TOP | BOTTOM)))
+			p.y = q1.y;
+		}
 		LIST_APPEND(&ispline, p);
 		LIST_APPEND(&ispline, p);
 		LIST_APPEND(&ispline, p);
@@ -1106,9 +1120,15 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 
 	if (seg->isVert) {
 		p = (pointf){.x = vtrack(seg, mp), .y = q1.y};
+		if (ED_head_port(e).defined &&
+		    (ED_head_port(e).side & (LEFT | RIGHT)))
+			p.x = q1.x;
 	}
 	else {
 		p = (pointf){.x = q1.x, .y = htrack(seg, mp)};
+		if (ED_head_port(e).defined &&
+		    (ED_head_port(e).side & (TOP | BOTTOM)))
+			p.y = q1.y;
 	}
 	LIST_APPEND(&ispline, p);
 	LIST_APPEND(&ispline, p);

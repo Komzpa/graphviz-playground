@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Orthogonal edges now preserve explicit head and tail compass ports at the
+  first and last route segments. #1415 #1856
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
