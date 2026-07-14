@@ -83,6 +83,12 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Explicit `WIDTH` and `HEIGHT` attributes on HTML-like tables are now
+  distributed to rows and columns instead of adding all spare space to the
+  right or bottom of the table. #1393
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

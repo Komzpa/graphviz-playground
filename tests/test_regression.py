@@ -2643,6 +2643,79 @@ def test_2159():
         assert math.isclose(width, widths[0], abs_tol=5), "cells not evenly expanded"
 
 
+def test_1393():
+    """
+    explicit HTML table dimensions should be distributed to the table grid
+    https://gitlab.com/graphviz/graphviz/-/issues/1393
+    """
+
+    source = """
+        digraph {
+          1 [label=<
+            <table width="200">
+              <tr>
+                <td>Node</td>
+              </tr>
+            </table>>]
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+
+    polygons = root.findall(
+        ".//{http://www.w3.org/2000/svg}title[.='1']/../{http://www.w3.org/2000/svg}polygon"
+    )
+    assert len(polygons) == 2
+
+    widths = []
+    for polygon in polygons:
+        points = [
+            [float(n) for n in p.split(",")]
+            for p in polygon.get("points").split(" ")
+        ]
+        xs = [p[0] for p in points]
+        widths.append(max(xs) - min(xs))
+
+    cell_width, table_width = sorted(widths)
+    assert math.isclose(table_width, 200, abs_tol=0.1)
+    assert cell_width > 0.9 * table_width
+
+    source = """
+        digraph {
+          1 [label=<
+            <table border="1" height="450">
+              <tr>
+                <td align="right" balign="left" width="200" valign="bottom"
+                    color="red" height="200" fixedsize="true">Node<br />more name</td>
+              </tr>
+            </table>>]
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+
+    polygons = root.findall(
+        ".//{http://www.w3.org/2000/svg}title[.='1']/../{http://www.w3.org/2000/svg}polygon"
+    )
+    assert len(polygons) == 2
+
+    boxes = []
+    for polygon in polygons:
+        points = [
+            [float(n) for n in p.split(",")]
+            for p in polygon.get("points").split(" ")
+        ]
+        ys = [p[1] for p in points]
+        boxes.append((max(ys) - min(ys), min(ys), max(ys)))
+
+    (cell_height, _, cell_bottom), (table_height, _, table_bottom) = sorted(boxes)
+    assert math.isclose(cell_height, 200, abs_tol=0.1)
+    assert math.isclose(table_height, 450, abs_tol=0.1)
+    assert math.isclose(table_bottom - cell_bottom, 3, abs_tol=0.1)
+
+
 def test_2168():
     """
     using spline routing should not cause fdp/neato to infinite loop
