@@ -201,6 +201,40 @@ def test_144(testcase: str):
     assert angular_head_point[0] > angular_tail_point[0], "A->C head/tail confusion"
 
 
+def test_207():
+    """
+    ID attributes on HTML-like TABLE and TD labels should propagate to SVG.
+    https://gitlab.com/graphviz/graphviz/-/issues/207
+    """
+
+    input = """
+            digraph G {
+              node [shape=plain];
+              table [
+                label=<
+                  <TABLE ID="table-id" BORDER="1" CELLBORDER="1">
+                    <TR><TD>table id</TD></TR>
+                  </TABLE>
+                >
+              ];
+              cell [
+                label=<
+                  <TABLE BORDER="1" CELLBORDER="1">
+                    <TR><TD ID="cell-id">cell id</TD></TR>
+                  </TABLE>
+                >
+              ];
+            }
+            """
+
+    svg = dot("svg", source=input)
+    root = ET.fromstring(svg)
+
+    ids = {element.get("id") for element in root.iter() if element.get("id")}
+    assert "a_table-id" in ids, "TABLE ID was not propagated to SVG"
+    assert "a_cell-id" in ids, "TD ID was not propagated to SVG"
+
+
 def test_146():
     """
     dot should respect an alpha channel value of 0 when writing SVG

@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Fixed
+
+- SVG output now preserves `ID` attributes from HTML-like `TABLE` and `TD`
+  labels. #207
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
