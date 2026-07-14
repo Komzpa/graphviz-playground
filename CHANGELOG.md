@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `dot` no longer adds cluster auxiliary edges that create ranking cycles and
+  trigger `trouble in init_rank` errors. #1213 #1939 #2796
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

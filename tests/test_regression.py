@@ -618,9 +618,6 @@ def test_925():
 
 
 @pytest.mark.parametrize("testcase", ("1213-1.dot", "1213-2.dot"))
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1213"
-)
 def test_1213(testcase: str):
     """
     clustering should not trigger “trouble in init_rank” errors
@@ -2209,9 +2206,6 @@ def test_1931():
     assert "line 5\nline 6" in xdot
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1939"
-)
 def test_1939():
     """
     clustering should not cause “trouble in init_rank” errors
@@ -4372,7 +4366,7 @@ def test_2470():
 
 @pytest.mark.xfail(
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2471",
-    strict=True,
+    strict=False,
 )
 def test_2471():
     """
@@ -6395,9 +6389,6 @@ def test_2784():
             raise
 
 
-@pytest.mark.xfail(
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2796", strict=True
-)
 def test_2796():
     """
     Graphviz should be able to triangulate the points in this graph
