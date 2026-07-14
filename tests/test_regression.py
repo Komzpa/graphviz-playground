@@ -732,9 +732,6 @@ def test_1318():
 
 
 @pytest.mark.parametrize("testcase", ("1323.dot", "1323_1.dot"))
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1323"
-)
 def test_1323(testcase: str):
     """
     these graphs should not generate triangulation warnings/errors
@@ -4259,6 +4256,44 @@ def test_2416():
 
     # assuming the graph is vertical, these should not be too close
     assert abs(y_1 - y_2) > 1, "edge arrows appear to be drawn next to the same node"
+
+
+def test_2248():
+    """
+    A flat edge between adjacent record nodes should not be omitted.
+    https://gitlab.com/graphviz/graphviz/-/issues/2248
+    """
+
+    input = "graph { node [shape=record]; { rank=same C -- B [color=red] } }"
+
+    output = dot("json", source=input)
+    data = json.loads(output)
+
+    assert len(data["edges"]) == 1, "unexpected number of edges"
+    edge = data["edges"][0]
+    assert edge["color"] == "red"
+    assert "pos" in edge
+
+
+def test_2791():
+    """
+    A flat edge from a record node to a box node should not be omitted.
+    https://gitlab.com/graphviz/graphviz/-/issues/2791
+    """
+
+    input = """
+            strict digraph MissingEdge {
+              {rank=same; B; A;}
+              A [label="{text1|text2}", shape=record];
+              A -> B;
+            }
+            """
+
+    output = dot("json", source=input)
+    data = json.loads(output)
+
+    assert len(data["edges"]) == 1, "unexpected number of edges"
+    assert "pos" in data["edges"][0]
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")

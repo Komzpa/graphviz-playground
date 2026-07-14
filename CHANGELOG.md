@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Fixed
+
+- The dot layout engine no longer drops flat edges adjacent to record nodes.
+  #1323, #2248, #2791
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

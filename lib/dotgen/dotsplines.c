@@ -1138,18 +1138,9 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   double midx, midy, leftx, rightx;
   pointf del;
   edge_t *hvye = NULL;
-  static atomic_flag warned;
 
   tn = agtail(e0), hn = aghead(e0);
-  if (shapeOf(tn) == SH_RECORD || shapeOf(hn) == SH_RECORD) {
-    if (!atomic_flag_test_and_set(&warned)) {
-      agwarningf("flat edge between adjacent nodes one of which has a record "
-                 "shape - replace records with HTML-like labels\n");
-      agerr(AGPREV, "  Edge %s %s %s\n", agnameof(tn),
-            agisdirected(g) ? "->" : "--", agnameof(hn));
-    }
-    return 0;
-  }
+  const bool has_record = shapeOf(tn) == SH_RECORD || shapeOf(hn) == SH_RECORD;
   unsigned labels = 0;
   bool ports = false;
   for (unsigned i = 0; i < cnt; i++) {
@@ -1158,6 +1149,11 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       labels++;
     if (ED_tail_port(e).defined || ED_head_port(e).defined)
       ports = true;
+  }
+
+  if (has_record && ports) {
+    makeSimpleFlat(tn, hn, edges, cnt, et);
+    return 0;
   }
 
   if (!ports) {
