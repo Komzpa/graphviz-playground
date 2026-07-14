@@ -3974,6 +3974,7 @@ def test_2368(testcase: str, expected_labels: Counter[str]):
         "2776.dot",
         "2778.dot",
         "2779.dot",
+        "2780.dot",
     ),
 )
 def test_2747(testcase: str):
@@ -3987,6 +3988,7 @@ def test_2747(testcase: str):
     https://gitlab.com/graphviz/graphviz/-/work_items/2776
     https://gitlab.com/graphviz/graphviz/-/work_items/2778
     https://gitlab.com/graphviz/graphviz/-/work_items/2779
+    https://gitlab.com/graphviz/graphviz/-/work_items/2780
     """
 
     # locate our associated test case in this directory
@@ -4001,6 +4003,7 @@ def test_2747(testcase: str):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        timeout=10,
     )
 
     assert proc.returncode not in (
