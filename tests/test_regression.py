@@ -4234,9 +4234,6 @@ def test_2437():
     assert len(polygons) == 3, "wrong number of polygons in output"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2416"
-)
 def test_2416():
     """
     `splines=curved` should not affect arrow directions

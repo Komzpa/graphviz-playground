@@ -1017,7 +1017,10 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
     for (size_t i = 0; i < e_cnt; i++) {
 	edge_t *e0 = edge_list[i];
 	pointf dumber[4];
-	if (aghead(e0) == head) {
+	bool forward = aghead(e0) == head;
+	if (sinfo->swapEnds(e0))
+	    forward = !forward;
+	if (forward) {
 	    for (size_t j = 0; j < 4; j++) {
 		dumber[j] = dumb[j];
 	    }
