@@ -1096,6 +1096,8 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 		    (ED_tail_port(e).side & (TOP | BOTTOM)))
 			p.y = p1.y;
 	}
+	if (ED_tail_port(e).defined)
+		p = p1;
 	LIST_APPEND(&ispline, p);
 	LIST_APPEND(&ispline, p);
 
@@ -1130,6 +1132,8 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 		    (ED_head_port(e).side & (TOP | BOTTOM)))
 			p.y = q1.y;
 	}
+	if (ED_head_port(e).defined)
+		p = q1;
 	LIST_APPEND(&ispline, p);
 	LIST_APPEND(&ispline, p);
 	if (Verbose > 1)

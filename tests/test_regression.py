@@ -1035,6 +1035,49 @@ def test_1415():
         assert float(y) > d_center_y
 
 
+def test_106():
+    """
+    ortho edges to HTML table cell ports should use the cell side, not the
+    whole table side
+    https://gitlab.com/graphviz/graphviz/-/issues/106
+    """
+
+    input = Path(__file__).parent / "106.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    ortho = json.loads(dot("json", input))
+    polyline_source = input.read_text().replace(
+        'splines="ortho"', 'splines="polyline"'
+    )
+    polyline = json.loads(dot("json", source=polyline_source))
+
+    def endpoints(data):
+        result = {}
+        objects = data["objects"]
+        for edge in data["edges"]:
+            tail = objects[edge["tail"]]["name"]
+            head = objects[edge["head"]]["name"]
+            key = (tail, edge["tailport"], head, edge["headport"])
+            points = []
+            for token in edge["pos"].split():
+                if token.startswith(("s,", "e,")):
+                    token = token[2:]
+                x, y = token.split(",")
+                points.append((float(x), float(y)))
+            result[key] = (points[0], points[-1])
+        return result
+
+    ortho_endpoints = endpoints(ortho)
+    polyline_endpoints = endpoints(polyline)
+    assert ortho_endpoints.keys() == polyline_endpoints.keys()
+
+    for key in ortho_endpoints:
+        for ortho_point, polyline_point in zip(
+            ortho_endpoints[key], polyline_endpoints[key]
+        ):
+            assert math.dist(ortho_point, polyline_point) <= 1.1, key
+
+
 def test_1449():
     """
     using the SVG color scheme should not cause warnings

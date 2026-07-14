@@ -85,8 +85,8 @@ and this project adheres to
 
 ### Fixed
 
-- Orthogonal edges now preserve explicit head and tail compass ports at the
-  first and last route segments. #1415 #1856
+- Orthogonal edges now preserve explicit head and tail HTML cell and compass
+  ports at the first and last route segments. #106 #1415 #1856
 
 ## [15.1.0] – 2026-06-17
 

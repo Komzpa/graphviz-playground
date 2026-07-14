@@ -1,0 +1,152 @@
+digraph "alltablesSPRINGCSpubs_compact" {
+  graph [
+    rankdir="RL"
+    bgcolor="#FFFFFF"
+    nodesep="0.15"
+    ranksep="0.50"
+    splines="ortho" 
+  ];
+  node [
+    fontname="Courier New"
+    fontsize="10"
+    shape="plaintext"
+  ];
+  edge [
+    arrowsize="0.9"
+  ];
+  "[dbo].[authors]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dboauthors.htm"
+    tooltip="[dbo].[authors]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[authors]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[authors]</TD></TR>
+      <TR><TD PORT="au_id" BGCOLOR="#dddddd" ALIGN="LEFT">au_id id</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[discounts]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbodiscounts.htm"
+    tooltip="[dbo].[discounts]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[discounts]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[discounts]</TD></TR>
+      <TR><TD PORT="stor_id" BGCOLOR="#ffffff" ALIGN="LEFT">stor_id char</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[employee]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dboemployee.htm"
+    tooltip="[dbo].[employee]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[employee]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[employee]</TD></TR>
+      <TR><TD PORT="emp_id" BGCOLOR="#dddddd" ALIGN="LEFT">emp_id empid</TD></TR>
+      <TR><TD PORT="job_id" BGCOLOR="#ffffff" ALIGN="LEFT">job_id smallint</TD></TR>
+      <TR><TD PORT="pub_id" BGCOLOR="#ffffff" ALIGN="LEFT">pub_id char</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[jobs]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbojobs.htm"
+    tooltip="[dbo].[jobs]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[jobs]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[jobs]</TD></TR>
+      <TR><TD PORT="job_id" BGCOLOR="#dddddd" ALIGN="LEFT">job_id smallint identity</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[pub_info]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbopub_info.htm"
+    tooltip="[dbo].[pub_info]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[pub_info]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[pub_info]</TD></TR>
+      <TR><TD PORT="pub_id" BGCOLOR="#dddddd" ALIGN="LEFT">pub_id char</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[publishers]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbopublishers.htm"
+    tooltip="[dbo].[publishers]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[publishers]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[publishers]</TD></TR>
+      <TR><TD PORT="pub_id" BGCOLOR="#dddddd" ALIGN="LEFT">pub_id char</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[roysched]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dboroysched.htm"
+    tooltip="[dbo].[roysched]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[roysched]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[roysched]</TD></TR>
+      <TR><TD PORT="title_id" BGCOLOR="#ffffff" ALIGN="LEFT">title_id tid</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[sales]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbosales.htm"
+    tooltip="[dbo].[sales]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[sales]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[sales]</TD></TR>
+      <TR><TD PORT="stor_id" BGCOLOR="#dddddd" ALIGN="LEFT">stor_id char</TD></TR>
+      <TR><TD PORT="ord_num" BGCOLOR="#dddddd" ALIGN="LEFT">ord_num varchar</TD></TR>
+      <TR><TD PORT="title_id" BGCOLOR="#dddddd" ALIGN="LEFT">title_id tid</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[stores]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbostores.htm"
+    tooltip="[dbo].[stores]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[stores]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[stores]</TD></TR>
+      <TR><TD PORT="stor_id" BGCOLOR="#dddddd" ALIGN="LEFT">stor_id char</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[TimeTest]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dboTimeTest.htm"
+    tooltip="[dbo].[TimeTest]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[TimeTest]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[TimeTest]</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[titleauthor]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbotitleauthor.htm"
+    tooltip="[dbo].[titleauthor]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[titleauthor]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[titleauthor]</TD></TR>
+      <TR><TD PORT="au_id" BGCOLOR="#dddddd" ALIGN="LEFT">au_id id</TD></TR>
+      <TR><TD PORT="title_id" BGCOLOR="#dddddd" ALIGN="LEFT">title_id tid</TD></TR>
+    </TABLE>>
+  ];
+
+  "[dbo].[titles]" [
+    URL="../SqlServer.SPRING.CS.pubs/table_dbotitles.htm"
+    tooltip="[dbo].[titles]"
+    label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" BGCOLOR="#ffffff">
+      <TR><TD PORT="[dbo].[titles]" BGCOLOR="#8DD3C7" ALIGN="CENTER">[dbo].[titles]</TD></TR>
+      <TR><TD PORT="title_id" BGCOLOR="#dddddd" ALIGN="LEFT">title_id tid</TD></TR>
+      <TR><TD PORT="pub_id" BGCOLOR="#ffffff" ALIGN="LEFT">pub_id char</TD></TR>
+    </TABLE>>
+  ];
+"[dbo].[discounts]":"stor_id":w -> "[dbo].[stores]":"stor_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[employee]":"job_id":w -> "[dbo].[jobs]":"job_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[employee]":"pub_id":w -> "[dbo].[publishers]":"pub_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[pub_info]":"pub_id":w -> "[dbo].[publishers]":"pub_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[roysched]":"title_id":w -> "[dbo].[titles]":"title_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[sales]":"stor_id":w -> "[dbo].[stores]":"stor_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[sales]":"title_id":w -> "[dbo].[titles]":"title_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[titleauthor]":"au_id":w -> "[dbo].[authors]":"au_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[titleauthor]":"title_id":w -> "[dbo].[titles]":"title_id":e [dir=back arrowhead=dot arrowtail=crow];
+"[dbo].[titles]":"pub_id":w -> "[dbo].[publishers]":"pub_id":e [dir=back arrowhead=dot arrowtail=crow];
+
+}
