@@ -83,6 +83,12 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The `fontname` attribute documentation now explains that resolved font
+  metrics and text layout libraries can change node, record, and graph
+  geometry across systems. #1905
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
