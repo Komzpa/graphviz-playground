@@ -770,6 +770,69 @@ def test_1328():
     assert proc.returncode in (0, 1), "multiple rank constraints caused a crash"
 
 
+def test_1592():
+    """
+    Record-shaped same-rank edges should not flip the visible columns.
+    https://gitlab.com/graphviz/graphviz/-/issues/1592
+    """
+
+    source = """
+            digraph G {
+              newrank = true;
+              node [shape=record, style="rounded,filled", color="#5F6368",
+                    fillcolor="#F7F7F7", fontname="Arial", fontsize=10];
+              graph [fontname = "Arial"]; edge [fontname = "Arial"];
+              style = "dashed";
+
+              subgraph cluster0 {
+                color="#34A853";
+                a; a1; b; b1; c; c1; d; d1;
+              }
+
+              subgraph cluster1 {
+                color="#EA4335";
+                e1; f1;
+
+                subgraph cluster2 {
+                  color="#FBBC05";
+                  e; f; g; h; i;
+                }
+              }
+
+              a -> b -> c -> d [color="#34A853"];
+              a1 -> b1 -> c1 -> d1 [color="#4285F4"];
+
+              edge[style=invis];
+              {rank="same"; a -> a1 [constraint=false]}
+              {rank="same"; b -> b1 [constraint=false]}
+              {rank="same"; c -> c1 [constraint=false]}
+              {rank="same"; d -> d1 [constraint=false]}
+              {rank="same"; e -> e1 [constraint=false]}
+              {rank="same"; f -> f1 [constraint=false]}
+
+              d -> e -> f -> g -> h -> i;
+              d1 -> e1 -> f1;
+            }
+            """
+
+    output = dot("plain", source=source).decode("utf-8")
+    xs = {}
+    for line in output.splitlines():
+        parts = line.split()
+        if parts and parts[0] == "node":
+            xs[parts[1]] = float(parts[2])
+
+    for left, right in (
+        ("a", "a1"),
+        ("b", "b1"),
+        ("c", "c1"),
+        ("d", "d1"),
+        ("e", "e1"),
+        ("f", "f1"),
+    ):
+        assert xs[left] < xs[right], f"{left} should be left of {right}"
+
+
 def test_1332():
     """
     Triangulation calculation on the associated example should succeed.
