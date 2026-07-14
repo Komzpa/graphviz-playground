@@ -3933,7 +3933,7 @@ def test_2368(testcase: str):
 
 def _prepare_tcldot_test(tmp_path: Path):
     dot_exe = which("dot")
-    wish_exe = shutil.which("wish")
+    wish_exe = shutil.which("wish8.6") or shutil.which("wish")
     assert dot_exe is not None, "`dot` not found"
     assert wish_exe is not None, "`wish` not found"
 
@@ -3945,8 +3945,20 @@ def _prepare_tcldot_test(tmp_path: Path):
     for plugin in source_plugin.parent.glob("libgvplugin_*"):
         if plugin.is_file():
             shutil.copy2(plugin, plugin_dir / plugin.name)
+    for plugin in source_plugin.parent.parent.glob("*/libgvplugin_*"):
+        if plugin.is_file():
+            shutil.copy2(plugin, plugin_dir / plugin.name)
 
     env = os.environ.copy()
+    for root in source_plugin.parents:
+        tcldot_pkg = root / "tclpkg" / "tcldot"
+        if (tcldot_pkg / "pkgIndex.tcl").exists():
+            tcllibpath = [str(tcldot_pkg)]
+            if "TCLLIBPATH" in env:
+                tcllibpath.append(env["TCLLIBPATH"])
+            env["TCLLIBPATH"] = " ".join(tcllibpath)
+            break
+
     library_key = (
         "DYLD_LIBRARY_PATH" if is_macos() else "PATH" if platform.system() == "Windows" else "LD_LIBRARY_PATH"
     )
@@ -5997,6 +6009,15 @@ def _find_plugin_so(plugin: str) -> Optional[Path]:
 
     # figure out the path to installed root based on binaries
     dot_bin = which("dot")
+
+    # CMake build-tree binaries live below build/cmd/dot, while plugins live
+    # below build/plugin/<name>. Check this layout before installed paths.
+    for root in dot_bin.parents:
+        candidate = root / "plugin" / plugin / f"libgvplugin_{plugin}.so"
+        print(f"checking {candidate}")  # log some useful information
+        if candidate.exists():
+            return candidate
+
     root = dot_bin.parents[1]
 
     # extract plugin version
