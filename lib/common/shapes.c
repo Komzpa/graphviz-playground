@@ -1930,6 +1930,14 @@ bool isPolygon(node_t * n)
     return ND_shape(n) && ND_shape(n)->fns->initfn == poly_init;
 }
 
+static bool explicitAttr(node_t *n, Agsym_t *attr)
+{
+    if (attr == NULL)
+	return false;
+    char *const value = agxget(n, attr);
+    return value != NULL && value[0] != '\0' && value != attr->defval;
+}
+
 static void poly_init(node_t * n)
 {
     pointf dimen, min_bb;
@@ -1951,6 +1959,8 @@ static void poly_init(node_t * n)
     skew = ND_shape(n)->polygon->skew;
     distortion = ND_shape(n)->polygon->distortion;
     regular |= mapbool(agget(n, "regular"));
+    const bool explicit_width = explicitAttr(n, N_width);
+    const bool explicit_height = explicitAttr(n, N_height);
 
     /* all calculations in floating point POINTS */
 
@@ -1982,6 +1992,28 @@ static void poly_init(node_t * n)
 	skew = late_double(n, N_skew, 0.0, -100.0);
 	sides = (size_t)late_int(n, N_sides, 4, 0);
 	distortion = late_double(n, N_distortion, 0.0, -100.0);
+    }
+
+    if (peripheries > 1 && (explicit_width || explicit_height)) {
+	const double periphery_gap = 2.0 * GAP * (double)(peripheries - 1);
+	const double min_width = INCH2PS(MIN_NODEWIDTH);
+	const double min_height = INCH2PS(MIN_NODEHEIGHT);
+
+	/* DOT output writes the outer node dimensions after layout. If a
+	 * generated DOT file is laid out again, those explicit dimensions
+	 * already include the extra space between peripheries. Subtract that
+	 * space here before generating the periphery vertices, otherwise each
+	 * round trip treats the previous outer size as a new inner minimum and
+	 * the node grows without bound.
+	 */
+	if (regular && (explicit_width || explicit_height)) {
+	    width = height = fmax(min_width, width - periphery_gap);
+	} else {
+	    if (explicit_width)
+		width = fmax(min_width, width - periphery_gap);
+	    if (explicit_height)
+		height = fmax(min_height, height - periphery_gap);
+	}
     }
 
     /* get label dimensions */

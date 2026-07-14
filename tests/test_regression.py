@@ -560,9 +560,6 @@ def test_797():
     assert "&amp; &amp;" in output
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/813"
-)
 def test_813():
     """
     nodes with multiple peripheries should still have a stable rendering
@@ -573,17 +570,58 @@ def test_813():
     input = Path(__file__).parent / "813.dot"
     assert input.exists(), "unexpectedly mising test case"
 
-    # render this to dot
-    reference = dot("dot", input)
+    # render this to dot, then once more to account for DOT output precision
+    # canonicalizing the node dimensions it writes
+    first = dot("dot", input)
+    reference = dot("dot", source=first)
 
     # run it through multiple passes
     iterated = reference
-    for _ in range(4):
+    for _ in range(3):
         iterated = dot("dot", source=iterated)
 
     assert (
         reference == iterated
     ), "rendering of shapes with multiple peripheries is unstable"
+
+
+@pytest.mark.parametrize("fixedsize", ("true", "shape"))
+def test_813_fixedsize(fixedsize: str):
+    """
+    fixedsize dimensions include multiple peripheries and should not grow
+    https://gitlab.com/graphviz/graphviz/-/issues/813
+    """
+
+    source = textwrap.dedent(
+        f"""\
+        graph {{
+          a [shape=box, peripheries=5, fixedsize={fixedsize}, width=1.25, height=1]
+        }}
+        """
+    )
+
+    reference = dot("dot", source=source)
+    iterated = reference
+    for _ in range(4):
+        iterated = dot("dot", source=iterated)
+
+    assert reference == iterated
+
+
+def test_813_single_periphery():
+    """
+    single-periphery boxes were already stable and should remain so
+    https://gitlab.com/graphviz/graphviz/-/issues/813
+    """
+
+    source = "graph { a [shape=box, peripheries=1] }"
+
+    reference = dot("dot", source=source)
+    iterated = reference
+    for _ in range(4):
+        iterated = dot("dot", source=iterated)
+
+    assert reference == iterated
 
 
 def test_827():
