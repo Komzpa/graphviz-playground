@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Self-edges between HTML-like label ports now honor `splines=line` and
+  `splines=polyline` instead of always using spline-style routing. #100
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

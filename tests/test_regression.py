@@ -84,6 +84,47 @@ def test_14():
     dot("svg", input)
 
 
+@pytest.mark.parametrize("splines", ["line", "polyline"])
+def test_100(splines: str):
+    """
+    self-edges between HTML-like label ports should honor line/polyline routing
+    https://gitlab.com/graphviz/graphviz/-/issues/100
+    """
+
+    source = f"""
+        digraph G {{
+          rankdir=BT
+          node [shape=plaintext]
+          splines = {splines}
+
+          a [label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+            <TR><TD border="0">   </TD>
+              <TD PORT="6">z</TD>
+              <TD border="0">   </TD>
+            </TR>
+            <TR> <TD ROWSPAN="4" COLSPAN="3"> <BR/>B<BR/> </TD> </TR>
+            <TR> <TD border="0"> </TD> </TR>
+            <TR><TD PORT="5">y</TD></TR>
+            <TR> <TD border="0"> </TD></TR>
+            <TR><TD border="0">   </TD>
+              <TD PORT="4">x</TD>
+            <TD border="0">   </TD>
+            </TR>
+            </TABLE>>];
+
+          a:5 -> a:6;
+          a:4 -> a:6;
+        }}
+    """
+
+    data = json.loads(dot("json", source=textwrap.dedent(source)))
+    assert len(data["edges"]) == 2
+    expected_points = 4 if splines == "line" else 19
+    for edge in data["edges"]:
+        assert len(edge["_draw_"][1]["points"]) == expected_points
+
+
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
 def test_42():
     """

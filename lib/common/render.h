@@ -113,7 +113,8 @@ RENDER_API bool initMapData(GVJ_t *, char *, char *, char *, char *, char *,
                             void *);
     RENDER_API bool isPolygon(node_t *);
     RENDER_API void makeSelfEdge(edge_t *edges[], size_t cnt, double sizex,
-                                 double sizey, splineInfo *sinfo);
+                                 double sizey, int edgetype,
+                                 splineInfo *sinfo);
 
 /// @param is_html Create the label as an HTML label
 /// @param is_record Is this destined for use in a record shape?
