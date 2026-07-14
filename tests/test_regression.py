@@ -7301,6 +7301,32 @@ def test_pic_font_size():
     assert int(m.group(1)) > 1, "font size clamped down to 1"
 
 
+def test_2487():
+    """
+    PIC output coordinates should use the same units
+    https://gitlab.com/graphviz/graphviz/-/issues/2487
+    """
+
+    # run a basic graph through PIC generation
+    source = "graph { a -- b; }"
+    pic = dot("pic", source=source)
+
+    # parse the declared drawing size
+    m = re.search(r"^\.PS ([0-9.]+) ([0-9.]+)$", pic, flags=re.MULTILINE)
+    assert m is not None, "missing PIC drawing size"
+    width, height = (float(x) for x in m.groups())
+
+    # all emitted drawing coordinates should be in the same inch units as the
+    # .PS declaration, not raw points
+    coords = [
+        (float(x), float(y))
+        for x, y in re.findall(r"\((-?[0-9.]+),\s*(-?[0-9.]+)\)", pic)
+    ]
+    assert coords, "no PIC coordinates found"
+    assert max(x for x, _ in coords) <= width
+    assert max(y for _, y in coords) <= height
+
+
 @pytest.mark.skipif(which("mm2gv") is None, reason="mm2gv not available")
 def test_mm_banner_overflow(tmp_path: Path):
     """mm2gv should be robust against files with a corrupted banner"""

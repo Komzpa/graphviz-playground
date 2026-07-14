@@ -83,6 +83,10 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- PIC output now emits drawing coordinates in consistent inch units. #2487
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
