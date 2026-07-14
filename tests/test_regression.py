@@ -5627,6 +5627,17 @@ def test_2621_default_full_layout():
     svg = run("dot", "-Tsvg", input, timeout=60 * 5)
     root = ET.fromstring(svg)
 
+    namespace = {"svg": "http://www.w3.org/2000/svg"}
+    graphs = root.findall(".//svg:g[@class='graph']", namespace)
+    nodes = root.findall(".//svg:g[@class='node']", namespace)
+    edges = root.findall(".//svg:g[@class='edge']", namespace)
+    assert len(graphs) == 1, "SVG does not contain exactly one graph"
+    assert len(nodes) > 1000, "SVG does not contain the full #2621 node set"
+    assert len(edges) > 1000, "SVG does not contain the full #2621 edge set"
+    assert all(
+        len(edge.findall("./svg:path", namespace)) == 1 for edge in edges
+    ), "not every #2621 edge has a routed SVG path"
+
     viewbox = root.attrib["viewBox"].split()
     assert len(viewbox) == 4, "SVG viewBox in unexpected format"
     width = float(viewbox[2])
