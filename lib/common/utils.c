@@ -827,6 +827,18 @@ static graph_t *mapc(Dt_t *cmap, node_t *n) {
   return NULL;
 }
 
+/// Remember that this cluster-name node is only a temporary edge endpoint.
+///
+/// `processClusterEdges()` rewrites edges whose endpoints name clusters by
+/// creating synthetic cluster-port nodes and then deleting the original
+/// cluster-name nodes. For unsupported nested cluster edges we cannot create a
+/// usable routed edge, but we still must not leave those original endpoint
+/// nodes in the graph. Leaving them behind makes them look like ordinary nodes
+/// named after the cluster and can confuse later fdp derived-graph layout.
+static void discardClusterEndpoint(graph_t *clg, node_t *n) {
+    agsubnode(clg, n, 1);
+}
+
 /** If endpoint names a cluster, mark for temporary deletion and create
  * special node and insert into cluster. Then clone the edge. Real edge
  * will be deleted when we delete the original node.
@@ -873,11 +885,15 @@ static int checkCompound(edge_t *e, graph_t *clg, agxbuf *xb, Dt_t *map,
 	    if (agcontains(hg, tg)) {
 		agwarningf("tail cluster %s inside head cluster %s\n",
 		      agnameof(tg), agnameof(hg));
+		discardClusterEndpoint(clg, t);
+		discardClusterEndpoint(clg, h);
 		return 0;
 	    }
 	    if (agcontains(tg, hg)) {
 		agwarningf("head cluster %s inside tail cluster %s\n",
 		      agnameof(hg),agnameof(tg));
+		discardClusterEndpoint(clg, t);
+		discardClusterEndpoint(clg, h);
 		return 0;
 	    }
 	    cn = clustNode(t, tg, xb, clg, index_counter);
@@ -888,6 +904,7 @@ static int checkCompound(edge_t *e, graph_t *clg, agxbuf *xb, Dt_t *map,
 	    if (agcontains(hg, t)) {
 		agwarningf("tail node %s inside head cluster %s\n",
 		      agnameof(t), agnameof(hg));
+		discardClusterEndpoint(clg, h);
 		return 0;
 	    }
 	    cn = clustNode(h, hg, xb, clg, index_counter);
@@ -898,6 +915,7 @@ static int checkCompound(edge_t *e, graph_t *clg, agxbuf *xb, Dt_t *map,
 	if (agcontains(tg, h)) {
 	    agwarningf("head node %s inside tail cluster %s\n", agnameof(h),
 		  agnameof(tg));
+	    discardClusterEndpoint(clg, t);
 	    return 0;
 	}
 	cn = clustNode(t, tg, xb, clg, index_counter);
