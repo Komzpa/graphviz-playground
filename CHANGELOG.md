@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Tcldot now recomputes layouts after graph, node, edge, and default attribute
+  mutations instead of reusing stale layout state. #173
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
