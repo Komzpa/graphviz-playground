@@ -115,6 +115,64 @@ def test_56():
     dot("svg", input)
 
 
+def test_102():
+    """
+    curved self-edges on HTML table ports should retain their routed geometry
+    https://gitlab.com/graphviz/graphviz/-/issues/102
+    """
+
+    def edge_positions(source: str, expected_edges: int):
+        layout = json.loads(dot("json", source=source))
+        edges = layout["edges"]
+        assert len(edges) == expected_edges, "unexpected number of edges"
+        positions = [edge.get("pos") for edge in edges]
+        assert all(positions), "missing routed edge geometry"
+        return edges, positions
+
+    graph = textwrap.dedent(
+        """\
+        digraph G {
+        node [shape=plaintext]
+        splines=curved
+
+        n [label=<
+          <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+          <TR><TD border="0">   </TD>
+            <TD PORT="2">z</TD>
+            <TD border="0">   </TD>
+          </TR>
+          <TR> <TD ROWSPAN="4" COLSPAN="3"> <BR/>A<BR/> </TD> </TR>
+          <TR> <TD border="0"> </TD> </TR>
+          <TR><TD PORT="1">y</TD></TR>
+          <TR> <TD border="0"> </TD></TR>
+          <TR><TD border="0">   </TD>
+            <TD PORT="0">x</TD>
+          <TD border="0">   </TD>
+          </TR>
+          </TABLE>>];
+
+        n:1 -> n:2 ;
+        n:0 -> n:1 ;
+        }
+        """
+    )
+
+    _, exact_positions = edge_positions(graph, 2)
+    assert len(set(exact_positions)) == 2, "curved issue graph collapsed edge routes"
+
+    labeled_graph = graph.replace(
+        "n:1 -> n:2 ;", 'n:1 -> n:2 [xlabel="first"];'
+    ).replace("n:0 -> n:1 ;", 'n:0 -> n:1 [xlabel="second"];')
+    labeled_edges, _ = edge_positions(labeled_graph, 2)
+    assert all(edge.get("xlp") for edge in labeled_edges), "missing xlabel position"
+
+    one_edge_graph = graph.replace("n:0 -> n:1 ;\n", "")
+    edge_positions(one_edge_graph, 1)
+
+    non_curved_graph = graph.replace("splines=curved", "splines=true")
+    edge_positions(non_curved_graph, 2)
+
+
 def test_121():
     """
     test a graph that previously caused an assertion failure in `merge_chain`
