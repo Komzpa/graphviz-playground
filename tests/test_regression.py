@@ -1815,9 +1815,6 @@ def test_1880():
     dot("png", input)
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1887"
-)
 def test_1887(tmp_path: Path):
     """
     empty strings as labels should be propagated to dot output

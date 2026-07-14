@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `agwrite()` now preserves programmatically defined empty default attribute
+  values such as `node [label=""]`. #1887
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

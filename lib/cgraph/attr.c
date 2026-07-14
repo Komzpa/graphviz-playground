@@ -266,21 +266,24 @@ static Agsym_t *setattr(Agraph_t * g, int kind, char *name, const char *value,
     if (lsym) {			/* update old local definition */
 	if (g != root && streq(name, "layout"))
 	    agwarningf("layout attribute is invalid except on the root graph\n");
-        if (kind == AGRAPH) {
+	if (kind == AGRAPH) {
 	    unviewsubgraphsattr(g,name);
-        }
+	}
 	agstrfree(g, lsym->defval, aghtmlstr(lsym->defval));
 	lsym->defval = is_html ? agstrdup_html(g, value) : agstrdup(g, value);
+	lsym->print = value[0] == '\0';
 	rv = lsym;
     } else {
 	Agsym_t *psym = agdictsym(ldict, name); // search with viewpath up to root
 	if (psym) {		/* new local definition */
 	    lsym = agnewsym(g, name, value, is_html, psym->id, kind);
+	    lsym->print = value[0] == '\0';
 	    dtinsert(ldict, lsym);
 	    rv = lsym;
 	} else {		/* new global definition */
 	    Dict_t *rdict = agdictof(root, kind);
 	    Agsym_t *rsym = agnewsym(root, name, value, is_html, dtsize(rdict), kind);
+	    rsym->print = value[0] == '\0';
 	    dtinsert(rdict, rsym);
 	    switch (kind) {
 	    case AGRAPH:
