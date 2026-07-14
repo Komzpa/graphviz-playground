@@ -3106,6 +3106,46 @@ def test_2242():
         assert ref == png, "repeated rendering changed output"
 
 
+def test_2244():
+    """
+    cylinder shapes should honor orientation
+    https://gitlab.com/graphviz/graphviz/-/issues/2244
+    """
+
+    source = """
+        digraph {
+          node [shape=cylinder, label=""];
+          zero [orientation=0];
+          right [orientation=90];
+        }
+    """
+
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+    namespace = "{http://www.w3.org/2000/svg}"
+
+    def normalized_outline(node_name: str) -> list[float]:
+        node = root.find(f".//{namespace}g/{namespace}title[.='{node_name}']..")
+        assert node is not None
+        path = node.find(f"{namespace}path")
+        assert path is not None
+        coords = [
+            float(n)
+            for n in re.findall(r"-?[0-9]+(?:\.[0-9]+)?", path.attrib["d"])
+        ]
+        xs = coords[0::2]
+        ys = coords[1::2]
+        min_x = min(xs)
+        min_y = min(ys)
+        normalized = []
+        for i, coord in enumerate(coords):
+            offset = min_x if i % 2 == 0 else min_y
+            normalized.append(round(coord - offset, 2))
+        return normalized
+
+    assert normalized_outline("zero") != normalized_outline("right")
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
