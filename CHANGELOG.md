@@ -72,6 +72,12 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Fixed
+
+- GVPR `hasAttr` now returns true only for objects whose attribute value is set
+  away from the default, instead of reporting an attribute as present on every
+  object of the same kind. #1925
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
