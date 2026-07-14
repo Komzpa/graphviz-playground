@@ -4364,10 +4364,6 @@ def test_2470():
     dot("ps", input)
 
 
-@pytest.mark.xfail(
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2471",
-    strict=False,
-)
 def test_2471():
     """
     another “trouble in init_rank variant”
