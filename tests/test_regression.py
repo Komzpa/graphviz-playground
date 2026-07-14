@@ -3963,14 +3963,34 @@ def test_2368(testcase: str, expected_labels: Counter[str]):
     assert labels == expected_labels, "routed edges were lost or duplicated"
 
 
-def test_2747():
+@pytest.mark.parametrize(
+    "testcase",
+    (
+        "2747.dot",
+        "2770.dot",
+        "2773.dot",
+        "2774.dot",
+        "2775.dot",
+        "2776.dot",
+        "2778.dot",
+        "2779.dot",
+    ),
+)
+def test_2747(testcase: str):
     """
     All-degenerate routing boxes should produce a controlled error, not a crash.
     https://gitlab.com/graphviz/graphviz/-/work_items/2747
+    https://gitlab.com/graphviz/graphviz/-/work_items/2770
+    https://gitlab.com/graphviz/graphviz/-/work_items/2773
+    https://gitlab.com/graphviz/graphviz/-/work_items/2774
+    https://gitlab.com/graphviz/graphviz/-/work_items/2775
+    https://gitlab.com/graphviz/graphviz/-/work_items/2776
+    https://gitlab.com/graphviz/graphviz/-/work_items/2778
+    https://gitlab.com/graphviz/graphviz/-/work_items/2779
     """
 
     # locate our associated test case in this directory
-    input = Path(__file__).parent / "2747.dot"
+    input = Path(__file__).parent / testcase
     assert input.exists(), "unexpectedly missing test case"
 
     dot_exe = which("dot")

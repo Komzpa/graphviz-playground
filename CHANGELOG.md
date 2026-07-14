@@ -87,6 +87,9 @@ and this project adheres to
 
 - `dot` no longer fails to route some concentrated edges when repairing their
   spline path collapses a routing box. #2368
+- Malformed graphs whose routes collapse to all-degenerate boxes now produce a
+  controlled error instead of an AddressSanitizer heap-buffer-overflow in
+  `routesplines`. #2747 #2770 #2773 #2774 #2775 #2776 #2778 #2779
 
 ## [15.1.0] – 2026-06-17
 
