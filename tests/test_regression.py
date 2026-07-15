@@ -5992,6 +5992,41 @@ def test_2669():
     assert math.isclose(height, viewbox[1], abs_tol=1.0), "mismatched SVG heights"
 
 
+def test_2100():
+    """
+    node `width` and `height` should accept explicit unit suffixes
+    https://gitlab.com/graphviz/graphviz/-/issues/2100
+    """
+
+    source = """
+    digraph G {
+      node [shape=box, fixedsize=true, label=""]
+      bare [width=1, height=1]
+      point [width="72pt", height="72pt"]
+      inch [width="1in", height="1i"]
+      cm [width="2.54cm", height="2.54cm"]
+      mm [width="25.4mm", height="25.4mm"]
+      px [width="96px", height="96px"]
+      space [width="72PT ", height="72PT "]
+      pointshape [shape=point, width="72pt", height="72pt"]
+    }
+    """
+
+    plain = run("dot", "-Tplain", input=source)
+    sizes = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if fields and fields[0] == "node":
+            sizes[fields[1]] = (float(fields[4]), float(fields[5]))
+
+    expected = {"bare", "point", "inch", "cm", "mm", "px", "space", "pointshape"}
+    assert expected <= sizes.keys()
+    for node in expected:
+        width, height = sizes[node]
+        assert math.isclose(width, 1.0, rel_tol=0, abs_tol=0.01)
+        assert math.isclose(height, 1.0, rel_tol=0, abs_tol=0.01)
+
+
 def test_2682():
     """
     processing a graph with `pack` attributes should not cause a crash
