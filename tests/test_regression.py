@@ -6327,6 +6327,27 @@ def test_2743():
     dot("dot", src)
 
 
+@pytest.mark.parametrize("issue", [2759, 2762, 2766])
+def test_rankset_cluster_malformed_no_crash(issue: int):
+    """
+    Malformed ranksets inside clusters should fail gracefully rather than
+    dereferencing empty cluster or rank structures.
+    https://gitlab.com/graphviz/graphviz/-/issues/2759
+    https://gitlab.com/graphviz/graphviz/-/issues/2762
+    https://gitlab.com/graphviz/graphviz/-/issues/2766
+    """
+
+    src = Path(__file__).parent / f"{issue}.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    try:
+        dot("dot", src)
+    except subprocess.CalledProcessError as e:
+        # allow a diagnostic failure for malformed input; only fail on a crash
+        if e.returncode != 1:
+            raise
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",

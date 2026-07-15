@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Malformed ranksets inside clusters no longer crash dot when they leave empty
+  rank slots during layout. #2759 #2762
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
