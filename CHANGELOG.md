@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `ordering=out` now preserves input order when equivalent outgoing edges are
+  separated by another edge in the DOT source. #2076
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

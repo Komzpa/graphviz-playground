@@ -115,6 +115,38 @@ def test_56():
     dot("svg", input)
 
 
+def test_2076():
+    """
+    multiple outgoing edges with `ordering=out` should preserve input order even
+    when two of the edges share the same endpoints
+    https://gitlab.com/graphviz/graphviz/-/issues/2076
+    """
+
+    input = Path(__file__).parent / "2076.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    plain = dot("plain", input)
+    if isinstance(plain, bytes):
+        plain = plain.decode("utf-8")
+
+    edge_xs = []
+    for line in plain.splitlines():
+        fields = line.split()
+        if not fields or fields[0] != "edge" or fields[1] != "1":
+            continue
+        npoints = int(fields[3])
+        xs = [float(fields[4 + 2 * i]) for i in range(npoints)]
+        edge_xs.append((fields[2], xs))
+
+    edge_13 = [xs for head, xs in edge_xs if head == "3"]
+    edge_12 = [xs for head, xs in edge_xs if head == "2"]
+    assert len(edge_13) == 2
+    assert len(edge_12) == 1
+
+    edge_12_x = statistics.mean(edge_12[0])
+    assert max(edge_13[0]) < edge_12_x < min(edge_13[1])
+
+
 def test_121():
     """
     test a graph that previously caused an assertion failure in `merge_chain`
