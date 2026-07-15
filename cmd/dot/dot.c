@@ -33,6 +33,8 @@
 static GVC_t *Gvc;
 static graph_t * G;
 
+extern bool gvjobs_needs_layout(GVC_t *gvc);
+
 #ifndef _WIN32
 #ifndef NO_FPERR
 static void fperr(int s)
@@ -60,7 +62,9 @@ int main(int argc, char **argv)
 #endif
 
     if ((G = gvPluginsGraph(Gvc))) {
-	    gvLayoutJobs(Gvc, G);  /* take layout engine from command line */
+	    if (gvjobs_needs_layout(Gvc)) {
+		gvLayoutJobs(Gvc, G);  /* take layout engine from command line */
+	    }
 	    gvRenderJobs(Gvc, G);
     }
     else {
@@ -69,7 +73,9 @@ int main(int argc, char **argv)
 		gvFreeLayout(Gvc, prev);
 		agclose(prev);
 	    }
-	    gvLayoutJobs(Gvc, G);  /* take layout engine from command line */
+	    if (gvjobs_needs_layout(Gvc)) {
+		gvLayoutJobs(Gvc, G);  /* take layout engine from command line */
+	    }
 	    gvRenderJobs(Gvc, G);
 	    r = agreseterrors();
 	    rc = MAX(rc,r);

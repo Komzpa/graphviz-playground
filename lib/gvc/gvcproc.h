@@ -46,6 +46,7 @@ gvplugin_available_t *gvplugin_load(GVC_t *gvc, api_t api, const char *type,
 
     void gvjobs_output_filename(GVC_t * gvc, const char *name);
     bool gvjobs_output_langname(GVC_t * gvc, const char *name);
+    bool gvjobs_needs_layout(GVC_t *gvc);
     GVJ_t *gvjobs_first(GVC_t * gvc);
     GVJ_t *gvjobs_next(GVC_t * gvc);
     void gvjobs_delete(GVC_t * gvc);
