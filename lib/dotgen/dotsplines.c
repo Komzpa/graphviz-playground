@@ -118,7 +118,7 @@ static bool is_invisible_edge(edge_t *e) {
 
   char **const styles = parse_style(style);
   for (char **sp = styles; *sp != NULL; sp++) {
-    if (strcmp(*sp, "invis") == 0)
+    if (strcmp(*sp, "invis") == 0 || strcmp(*sp, "invisible") == 0)
       return true;
   }
 

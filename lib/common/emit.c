@@ -1820,7 +1820,7 @@ static void emit_node(GVJ_t * job, node_t * n)
 	    styles = parse_style(style);
 	    sp = styles;
 	    while ((p = *sp++)) {
-		if (streq(p, "invis")) return;
+		if (streq(p, "invis") || streq(p, "invisible")) return;
 	    }
 	}
 
@@ -3061,7 +3061,7 @@ static void emit_edge(GVJ_t * job, edge_t * e)
 	    styles = parse_style(style);
 	    sp = styles;
 	    while ((p = *sp++)) {
-		if (streq(p, "invis")) return;
+		if (streq(p, "invis") || streq(p, "invisible")) return;
 	    }
 	}
 
@@ -4364,4 +4364,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

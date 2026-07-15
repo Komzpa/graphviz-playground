@@ -492,7 +492,7 @@ static char **checkStyle(node_t *n, graphviz_polygon_style_t *flagp) {
 		    qp++;
 		    *(qp - 1) = *qp;
 		} while (*qp);
-	    } else if (streq(p, "invis")) {
+	    } else if (streq(p, "invis") || streq(p, "invisible")) {
 		istyle.invisible = true;
 		pp++;
 	    } else if (streq(p, "radial")) {

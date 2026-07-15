@@ -125,6 +125,43 @@ def test_1093():
         assert math.isclose(x, expected_x)
 
 
+def test_2525():
+    """
+    style=invisible should hide nodes and edges like style=invis
+    https://gitlab.com/graphviz/graphviz/-/issues/2525
+    """
+
+    usershape = Path(__file__).parent / "usershape.svg"
+    input = f"""
+    digraph G {{
+      visible_image [label="VISIBLE_IMAGE_LABEL" image="{usershape}"];
+      invis_image [label="INVIS_NODE_LABEL" image="{usershape}" style="invis"];
+      invisible_image [
+        label="INVISIBLE_NODE_LABEL"
+        image="{usershape}"
+        style="invisible"
+      ];
+
+      visible_edge_a -> visible_edge_b [xlabel="VISIBLE_EDGE_XLABEL"];
+      invis_edge_a -> invis_edge_b [xlabel="INVIS_EDGE_XLABEL" style="invis"];
+      invisible_edge_a -> invisible_edge_b [
+        xlabel="INVISIBLE_EDGE_XLABEL"
+        style="invisible"
+      ];
+    }}
+    """
+
+    svg = dot("svg", source=input)
+
+    assert "VISIBLE_IMAGE_LABEL" in svg
+    assert svg.count("usershape.svg") == 1
+    assert "INVIS_NODE_LABEL" not in svg
+    assert "INVISIBLE_NODE_LABEL" not in svg
+    assert "VISIBLE_EDGE_XLABEL" in svg
+    assert "INVIS_EDGE_XLABEL" not in svg
+    assert "INVISIBLE_EDGE_XLABEL" not in svg
+
+
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
 def test_42():
     """
