@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `dot -Gnewrank=true` now respects `rank=source`, `rank=min`, `rank=max`, and
+  `rank=sink` subgraphs when assigning root-graph ranks. #1226
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

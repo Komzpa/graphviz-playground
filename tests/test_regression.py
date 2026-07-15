@@ -649,6 +649,53 @@ def test_1221():
     dot("svg", input)
 
 
+@pytest.mark.parametrize(
+    ("min_rank", "max_rank", "oracle"),
+    (
+        ("source", "sink", "strict"),
+        ("min", "max", "same"),
+    ),
+)
+def test_1226(min_rank: str, max_rank: str, oracle: str):
+    """
+    newrank should respect source/min/max/sink rank sets
+    https://gitlab.com/graphviz/graphviz/-/issues/1226
+    """
+
+    source = f"""
+        digraph {{
+          a -> b
+          {{ rank={min_rank}; c }}
+          {{ rank={max_rank}; d }}
+        }}
+    """
+
+    args = ["dot", "-Gnewrank=true", "-Tplain"]
+    print(f"+ {shlex.join(args)}", flush=True)
+    proc = subprocess.run(
+        args,
+        input=textwrap.dedent(source),
+        stdout=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+
+    y = {}
+    for line in proc.stdout.splitlines():
+        fields = line.split()
+        if fields and fields[0] == "node":
+            y[fields[1]] = float(fields[3])
+
+    assert {"a", "b", "c", "d"} <= y.keys(), "missing node in plain output"
+
+    if oracle == "strict":
+        assert y["c"] > y["a"], "rank=source node was not above source nodes"
+        assert y["d"] < y["b"], "rank=sink node was not below sink nodes"
+    else:
+        assert math.isclose(y["c"], y["a"]), "rank=min node was not on the top rank"
+        assert math.isclose(y["d"], y["b"]), "rank=max node was not on the bottom rank"
+
+
 @pytest.mark.skipif(which("gv2gml") is None, reason="gv2gml not available")
 def test_1276():
     """
