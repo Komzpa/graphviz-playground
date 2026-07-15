@@ -155,11 +155,18 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 #endif
 
     /* generate list of triangles */
-    if (triangulate(pnlps, pnll)) {
+    const int triangulated = triangulate(pnlps, pnll);
+    if (triangulated < 0) {
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
 	return -2;
+    }
+    if (triangulated > 0) {
+	free(dq.pnlps);
+	free(pnlps);
+	free(pnls);
+	return straight_path(eps, output);
     }
 
 #if defined(DEBUG) && DEBUG >= 2
@@ -180,7 +187,6 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	if (pointintri(trii, &eps[0]))
 	    break;
     if (trii == LIST_SIZE(&tris)) {
-	prerror("source point not in any triangle");
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
@@ -191,7 +197,6 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	if (pointintri(trii, &eps[1]))
 	    break;
     if (trii == LIST_SIZE(&tris)) {
-	prerror("destination point not in any triangle");
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
@@ -201,7 +206,6 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 
     /* mark the strip of triangles from eps[0] to eps[1] */
     if (!marktripath(ftrii, ltrii)) {
-	prerror("cannot find triangle path");
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
@@ -336,7 +340,8 @@ static int triangulate(pointnlink_t **points, size_t point_count) {
 				return triangulate(points, point_count - 1);
 			}
 		}
-		prerror("triangulation failed");
+		/* fall back to a straight path */
+		return 1;
     } 
 	else {
 		if (loadtriangle(points[0], points[1], points[2]) != 0)

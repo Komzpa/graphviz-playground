@@ -85,8 +85,8 @@ and this project adheres to
 
 ### Fixed
 
-- Path planning now falls back to a straight route if a triangulated route
-  endpoint is outside all triangles. #2470
+- Path planning now falls back to a straight route if triangulated routing
+  cannot produce a path. #2470 #2814
 
 ## [15.1.0] – 2026-06-17
 
