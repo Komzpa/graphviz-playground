@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- SVG graph fragment identifiers now target the linked graph geometry subtree
+  instead of a coordinate-free wrapper group. #1319
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
