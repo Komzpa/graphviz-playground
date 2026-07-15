@@ -898,6 +898,39 @@ static void protect_rsqb(agxbuf *xb) {
   // write an XML-escaped version of ] as a replacement
   agxbput(xb, "&#93;");
 }
+
+static bool is_img_element_token(const char *s) {
+  if (*s != '<')
+    return false;
+
+  s++;
+  if (*s == '/')
+    s++;
+
+  return gv_tolower(s[0]) == 'i' && gv_tolower(s[1]) == 'm' &&
+         gv_tolower(s[2]) == 'g' &&
+         (s[3] == '>' || s[3] == '/' || gv_isspace(s[3]));
+}
+
+static bool is_img_element_strview(strview_t token) {
+  return token.size >= 5 && is_img_element_token(token.data);
+}
+
+static bool is_all_space(const char *s) {
+  for (; *s != '\0'; s++) {
+    if (!gv_isspace(*s))
+      return false;
+  }
+  return true;
+}
+
+static bool is_img_adjacent_space(htmllexstate_t *ctx) {
+  if (ctx->tok != T_string || !is_all_space(agxbuse(ctx->xb)))
+    return false;
+
+  return is_img_element_strview(ctx->prevtok) ||
+         is_img_element_token(ctx->ptr);
+}
 #endif
 
 unsigned long htmllineno(htmlscan_t *scanner) {
@@ -1102,6 +1135,10 @@ int htmllex(union HTMLSTYPE *htmllval, htmlscan_t *scanner) {
     }
     if (endp)
       ctx->ptr = endp;
+    if (is_img_adjacent_space(ctx)) {
+      agxbclear(ctx->xb);
+      ctx->tok = 0;
+    }
   } while (ctx->tok == 0);
 #ifdef DEBUG
   printTok(ctx, ctx->tok);
