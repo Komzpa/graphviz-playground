@@ -1,0 +1,7 @@
+digraph {
+  subgraph cluster1 {
+    ordering=out
+    A0 b0 c0 d0 e0 f0 g0
+    A0 -> { d0 f0 e0 g0 c0 b0 }
+  }
+}
