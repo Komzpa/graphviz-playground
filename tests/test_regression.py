@@ -84,6 +84,47 @@ def test_14():
     dot("svg", input)
 
 
+def test_1093():
+    """
+    invisible edges should not displace visible parallel edges
+    https://gitlab.com/graphviz/graphviz/-/issues/1093
+    """
+
+    input = Path(__file__).parent / "1093.dot"
+    plain = dot("plain", input)
+    if isinstance(plain, bytes):
+        plain = plain.decode("utf-8")
+
+    node_x = {}
+    visible_edges = []
+    invisible_edges = []
+    for line in plain.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+        if fields[0] == "node":
+            node_x[fields[1]] = float(fields[2])
+        elif fields[0] == "edge":
+            npoints = int(fields[3])
+            coords = [
+                (float(fields[4 + 2 * i]), float(fields[5 + 2 * i]))
+                for i in range(npoints)
+            ]
+            style = fields[4 + 2 * npoints]
+            if style == "invis":
+                invisible_edges.append(coords)
+            else:
+                visible_edges.append(coords)
+
+    assert len(visible_edges) == 1
+    assert len(invisible_edges) == 1
+
+    expected_x = node_x["a"]
+    assert expected_x == node_x["b"]
+    for x, _ in visible_edges[0]:
+        assert math.isclose(x, expected_x)
+
+
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
 def test_42():
     """
