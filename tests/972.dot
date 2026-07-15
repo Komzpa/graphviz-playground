@@ -1,0 +1,6 @@
+digraph G {
+  concentrate=true
+  A -> B -> C -> D -> G
+  A -> D [minlen=3, color="red:green"]
+  A -> F [minlen=3]
+}

@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Multicolored parallel edge splines now render arrowheads for each color lane.
+  #972
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
