@@ -140,7 +140,7 @@ ID		({NAME}|{NUMBER})
 <qstring>[\\][\n]		yyextra->line_num++; /* ignore escaped newlines */
 <qstring>[\n]			addstr (yyscanner,"\n"); yyextra->line_num++;
 <qstring>([^"\\\n]*|[\\])		addstr(yyscanner,aagget_text(yyscanner));
-[<]						BEGIN(hstring); yyextra->html_nest = 1; beginstr(yyscanner);
+[<]						BEGIN(hstring); yyextra->html_line_num = yyextra->line_num; yyextra->html_nest = 1; beginstr(yyscanner);
 <hstring>[>]			yyextra->html_nest--; if (yyextra->html_nest) addstr(yyscanner,aagget_text(yyscanner)); else {BEGIN(INITIAL); endstr_html(yyscanner); return (T_qatom);}
 <hstring>[<]			yyextra->html_nest++; addstr(yyscanner,aagget_text(yyscanner));
 <hstring>[\n]			addstr(yyscanner,aagget_text(yyscanner)); yyextra->line_num++; /* add newlines */
@@ -230,7 +230,9 @@ static void endstr(aagscan_t yyscanner) {
 
 static void endstr_html(aagscan_t yyscanner) {
   aagextra_t *ctx = aagget_extra(yyscanner);
-  aagget_lval(yyscanner)->str = agstrdup_html(ctx->G, agxbuse(&ctx->Sbuf));
+  aagget_lval(yyscanner)->str =
+      agstrdup_html_line(ctx->G, agxbuse(&ctx->Sbuf),
+                         (unsigned long)ctx->html_line_num);
 }
 
 static void storeFileName(aagscan_t yyscanner, const char* fname, size_t len) {

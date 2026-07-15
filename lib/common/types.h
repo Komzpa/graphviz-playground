@@ -122,6 +122,7 @@ extern "C" {
 	char valign;  /* 't' 'c' 'b' */
 	bool set;  /* true if position is set */
 	bool html; /* true if html label */
+	unsigned long html_line;
     } textlabel_t;
 
     typedef struct {

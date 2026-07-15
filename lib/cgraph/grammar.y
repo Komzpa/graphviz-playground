@@ -42,6 +42,7 @@ struct aagextra_s {
 	struct gstack_s *S;
 	/* Lexer */
 	int line_num; // = 1;
+	int html_line_num;
 	int html_nest;  /* nesting level for html strings */
 	const char *InputFile;
 	agxbuf InputFileBuffer;
@@ -652,4 +653,3 @@ Agraph_t *agconcat(Agraph_t *g, const char *filename, void *chan,
 Agraph_t *agread(void *fp, Agdisc_t *disc) {
   return agconcat(NULL, NULL, fp, disc);
 }
-

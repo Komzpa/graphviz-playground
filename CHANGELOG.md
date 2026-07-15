@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- HTML-like label syntax errors now report the source DOT line instead of
+  always reporting line 1. #2516
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

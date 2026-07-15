@@ -584,8 +584,15 @@ CGRAPH_API char *agstrdup_html(Agraph_t *, const char *);
 ///< @brief returns a pointer to a reference-counted HTML-like copy of the
 ///< argument string, creating one if necessary
 
+CGRAPH_API char *agstrdup_html_line(Agraph_t *, const char *, unsigned long);
+///< @brief returns a pointer to a reference-counted HTML-like copy of the
+///< argument string annotated with its source line
+
 CGRAPH_API int aghtmlstr(const char *);
 ///< query if a string is an ordinary string or an HTML-like string
+///
+CGRAPH_API unsigned long aghtmlstr_line(const char *);
+///< query the source line of an HTML-like string, or 0 if unknown
 ///
 CGRAPH_API char *agstrbind(Agraph_t *g, const char *);
 ///< returns a pointer to a reference-counted string if it exists, or NULL if

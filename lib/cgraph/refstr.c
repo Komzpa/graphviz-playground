@@ -32,6 +32,7 @@
 typedef struct {
     uint64_t refcnt: sizeof(uint64_t) * 8 - 1;
     uint64_t is_html: 1;
+    unsigned long html_line;
     char s[];
 } refstr_t;
 
@@ -43,10 +44,15 @@ _Static_assert(
 ///
 /// @param a Content of the first string
 /// @param is_html Whether the first string was an HTML-like string
+/// @param html_line Source line of the first string, or 0 if unknown
 /// @param b The second reference-counted string
 /// @return True if the two were equal
-static bool refstr_eq(const char *a, bool is_html, const refstr_t *b) {
+static bool refstr_eq(const char *a, bool is_html, unsigned long html_line,
+                      const refstr_t *b) {
   if (is_html != b->is_html) {
+    return false;
+  }
+  if (html_line != b->html_line) {
     return false;
   }
   return strcmp(a, b->s) == 0;
@@ -149,10 +155,15 @@ static strdict_t *strdict_new(void) { return gv_alloc(sizeof(strdict_t)); }
 ///
 /// @param s The reference-counted string’s `s` member
 /// @param is_html Is this an HTML-like string?
+/// @param html_line Source line of the HTML-like string, or 0 if unknown
 /// @return A hash digest suitable for dictionary indexing
-static size_t strdict_hash(const char *s, bool is_html) {
+static size_t strdict_hash(const char *s, bool is_html,
+                           unsigned long html_line) {
   assert(s != NULL);
-  return (size_t)hash(s, strlen(s), is_html);
+  const uint64_t str_hash = hash(s, strlen(s), is_html);
+  const uint64_t line_hash = hash(&html_line, sizeof(html_line), 0);
+  return (size_t)(str_hash ^ (line_hash + 0x9e3779b97f4a7c15ULL +
+                              (str_hash << 6) + (str_hash >> 2)));
 }
 
 /// a sentinel, marking a dictionary bucket from which an element has been
@@ -201,7 +212,7 @@ static void strdict_add(strdict_t *dict, refstr_t *r) {
   capacity = (size_t)1 << dict->capacity_exp;
   assert(capacity > dict->size);
 
-  const size_t h = strdict_hash(r->s, r->is_html != 0);
+  const size_t h = strdict_hash(r->s, r->is_html != 0, r->html_line);
 
   for (size_t i = 0; i < capacity; ++i) {
     const size_t candidate = (h + i) % capacity;
@@ -224,11 +235,12 @@ static void strdict_add(strdict_t *dict, refstr_t *r) {
 /// @param s String content to search for
 /// @param is_html Is this an HTML-like string?
 /// @return Found reference-counted string, or null if not found
-static refstr_t *strdict_find(strdict_t *dict, const char *s, bool is_html) {
+static refstr_t *strdict_find(strdict_t *dict, const char *s, bool is_html,
+                              unsigned long html_line) {
   assert(dict != NULL);
   assert(s != NULL);
 
-  const size_t h = strdict_hash(s, is_html);
+  const size_t h = strdict_hash(s, is_html, html_line);
   const size_t capacity = dict->buckets == NULL
                         ? 0 : (size_t)1 << dict->capacity_exp;
 
@@ -246,12 +258,32 @@ static refstr_t *strdict_find(strdict_t *dict, const char *s, bool is_html) {
     }
 
     // is this the string we are searching for?
-    if (refstr_eq(s, is_html, dict->buckets[candidate])) {
+    if (refstr_eq(s, is_html, html_line, dict->buckets[candidate])) {
       return dict->buckets[candidate];
     }
   }
 
   // not found
+  return NULL;
+}
+
+/// lookup a reference-counted string by exact string pointer
+static refstr_t *strdict_find_ref(strdict_t *dict, const char *s,
+                                  bool is_html) {
+  assert(dict != NULL);
+  if (s == NULL || dict->buckets == NULL) {
+    return NULL;
+  }
+
+  const size_t capacity = (size_t)1 << dict->capacity_exp;
+  for (size_t i = 0; i < capacity; ++i) {
+    refstr_t *const r = dict->buckets[i];
+    if (r != NULL && r != TOMBSTONE && r->s == s &&
+        (r->is_html != 0) == is_html) {
+      return r;
+    }
+  }
+
   return NULL;
 }
 
@@ -261,7 +293,7 @@ static void strdict_remove(strdict_t *dict, const refstr_t *key) {
   assert(key != NULL);
   assert(key != TOMBSTONE);
 
-  const size_t h = strdict_hash(key->s, key->is_html != 0);
+  const size_t h = strdict_hash(key->s, key->is_html != 0, key->html_line);
   const size_t capacity = dict->buckets == NULL
                         ? 0 : (size_t)1 << dict->capacity_exp;
 
@@ -279,7 +311,8 @@ static void strdict_remove(strdict_t *dict, const refstr_t *key) {
     }
 
     // is this the string we are searching for?
-    if (refstr_eq(key->s, key->is_html != 0, dict->buckets[candidate])) {
+    if (refstr_eq(key->s, key->is_html != 0, key->html_line,
+                  dict->buckets[candidate])) {
       assert(dict->size > 0);
       free(dict->buckets[candidate]);
       dict->buckets[candidate] = TOMBSTONE;
@@ -331,7 +364,9 @@ int agstrclose(Agraph_t * g)
 
 static char *refstrbind(strdict_t *strdict, const char *s, bool is_html) {
     refstr_t *r;
-    r = strdict_find(strdict, s, is_html);
+    const refstr_t *const ref = strdict_find_ref(strdict, s, is_html);
+    const unsigned long html_line = ref != NULL ? ref->html_line : 0;
+    r = strdict_find(strdict, s, is_html, html_line);
     if (r)
 	return r->s;
     else
@@ -343,7 +378,7 @@ char *agstrbind(Agraph_t *g, const char *s) {
   // did this string originate from `agstrdup_html(g, …)`?
   if (s != NULL) {
     strdict_t *const strdict = *refdict(g);
-    refstr_t *const ref = strdict_find(strdict, s, true);
+    refstr_t *const ref = strdict_find_ref(strdict, s, true);
     if (ref != NULL && ref->s == s) {
       // create this copy as HTML-like
       return agstrbind_html(g, s);
@@ -362,13 +397,14 @@ char *agstrbind_text(Agraph_t * g, const char *s)
     return refstrbind(*refdict(g), s, false);
 }
 
-static char *agstrdup_internal(Agraph_t *g, const char *s, bool is_html) {
+static char *agstrdup_internal(Agraph_t *g, const char *s, bool is_html,
+                               unsigned long html_line) {
     refstr_t *r;
 
     if (s == NULL)
 	 return NULL;
     strdict_t *strdict = *refdict(g);
-    r = strdict_find(strdict, s, is_html);
+    r = strdict_find(strdict, s, is_html, html_line);
     if (r)
 	r->refcnt++;
     else {
@@ -384,6 +420,7 @@ static char *agstrdup_internal(Agraph_t *g, const char *s, bool is_html) {
 	}
 	r->refcnt = 1;
 	r->is_html = is_html;
+	r->html_line = is_html ? html_line : 0;
 	memcpy(r->s, s, s_size);
 	strdict_add(strdict, r);
     }
@@ -391,11 +428,18 @@ static char *agstrdup_internal(Agraph_t *g, const char *s, bool is_html) {
 }
 
 char *agstrdup_text(Agraph_t *g, const char *s) {
-  return agstrdup_internal(g, s, false);
+  return agstrdup_internal(g, s, false, 0);
 }
 
 char *agstrdup_html(Agraph_t *g, const char *s) {
-  return agstrdup_internal(g, s, true);
+  strdict_t *const strdict = *refdict(g);
+  const refstr_t *const ref = strdict_find_ref(strdict, s, true);
+  const unsigned long html_line = ref != NULL ? ref->html_line : 0;
+  return agstrdup_html_line(g, s, html_line);
+}
+
+char *agstrdup_html_line(Agraph_t *g, const char *s, unsigned long html_line) {
+  return agstrdup_internal(g, s, true, html_line);
 }
 
 char *agstrdup(Agraph_t *g, const char *s) {
@@ -403,10 +447,10 @@ char *agstrdup(Agraph_t *g, const char *s) {
   // did this string originate from `agstrdup_html(g, …)`?
   if (s != NULL) {
     strdict_t *const strdict = *refdict(g);
-    refstr_t *const ref = strdict_find(strdict, s, true);
+    refstr_t *const ref = strdict_find_ref(strdict, s, true);
     if (ref != NULL && ref->s == s) {
       // create this copy as HTML-like
-      return agstrdup_html(g, s);
+      return agstrdup_html_line(g, s, ref->html_line);
     }
   }
 
@@ -421,7 +465,9 @@ int agstrfree(Agraph_t *g, const char *s, bool is_html) {
 	 return FAILURE;
 
     strdict_t *strdict = *refdict(g);
-    r = strdict_find(strdict, s, is_html);
+    const refstr_t *const ref = strdict_find_ref(strdict, s, is_html);
+    const unsigned long html_line = ref != NULL ? ref->html_line : 0;
+    r = strdict_find(strdict, s, is_html, html_line);
     if (r && r->s == s) {
 	r->refcnt--;
 	if (r->refcnt == 0) {
@@ -445,6 +491,16 @@ int aghtmlstr(const char *s)
 	return 0;
     key = (const refstr_t *)(s - offsetof(refstr_t, s));
     return key->is_html != 0;
+}
+
+unsigned long aghtmlstr_line(const char *s)
+{
+    const refstr_t *key;
+
+    if (s == NULL)
+	return 0;
+    key = (const refstr_t *)(s - offsetof(refstr_t, s));
+    return key->is_html ? key->html_line : 0;
 }
 
 #ifdef DEBUG

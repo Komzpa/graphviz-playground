@@ -1882,6 +1882,7 @@ int make_html_label(void *obj, textlabel_t * lp)
     env.finfo.name = lp->fontname;
     env.finfo.color = lp->fontcolor;
     env.finfo.flags = 0;
+    env.line_offset = lp->html_line > 0 ? lp->html_line - 1 : 0;
     lbl = parseHTML(lp->text, &rv, &env);
     if (!lbl) {
 	if (rv == 3) {

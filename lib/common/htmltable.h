@@ -174,6 +174,7 @@ typedef struct {
   char *imgscale;
   char *objid;
   bool objid_set;
+  unsigned long line_offset;
 } htmlenv_t;
 
 htmllabel_t *parseHTML(char *, int *, htmlenv_t *);
