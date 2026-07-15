@@ -238,7 +238,34 @@ checkFlatAdjacent (edge_t* e)
 	} while (e); 
     }
 }
- 
+
+static bool
+needs_previous_rank(edge_t *e)
+{
+    return ED_label(e) && !ED_adjacent(e) &&
+	   ND_rank(agtail(e)) == ND_rank(aghead(e)) && agtail(e) != aghead(e);
+}
+
+static bool
+rank_needs_previous_rank_for_flat_labels(graph_t *g, int r)
+{
+    node_t *n;
+    edge_t *e;
+
+    for (int i = 0; (n = GD_rank(g)[r].v[i]); i++) {
+	for (size_t j = 0; (e = ND_flat_in(n).list[j]); j++) {
+	    if (needs_previous_rank(e))
+		return true;
+	}
+	for (size_t j = 0; j < ND_other(n).size; j++) {
+	    e = ND_other(n).list[j];
+	    if (needs_previous_rank(e))
+		return true;
+	}
+    }
+    return false;
+}
+
 /* Process flat edges.
  * First, mark flat edges as having adjacent endpoints or not.
  *
@@ -276,20 +303,8 @@ flat_edges(graph_t * g)
 	}
     }
 
-    if (GD_rank(g)[0].flat || GD_n_cluster(g) > 0) {
-	bool found = false;
-	for (i = 0; (n = GD_rank(g)[0].v[i]); i++) {
-	    for (size_t j = 0; (e = ND_flat_in(n).list[j]); j++) {
-		if (ED_label(e) && !ED_adjacent(e)) {
-		    abomination(g);
-		    found = true;
-		    break;
-		}
-	    }
-	    if (found)
-		break;
-	}
-    }
+    if (rank_needs_previous_rank_for_flat_labels(g, 0))
+	abomination(g);
 
     rec_save_vlists(g);
     for (n = GD_nlist(g); n; n = ND_next(n)) {
