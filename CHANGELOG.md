@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Fixed
+
+- Labeled flat edges on the first rank no longer crash Graphviz when they need
+  a virtual label rank. #2723
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

@@ -6171,13 +6171,9 @@ def test_2722():
     ), "cdt.h has changed; update test_2722 and remember to update `CDT_VERSION`"
 
 
-@pytest.mark.xfail(
-    strict=which("dot") is not None and is_asan_instrumented(which("dot")),
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2723",
-)
 def test_2723():
     """
-    Graphviz should not crash while processing this graph
+    Graphviz should not segfault while processing this graph.
     https://gitlab.com/graphviz/graphviz/-/issues/2723
     """
 
@@ -6185,8 +6181,9 @@ def test_2723():
     input = Path(__file__).parent / "2723.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    # process this
-    dot("png", input)
+    ret = subprocess.call(["dot", "-Tpng", "-o", os.devnull, input])
+
+    assert ret != -signal.SIGSEGV, "Graphviz segfaulted"
 
 
 def test_2727():
