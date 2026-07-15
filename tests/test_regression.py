@@ -3195,6 +3195,48 @@ def test_2356(tmp_path: Path):
     run_c(c_src, tmp_path, link=["cgraph", "gvc"])
 
 
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
+def test_2316(tmp_path: Path):
+    """
+    Freeing a Graphviz context should release GVC-created cgraph defaults
+    https://gitlab.com/graphviz/graphviz/-/issues/2316
+    """
+
+    c_src = (Path(__file__).parent / "2316.c").resolve()
+    assert c_src.exists(), "missing test case"
+
+    exe = compile_c(c_src, link=["cgraph", "gvc"], dst=tmp_path / "2316")
+
+    run_raw(exe)
+    run_raw(exe, "two-contexts")
+    run_raw(exe, "preexisting")
+
+    if shutil.which("valgrind") is None:
+        pytest.skip("valgrind not available")
+    if is_asan_instrumented(exe):
+        pytest.skip("valgrind is incompatible with ASan-instrumented builds")
+
+    p = subprocess.run(
+        [
+            "valgrind",
+            "--leak-check=full",
+            "--show-leak-kinds=all",
+            exe,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert p.returncode == 0, p.stderr
+    assert (
+        "All heap blocks were freed" in p.stderr
+        or "still reachable: 0 bytes in 0 blocks" in p.stderr
+    )
+
+
 def test_2361():
     """
     using `ortho` and `concentrate` in combination should not cause a crash

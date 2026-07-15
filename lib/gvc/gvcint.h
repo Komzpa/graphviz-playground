@@ -83,6 +83,7 @@ extern "C" {
 
 	char *config_path;
 	bool config_found;
+	bool owns_default_attrs;
 
 	/* gvParseArgs */
 	char **input_filenames; /* null terminated array of input filenames */
@@ -157,6 +158,7 @@ extern "C" {
 
 GVCINT_API GVC_t* gvCloneGVC (GVC_t *);
 GVCINT_API void gvFreeCloneGVC (GVC_t *);
+GVCINT_API void gvconfig_default_attrs(GVC_t *gvc);
 
 #undef GVCINT_API
 

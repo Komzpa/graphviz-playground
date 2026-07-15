@@ -18,9 +18,12 @@
 
 #include "config.h"
 
+#include <assert.h>
 #include <stdlib.h>
 
 #include "builddate.h"
+#include <cgraph/cghdr.h>
+#include <common/const.h>
 #include <common/render.h>
 #include <common/types.h>
 #include <gvc/gvplugin.h>
@@ -42,6 +45,10 @@ static char *LibInfo[] = {
     BUILDDATE           /* Build Date */
 };
 
+static size_t default_attrs_contexts;
+static bool gvc_owns_default_attrs;
+static unsigned long gvc_default_attrs_generation;
+
 GVC_t *gvNEWcontext(const lt_symlist_t *builtins, int demand_loading)
 {
     GVC_t *gvc = gv_alloc(sizeof(GVC_t));
@@ -54,10 +61,40 @@ GVC_t *gvNEWcontext(const lt_symlist_t *builtins, int demand_loading)
     return gvc;
 }
 
+void gvconfig_default_attrs(GVC_t *gvc)
+{
+    const bool default_attrs_existed = agattr_default_graph_exists();
+
+    agattr_text(NULL, AGNODE, "label", NODENAME_ESC);
+
+    if (!default_attrs_existed || gvc_owns_default_attrs) {
+	gvc_owns_default_attrs = true;
+	++default_attrs_contexts;
+	gvc->owns_default_attrs = true;
+	gvc_default_attrs_generation = agattr_default_graph_generation();
+    }
+}
+
 void gvFinalize(GVC_t * gvc)
 {
     if (gvc->active_jobs)
 	gvrender_end_job(gvc->active_jobs);
+}
+
+static void gvfree_default_attrs(GVC_t *gvc)
+{
+    if (!gvc->owns_default_attrs)
+	return;
+
+    gvc->owns_default_attrs = false;
+    assert(default_attrs_contexts > 0);
+    --default_attrs_contexts;
+    if (default_attrs_contexts > 0)
+	return;
+
+    if (agattr_default_graph_generation() == gvc_default_attrs_generation)
+	(void)agattr_close_default_graph();
+    gvc_owns_default_attrs = false;
 }
 
 
@@ -92,6 +129,7 @@ int gvFreeContext(GVC_t * gvc)
 	}
     }
     free(gvc->layerIDs);
+    gvfree_default_attrs(gvc);
     free(gvc);
     return (graphviz_errors + agerrors());
 }
@@ -113,4 +151,3 @@ void gvFreeCloneGVC (GVC_t * gvc)
     gvjobs_delete(gvc);
     free(gvc);
 }
-
