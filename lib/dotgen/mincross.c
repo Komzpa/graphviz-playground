@@ -510,16 +510,21 @@ static void do_ordering_for_nodes(graph_t *g) {
  * dominates the value of N_ordering.
  */
 static void ordered_edges(graph_t *g) {
+  attrsym_t *g_ordering = agfindgraphattr(g, "ordering");
   char *ordering;
 
-  if (!G_ordering && !N_ordering)
+  if (!g_ordering && !G_ordering && !N_ordering)
     return;
-  if ((ordering = late_string(g, G_ordering, NULL))) {
+
+  if (!g_ordering)
+    g_ordering = G_ordering;
+  ordering = late_string(g, g_ordering, NULL);
+  if (ordering && ordering[0]) {
     if (streq(ordering, "out"))
       do_ordering(g, true);
     else if (streq(ordering, "in"))
       do_ordering(g, false);
-    else if (ordering[0])
+    else
       agerrorf("ordering '%s' not recognized.\n", ordering);
   } else {
     graph_t *subg;

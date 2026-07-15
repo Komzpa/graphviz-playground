@@ -1246,6 +1246,39 @@ def test_1585():
     assert c < d, "clustering altered nodes’ horizontal ordering"
 
 
+def test_2503():
+    """
+    a graph-level ordering attribute on a subgraph should constrain its edges
+    https://gitlab.com/graphviz/graphviz/-/issues/2503
+    """
+
+    source = """
+    digraph {
+      {
+        graph [ordering=out]
+        T1 u1 v1 w1 x1 y1 z1
+        T1 -> x1
+        T1 -> z1
+        T1 -> y1
+        T1 -> w1
+        T1 -> v1
+        T1 -> u1
+      }
+    }
+    """
+
+    out = dot("plain", source=source).decode("utf-8")
+    node_xs = {}
+    for line in out.splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and fields[0] == "node":
+            node_xs[fields[1]] = float(fields[2])
+
+    expected = ["x1", "z1", "y1", "w1", "v1", "u1"]
+    assert all(name in node_xs for name in expected), "missing node in output"
+    assert sorted(expected, key=node_xs.__getitem__) == expected
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_1594():
     """
