@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- Polygon nodes with `regular=true` now preserve equal side lengths instead of
+  stretching the generated polygon back to a square bounding box. #2203
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the

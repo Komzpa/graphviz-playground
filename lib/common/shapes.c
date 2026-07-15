@@ -2274,7 +2274,12 @@ static void poly_init(node_t * n)
 	/* apply minimum dimensions */
 	xmax *= 2.;
 	ymax *= 2.;
-	bb = (pointf){.x = fmax(width, xmax), .y = fmax(height, ymax)};
+	if (regular && !isBox) {
+	    const double scale = fmax(width / xmax, height / ymax);
+	    bb = (pointf){.x = xmax * scale, .y = ymax * scale};
+	} else {
+	    bb = (pointf){.x = fmax(width, xmax), .y = fmax(height, ymax)};
+	}
 	outline_bb = bb;
 
 	scalex = bb.x / xmax;

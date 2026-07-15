@@ -2990,6 +2990,49 @@ def test_2193():
     assert canonical == new, "canonical translation is not stable"
 
 
+def test_2203():
+    """
+    `regular=true` should keep polygon side lengths equal
+    https://gitlab.com/graphviz/graphviz/-/issues/2203
+    """
+
+    source = """
+        digraph {
+            layout=neato
+            hexa [shape=hexagon, label="", regular=true, pos="0,0!"]
+        }
+    """
+
+    root = ET.fromstring(dot("svg", source=source))
+    ns = {"svg": "http://www.w3.org/2000/svg"}
+    for group in root.findall(".//svg:g", ns):
+        title = group.find("svg:title", ns)
+        if title is not None and title.text == "hexa":
+            polygon = group.find("svg:polygon", ns)
+            break
+    else:
+        pytest.fail("could not find hexagon node in SVG output")
+
+    assert polygon is not None, "hexagon node has no polygon outline"
+    points = [
+        tuple(map(float, point.split(",")))
+        for point in polygon.attrib["points"].split()
+    ]
+    if points[-1] == points[0]:
+        points.pop()
+
+    side_lengths = [
+        math.hypot(
+            points[(i + 1) % len(points)][0] - points[i][0],
+            points[(i + 1) % len(points)][1] - points[i][1],
+        )
+        for i in range(len(points))
+    ]
+
+    assert len(points) == 6
+    assert max(side_lengths) == pytest.approx(min(side_lengths), abs=0.01)
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_2211():
     """
