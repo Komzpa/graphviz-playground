@@ -86,7 +86,7 @@ and this project adheres to
 ### Fixed
 
 - `dot` no longer drops regular edge labels from packed disconnected graphs.
-  #1616
+  #1616, #2458
 
 ## [15.1.0] – 2026-06-17
 

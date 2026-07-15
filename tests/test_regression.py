@@ -4328,9 +4328,6 @@ def test_2457():
     assert pdf1 == pdf2, "node definition order affected PDF generation"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2458"
-)
 def test_2458():
     """
     `pack=true` should not result in edge labels disappearing
