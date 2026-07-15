@@ -2240,6 +2240,49 @@ def test_1949():
     dot("png", input)
 
 
+def test_1964():
+    """
+    cluster margin point components should control horizontal and vertical
+    spacing independently
+    https://gitlab.com/graphviz/graphviz/-/issues/1964
+    """
+
+    def cluster_bbox(margin: str) -> tuple[float, float, float, float]:
+        source = f"""
+        digraph G {{
+          subgraph cluster_1 {{
+            node [style=filled];
+            b0 -> b1 -> b2 -> b3;
+            label = "process #2";
+            color = blue;
+            margin = "{margin}";
+          }}
+        }}
+        """
+        output = dot("json", source=source)
+        data = json.loads(output)
+        cluster = [x for x in data["objects"] if x["name"] == "cluster_1"][0]
+        return tuple(float(x) for x in cluster["bb"].split(","))
+
+    def width(bb: tuple[float, float, float, float]) -> float:
+        return bb[2] - bb[0]
+
+    def height(bb: tuple[float, float, float, float]) -> float:
+        return bb[3] - bb[1]
+
+    base = cluster_bbox("0,0")
+    horizontal = cluster_bbox("50,0")
+    vertical = cluster_bbox("0,50")
+    both = cluster_bbox("50,50")
+
+    assert width(horizontal) > width(base)
+    assert math.isclose(height(horizontal), height(base))
+    assert math.isclose(width(vertical), width(base))
+    assert height(vertical) > height(base)
+    assert math.isclose(width(both), width(horizontal))
+    assert math.isclose(height(both), height(vertical))
+
+
 @pytest.mark.skipif(which("edgepaint") is None, reason="edgepaint not available")
 def test_1971():
     """
