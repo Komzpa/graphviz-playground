@@ -85,8 +85,8 @@ and this project adheres to
 
 ### Fixed
 
-- `dot` now renders edges as straight SVG polylines when
-  `splines=polyline`. #1844
+- `dot` now renders `splines=polyline` edges as straight polylines in visual
+  outputs and xdot drawing commands. #1844 #478
 
 ## [15.1.0] – 2026-06-17
 

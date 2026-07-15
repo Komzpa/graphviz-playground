@@ -314,6 +314,24 @@ def test_165_3():
     assert any(r"hello \\\" world" in l for l in ldraw), "unexpected ldraw contents"
 
 
+def test_478():
+    """
+    xdot output for polyline edges should use a polyline drawing operation
+    https://gitlab.com/graphviz/graphviz/-/issues/478
+    """
+
+    xdot = dot("xdot", source="digraph G { graph [splines=polyline]; A -> E }")
+
+    edge = re.search(r"\bA\s*->\s*E\s*\[(?P<attributes>.*?)\];", xdot, re.S)
+    assert edge is not None, "could not locate A -> E edge"
+
+    draw = re.search(r'_draw_="(?P<value>[^"]*)"', edge.group("attributes"))
+    assert draw is not None, "edge has no _draw_ attribute"
+
+    assert re.search(r"(^| )L \d+ ", draw.group("value")) is not None
+    assert re.search(r"(^| )B \d+ ", draw.group("value")) is None
+
+
 def test_167():
     """
     using concentrate=true should not result in a segfault
