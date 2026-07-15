@@ -358,12 +358,53 @@ initSubg (Agraph_t* sg, Agraph_t* g)
 /* the packing library assumes all units are in inches stored in ND_pos, so we
  * have to copy the position info there.
  */
+static bool
+selectDotNodeInfo(Agnode_t *n)
+{
+    n->base.tag.mtflock = false;
+    Agrec_t *rec = aggetrec(n, "Agnodeinfo_t", true);
+    return rec != NULL && AGDATA(n) == rec;
+}
+
+static bool
+ensureDotNodeInfo(Agnode_t *n)
+{
+    if (aggetrec(n, "Agnodeinfo_t", false) == NULL)
+	dot_init_node(n);
+    return selectDotNodeInfo(n);
+}
+
+static bool
+selectDotEdgeInfo(Agedge_t *e)
+{
+    e->base.tag.mtflock = false;
+    agopp(e)->base.tag.mtflock = false;
+    Agrec_t *rec = aggetrec(e, "Agedgeinfo_t", true);
+    return rec != NULL && AGDATA(e) == rec;
+}
+
+static bool
+selectDotLayoutInfo(Agraph_t *g)
+{
+    for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+	if (!selectDotNodeInfo(n))
+	    return false;
+	for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+	    if (!selectDotEdgeInfo(e))
+		return false;
+	}
+    }
+    return true;
+}
+
 static void
 attachPos (Agraph_t* g)
 {
     node_t* np;
 
     for (np = agfstnode(g); np; np = agnxtnode(g, np)) {
+	if (!ensureDotNodeInfo(np))
+	    continue;
 	ND_pos(np) = gv_calloc(2, sizeof(double));
 	ND_pos(np)[0] = PS2INCH(ND_coord(np).x);
 	ND_pos(np)[1] = PS2INCH(ND_coord(np).y);
@@ -377,6 +418,10 @@ static void
 resetCoord (Agraph_t* g)
 {
     for (node_t *np = agfstnode(g); np; np = agnxtnode(g, np)) {
+	if (!ensureDotNodeInfo(np))
+	    continue;
+	if (ND_pos(np) == NULL)
+	    continue;
 	ND_coord(np).x = INCH2PS(ND_pos(np)[0]);
 	ND_coord(np).y = INCH2PS(ND_pos(np)[1]);
 	free(ND_pos(np));
@@ -504,6 +549,9 @@ static int doDot(Agraph_t *g) {
 	}
 	free(ccs);
     }
+    for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n))
+	(void)ensureDotNodeInfo(n);
+    (void)selectDotLayoutInfo(g);
     return 0;
 }
 
@@ -515,6 +563,7 @@ void dot_layout(Agraph_t * g)
 	}
     }
     dotneato_postprocess(g);
+    (void)selectDotLayoutInfo(g);
 }
 
 Agraph_t * dot_root (void* p)

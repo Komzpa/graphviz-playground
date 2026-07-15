@@ -6327,6 +6327,29 @@ def test_2743():
     dot("dot", src)
 
 
+@pytest.mark.parametrize("issue", [2768, 2769])
+def test_2768_2769(issue: int):
+    """
+    Graphviz should not crash when packing malformed component graphs
+    https://gitlab.com/graphviz/graphviz/-/issues/2768
+    https://gitlab.com/graphviz/graphviz/-/issues/2769
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / f"{issue}.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz, preferring the in-tree ASAN-capable binary
+    dot_cmd = shutil.which("dot_builtins") or which("dot")
+    assert dot_cmd is not None, "dot not available"
+    subprocess.run(
+        [dot_cmd, "-Kdot", "-Tdot", src],
+        stdout=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",

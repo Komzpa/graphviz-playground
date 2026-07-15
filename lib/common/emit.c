@@ -4128,6 +4128,10 @@ static void init_bb_edge(edge_t *e)
 {
     splines *spl;
 
+    e->base.tag.mtflock = false;
+    agopp(e)->base.tag.mtflock = false;
+    if (aggetrec(e, "Agedgeinfo_t", true) == NULL)
+	return;
     spl = ED_spl(e);
     if (spl)
         init_splines_bb(spl);
@@ -4137,6 +4141,9 @@ static void init_bb_node(graph_t *g, node_t *n)
 {
     edge_t *e;
 
+    n->base.tag.mtflock = false;
+    if (aggetrec(n, "Agnodeinfo_t", true) == NULL)
+	return;
     ND_bb(n).LL.x = ND_coord(n).x - ND_lw(n);
     ND_bb(n).LL.y = ND_coord(n).y - ND_ht(n) / 2.;
     ND_bb(n).UR.x = ND_coord(n).x + ND_rw(n);
@@ -4364,4 +4371,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
