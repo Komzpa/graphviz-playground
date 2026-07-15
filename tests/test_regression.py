@@ -3318,6 +3318,22 @@ def test_2484(tmp_path: Path):
     )
 
 
+def test_1616():
+    """
+    pack modes should not remove regular edge labels
+    https://gitlab.com/graphviz/graphviz/-/issues/1616
+    """
+
+    # find our collocated test case
+    input = Path(__file__).parent / "1616.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # run it through Graphviz
+    svg = dot("svg", input)
+
+    assert ">label<" in svg, "missing regular edge label in packed graph"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2592"
 )
