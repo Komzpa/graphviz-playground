@@ -1777,7 +1777,8 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
       tend.boxes[tend.boxn++] = b;
     bool smode = false;
     bool si = false;
-    while (ND_node_type(hn) == VIRTUAL && !sinfo.splineMerge(hn)) {
+    while (ND_node_type(hn) == VIRTUAL && !sinfo.splineMerge(hn) &&
+           ND_out(hn).size == 1) {
       LIST_APPEND(&boxes, rank_box(sp, g, ND_rank(tn)));
       if (!smode && ((sl = straight_len(hn)) >=
                      ((GD_has_labels(g->root) & EDGE_LABEL) ? 4 + 1 : 2 + 1))) {
@@ -2034,6 +2035,8 @@ static int straight_len(node_t *n) {
 
   v = n;
   while (1) {
+    if (ND_out(v).size != 1)
+      break;
     v = aghead(ND_out(v).list[0]);
     if (ND_node_type(v) != VIRTUAL)
       break;
@@ -2062,8 +2065,7 @@ static void recover_slack(edge_t *e, path *p) {
   node_t *vn;
 
   size_t b = 0; // skip first rank box
-  for (vn = aghead(e); ND_node_type(vn) == VIRTUAL && !sinfo.splineMerge(vn);
-       vn = aghead(ND_out(vn).list[0])) {
+  for (vn = aghead(e); ND_node_type(vn) == VIRTUAL && !sinfo.splineMerge(vn);) {
     while (b < p->nbox && p->boxes[b].LL.y > ND_coord(vn).y)
       b++;
     if (b >= p->nbox)
@@ -2076,6 +2078,9 @@ static void recover_slack(edge_t *e, path *p) {
     else
       resize_vn(vn, p->boxes[b].LL.x, (p->boxes[b].LL.x + p->boxes[b].UR.x) / 2,
                 p->boxes[b].UR.x);
+    if (ND_out(vn).size != 1 || ND_out(vn).list[0] == NULL)
+      break;
+    vn = aghead(ND_out(vn).list[0]);
   }
 }
 
@@ -2136,12 +2141,16 @@ static bool cl_vninside(graph_t *cl, node_t *n) {
 static Agraph_t *cl_bound(graph_t *g, node_t *n, node_t *adj) {
   graph_t *rv, *cl, *tcl, *hcl;
   edge_t *orig;
+  edge_t *out;
 
   rv = NULL;
   if (ND_node_type(n) == NORMAL)
     tcl = hcl = ND_clust(n);
   else {
-    orig = ED_to_orig(ND_out(n).list[0]);
+    if (ND_out(n).size != 1 || (out = ND_out(n).list[0]) == NULL ||
+        ED_to_orig(out) == NULL)
+      return NULL;
+    orig = ED_to_orig(out);
     tcl = ND_clust(agtail(orig));
     hcl = ND_clust(aghead(orig));
   }
@@ -2150,7 +2159,10 @@ static Agraph_t *cl_bound(graph_t *g, node_t *n, node_t *adj) {
     if (cl && cl != tcl && cl != hcl)
       rv = cl;
   } else {
-    orig = ED_to_orig(ND_out(adj).list[0]);
+    if (ND_out(adj).size != 1 || (out = ND_out(adj).list[0]) == NULL ||
+        ED_to_orig(out) == NULL)
+      return NULL;
+    orig = ED_to_orig(out);
     cl = REAL_CLUSTER(agtail(orig));
     if (cl && cl != tcl && cl != hcl && cl_vninside(cl, adj))
       rv = cl;

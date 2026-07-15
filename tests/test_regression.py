@@ -6189,6 +6189,25 @@ def test_2723():
     dot("png", input)
 
 
+def test_2765():
+    """
+    malformed virtual edge chains should not crash dot during straight routing
+    https://gitlab.com/graphviz/graphviz/-/issues/2765
+    """
+
+    input = Path(__file__).parent / "2765.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    p = subprocess.run(
+        ["dot", "-Kdot", "-Tdot", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert p.returncode in (0, 1), "dot crashed on malformed virtual edge input"
+
+
 def test_2727():
     """
     the label “<>” should be accepted
