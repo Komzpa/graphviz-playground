@@ -622,27 +622,55 @@ static int write_edge(Agraph_t *subg, Agedge_t *e, iochan_t *ofile, Dict_t *d,
     return ioput(g, ofile, ";\n");
 }
 
+static int cmp_edge_seq(const void *lhs, const void *rhs) {
+    const Agedge_t *a = *(Agedge_t *const *)lhs;
+    const Agedge_t *b = *(Agedge_t *const *)rhs;
+
+    if (AGSEQ(a) < AGSEQ(b))
+	return -1;
+    if (AGSEQ(a) > AGSEQ(b))
+	return 1;
+    return 0;
+}
+
+static int collect_edge(Agedge_t ***edges, size_t *edge_count,
+                        size_t *edge_capacity, Agedge_t *e) {
+    if (*edge_count == *edge_capacity) {
+	size_t new_capacity = *edge_capacity == 0 ? 16 : *edge_capacity * 2;
+	*edges = gv_recalloc(*edges, *edge_capacity, new_capacity,
+	                     sizeof(**edges));
+	*edge_capacity = new_capacity;
+    }
+    (*edges)[(*edge_count)++] = e;
+    return 0;
+}
+
 static int write_body(Agraph_t *g, iochan_t *ofile, write_info_t *wr_info) {
-    Agnode_t *n, *prev;
+    Agnode_t *n;
     Agedge_t *e;
     Agdatadict_t *dd;
+    Agedge_t **edges = NULL;
+    size_t edge_count = 0;
+    size_t edge_capacity = 0;
 
     CHKRV(write_subgs(g, ofile, wr_info));
     dd = agdatadict(g, false);
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	if (write_node_test(g, n, wr_info))
 	    CHKRV(write_node(g, n, ofile, dd ? dd->dict.n : 0, wr_info));
-	prev = n;
 	for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
-	    if (prev != aghead(e) && write_node_test(g, aghead(e), wr_info)) {
-		CHKRV(write_node(g, aghead(e), ofile, dd ? dd->dict.n : 0, wr_info));
-		prev = aghead(e);
-	    }
 	    if (write_edge_test(g, e, wr_info))
-		CHKRV(write_edge(g, e, ofile, dd ? dd->dict.e : 0, wr_info));
+		CHKRV(collect_edge(&edges, &edge_count, &edge_capacity, e));
 	}
-
+    }
+    qsort(edges, edge_count, sizeof(*edges), cmp_edge_seq);
+    for (size_t i = 0; i < edge_count; i++) {
+	if (write_edge(g, edges[i], ofile, dd ? dd->dict.e : 0, wr_info) == EOF) {
+	    free(edges);
+	    return EOF;
 	}
+    }
+    free(edges);
     return 0;
 }
 
