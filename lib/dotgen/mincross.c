@@ -1769,12 +1769,6 @@ static void mincross_options(graph_t *g) {
   size_t expanded_nodes = 0;
   const bool use_adaptive_budget =
       use_expanded_graph_budget(g, &input_nodes, &expanded_nodes);
-  if (Verbose) {
-    fprintf(stderr,
-            "mincross: expanded graph estimate input nodes=%" PRISIZE_T
-            ", expanded nodes=%" PRISIZE_T "\n",
-            input_nodes, expanded_nodes);
-  }
   if (use_adaptive_budget) {
     MinQuit = 1;
     MaxIter = 1;
