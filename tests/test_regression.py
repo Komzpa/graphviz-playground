@@ -4922,6 +4922,70 @@ def test_2577():
     ), "incorrect handling of uninitialized attribute in GVPR"
 
 
+@pytest.mark.skipif(not is_cmake(), reason="requires in-tree CMake libraries")
+@pytest.mark.skipif(
+    shutil.which(os.environ.get("CXX", "c++")) is None,
+    reason="C++ compiler not available",
+)
+def test_2578(tmp_path: Path):
+    """
+    gv language bindings should set protonode defaults on the target subgraph
+    https://gitlab.com/graphviz/graphviz/-/issues/2578
+    """
+
+    root = Path(__file__).parents[1]
+    build = root / "build"
+    if not (build / "config.h").exists():
+        dot_bin = which("dot")
+        if dot_bin is None:
+            pytest.skip("dot is not available")
+        build = dot_bin.parents[2]
+    exe = tmp_path / "test_2578.exe"
+    cxx = os.environ.get("CXX", "c++")
+    include_dirs = [
+        build,
+        root,
+        root / "lib",
+        root / "lib/common",
+        root / "lib/cgraph",
+        root / "lib/cdt",
+        root / "lib/gvc",
+        root / "lib/pathplan",
+        root / "lib/util",
+        root / "tclpkg/gv",
+    ]
+    lib_dirs = [build / "lib/cgraph", build / "lib/cdt", build / "lib/gvc"]
+    if not all(p.exists() for p in lib_dirs):
+        pytest.skip("requires in-tree cgraph/cdt/gvc libraries")
+    rpath = ":".join(str(p) for p in lib_dirs)
+    cmd = [
+        cxx,
+        "-std=c++17",
+        "-DDEMAND_LOADING=1",
+        *(f"-I{p}" for p in include_dirs),
+        root / "tests/2578.cpp",
+        root / "tclpkg/gv/gv.cpp",
+        root / "tclpkg/gv/gv_dummy_init.c",
+        root / "tclpkg/gv/gv_builtins.c",
+        *(f"-L{p}" for p in lib_dirs),
+        f"-Wl,-rpath,{rpath}",
+        "-lcgraph",
+        "-lcdt",
+        "-lgvc",
+        "-o",
+        exe,
+    ]
+    run_raw(*cmd)
+    output = run(exe)
+
+    subgraph = output.find("\tsubgraph sub {")
+    default = output.find("\tnode [shape=pentagon];")
+    assert subgraph != -1
+    assert default > subgraph
+    assert "shape=pentagon" not in output[:subgraph]
+    assert re.search(r"\bB\s+\[shape=", output) is None
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_2577_1():
     """
