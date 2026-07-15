@@ -401,7 +401,11 @@ ordering
      If "out" for a graph G, and n is a node in G, then edges n->* appear
      left-to-right in the same order in which they are defined.
 orientation
-     Angle, in degrees, used to rotate node shapes.
+     Angle, in degrees, used as an angular offset when constructing
+     polygon-based node shapes. This is applied before the generated polygon
+     is scaled to the node's final width and height, so it is not the same as
+     rotating the final node shape about its center. In particular,
+     non-regular polygons can become skewed when orientation is changed.
 orientation
      If "[lL]*", set graph orientation to landscape Used only if rotate is
      not defined.

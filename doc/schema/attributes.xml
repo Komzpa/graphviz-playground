@@ -1574,7 +1574,17 @@
 	<xsd:attribute name="orientation" type="xsd:decimal">
 		<xsd:annotation>
 			<xsd:documentation>
-				Angle, in degrees, used to rotate node shapes.
+				<html:p>
+					Angle, in degrees, used as an angular offset when constructing
+					polygon-based node shapes.
+				</html:p>
+				<html:p>
+					This is applied before the generated polygon is scaled to the
+					node's final width and height, so it is not the same as rotating
+					the final node shape about its center. In particular, non-regular
+					polygons can become skewed when <html:code>orientation</html:code>
+					is changed.
+				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>

@@ -293,7 +293,8 @@ edges, graphs, and clusters.
 {\tt height} & {\tt .5} & height in inches \\
 {\tt label} & node name & any string \\
 {\tt margin} &  0.11,0.055 & space between node label and boundary \\
-{\tt orientation} & {\tt 0.0} & node rotation angle \\
+{\tt orientation} & {\tt 0.0} & polygon construction angle; not center
+rotation for non-regular polygons \\
 {\tt peripheries} & {\em shape dependent} & number of node boundaries \\
 {\tt pin} & false & fix node at its {\tt pos} attribute \\
 {\tt regular} & false & force polygon to be regular \\
@@ -943,4 +944,3 @@ empty string before calling {\tt gvLayout} again.
 Once the application is totally done with a graph, it should call
 {\tt agclose} to close the graph and reclaim the remaining resources associated
 with it.
-
