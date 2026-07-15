@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `dot` no longer drops edge labels on adjacent regular edges whose ranks were
+  collapsed by constraints such as `rank=sink`. #2346
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
