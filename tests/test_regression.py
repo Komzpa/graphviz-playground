@@ -617,6 +617,29 @@ def test_925():
     assert "ААА ААА ААА" in svg, "incorrect spacing in UTF-8 label"
 
 
+def test_1123():
+    """
+    rankset/cluster conflicts should be reported regardless of subgraph order
+    https://gitlab.com/graphviz/graphviz/-/issues/1123
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1123.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process it with Graphviz
+    proc = subprocess.run(
+        ["dot", "-Tplain", "-o", os.devnull, input],
+        stderr=subprocess.PIPE,
+        check=True,
+        text=True,
+    )
+
+    assert (
+        "a was already in a rankset, deleted from cluster G" in proc.stderr
+    ), "rankset/cluster conflict was not reported"
+
+
 @pytest.mark.parametrize("testcase", ("1213-1.dot", "1213-2.dot"))
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1213"

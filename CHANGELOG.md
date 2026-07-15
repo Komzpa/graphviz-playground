@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `dot` now warns about rankset/cluster conflicts regardless of whether the
+  rankset or the cluster appears first in the input. #1123
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
