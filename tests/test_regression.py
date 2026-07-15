@@ -560,6 +560,40 @@ def test_797():
     assert "&amp; &amp;" in output
 
 
+def test_265():
+    """
+    client-side image map areas should have useful alt text
+    https://gitlab.com/graphviz/graphviz/-/issues/265
+    """
+
+    source = r"""
+        digraph {
+            explicit [
+                URL="https://example.test/explicit",
+                tooltip="explicit tooltip & <quoted>",
+            ]
+            fallback [
+                label="fallback label",
+                URL="https://example.test/fallback",
+            ]
+        }
+    """
+
+    root = ET.fromstring(dot("cmapx", source=source))
+    areas = {area.attrib["href"]: area.attrib for area in root.findall("area")}
+
+    assert (
+        areas["https://example.test/explicit"]["title"]
+        == "explicit tooltip & <quoted>"
+    )
+    assert (
+        areas["https://example.test/explicit"]["alt"]
+        == "explicit tooltip & <quoted>"
+    )
+    assert areas["https://example.test/fallback"]["title"] == "fallback label"
+    assert areas["https://example.test/fallback"]["alt"] == "fallback label"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/813"
 )

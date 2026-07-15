@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- Client-side image map outputs now populate area `alt` attributes from the
+  same text used for `title`, instead of always emitting `alt=""`. #265
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
