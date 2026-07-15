@@ -821,10 +821,7 @@ static item *mapEdge(Dt_t * map, edge_t * e)
 }
 
 static graph_t *mapc(Dt_t *cmap, node_t *n) {
-  if (startswith(agnameof(n), "cluster")) {
-    return findCluster(cmap, agnameof(n));
-  }
-  return NULL;
+  return findCluster(cmap, agnameof(n));
 }
 
 /** If endpoint names a cluster, mark for temporary deletion and create
