@@ -25,6 +25,8 @@
 #include <getopt.h>
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
+#include <cstring>
 #include <gvc/gvc.h>
 #include <cgraph/ingraphs.h>
 #include <common/render.h>
@@ -297,11 +299,41 @@ static void cloneDfltAttrs(Agraph_t *old, Agraph_t *new_graph, int attr_kind) {
 	}
     }
 }
+
+static bool isEscStringLabel(Agsym_t *a, char *value) {
+  if (value == nullptr)
+    return false;
+
+  if (strcmp(a->name, "label") != 0 && strcmp(a->name, "xlabel") != 0 &&
+      strcmp(a->name, "headlabel") != 0 && strcmp(a->name, "taillabel") != 0)
+    return false;
+
+  return strstr(value, "\\G") != nullptr || strstr(value, "\\N") != nullptr ||
+         strstr(value, "\\E") != nullptr || strstr(value, "\\T") != nullptr ||
+         strstr(value, "\\H") != nullptr;
+}
+
+static bool cloneChangedEscStringContext(void *old, void *new_graph) {
+  switch (agobjkind(old)) {
+  case AGRAPH:
+  case AGNODE:
+    return strcmp(agnameof(old), agnameof(new_graph)) != 0;
+  case AGEDGE:
+    return strcmp(agnameof(agtail(static_cast<Agedge_t *>(old))),
+                  agnameof(agtail(static_cast<Agedge_t *>(new_graph)))) != 0 ||
+           strcmp(agnameof(aghead(static_cast<Agedge_t *>(old))),
+                  agnameof(aghead(static_cast<Agedge_t *>(new_graph)))) != 0;
+  default:
+    return false;
+  }
+}
+
 static void cloneAttrs(void *old, void *new_graph) {
     int attr_kind = AGTYPE(old);
     char* s;
     Agraph_t *g = agroot(old);
     Agraph_t *ng = agroot(new_graph);
+    bool const freeze_esc_labels = cloneChangedEscStringContext(old, new_graph);
 
     for (Agsym_t *a = agnxtattr(g, attr_kind, 0); a; a = agnxtattr(g, attr_kind, a)) {
 	s = agxget (old, a);
@@ -309,6 +341,10 @@ static void cloneAttrs(void *old, void *new_graph) {
 	    char *scopy = agstrdup_html(ng, s);
 	    agset(new_graph, a->name, scopy);
 	    agstrfree(ng, scopy, true); // drop the extra reference count we bumped for scopy
+	} else if (freeze_esc_labels && isEscStringLabel(a, s)) {
+	    char *scopy = strdup_and_subst_obj(s, old);
+	    agset(new_graph, a->name, scopy);
+	    free(scopy);
 	} else {
 	    agset(new_graph, a->name, s);
 	}
