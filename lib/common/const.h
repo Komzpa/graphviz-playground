@@ -64,7 +64,7 @@
 #if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) || defined(__IPHONE_OS_VERSION_MIN_REQUIRED)
 #define		DEFAULT_FONTNAME	"TimesNewRomanPSMT"
 #else
-#define		DEFAULT_FONTNAME	"Times-Roman"
+#define		DEFAULT_FONTNAME	"serif"
 #endif
 #define		DEFAULT_FILL		"lightgrey"
 #define         LINESPACING             1.20

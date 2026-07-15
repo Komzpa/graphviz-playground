@@ -3650,6 +3650,29 @@ def test_2278():
     assert svg == svg_a, "-A was not equivalent to -E+-G+-N"
 
 
+def test_2793():
+    """
+    The default font should be the generic fontconfig serif family instead of a
+    PostScript Times alias.
+    https://gitlab.com/graphviz/graphviz/-/issues/2793
+    """
+
+    graph = "graph { a }"
+
+    proc = subprocess.run(
+        ["dot", "-v", "-Tsvg"],
+        input=graph,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+    assert 'fontname: "serif" resolved to:' in proc.stderr
+    assert 'fontname: "Times-Roman" resolved to:' not in proc.stderr
+    assert 'font-family="serif"' in proc.stdout
+
+
 def test_2282():
     """
     using the `fdp` layout with JSON output should result in valid JSON

@@ -74,6 +74,9 @@ and this project adheres to
 
 ### Changed
 
+- The default `fontname` is now the generic fontconfig family `serif` instead
+  of the PostScript name `Times-Roman`, allowing fontconfig defaults and user
+  rules to apply when no explicit `fontname` is set. #2793
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
