@@ -4781,6 +4781,62 @@ def test_2564():
         starts += [start]
 
 
+def test_2569(tmp_path: Path):
+    """
+    partial dot phases should report compact ranks without edge-label warnings
+    https://gitlab.com/graphviz/graphviz/-/issues/2569
+    """
+
+    input = tmp_path / "2569.dot"
+    input.write_text(
+        """
+        digraph {
+          rankdir="LR";
+          splines=polyline;
+
+          b [shape=circle, label="", style=filled, color=gray, width=0.2, height=0.2];
+          c [shape=box, label="C(s)", style=filled, color=gray, xlabel=controller];
+          d [shape=box, label="P(s)", style=filled, color=gray, xlabel=plant];
+          a [shape=point, color=transparent, label="a"];
+          e [shape=point, color=transparent, label="e"];
+          f [shape=point, color=transparent, label="f"];
+
+          c -> d [label="u"]
+          b -> c [label="e"]
+          a -> b [label="r"]
+          d -> e [dir=none]
+          e -> f [label="y"]
+          e -> b
+        }
+        """
+    )
+
+    for phase in (1, 2, 3):
+        proc = subprocess.run(
+            ["dot", f"-Gphase={phase}", input],
+            check=True,
+            encoding="utf-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        assert "no position for edge with label" not in proc.stderr
+        assert sorted(map(int, re.findall(r"rank=(\d+)", proc.stdout))) == list(
+            range(6)
+        )
+
+    minlen = tmp_path / "minlen.dot"
+    minlen.write_text("digraph { a -> b [minlen=2]; b -> c }")
+    proc = subprocess.run(
+        ["dot", "-Gphase=1", minlen],
+        check=True,
+        encoding="utf-8",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert sorted(map(int, re.findall(r"rank=(\d+)", proc.stdout))) == [0, 2, 3]
+
+
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 @pytest.mark.skipif(
     platform.system() == "Windows",

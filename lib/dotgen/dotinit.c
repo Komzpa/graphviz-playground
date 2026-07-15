@@ -281,10 +281,11 @@ attach_phase_attrs (Agraph_t * g, int maxphase)
     Agsym_t* rk = agnodeattr(g,"rank","");
     Agsym_t* order = agnodeattr(g,"order","");
     Agnode_t* n;
+    const int rank_factor = (GD_has_labels(g) & EDGE_LABEL) ? 2 : 1;
 
     for (n = agfstnode(g); n; n = agnxtnode(g,n)) {
 	if (maxphase >= 1) {
-	    agxset(n, rk, ITOS(ND_rank(n)));
+	    agxset(n, rk, ITOS(ND_rank(n) / rank_factor));
 	}
 	if (maxphase >= 2) {
 	    agxset(n, order, ITOS(ND_order(n)));

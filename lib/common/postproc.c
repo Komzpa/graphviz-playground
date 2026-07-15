@@ -498,6 +498,9 @@ static void addXLabels(Agraph_t * gp)
 		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep)); 
 		    xlp++;
 		}
+		else if (State < GVSPLINES) {
+		    continue;
+		}
 		else {
 		    agwarningf("no position for edge with label %s\n",
 			    ED_label(ep)->text);
@@ -512,6 +515,9 @@ static void addXLabels(Agraph_t * gp)
 		else if (HAVE_EDGE(ep)) {
 		    addXLabel (lp, objp, xlp, 1, edgeTailpoint(ep)); 
 		    xlp++;
+		}
+		else if (State < GVSPLINES) {
+		    continue;
 		}
 		else {
 		    agwarningf("no position for edge with tail label %s\n",
@@ -528,6 +534,9 @@ static void addXLabels(Agraph_t * gp)
 		    addXLabel (lp, objp, xlp, 1, edgeHeadpoint(ep)); 
 		    xlp++;
 		}
+		else if (State < GVSPLINES) {
+		    continue;
+		}
 		else {
 		    agwarningf("no position for edge with head label %s\n",
 			    ED_head_label(ep)->text);
@@ -542,6 +551,9 @@ static void addXLabels(Agraph_t * gp)
 		else if (HAVE_EDGE(ep)) {
 		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep)); 
 		    xlp++;
+		}
+		else if (State < GVSPLINES) {
+		    continue;
 		}
 		else {
 		    agwarningf("no position for edge with xlabel %s\n",

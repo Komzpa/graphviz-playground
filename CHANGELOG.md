@@ -83,6 +83,13 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `dot -Gphase=1`, `dot -Gphase=2`, and `dot -Gphase=3` no longer emit edge
+  label position warnings before edge positions are computed, and their
+  reported node ranks no longer expose the internal extra ranks used for edge
+  labels. #2569
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
