@@ -34,7 +34,7 @@ standardize(double* orthog, int nvtxs)
 		orthog[i]-=avg;
 	
 	/* normalize: */
-	len = norm(orthog, nvtxs-1);
+	len = norm(orthog, nvtxs);
 
 	// if we have a degenerate length, do not attempt to scale by it
 	if (fabs(len) < DBL_EPSILON) {
@@ -61,7 +61,7 @@ mat_mult_vec_orthog(float** mat, int dim1, int dim2, double* vec,
 	}
 	assert(orthog != NULL);
 	double alpha = -vectors_inner_product(dim1, result, orthog);
-	scadd(result, dim1 - 1, alpha, orthog);	
+	scadd(result, dim1, alpha, orthog);
 }
 
 static void
@@ -97,13 +97,13 @@ choose:
 
 		assert(orthog != NULL);
 		alpha = -vectors_inner_product(n, orthog, curr_vector);
-		scadd(curr_vector, n - 1, alpha, orthog);	
+		scadd(curr_vector, n, alpha, orthog);
 			// orthogonalize against higher eigenvectors
 		for (j=0; j<i; j++) {
 			alpha = -vectors_inner_product(n, eigs[j], curr_vector);
-			scadd(curr_vector, n-1, alpha, eigs[j]);
+			scadd(curr_vector, n, alpha, eigs[j]);
 	    }
-		len = norm(curr_vector, n-1);
+		len = norm(curr_vector, n);
 		if (len<1e-10) {
 			/* We have chosen a vector colinear with prvious ones */
 			goto choose;
@@ -118,9 +118,9 @@ choose:
 			/* orthogonalize against higher eigenvectors */
 			for (j=0; j<i; j++) {
 				alpha = -vectors_inner_product(n, eigs[j], curr_vector);
-				scadd(curr_vector, n-1, alpha, eigs[j]);
+				scadd(curr_vector, n, alpha, eigs[j]);
 			}
-			len = norm(curr_vector, n-1);
+			len = norm(curr_vector, n);
 			if (len<1e-10) {
 			    /* We have reached the null space (e.vec. associated 
                  * with e.val. 0)
@@ -149,9 +149,9 @@ exit:
 		/* orthogonalize against higher eigenvectors */
 		for (j=0; j<i; j++) {
 			alpha = -vectors_inner_product(n, eigs[j], curr_vector);
-			scadd(curr_vector, n-1, alpha, eigs[j]);
+			scadd(curr_vector, n, alpha, eigs[j]);
 	    }
-		len = norm(curr_vector, n-1);
+		len = norm(curr_vector, n);
 		vectors_scalar_mult(n, curr_vector, 1.0 / len, curr_vector);
 		evals[i]=0;
 		
@@ -380,4 +380,3 @@ cleanup:
 }
 
 #endif /* DIGCOLA */
-
