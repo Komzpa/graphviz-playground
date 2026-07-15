@@ -456,7 +456,8 @@ static std::string xName(used_t &names, char *oldname) {
  * and adding edges.
  */
 static void
-cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames) {
+cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames,
+          bool keep_bb = false) {
     node_t *n;
     node_t *nn;
     edge_t *e;
@@ -467,7 +468,7 @@ cloneSubg(Agraph_t *g, Agraph_t *ng, Agsym_t *G_bb, used_t &gnames) {
     Agraph_t *nsubg;
 
     cloneGraphAttr(g, ng);
-    if (doPack)
+    if (doPack && !keep_bb)
 	agxset(ng, G_bb, "");	/* Unset all subgraph bb */
 
     /* clone subgraphs */
@@ -528,6 +529,19 @@ static void cloneClusterTree(Agraph_t * g, Agraph_t * ng)
     }
 }
 
+static std::string graphWrapperName(used_t &names, Agraph_t *g) {
+    std::string name = agnameof(g);
+    if (GD_label(g) && name.rfind("cluster", 0) != 0)
+	name = "cluster_" + name;
+    return xName(names, name.data());
+}
+
+struct cloned_input_t {
+    Agraph_t *old_graph;
+    Agraph_t *new_graph;
+    bool wrapper_is_cluster;
+};
+
 /* cloneGraph:
  * Create and return a new graph which is the logical union
  * of the graphs gs. 
@@ -539,6 +553,7 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
     Agnode_t *n;
     Agnode_t *np;
     bool doWarn = true;
+    std::vector<cloned_input_t> cloned_inputs;
 
     if (verbose)
 	std::cerr << "Creating clone graph\n";
@@ -565,7 +580,8 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
 	Agraph_t *g = gs[i];
 	if (verbose)
 	    std::cerr << "Cloning graph " << agnameof(g) << '\n';
-	GD_n_cluster(root) += GD_n_cluster(g);
+	bool const wrapper_is_cluster = GD_label(g) != nullptr;
+	GD_n_cluster(root) += wrapper_is_cluster ? 1 : GD_n_cluster(g);
 	GD_has_labels(root) |= GD_has_labels(g);
 
 	/* Clone nodes, checking for node name conflicts */
@@ -583,9 +599,10 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
 	}
 
 	/* wrap the clone of g in a subgraph of root */
-	subg = agsubg(root, xName(gnames, agnameof(g)).data(), 1);
+	subg = agsubg(root, graphWrapperName(gnames, g).data(), 1);
 	agbindrec (subg, "Agraphinfo_t", sizeof(Agraphinfo_t), true);
-	cloneSubg(g, subg, G_bb, gnames);
+	cloneSubg(g, subg, G_bb, gnames, wrapper_is_cluster);
+	cloned_inputs.push_back({g, subg, wrapper_is_cluster});
     }
 
     /* set up cluster tree */
@@ -595,11 +612,17 @@ static Agraph_t *cloneGraph(std::vector<Agraph_t *> &gs, GVC_t *gvc,
 	GD_clust(root) = new (p) graph_t *[1 + GD_n_cluster(root)]{};
 
 	idx = 1;
-	for (Agraph_t *g : gs) {
-	    for (j = 1; j <= GD_n_cluster(g); j++) {
-		Agraph_t *c = GETCLUST(GD_clust(g)[j]);
-		GD_clust(root)[idx++] = c;
-		cloneClusterTree(GD_clust(g)[j], c);
+	for (const cloned_input_t &input : cloned_inputs) {
+	    Agraph_t *g = input.old_graph;
+	    if (input.wrapper_is_cluster) {
+		GD_clust(root)[idx++] = input.new_graph;
+		cloneClusterTree(g, input.new_graph);
+	    } else {
+		for (j = 1; j <= GD_n_cluster(g); j++) {
+		    Agraph_t *c = GETCLUST(GD_clust(g)[j]);
+		    GD_clust(root)[idx++] = c;
+		    cloneClusterTree(GD_clust(g)[j], c);
+		}
 	    }
 	}
     }
