@@ -2964,7 +2964,6 @@ def test_2185_5():
     assert out.startswith(expected), "incorrect GVPR interpretation"
 
 
-@pytest.mark.xfail(strict=True)  # FIXME
 def test_2193():
     """
     the canonical format should be stable

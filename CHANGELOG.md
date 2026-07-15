@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
 
+### Fixed
+
+- The `canon` output format now produces stable output when run repeatedly on
+  its own output. #2193
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
