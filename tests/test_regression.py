@@ -4612,13 +4612,7 @@ def test_2516():
     "testcase",
     (
         "705.dot",
-        pytest.param(
-            "2521.dot",
-            marks=pytest.mark.xfail(
-                strict=False,
-                reason="https://gitlab.com/graphviz/graphviz/-/issues/2521",
-            ),
-        ),
+        "2521.dot",
         "2521_1.dot",
     ),
 )
