@@ -165,6 +165,26 @@ static void swap_spline(splines *s) {
   }
 }
 
+static double point_distance_sq(pointf a, pointf b) {
+  const double dx = a.x - b.x;
+  const double dy = a.y - b.y;
+  return dx * dx + dy * dy;
+}
+
+static void normalize_flat_adj_spline(edge_t *e, bezier *bz) {
+  if (bz->size == 0)
+    return;
+
+  const pointf tail = add_pointf(ND_coord(agtail(e)), ED_tail_port(e).p);
+  const pointf head = add_pointf(ND_coord(aghead(e)), ED_head_port(e).p);
+  const pointf first = bz->list[0];
+  const pointf last = bz->list[bz->size - 1];
+
+  if (point_distance_sq(first, head) < point_distance_sq(first, tail) &&
+      point_distance_sq(last, tail) < point_distance_sq(last, head))
+    swap_bezier(bz);
+}
+
 /* Some back edges are reversed during layout and the reversed edge
  * is used to compute the spline. We would like to guarantee that
  * the order of control points always goes from tail to head, so
@@ -1281,6 +1301,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       ED_label(e)->set = true;
       updateBB(g, ED_label(e));
     }
+    normalize_flat_adj_spline(e, bz);
   }
 
   cleanupCloneGraph(auxg, &attrs);

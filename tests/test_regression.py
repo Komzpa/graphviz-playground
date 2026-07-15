@@ -4234,6 +4234,35 @@ def test_2437():
     assert len(polygons) == 3, "wrong number of polygons in output"
 
 
+def test_2439():
+    """
+    dot and xdot output should report adjacent flat-edge arrows at the head
+    https://gitlab.com/graphviz/graphviz/-/issues/2439
+    """
+
+    source = """
+        digraph S {
+          rankdir=LR
+          nodesep=1.5
+          subgraph clusterAAn {
+            {
+              rank=sink
+              AA1w [height=2]
+              AA1w:w -> AA2w:w
+              AA3w:sw -> AA4w:sw
+              AA1w:w -> AA4w:w
+
+              { AA1w -> AA2w -> AA3w -> AA4w }
+            }
+          }
+        }
+    """
+
+    for fmt in ("dot", "xdot"):
+        output = dot(fmt, source=source)
+        assert 'pos="s,' not in output, f"{fmt} output reported tail arrows"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2416"
 )
