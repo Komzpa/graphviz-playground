@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- SVG output now supports an `xslStylesheet` graph attribute for referencing an
+  XSL stylesheet processing instruction. #496
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

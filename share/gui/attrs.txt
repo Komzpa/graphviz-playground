@@ -93,5 +93,6 @@ A,toplabel, , NODE, ALL_ENGINES
 A,vertices, , NODE, ALL_ENGINES
 F,voro_margin, 0.05, GRAPH, NEATO
 F,weight, , EDGE, DOT Or NEATO
+A,xslStylesheet, , GRAPH, ALL_ENGINES
 F,width, 0.75, NODE, ALL_ENGINES
 F,z, 0.0, NODE, ALL_ENGINES

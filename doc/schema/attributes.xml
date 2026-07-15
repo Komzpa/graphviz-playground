@@ -2220,6 +2220,16 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="xslStylesheet" type="xsd:string">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					A URL or pathname specifying an XSL style sheet, used in SVG output.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<xsd:attribute name="tailURL" type="xsd:anyURI">
 		<xsd:annotation>
@@ -2621,6 +2631,7 @@
 		<xsd:attribute ref="splines" />
 		<xsd:attribute ref="start" />
 		<xsd:attribute ref="stylesheet" />
+		<xsd:attribute ref="xslStylesheet" />
 		<xsd:attribute ref="target" />
 		<xsd:attribute ref="truecolor" />
 		<xsd:attribute ref="viewport" />

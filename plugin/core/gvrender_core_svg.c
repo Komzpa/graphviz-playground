@@ -227,8 +227,13 @@ static void svg_begin_job(GVJ_t * job)
 		   "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n");
 	    if ((s = agget(job->gvc->g, "stylesheet")) && s[0]) {
 		gvputs(job, "<?xml-stylesheet href=\"");
-		gvputs(job, s);
+		gvputs_xml(job, s);
 		gvputs(job, "\" type=\"text/css\"?>\n");
+	    }
+	    if ((s = agget(job->gvc->g, "xslStylesheet")) && s[0]) {
+		gvputs(job, "<?xml-stylesheet href=\"");
+		gvputs_xml(job, s);
+		gvputs(job, "\" type=\"application/xml\"?>\n");
 	    }
 	    gvputs(job, "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\"\n"
                 " \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n");

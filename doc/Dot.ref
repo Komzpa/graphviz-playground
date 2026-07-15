@@ -551,6 +551,9 @@ style
 stylesheet
      The URL of a CSS stylesheet to be referenced from the output file.
      Relevant only for SVG output.
+xslStylesheet
+     The URL of an XSL stylesheet to be referenced from the output file.
+     Relevant only for SVG output.
 tailURL
      When the output format is imap, or cmap, if tailURL is defined, it is
      output as part of the tail label of the edge. If tailURL
