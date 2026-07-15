@@ -300,7 +300,8 @@ adjustBB (object_t* objp, boxf bb)
  * If initObj is set, initialize the object.
  */
 static void
-addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj, pointf pos)
+addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj,
+    pointf pos, bool prefer_center)
 {
     if (initObj) {
 	*objp = (object_t){.pos = pos};
@@ -315,6 +316,7 @@ addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj, pointf p
     }
     xlp->lbl = lp;
     xlp->set = false;
+    xlp->prefer_center = prefer_center;
     objp->lbl = xlp;
 }
 
@@ -484,7 +486,7 @@ static void addXLabels(Agraph_t * gp)
 	    }
 	    else {
 		pointf ignored = { 0.0, 0.0 };
-		addXLabel (lp, objp, xlp, 0, ignored);
+		addXLabel (lp, objp, xlp, 0, ignored, false);
 		xlp++;
 	    }
 	}
@@ -495,7 +497,7 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep), false);
 		    xlp++;
 		}
 		else {
@@ -510,7 +512,7 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeTailpoint(ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeTailpoint(ep), false);
 		    xlp++;
 		}
 		else {
@@ -525,7 +527,7 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeHeadpoint(ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeHeadpoint(ep), false);
 		    xlp++;
 		}
 		else {
@@ -540,7 +542,7 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep), Flip);
 		    xlp++;
 		}
 		else {

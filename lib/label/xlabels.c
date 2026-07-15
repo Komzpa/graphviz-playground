@@ -368,6 +368,30 @@ static BestPos_t xladjust(XLabels_t *xlp, object_t *objp) {
 
   assert(objp->lbl);
 
+  if (lp->prefer_center && objp->sz.x == 0 && objp->sz.y == 0) {
+    const double cx = objp->pos.x - lp->sz.x / 2.0;
+    const double cy = objp->pos.y - lp->sz.y / 2.0;
+
+    lp->pos = (pointf){cx, cy};
+    BestPos_t bp = xlintersections(xlp, objp, intrsx);
+    if (bp.n == 0)
+      return bp;
+
+    lp->pos = (pointf){objp->pos.x - lp->sz.x, cy};
+    BestPos_t nbp = xlintersections(xlp, objp, intrsx);
+    if (nbp.n == 0)
+      return nbp;
+    if (nbp.area < bp.area)
+      bp = nbp;
+
+    lp->pos = (pointf){objp->pos.x, cy};
+    nbp = xlintersections(xlp, objp, intrsx);
+    if (nbp.n == 0)
+      return nbp;
+    if (nbp.area < bp.area)
+      bp = nbp;
+  }
+
   /*x left */
   lp->pos.x = objp->pos.x - lp->sz.x;
   /*top */

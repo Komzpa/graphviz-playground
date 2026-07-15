@@ -83,6 +83,12 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Edge `xlabel`s in `rankdir=LR` graphs are no longer horizontally offset from
+  their edge midpoints by the label width when an unobstructed centered
+  placement is available. #1348
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
