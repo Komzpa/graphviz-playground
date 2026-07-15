@@ -4352,10 +4352,6 @@ def test_2460():
     ), "back slashes in labels handled incorrectly"
 
 
-@pytest.mark.xfail(
-    strict=platform.system() != "Windows",
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2470",
-)
 def test_2470():
     """
     another “trouble in init_rank variant”

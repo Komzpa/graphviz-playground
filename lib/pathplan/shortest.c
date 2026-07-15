@@ -69,6 +69,7 @@ static size_t finddqsplit(const deque_t *dq, pointnlink_t*);
 static int pointintri(size_t, Ppoint_t *);
 
 static int growops(size_t);
+static int straight_path(Ppoint_t[2], Ppolyline_t *);
 
 static Ppoint_t point_indexer(void *base, size_t index) {
   pointnlink_t **b = base;
@@ -183,7 +184,7 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
-	return -1;
+	return straight_path(eps, output);
     }
     ftrii = trii;
     for (trii = 0; trii < LIST_SIZE(&tris); trii++)
@@ -194,7 +195,7 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
-	return -1;
+	return straight_path(eps, output);
     }
     ltrii = trii;
 
@@ -205,12 +206,7 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	free(pnlps);
 	free(pnls);
 	/* a straight line is better than failing */
-	if (growops(2) != 0)
-		return -2;
-	output->pn = 2;
-	ops[0] = eps[0], ops[1] = eps[1];
-	output->ps = ops;
-	return 0;
+	return straight_path(eps, output);
     }
 
     /* if endpoints in same triangle, use a single line */
@@ -310,6 +306,16 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
     free(pnlps);
     free(pnls);
 
+    return 0;
+}
+
+static int straight_path(Ppoint_t eps[2], Ppolyline_t *output) {
+    /* a straight line is better than failing */
+    if (growops(2) != 0)
+	return -2;
+    output->pn = 2;
+    ops[0] = eps[0], ops[1] = eps[1];
+    output->ps = ops;
     return 0;
 }
 
