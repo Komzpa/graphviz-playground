@@ -1645,6 +1645,32 @@ def test_1813():
     assert "Usage" in output, "gvedit -? did not show usage"
 
 
+def test_1844():
+    """
+    `splines=polyline` should render straight edge polylines
+    https://gitlab.com/graphviz/graphviz/-/issues/1844
+    """
+
+    input = Path(__file__).parent / "1844.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    svg = dot("svg", input)
+    root = ET.fromstring(svg)
+
+    edge_groups = root.findall(".//{http://www.w3.org/2000/svg}g[@class='edge']")
+    assert len(edge_groups) == 13, "unexpected number of edges"
+
+    for edge_group in edge_groups:
+        title = edge_group.find("{http://www.w3.org/2000/svg}title")
+        edge_name = title.text if title is not None else "<unknown edge>"
+
+        paths = edge_group.findall("{http://www.w3.org/2000/svg}path")
+        assert paths == [], f"{edge_name} rendered as a curved SVG path"
+
+        polylines = edge_group.findall("{http://www.w3.org/2000/svg}polyline")
+        assert len(polylines) == 1, f"{edge_name} did not render as a polyline"
+
+
 def test_1845():
     """
     rendering sequential graphs to PS should not segfault

@@ -1,0 +1,35 @@
+digraph G {
+
+  # rounded nodes
+  {
+    node[shape=box,style="rounded,filled",fillcolor=aliceblue,fontname=helvetica,fontsize=12,fontcolor=gray20,color=mediumpurple,margin="0,0",height=0.4]
+
+    Start
+    End
+  }
+
+  # box nodes
+  {
+    node[shape=box,style=filled,fillcolor=aliceblue,fontname=helvetica,fontsize=12,fontcolor=gray20,color=mediumpurple,margin="0.1,0.1",height=0.4,width=0.3]
+
+    br[label="Bedroom"]
+    lr[label="Living Room"]
+    c[label="Cellar"]
+    s1[label="Stairs"]
+    s2[label="Stairs"]
+    e[label="Exterior"]
+    w[label="Window"]
+  }
+
+  edge[arrowsize=0.7,color=gray20,fontname=helvetica,fontsize=10,fontcolor=gray20]
+
+  splines="polyline"
+  nodesep=2
+  ranksep=2
+
+  Start->br->s1->lr->s2->c
+  c->s2->lr->s1->br
+  lr->e[label="Must have T-Shirt",style=dotted]
+  br->w->e
+  e->End
+}
