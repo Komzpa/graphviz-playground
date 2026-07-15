@@ -985,7 +985,10 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
     dumb[2] = dumb[3] = add_pointf(ND_coord(head), ED_head_port(e).p);
     if (e_cnt == 1 || Concentrate) {
 	if (curved) bend(dumb,get_cycle_centroid(g, edge_list[0]));
-	clip_and_install(e, aghead(e), dumb, 4, sinfo);
+	splineInfo single_sinfo = *sinfo;
+	if (curved && e_cnt == 1)
+	    single_sinfo.ignoreSwap = true;
+	clip_and_install(e, aghead(e), dumb, 4, &single_sinfo);
 	addEdgeLabels(e);
 	return;
     }

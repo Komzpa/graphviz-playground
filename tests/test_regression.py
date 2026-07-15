@@ -4250,12 +4250,46 @@ def test_2416():
     edges = data["edges"]
     assert len(edges) == 2, "unexpected number of output edges"
 
-    # extract the height each edge’s arrow starts at
-    y_1 = edges[0]["_hdraw_"][3]["points"][0][1]
-    y_2 = edges[1]["_hdraw_"][3]["points"][0][1]
+    for edge in edges:
+        assert _arrow_is_closer_to_head(data, edge), "edge arrow is reversed"
 
-    # assuming the graph is vertical, these should not be too close
-    assert abs(y_1 - y_2) > 1, "edge arrows appear to be drawn next to the same node"
+
+def test_1972():
+    """
+    `splines=curved` with `rank=max` should not reverse the arrow direction
+    https://gitlab.com/graphviz/graphviz/-/issues/1972
+    """
+
+    input = """
+    digraph A {
+      splines=curved;
+      B -> A
+      {rank=max; B;}
+    }
+    """
+
+    output = dot("json", source=input)
+    data = json.loads(output)
+
+    edges = data["edges"]
+    assert len(edges) == 1, "unexpected number of output edges"
+    assert _arrow_is_closer_to_head(data, edges[0]), "edge arrow is reversed"
+
+
+def _arrow_is_closer_to_head(data, edge):
+    def node_y(index):
+        return float(data["objects"][index]["pos"].split(",")[1])
+
+    def arrow_y():
+        draw = edge.get("_hdraw_") or edge.get("_tdraw_")
+        assert draw is not None, "missing edge arrow"
+        polygon = next(op for op in draw if op["op"] == "P")
+        return sum(point[1] for point in polygon["points"]) / len(polygon["points"])
+
+    arrow = arrow_y()
+    head = node_y(edge["head"])
+    tail = node_y(edge["tail"])
+    return abs(arrow - head) < abs(arrow - tail)
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
