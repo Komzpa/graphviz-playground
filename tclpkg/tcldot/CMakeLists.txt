@@ -46,10 +46,12 @@ if(WIN32 AND NOT MINGW AND install_win_dependency_dlls)
   )
 endif()
 
+graphviz_tcl_package_file(TCLDOT_PACKAGE_FILE
+  libtcldot${CMAKE_SHARED_LIBRARY_SUFFIX})
 add_custom_target(tcldot_pkgindex
   COMMAND
     ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../mkpkgindex.py"
-    --file libtcldot${CMAKE_SHARED_LIBRARY_SUFFIX}
+    --file "${TCLDOT_PACKAGE_FILE}"
     --name Tcldot
     --version "${GRAPHVIZ_VERSION}"
   DEPENDS ../mkpkgindex.py

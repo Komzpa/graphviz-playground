@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- CMake MinGW installs now generate TCL package indexes that load Graphviz TCL
+  extension DLLs from the installed `bin` directory. #2817
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

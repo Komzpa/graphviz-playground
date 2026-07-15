@@ -375,10 +375,12 @@ if(ENABLE_SWIG)
       ARCHIVE DESTINATION ${LIBRARY_INSTALL_DIR}
     )
 
+    graphviz_tcl_package_file(GV_TCL_PACKAGE_FILE
+      libgv_tcl${CMAKE_SHARED_LIBRARY_SUFFIX})
     add_custom_target(gv_tcl_pkgindex
       COMMAND
         ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../mkpkgindex.py"
-        --file libgv_tcl${CMAKE_SHARED_LIBRARY_SUFFIX}
+        --file "${GV_TCL_PACKAGE_FILE}"
         --name gv
         --version 0
       DEPENDS ../mkpkgindex.py

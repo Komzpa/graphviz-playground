@@ -28,10 +28,12 @@ install(
   ARCHIVE DESTINATION ${LIBRARY_INSTALL_DIR}
 )
 
+graphviz_tcl_package_file(TCLPLAN_PACKAGE_FILE
+  libtclplan${CMAKE_SHARED_LIBRARY_SUFFIX})
 add_custom_target(tclplan_pkgindex
   COMMAND
     ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../mkpkgindex.py"
-    --file libtclplan${CMAKE_SHARED_LIBRARY_SUFFIX}
+    --file "${TCLPLAN_PACKAGE_FILE}"
     --name Tclpathplan
     --version "${GRAPHVIZ_VERSION}"
   DEPENDS ../mkpkgindex.py

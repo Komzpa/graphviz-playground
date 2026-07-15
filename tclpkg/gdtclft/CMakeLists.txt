@@ -20,10 +20,12 @@ if(GD_FOUND)
     ARCHIVE DESTINATION ${LIBRARY_INSTALL_DIR}
   )
 
+  graphviz_tcl_package_file(GDTCLFT_PACKAGE_FILE
+    libgdtclft${CMAKE_SHARED_LIBRARY_SUFFIX})
   add_custom_target(gdtclft_pkgindex
     COMMAND
       ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/../mkpkgindex.py"
-      --file libgdtclft${CMAKE_SHARED_LIBRARY_SUFFIX}
+      --file "${GDTCLFT_PACKAGE_FILE}"
       --name Gdtclft
       --version "${GRAPHVIZ_VERSION}"
     DEPENDS ../mkpkgindex.py
