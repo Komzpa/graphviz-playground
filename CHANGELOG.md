@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- Rounded boxes in SVG output are now emitted as `<rect>` elements with corner
+  radii instead of Bézier paths. #2167
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
