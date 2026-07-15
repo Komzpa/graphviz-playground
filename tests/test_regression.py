@@ -3311,9 +3311,6 @@ def test_2484(tmp_path: Path):
     )
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2592"
-)
 def test_2592():
     """
     pack modes should not remove xlabels

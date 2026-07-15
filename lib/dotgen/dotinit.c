@@ -471,6 +471,7 @@ static int doDot(Agraph_t *g) {
 	    }
 	} else if (GD_drawing(g)->ratio_kind == R_NONE) {
 	    pinfo.doSplines = true;
+	    setEdgeType(g, EDGETYPE_SPLINE);
 
 	    for (size_t i = 0; i < ncc; i++) {
 		sg = ccs[i];
