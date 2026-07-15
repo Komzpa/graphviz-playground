@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Processing a large graph no longer overflows the stack in the network simplex
+  tree-rank adjustment step in Debug builds. #2812
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

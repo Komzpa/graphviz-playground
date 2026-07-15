@@ -576,18 +576,34 @@ subtree_t *STextractmin(STheap_t *heap)
 static
 void tree_adjust(Agnode_t *v, Agnode_t *from, int delta)
 {
-    Agedge_t *e;
-    ND_rank(v) += delta;
-    for (int i = 0; (e = ND_tree_in(v).list[i]); i++) {
-      Agnode_t *const w = agtail(e);
-      if (w != from)
-        tree_adjust(w, v, delta);
+    typedef struct {
+	Agnode_t *v;
+	Agnode_t *from;
+    } state_t;
+
+    LIST(state_t) todo = {0};
+    LIST_PUSH_BACK(&todo, (state_t){.v = v, .from = from});
+
+    while (!LIST_IS_EMPTY(&todo)) {
+	const state_t current = LIST_POP_BACK(&todo);
+	ND_rank(current.v) += delta;
+
+	Agedge_t *e;
+	for (int i = 0; (e = ND_tree_in(current.v).list[i]); i++) {
+	    Agnode_t *const w = agtail(e);
+	    if (w != current.from) {
+		LIST_PUSH_BACK(&todo, (state_t){.v = w, .from = current.v});
+	    }
+	}
+	for (int i = 0; (e = ND_tree_out(current.v).list[i]); i++) {
+	    Agnode_t *const w = aghead(e);
+	    if (w != current.from) {
+		LIST_PUSH_BACK(&todo, (state_t){.v = w, .from = current.v});
+	    }
+	}
     }
-    for (int i = 0; (e = ND_tree_out(v).list[i]); i++) {
-      Agnode_t *const w = aghead(e);
-      if (w != from)
-        tree_adjust(w, v, delta);
-    }
+
+    LIST_FREE(&todo);
 }
 
 static
