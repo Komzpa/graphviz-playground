@@ -1327,6 +1327,25 @@ addCluster (graph_t* g)
 	}
    }
 }
+
+static bool hasTopLevelCluster(graph_t *g)
+{
+    for (graph_t *subg = agfstsubg(agroot(g)); subg; subg = agnxtsubg(subg)) {
+	if (is_a_cluster(subg))
+	    return true;
+    }
+    return false;
+}
+
+static bool graphAttrHasValue(graph_t *g, char *name)
+{
+    Agsym_t *sym = agfindgraphattr(g, name);
+    if (sym == NULL)
+	return false;
+
+    const char *value = agxget(g, sym);
+    return value != NULL && value[0] != '\0';
+}
 #endif
 
 /* Simple wrapper to compute graph's bb, then route edges after
@@ -1364,6 +1383,16 @@ void neato_layout(Agraph_t * g)
 	neato_init_graph(g);
 	layoutMode = neatoMode(g);
 	graphAdjustMode (g, &am, 0);
+#ifdef IPSEPCOLA
+	if (layoutMode == MODE_MAJOR && am.mode == AM_NONE &&
+	    !graphAttrHasValue(g, "mode") &&
+	    !graphAttrHasValue(g, "overlap") &&
+	    hasTopLevelCluster(g)) {
+	    layoutMode = MODE_IPSEP;
+	    am.mode = AM_IPSEP;
+	    am.print = "ipsep";
+	}
+#endif
 	model = neatoModel(g);
 	mode = getPackModeInfo (g, l_undef, &pinfo);
 	Pack = getPack(g, -1, CL_OFFSET);

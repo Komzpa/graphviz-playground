@@ -5127,6 +5127,49 @@ def test_2593():
     assert proc.returncode == 1, "ccomps did not detect graphs have multiple components"
 
 
+def test_2595():
+    """
+    neato should not place a node outside a cluster within that cluster's box
+    https://gitlab.com/graphviz/graphviz/-/issues/2595
+    """
+
+    source = """
+        digraph {
+          A
+
+          subgraph cluster {
+            bgcolor=yellow
+            B
+            C
+            D
+            E
+          }
+
+          F
+          G
+
+          B -> A
+          C -> A
+          A -> D
+          A -> E
+          D -> F
+          E -> G
+        }
+    """
+
+    dot_exe = shutil.which("dot_builtins") or "dot"
+    output = run(dot_exe, "-Kneato", "-Tjson", input=source)
+    data = json.loads(output)
+
+    cluster = next(o for o in data["objects"] if o["name"] == "cluster")
+    node_a = next(o for o in data["objects"] if o["name"] == "A")
+
+    x0, y0, x1, y1 = [float(v) for v in cluster["bb"].split(",")]
+    x, y = [float(v) for v in node_a["pos"].split(",")]
+
+    assert not (x0 <= x <= x1 and y0 <= y <= y1), "A was placed in the cluster"
+
+
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 @pytest.mark.skipif(
     platform.system() == "Windows",
