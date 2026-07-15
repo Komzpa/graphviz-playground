@@ -95,6 +95,8 @@ and this project adheres to
 
 ### Fixed
 
+- `dot` no longer warns that a cluster is empty when the cluster contains nodes
+  through a nested rank subgraph. #2806
 - When building from source from a Git checkout, builds with
   `--disable-python`/`--disable-python3` once again work. This was a regression
   in Graphviz 14.1.3. #2839
