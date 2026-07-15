@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- SVG output now emits Graphviz `green` as its RGB value instead of the
+  incompatible SVG/CSS color name. #2132
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

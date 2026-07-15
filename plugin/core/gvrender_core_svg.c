@@ -743,7 +743,7 @@ static char *svg_knowncolors[] = {
     "deepskyblue", "dimgray", "dimgrey", "dodgerblue",
     "firebrick", "floralwhite", "forestgreen", "fuchsia",
     "gainsboro", "ghostwhite", "gold", "goldenrod", "gray",
-    "green", "greenyellow", "grey",
+    "greenyellow", "grey",
     "honeydew", "hotpink", "indianred",
     "indigo", "ivory", "khaki",
     "lavender", "lavenderblush", "lawngreen", "lemonchiffon",
