@@ -29,6 +29,7 @@
 
 #define RBCONST 12
 #define RBCURVE .5
+#define TRANSPARENT_COLOR "#fffffe00"
 
 typedef struct {
     pointf (*size_gen) (pointf);
@@ -3012,7 +3013,7 @@ static void poly_gencode(GVJ_t * job, node_t * n)
     /* if no boundary but filled, set boundary color to transparent */
     if (peripheries == 0 && filled != 0 && pfilled) {
 	peripheries = 1;
-	gvrender_set_pencolor(job, "transparent");
+	gvrender_set_pencolor(job, TRANSPARENT_COLOR);
     }
 
     /* draw peripheries first */
@@ -3042,7 +3043,7 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 	    }
 	    gvrender_polygon(job, AF, sides, 0);
 	} else if (style.underline) {
-	    gvrender_set_pencolor(job, "transparent");
+	    gvrender_set_pencolor(job, TRANSPARENT_COLOR);
 	    gvrender_polygon(job, AF, sides, filled);
 	    gvrender_set_pencolor(job, pencolor);
 	    gvrender_polyline(job, AF+2, 2);

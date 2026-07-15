@@ -56,6 +56,7 @@
 #define DEFAULT_BORDER    1
 #define DEFAULT_CELLPADDING  2
 #define DEFAULT_CELLSPACING  2
+#define TRANSPARENT_COLOR "#fffffe00"
 
 typedef struct {
     char *url;
@@ -363,7 +364,7 @@ static int setFill(GVJ_t *job, char *color, int angle, htmlstyle_t style,
 	gvrender_set_fillcolor(job, color);
 	filled = FILL;
     }
-    gvrender_set_pencolor(job, "transparent");
+    gvrender_set_pencolor(job, TRANSPARENT_COLOR);
     return filled;
 }
 
