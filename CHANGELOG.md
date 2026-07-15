@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- DOT edge statements with bundled node lists now preserve per-node port
+  specifications, matching the equivalent separated edge statements. #2166
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the

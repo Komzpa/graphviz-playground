@@ -2858,6 +2858,43 @@ def test_2184_2():
     ), "`dot -Tcanon` rearranged a graph in a not-semantically-preserving way"
 
 
+def test_2166():
+    """
+    bundled edge endpoints should preserve node port specifications
+    https://gitlab.com/graphviz/graphviz/-/issues/2166
+    """
+
+    separate = """
+        digraph G {
+            layout=fdp
+            node0 -> node1:w
+            node0 -> node2:w
+            node0 -> node3:w
+        }
+    """
+    bundled = """
+        digraph G {
+            layout=fdp
+            node0 -> {node1:w node2:w node3:w}
+        }
+    """
+
+    dot_output = dot("dot", source=bundled)
+    assert "node0 -> node1:w" in dot_output
+    assert "node0 -> node2:w" in dot_output
+    assert "node0 -> node3:w" in dot_output
+
+    separate_plain = run("dot", "-Tplain", input=separate)
+    bundled_plain = run("dot", "-Tplain", input=bundled)
+    separate_edges = [
+        line for line in separate_plain.splitlines() if line.startswith("edge ")
+    ]
+    bundled_edges = [
+        line for line in bundled_plain.splitlines() if line.startswith("edge ")
+    ]
+    assert bundled_edges == separate_edges
+
+
 def test_2185_1():
     """
     GVPR should deal with strings correctly
