@@ -556,13 +556,9 @@ static void emit_html_tbl(GVJ_t * job, htmltbl_t * tbl, htmlenv_t * env)
 	    free(clrs[1]);
 	}
 
-	while (*cells) {
-	    emit_html_cell(job, *cells, env);
-	    cells++;
-	}
-
 	/* Draw table rules and border.
-	 * Draw after cells so we can draw over any fill.
+	 * Draw before emitting cell contents so text is always painted above
+	 * table-level shapes in output formats that use source order for z-order.
 	 * At present, we set the penwidth to 1 for rules until we provide the calculations to take
 	 * into account wider rules.
 	 */
@@ -575,6 +571,12 @@ static void emit_html_tbl(GVJ_t * job, htmltbl_t * tbl, htmlenv_t * env)
 
 	if (tbl->data.border)
 	    doBorder(job, &tbl->data, pts);
+
+	cells = tbl->cells;
+	while (*cells) {
+	    emit_html_cell(job, *cells, env);
+	    cells++;
+	}
 
     }
 
