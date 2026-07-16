@@ -238,6 +238,8 @@ ps_set_pen_style(GVJ_t *job)
     while (s && (p = line = *s++)) {
 	if (strcmp(line, "setlinewidth") == 0)
 	    continue;
+	if (strcmp(line, "filled") == 0 || strcmp(line, "unfilled") == 0)
+	    continue;
 	while (*p)
 	    p++;
 	p++;
