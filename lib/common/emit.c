@@ -583,6 +583,66 @@ int wedgedEllipse(GVJ_t *job, pointf *pf, const char *clrs) {
     return rv;
 }
 
+static double roundedStripeRadius(pointf p0, pointf p1, pointf p2) {
+    return fmin(12, fmin(fabs(p1.x - p0.x), fabs(p2.y - p1.y)) / 3.0);
+}
+
+static void lineTo(pointf **curve, pointf p) {
+    pointf *out = *curve;
+    out[0] = out[-1];
+    out[1] = p;
+    out[2] = p;
+    *curve += 3;
+}
+
+static void roundedBoxPath(pointf curve[25], pointf p0, pointf p1, pointf p2,
+                           pointf p3) {
+    const double r = roundedStripeRadius(p0, p1, p2);
+    const double k = 0.5522847498307936;
+    const double sx = (p1.x >= p0.x) ? 1 : -1;
+    const double sy = (p2.y >= p1.y) ? 1 : -1;
+    pointf *out = curve;
+
+    *out++ = (pointf){.x = p0.x + sx * r, .y = p0.y};
+    lineTo(&out, (pointf){.x = p1.x - sx * r, .y = p1.y});
+    *out++ = (pointf){.x = p1.x - sx * r + sx * k * r, .y = p1.y};
+    *out++ = (pointf){.x = p1.x, .y = p1.y + sy * r - sy * k * r};
+    *out++ = (pointf){.x = p1.x, .y = p1.y + sy * r};
+    lineTo(&out, (pointf){.x = p2.x, .y = p2.y - sy * r});
+    *out++ = (pointf){.x = p2.x, .y = p2.y - sy * r + sy * k * r};
+    *out++ = (pointf){.x = p2.x - sx * r + sx * k * r, .y = p2.y};
+    *out++ = (pointf){.x = p2.x - sx * r, .y = p2.y};
+    lineTo(&out, (pointf){.x = p3.x + sx * r, .y = p3.y});
+    *out++ = (pointf){.x = p3.x + sx * r - sx * k * r, .y = p3.y};
+    *out++ = (pointf){.x = p3.x, .y = p3.y - sy * r + sy * k * r};
+    *out++ = (pointf){.x = p3.x, .y = p3.y - sy * r};
+    lineTo(&out, (pointf){.x = p0.x, .y = p0.y + sy * r});
+    *out++ = (pointf){.x = p0.x, .y = p0.y + sy * r - sy * k * r};
+    *out++ = (pointf){.x = p0.x + sx * r - sx * k * r, .y = p0.y};
+    *out++ = curve[0];
+}
+
+static void roundedBoxSuffixPath(pointf curve[19], double cutx, pointf p0,
+                                 pointf p1, pointf p2) {
+    const double r = roundedStripeRadius(p0, p1, p2);
+    const double k = 0.5522847498307936;
+    const double sx = (p1.x >= p0.x) ? 1 : -1;
+    const double sy = (p2.y >= p1.y) ? 1 : -1;
+    pointf *out = curve;
+
+    *out++ = (pointf){.x = cutx, .y = p0.y};
+    lineTo(&out, (pointf){.x = p1.x - sx * r, .y = p1.y});
+    *out++ = (pointf){.x = p1.x - sx * r + sx * k * r, .y = p1.y};
+    *out++ = (pointf){.x = p1.x, .y = p1.y + sy * r - sy * k * r};
+    *out++ = (pointf){.x = p1.x, .y = p1.y + sy * r};
+    lineTo(&out, (pointf){.x = p2.x, .y = p2.y - sy * r});
+    *out++ = (pointf){.x = p2.x, .y = p2.y - sy * r + sy * k * r};
+    *out++ = (pointf){.x = p2.x - sx * r + sx * k * r, .y = p2.y};
+    *out++ = (pointf){.x = p2.x - sx * r, .y = p2.y};
+    lineTo(&out, (pointf){.x = cutx, .y = p2.y});
+    lineTo(&out, curve[0]);
+}
+
 /* Fill a rectangular box with vertical stripes of colors.
  * AF gives 4 corner points, with AF[0] the LL corner and the points ordered CCW.
  * clrs is a list of colon separated colors, with possible quantities. 
@@ -596,8 +656,8 @@ int stripedBox(GVJ_t *job, pointf *AF, const char *clrs, int rotate) {
     colorsegs_t segs;
     int rv;
     double xdelta;
-    pointf pts[4];
     double lastx;
+    pointf pts[4];
     double save_penwidth = job->obj->penwidth;
 
     rv = parseSegs(clrs, &segs);
@@ -613,8 +673,8 @@ int stripedBox(GVJ_t *job, pointf *AF, const char *clrs, int rotate) {
 	pts[2] = AF[2];
 	pts[3] = AF[3];
     }
-    lastx = pts[1].x;
     xdelta = (pts[1].x - pts[0].x);
+    lastx = pts[1].x;
     pts[1].x = pts[2].x = pts[0].x;
     
     if (save_penwidth > THIN_LINE)
@@ -630,6 +690,60 @@ int stripedBox(GVJ_t *job, pointf *AF, const char *clrs, int rotate) {
 	    pts[1].x = pts[2].x = pts[0].x + xdelta * (s.t);
 	gvrender_polygon(job, pts, 4, FILL);
 	pts[0].x = pts[3].x = pts[1].x;
+    }
+    if (save_penwidth > THIN_LINE)
+	gvrender_set_penwidth(job, save_penwidth);
+    LIST_FREE(&segs);
+    return rv;
+}
+
+/* Fill a rounded rectangular box with vertical stripes of colors. */
+int stripedRoundedBox(GVJ_t *job, pointf *AF, const char *clrs, int rotate) {
+    colorsegs_t segs;
+    int rv;
+    double xdelta;
+    pointf pts[4];
+    double save_penwidth = job->obj->penwidth;
+    double consumed = 0;
+    bool filled = false;
+
+    rv = parseSegs(clrs, &segs);
+    if (rv == 1 || rv == 2)
+	return rv;
+    if (rotate) {
+	pts[0] = AF[2];
+	pts[1] = AF[3];
+	pts[2] = AF[0];
+	pts[3] = AF[1];
+    } else {
+	pts[0] = AF[0];
+	pts[1] = AF[1];
+	pts[2] = AF[2];
+	pts[3] = AF[3];
+    }
+    xdelta = (pts[1].x - pts[0].x);
+
+    if (save_penwidth > THIN_LINE)
+	gvrender_set_penwidth(job, THIN_LINE);
+    for (size_t i = 0; i < LIST_SIZE(&segs); ++i) {
+	const colorseg_t s = LIST_GET(&segs, i);
+	if (s.color == NULL)
+	    break;
+	if (s.t <= 0)
+	    continue;
+	gvrender_set_fillcolor(job, s.color);
+	if (!filled) {
+	    pointf curve[25];
+	    roundedBoxPath(curve, pts[0], pts[1], pts[2], pts[3]);
+	    gvrender_beziercurve(job, curve, ARRAY_SIZE(curve), FILL);
+	    filled = true;
+	} else {
+	    pointf curve[19];
+	    const double cutx = pts[0].x + xdelta * consumed;
+	    roundedBoxSuffixPath(curve, cutx, pts[0], pts[1], pts[2]);
+	    gvrender_beziercurve(job, curve, ARRAY_SIZE(curve), FILL);
+	}
+	consumed += s.t;
     }
     if (save_penwidth > THIN_LINE)
 	gvrender_set_penwidth(job, save_penwidth);
@@ -4364,4 +4478,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

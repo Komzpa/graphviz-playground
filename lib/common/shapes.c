@@ -3034,6 +3034,13 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 	    if (style.diagonals) {
 		Mcircle_hack(job, n);
 	    }
+	} else if (style.striped && style.rounded) {
+	    if (j == 0) {
+		int rv = stripedRoundedBox(job, AF, fillcolor, 1);
+		if (rv > 1)
+		    agerr(AGPREV, "in node %s\n", agnameof(n));
+	    }
+	    round_corners(job, AF, sides, style, 0);
 	} else if (style.striped) {
 	    if (j == 0) {
 		int rv = stripedBox (job, AF, fillcolor, 1);

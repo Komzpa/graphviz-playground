@@ -1563,6 +1563,45 @@ def test_1724():
     assert ret != -signal.SIGSEGV, "Graphviz segfaulted"
 
 
+def test_1732():
+    """
+    rounded and striped styles should be combinable for box-like shapes
+    https://gitlab.com/graphviz/graphviz/-/issues/1732
+    """
+
+    svg = dot(
+        "svg",
+        source='''\
+digraph G {
+  eg [label=example shape=box style="rounded,striped"
+      fillcolor="#00a803:#ffc905" fontcolor="#000000"]
+}
+''',
+    )
+    root = ET.fromstring(svg)
+    node = root.find(".//{http://www.w3.org/2000/svg}title[.='eg']/..")
+    assert node is not None, "could not find node"
+
+    paths = node.findall("{http://www.w3.org/2000/svg}path")
+    stripe_paths = [
+        path for path in paths if path.get("fill") in {"#00a803", "#ffc905"}
+    ]
+    assert {path.get("fill") for path in stripe_paths} == {
+        "#00a803",
+        "#ffc905",
+    }, "stripes were not rendered as rounded paths"
+
+    for path in stripe_paths:
+        assert "C" in path.get("d", ""), "stripe has no rounded corners"
+
+    stripe_polygons = [
+        polygon
+        for polygon in node.findall("{http://www.w3.org/2000/svg}polygon")
+        if polygon.get("fill") in {"#00a803", "#ffc905"}
+    ]
+    assert stripe_polygons == [], "colored stripes were rendered as sharp polygons"
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",

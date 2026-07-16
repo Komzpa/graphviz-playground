@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The `rounded` and `striped` node styles can now be combined for box-like
+  shapes. #1732
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
