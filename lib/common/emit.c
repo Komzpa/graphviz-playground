@@ -3188,7 +3188,7 @@ boxf xdotBB (Agraph_t* g)
 	    op->bb = ptsBB (op->op.u.polygon.pts, op->op.u.polygon.cnt, &bb);
 	    break;
 	case xd_text :
-	    op->span = gv_alloc(sizeof(textspan_t));
+	    op->span = gv_calloc(1, sizeof(textspan_t));
 	    op->span->str = gv_strdup (op->op.u.text.text);
 	    op->span->just = adjust [op->op.u.text.align];
 	    tf.name = fontname;
@@ -4364,4 +4364,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

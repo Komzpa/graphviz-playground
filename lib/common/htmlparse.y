@@ -37,13 +37,28 @@
 
 static inline void free_ti(textspan_t item) {
   free(item.str);
+  free(item.href);
+  free(item.tooltip);
+  free(item.target);
+  free(item.id);
 }
 
 static inline void free_hi(htextspan_t item) {
   for (size_t i = 0; i < item.nitems; i++) {
     free(item.items[i].str);
+    free(item.items[i].href);
+    free(item.items[i].tooltip);
+    free(item.items[i].target);
+    free(item.items[i].id);
   }
   free(item.items);
+}
+
+static inline void free_hd(htmldata_t *item) {
+  if (item) {
+    free_html_data(item);
+  }
+  free(item);
 }
 
 struct htmlparserstate_s {
@@ -51,6 +66,7 @@ struct htmlparserstate_s {
   htmltbl_t*   tblstack;  /* Stack of tables maintained during parsing */
   LIST(textspan_t)  fitemList;
   LIST(htextspan_t) fspanList;
+  LIST(htmldata_t *) anchorstack;
   agxbuf*      str;       /* Buffer for text */
   LIST(textfont_t *)      fontstack;
   GVC_t*       gvc;
@@ -169,6 +185,12 @@ pushFont (htmlparserstate_t *html_state, textfont_t *fp);
 static void
 popFont (htmlparserstate_t *html_state);
 
+static void
+pushAnchor (htmlparserstate_t *html_state, htmldata_t *ap);
+
+static void
+popAnchor (htmlparserstate_t *html_state);
+
 %}
 
 %union  {
@@ -177,11 +199,12 @@ popFont (htmlparserstate_t *html_state);
   htmlcell_t*  cell;
   htmltbl_t*   tbl;
   textfont_t*  font;
+  htmldata_t*  data;
   htmlimg_t*   img;
   row_t *p;
 }
 
-%token T_end_br T_end_img T_row T_end_row T_html T_end_html
+%token T_end_anchor T_end_br T_end_img T_row T_end_row T_html T_end_html
 %token T_end_table T_end_cell T_end_font T_string T_error
 %token T_n_italic T_n_bold T_n_underline  T_n_overline T_n_sup T_n_sub T_n_s
 %token T_HR T_hr T_end_hr
@@ -191,6 +214,7 @@ popFont (htmlparserstate_t *html_state);
 %token <tbl> T_table
 %token <cell> T_cell
 %token <font> T_font T_italic T_bold T_underline T_overline T_sup T_sub T_s
+%token <data> T_anchor
 
 %type <txt> fonttext
 %type <cell> cell cells
@@ -225,6 +249,7 @@ textitem : string { appendFItemList(&scanner->parser,scanner->parser.str);}
          | sup text n_sup
          | sub text n_sub
          | strike text n_strike
+         | anchor text n_anchor
          ;
 
 font : T_font { pushFont (&scanner->parser,$1); }
@@ -250,6 +275,12 @@ strike : T_s {pushFont(&scanner->parser,$1);}
 
 n_strike : T_n_s {popFont(&scanner->parser);}
             ;
+
+anchor : T_anchor {pushAnchor(&scanner->parser,$1);}
+          ;
+
+n_anchor : T_end_anchor {popAnchor(&scanner->parser);}
+          ;
 
 underline : T_underline {pushFont(&scanner->parser,$1);}
           ;
@@ -353,8 +384,22 @@ VR  : T_vr T_end_vr
 static void
 appendFItemList (htmlparserstate_t *html_state, agxbuf *ag)
 {
-    const textspan_t ti = {.str = agxbdisown(ag),
-                           .font = *LIST_BACK(&html_state->fontstack)};
+    htmldata_t *anchor = NULL;
+    if (!LIST_IS_EMPTY(&html_state->anchorstack))
+	anchor = *LIST_BACK(&html_state->anchorstack);
+
+    textspan_t ti = {.str = agxbdisown(ag),
+                     .font = *LIST_BACK(&html_state->fontstack)};
+    if (anchor) {
+	if (anchor->href)
+	    ti.href = gv_strdup(anchor->href);
+	if (anchor->title)
+	    ti.tooltip = gv_strdup(anchor->title);
+	if (anchor->target)
+	    ti.target = gv_strdup(anchor->target);
+	if (anchor->id)
+	    ti.id = gv_strdup(anchor->id);
+    }
     LIST_APPEND(&html_state->fitemList, ti);
 }
 
@@ -461,6 +506,7 @@ static void cleanup (htmlparserstate_t *html_state)
 
   LIST_CLEAR(&html_state->fitemList);
   LIST_CLEAR(&html_state->fspanList);
+  LIST_CLEAR(&html_state->anchorstack);
 
   LIST_FREE(&html_state->fontstack);
 }
@@ -492,6 +538,19 @@ popFont (htmlparserstate_t *html_state)
     LIST_DROP_BACK(&html_state->fontstack);
 }
 
+static void
+pushAnchor (htmlparserstate_t *html_state, htmldata_t *ap)
+{
+    LIST_PUSH_BACK(&html_state->anchorstack, ap);
+}
+
+static void
+popAnchor (htmlparserstate_t *html_state)
+{
+    if (!LIST_IS_EMPTY(&html_state->anchorstack))
+	LIST_DROP_BACK(&html_state->anchorstack);
+}
+
 /* Return parsed label or NULL if failure.
  * Set warn to 0 on success; 1 for warning message; 2 if no expat; 3 for error
  * message.
@@ -506,6 +565,7 @@ parseHTML (char* txt, int* warn, htmlenv_t *env)
   LIST_PUSH_BACK(&scanner.parser.fontstack, NULL);
   scanner.parser.fitemList.dtor = free_ti;
   scanner.parser.fspanList.dtor = free_hi;
+  scanner.parser.anchorstack.dtor = free_hd;
   scanner.parser.gvc = GD_gvc(env->g);
   scanner.parser.str = &str;
 
@@ -520,6 +580,7 @@ parseHTML (char* txt, int* warn, htmlenv_t *env)
 
   LIST_FREE(&scanner.parser.fitemList);
   LIST_FREE(&scanner.parser.fspanList);
+  LIST_FREE(&scanner.parser.anchorstack);
 
   LIST_FREE(&scanner.parser.fontstack);
 

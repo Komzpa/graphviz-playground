@@ -560,6 +560,34 @@ def test_797():
     assert "&amp; &amp;" in output
 
 
+def test_280():
+    """
+    HTML-like labels should support inline links and anchors.
+    https://gitlab.com/graphviz/graphviz/-/issues/280
+    """
+
+    source = """
+graph {
+  g [
+    shape=rectangle,
+    label=<
+      <a name="anchor">first line, an anchor for an outside link</a><br/>
+      second line with a <a href="https://graphviz.org/" target="_blank">link</a>
+    >
+  ]
+}
+"""
+
+    svg = dot("svg", source=source)
+
+    assert 'id="a_anchor"' in svg, "inline anchor name not emitted"
+    assert (
+        'xlink:href="https://graphviz.org/"' in svg
+    ), "inline anchor href not emitted"
+    assert "first line, an anchor" in svg, "inline anchor text missing"
+    assert "second line with a" in svg, "plain HTML label text missing"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/813"
 )

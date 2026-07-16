@@ -67,6 +67,10 @@ typedef struct {
 typedef struct {
   char *str; /* stored in utf-8 */
   textfont_t *font;
+  char *href;
+  char *tooltip;
+  char *target;
+  char *id;
   void *layout;
   void (*free_layout)(void *layout); /* FIXME - this is ugly */
   double yoffset_layout, yoffset_centerline;

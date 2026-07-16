@@ -9,6 +9,8 @@ and this project adheres to
 
 ### Fixed
 
+- HTML-like labels now accept inline `<A>` anchors with `HREF`, `NAME`/`ID`,
+  `TARGET`, `TITLE`, and `TOOLTIP` attributes in text. #280
 - `nop` no longer reorders edges. #2855
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
