@@ -1778,6 +1778,9 @@ if test "$use_gd" = ""; then
                 AC_DEFINE(HAVE_GD_FREETYPE,1,[Define if the GD library supports FREETYPE])
 		        have_gd_freetype=1
 	    fi
+	    if test "$f" = "GD_BMP"; then
+                AC_DEFINE(HAVE_GD_BMP,1,[Define if the GD library supports BMP])
+	    fi
       done
 
 	if test "$have_gd_fontconfig" = ""; then
@@ -1821,6 +1824,11 @@ if test "$use_gd" = ""; then
       AC_CHECK_LIB(gd,main,[
           AC_DEFINE(HAVE_LIBGD,1,[Define if you have the GD library])
           use_gd="Yes"
+          AC_LINK_IFELSE(
+            [AC_LANG_PROGRAM([[#include <gd.h>]],
+              [[gdImageBmpCtx(0, 0, 0); (void)gdImageCreateFromBmp(0);]])],
+            [AC_DEFINE(HAVE_GD_BMP,1,[Define if the GD library supports BMP])],
+            [])
         ],[
           AC_MSG_WARN(Optional GD library not available)
           use_gd="No (library not found)"

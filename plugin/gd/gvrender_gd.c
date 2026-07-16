@@ -34,6 +34,7 @@
 #include <util/unreachable.h>
 
 enum {
+	FORMAT_BMP,
 	FORMAT_GIF,
 	FORMAT_JPEG,
 	FORMAT_PNG,
@@ -170,6 +171,11 @@ static void gdgen_end_page(GVJ_t * job)
 	   was blended so there is no useful alpha info */
 	gdImageSaveAlpha(im, basecolor == transparent);
 	switch (job->render.id) {
+	case FORMAT_BMP:
+#ifdef HAVE_GD_BMP
+	    gdImageBmpCtx(im, &gd_context.ctx, 0);
+#endif
+	    break;
 	case FORMAT_GIF:
 	    gdImageTrueColorToPalette(im, 0, 256);
 	    gdImageGifCtx(im, &gd_context.ctx);
@@ -589,6 +595,10 @@ gvplugin_installed_t gvrender_gd_types[] = {
 };
 
 gvplugin_installed_t gvdevice_gd_types2[] = {
+#ifdef HAVE_GD_BMP
+    {FORMAT_BMP, "bmp:gd", 1, NULL, &device_features_gd_tc},
+#endif
+
     {FORMAT_GIF, "gif:gd", 1, NULL, &device_features_gd_tc},  /* pretend gif is truecolor because it supports transparency */
     {FORMAT_WBMP, "wbmp:gd", 1, NULL, &device_features_gd},
 

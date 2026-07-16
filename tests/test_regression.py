@@ -6395,6 +6395,26 @@ def test_2784():
             raise
 
 
+def test_2787():
+    """
+    GD output should support BMP when libgd provides BMP APIs
+    https://gitlab.com/graphviz/graphviz/-/issues/2787
+    """
+
+    # check if Graphviz was built with the plugin that provides this device
+    p = subprocess.run(
+        ["dot", "-Tbmp:unrecognized", "-o", os.devnull, os.devnull],
+        stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+    )
+    if re.search(r"\bbmp:gd\b", p.stderr) is None:
+        pytest.skip('"bmp:gd" output device not supported')
+
+    bmp = dot("bmp:gd", source="digraph { a -> b }\n")
+    assert bmp.startswith(b"BM"), "BMP output header missing"
+
+
 @pytest.mark.xfail(
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2796", strict=True
 )
