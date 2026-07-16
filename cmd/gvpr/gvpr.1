@@ -962,6 +962,11 @@ denotes the array of arguments specified by the
 \fB\-a\fP \fIargs\fP
 command\(hyline argument. The \fIi\fPth argument is given
 by \fBARGV[\fIi\fP]\fR.
+.PP
+Command\(hyline arguments of the form \fIname\fP=\fIvalue\fP immediately
+following the program are available as string variables in the program.
+For example, \fBgvpr 'BEGIN { print(A) }' A=hello\fP prints
+\fBhello\fP. These assignments are consumed before input filenames.
 .SH "BUILT\(hyIN CONSTANTS"
 .PP
 There are several symbolic constants defined by \fBgvpr\fP.

@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- gvpr now accepts command-line string variable assignments in the form
+  `name=value` immediately following the program. #955
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

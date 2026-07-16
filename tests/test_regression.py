@@ -4941,6 +4941,33 @@ def test_2577_1():
     assert output == "hello world\n", "gvpr cannot handle empty strings to printf"
 
 
+@pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
+def test_955(tmp_path: Path):
+    """
+    gvpr should accept command-line string variable assignments
+    https://gitlab.com/graphviz/graphviz/-/issues/955
+    """
+
+    gvprbin = which("gvpr")
+    graph = tmp_path / "input.dot"
+    graph.write_text("digraph { a -> b }\n", encoding="utf-8")
+
+    output = run(
+        gvprbin,
+        'BEGIN { print(A); print(B); } N { print(A); }',
+        "A=a",
+        'B=has "quotes" and \\slashes',
+        graph,
+    )
+
+    assert output == (
+        'a\n'
+        'has "quotes" and \\slashes\n'
+        'a\n'
+        'a\n'
+    ), "unexpected GVPR command-line assignment output"
+
+
 @pytest.mark.parametrize(
     "program,a_arg,expected",
     (

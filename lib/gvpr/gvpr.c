@@ -52,7 +52,7 @@ static char *Info[] = {
 };
 
 static const char *usage =
-    " [-o <ofile>] [-a <args>] ([-f <prog>] | 'prog') [files]\n\
+    " [-o <ofile>] [-a <args>] ([-f <prog>] | 'prog') [name=value...] [files]\n\
    -c         - use source graph for output\n\
    -f <pfile> - find program in file <pfile>\n\
    -i         - create node induced subgraph\n\
@@ -70,6 +70,7 @@ typedef struct {
   FILE *outFile; /* output stream; stdout default */
   char *program; /* program source */
   int useFile;   /* true if program comes from a file */
+  char *assignments;
   compflags_t compflags;
   int readAhead;
   char **inFiles;
@@ -77,6 +78,8 @@ typedef struct {
   int state; /* > 0 : continue; <= 0 finish */
   int verbose;
 } options;
+
+typedef LIST(char *) strings_t;
 
 static clock_t start_timer(void) { return clock(); }
 
@@ -155,6 +158,86 @@ static void parseArgs(char *s, strviews_t *arg) {
   while ((t = gettok(&s))) {
     LIST_APPEND(arg, strview(t, '\0'));
   }
+}
+
+static bool isAssignmentName(const char *s, const char *end) {
+  if (s == end || !(gv_isalpha(*s) || *s == '_')) {
+    return false;
+  }
+
+  for (s++; s < end; s++) {
+    if (!(gv_isalnum(*s) || *s == '_')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static void appendQuotedString(agxbuf *xb, const char *s) {
+  agxbputc(xb, '"');
+  for (; *s; s++) {
+    switch (*s) {
+    case '\\':
+    case '"':
+      agxbputc(xb, '\\');
+      agxbputc(xb, *s);
+      break;
+    case '\n':
+      agxbput(xb, "\\n");
+      break;
+    case '\r':
+      agxbput(xb, "\\r");
+      break;
+    case '\t':
+      agxbput(xb, "\\t");
+      break;
+    default:
+      agxbputc(xb, *s);
+      break;
+    }
+  }
+  agxbputc(xb, '"');
+}
+
+static char *parseAssignments(strings_t *args) {
+  agxbuf xb = {0};
+
+  while (!LIST_IS_EMPTY(args)) {
+    char *const arg = *LIST_AT(args, 0);
+    char *const eq = strchr(arg, '=');
+    if (eq == NULL || !isAssignmentName(arg, eq)) {
+      break;
+    }
+
+    (void)LIST_POP_FRONT(args);
+    agxbput(&xb, "string ");
+    agxbput_n(&xb, arg, (size_t)(eq - arg));
+    agxbput(&xb, " = ");
+    appendQuotedString(&xb, eq + 1);
+    agxbput(&xb, ";\n");
+  }
+
+  if (agxblen(&xb) == 0) {
+    agxbfree(&xb);
+    return NULL;
+  }
+
+  return agxbdisown(&xb);
+}
+
+static void applyAssignments(parse_prog *prog, const char *assignments) {
+  if (assignments == NULL) {
+    return;
+  }
+
+  agxbuf xb = {0};
+  agxbput(&xb, assignments);
+  if (prog->begin_stmt != NULL) {
+    agxbput(&xb, prog->begin_stmt);
+    free(prog->begin_stmt);
+  }
+  prog->begin_stmt = agxbdisown(&xb);
+  prog->l_begin = 1;
 }
 
 #if defined(_WIN32) && !defined(__MINGW32__)
@@ -383,6 +466,7 @@ static void freeOpts(options opts) {
   free(opts.inFiles);
   if (opts.useFile)
     free(opts.program);
+  free(opts.assignments);
   LIST_FREE(&opts.args);
 }
 
@@ -397,7 +481,7 @@ static options scanArgs(int argc, char **argv) {
   setErrorId(opts.cmdName);
   opts.verbose = 0;
 
-  LIST(char *) input_filenames = {0};
+  strings_t input_filenames = {0};
 
   /* loop over arguments */
   for (int i = 1; i < argc;) {
@@ -421,6 +505,7 @@ static options scanArgs(int argc, char **argv) {
       opts.program = LIST_POP_FRONT(&input_filenames);
     }
   }
+  opts.assignments = parseAssignments(&input_filenames);
   if (LIST_IS_EMPTY(&input_filenames)) {
     opts.inFiles = 0;
     LIST_FREE(&input_filenames);
@@ -939,6 +1024,7 @@ static int gvpr_core(int argc, char *argv[], gvpropts *uopts,
   if (gs->prog == NULL) {
     return 1;
   }
+  applyAssignments(gs->prog, gs->opts.assignments);
   info.outFile = gs->opts.outFile;
   info.args = gs->opts.args;
   info.errf = gverrorf;
