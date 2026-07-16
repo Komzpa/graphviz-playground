@@ -176,7 +176,7 @@ bool initMapData(GVJ_t *job, char *lbl, char *url, char *tooltip, char *target,
         assigned = true;
     }
     if (flags & GVRENDER_DOES_TOOLTIPS) {
-        if (tooltip && tooltip[0]) {
+        if (tooltip) {
             obj->tooltip = strdup_and_subst_obj(tooltip, gobj);
             obj->explicit_tooltip = true;
 	    assigned = true;
@@ -2809,16 +2809,20 @@ static void emit_begin_edge(GVJ_t *job, edge_t *e, char **styles) {
   }
 
   if (flags & GVRENDER_DOES_TOOLTIPS) {
-    if (((s = agget(e, "tooltip")) && s[0]) ||
-        ((s = agget(e, "edgetooltip")) && s[0])) {
-      char *tooltip = preprocessTooltip(s, e);
-      obj->tooltip = strdup_and_subst_obj(tooltip, e);
-      free(tooltip);
+    char *edge_tooltip = agget(e, "tooltip");
+    char *edge_specific_tooltip = agget(e, "edgetooltip");
+    if (edge_tooltip || edge_specific_tooltip) {
+      s = edge_tooltip && edge_tooltip[0]
+              ? edge_tooltip
+              : (edge_specific_tooltip ? edge_specific_tooltip : edge_tooltip);
+      char *tooltip_text = preprocessTooltip(s, e);
+      obj->tooltip = strdup_and_subst_obj(tooltip_text, e);
+      free(tooltip_text);
       obj->explicit_tooltip = true;
     } else if (obj->label)
       obj->tooltip = gv_strdup(obj->label);
 
-    if ((s = agget(e, "labeltooltip")) && s[0]) {
+    if ((s = agget(e, "labeltooltip"))) {
       char *tooltip = preprocessTooltip(s, e);
       obj->labeltooltip = strdup_and_subst_obj(tooltip, e);
       free(tooltip);
@@ -2826,7 +2830,7 @@ static void emit_begin_edge(GVJ_t *job, edge_t *e, char **styles) {
     } else if (obj->label)
       obj->labeltooltip = gv_strdup(obj->label);
 
-    if ((s = agget(e, "tailtooltip")) && s[0]) {
+    if ((s = agget(e, "tailtooltip"))) {
       char *tooltip = preprocessTooltip(s, e);
       obj->tailtooltip = strdup_and_subst_obj(tooltip, e);
       free(tooltip);
@@ -2834,7 +2838,7 @@ static void emit_begin_edge(GVJ_t *job, edge_t *e, char **styles) {
     } else if (obj->taillabel)
       obj->tailtooltip = gv_strdup(obj->taillabel);
 
-    if ((s = agget(e, "headtooltip")) && s[0]) {
+    if ((s = agget(e, "headtooltip"))) {
       char *tooltip = preprocessTooltip(s, e);
       obj->headtooltip = strdup_and_subst_obj(tooltip, e);
       free(tooltip);
@@ -4364,4 +4368,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
