@@ -549,6 +549,43 @@ def test_745():
     ), "cluster-to-cluster edge was not emitted"
 
 
+def test_2339():
+    """
+    dot should preserve mixed ordinary-to-cluster and cluster-to-cluster edges.
+    https://gitlab.com/graphviz/graphviz/-/issues/2339
+    """
+
+    source = """
+        graph G {
+          e
+          subgraph clusterA {
+            a -- b;
+            subgraph clusterC {
+              C -- D;
+            }
+          }
+          subgraph clusterB {
+            d -- f
+          }
+          d -- D
+          e -- clusterB
+          clusterC -- clusterB
+        }
+    """
+
+    plain = dot("plain", source=source).decode("utf-8")
+    lines = plain.splitlines()
+
+    assert "node clusterB " not in plain, "clusterB was emitted as a node"
+    assert "node clusterC " not in plain, "clusterC was emitted as a node"
+    assert any(
+        line.startswith("edge e clusterB ") for line in lines
+    ), "ordinary-to-cluster edge was not emitted"
+    assert any(
+        line.startswith("edge clusterC clusterB ") for line in lines
+    ), "cluster-to-cluster edge was not emitted"
+
+
 def test_793():
     """
     Graphviz should not crash when using VRML output with a non-writable current

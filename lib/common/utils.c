@@ -732,7 +732,7 @@ static node_t *clustNode(node_t *n, graph_t *cg, agxbuf *xb, graph_t *clg,
                          int *idx) {
     node_t *cn;
 
-    agxbprint(xb, "__%d:%s", *idx++, agnameof(cg));
+    agxbprint(xb, "__%d:%s", (*idx)++, agnameof(cg));
 
     cn = agnode(agroot(cg), agxbuse(xb), 1);
     agbindrec(cn, "Agnodeinfo_t", sizeof(Agnodeinfo_t), true);
@@ -747,6 +747,11 @@ static node_t *clustNode(node_t *n, graph_t *cg, agxbuf *xb, graph_t *clg,
     N_shape = setAttr(agraphof(cn), cn, "shape", "box", N_shape);
 
     return cn;
+}
+
+static bool is_clust_node_name(node_t *n)
+{
+    return startswith(agnameof(n), "__") && strchr(agnameof(n), ':') != NULL;
 }
 
 typedef struct {
@@ -852,7 +857,7 @@ static int checkCompound(edge_t *e, graph_t *clg, agxbuf *xb, Dt_t *map,
     edge_t *ce;
     item *ip;
 
-    if (IS_CLUST_NODE(h)) return 0;
+    if (is_clust_node_name(h)) return 0;
     graph_t *const tg = mapc(cmap, t);
     graph_t *const hg = mapc(cmap, h);
     if (!tg && !hg)
@@ -943,7 +948,7 @@ void processClusterEdges(graph_t * g)
     clg = agsubg(g, "__clusternodes",1);
     agbindrec(clg, "Agraphinfo_t", sizeof(Agraphinfo_t), true);
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	if (IS_CLUST_NODE(n)) continue;
+	if (is_clust_node_name(n)) continue;
 	for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
 	    num_cl_edges += checkCompound(e, clg, &xb, map, cmap, &index_counter);
 	}
