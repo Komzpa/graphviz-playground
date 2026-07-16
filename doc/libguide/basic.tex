@@ -886,6 +886,16 @@ shape and width of the arrowhead is determined by the {\tt arrowtail} and
 {\tt arrowsize} attributes. Analogously, an arrowhead at the head node is
 specified by {\tt bp->eflag} and the vector 
 from {\tt bp->list[bp->size-1]} to {\tt bp->ep}.
+The {\tt dir} attribute determines which end or ends are drawn with arrowheads;
+when an end is drawn, {\tt arrowtail} or {\tt arrowhead} gives the requested
+shape name, and {\tt arrowsize} gives the scale. Applications can read these
+edge attributes with the usual attribute functions such as {\tt agget}. The
+{\tt bezier} fields described above give the computed attachment geometry, but
+they do not contain a separate decoded copy of the arrow shape grammar.
+Applications that need the exact drawing operations Graphviz generated for an
+arrowhead, rather than the input attribute value plus the endpoint geometry,
+should use the {\tt xdot} drawing attributes: {\tt \_tdraw\_} for the tail
+arrowhead and {\tt \_hdraw\_} for the head arrowhead.
 
 The label field (\verb+ND_label(n)+, \verb+ED_label(e)+,
 \verb+GD_label(g)+) encodes any text label associated with a graph object.
@@ -943,4 +953,3 @@ empty string before calling {\tt gvLayout} again.
 Once the application is totally done with a graph, it should call
 {\tt agclose} to close the graph and reclaim the remaining resources associated
 with it.
-
