@@ -1078,6 +1078,43 @@ def test_106():
             assert math.dist(ortho_point, polyline_point) <= 1.1, key
 
 
+def test_2165():
+    """
+    ortho edges to compass ports should end at the requested node border
+    https://gitlab.com/graphviz/graphviz/-/issues/2165
+    """
+
+    input = Path(__file__).parent / "2165.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    ortho = json.loads(dot("json", input))
+    polyline_source = input.read_text().replace(
+        "splines=ortho", "splines=polyline"
+    )
+    polyline = json.loads(dot("json", source=polyline_source))
+
+    def head_endpoints(data):
+        result = {}
+        objects = data["objects"]
+        for edge in data["edges"]:
+            head = objects[edge["head"]]["name"]
+            assert head == "node2"
+            assert edge["headport"] in {"ne", "sw"}
+            endpoint = edge["pos"].split()[0]
+            assert endpoint.startswith("e,")
+            result[edge["headport"]] = tuple(
+                float(v) for v in endpoint[2:].split(",")
+            )
+        return result
+
+    ortho_endpoints = head_endpoints(ortho)
+    polyline_endpoints = head_endpoints(polyline)
+    assert ortho_endpoints.keys() == polyline_endpoints.keys()
+
+    for port, ortho_point in ortho_endpoints.items():
+        assert math.dist(ortho_point, polyline_endpoints[port]) <= 1.1, port
+
+
 def test_352():
     """
     ortho edges to record fields should attach to the requested field ports
