@@ -360,8 +360,10 @@ collapse_sets(graph_t *rg, graph_t *g)
 	if (c) {
 	    if (c == CLUSTER && CL_type == LOCAL)
 		collapse_cluster(rg, subg);
-	    else
+	    else {
+		collapse_sets(rg, subg);
 		collapse_rankset(rg, subg, c);
+	    }
 	}
 	else collapse_sets(rg, subg);
 
