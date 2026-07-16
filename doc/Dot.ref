@@ -87,7 +87,9 @@ Attributes
  Epsilon         G       double      (.0001 * # nodes)           neato only
  URL             ENGC    string
  arrowhead       E       arrowType   normal
+ arrowheadsize   E       double                         0.0
  arrowsize       E       double      1.0               0.0
+ arrowtailsize   E       double                         0.0
  arrowtail       E       arrowType   normal
  bb              G       rect                                    write-only
  bgcolor         G       color
@@ -234,8 +236,14 @@ URL
      nodes, edges and clusters, with "\N" replacement done for all three.
 arrowhead
      Style of arrowhead on head of edge.
+arrowheadsize
+     Multiplicative scale factor for the arrowhead on head of edge.
+     Defaults to arrowsize if unset.
 arrowsize
      Multiplicative scale factor for arrowheads.
+arrowtailsize
+     Multiplicative scale factor for the arrowhead on tail of edge.
+     Defaults to arrowsize if unset.
 arrowtail
      Style of arrowhead on tail of edge.
 bb

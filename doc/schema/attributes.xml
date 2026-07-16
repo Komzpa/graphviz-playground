@@ -417,11 +417,35 @@
 		</xsd:annotation>
 	</xsd:attribute>
 
+	<xsd:attribute name="arrowheadsize" type="xsd:decimal">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Multiplicative scale factor for the arrowhead on the head node
+					of an edge. Defaults to the <html:a rel="attr">arrowsize</html:a>
+					value when unset.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
 	<xsd:attribute name="arrowsize" type="xsd:decimal" default="1.0">
 		<xsd:annotation>
 			<xsd:documentation>
 				<html:p>
 					Multiplicative scale factor for arrowheads.			
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="arrowtailsize" type="xsd:decimal">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Multiplicative scale factor for the arrowhead on the tail node
+					of an edge. Defaults to the <html:a rel="attr">arrowsize</html:a>
+					value when unset.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
@@ -2453,7 +2477,9 @@
 	<xsd:complexType name="edge">
 		<xsd:attribute ref="URL" />
 		<xsd:attribute ref="arrowhead" default="normal" />
+		<xsd:attribute ref="arrowheadsize" />
 		<xsd:attribute ref="arrowsize" default="1.0" />
+		<xsd:attribute ref="arrowtailsize" />
 		<xsd:attribute ref="arrowtail" default="normal" />
 		<xsd:attribute ref="color" default="black" />
 		<xsd:attribute ref="colorscheme" />

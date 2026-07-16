@@ -773,6 +773,8 @@ void graph_init(graph_t * g, bool use_rankdir)
     E_style = agfindedgeattr(g, "style");
     E_decorate = agfindedgeattr(g, "decorate");
     E_arrowsz = agfindedgeattr(g, "arrowsize");
+    E_arrowheadsz = agfindedgeattr(g, "arrowheadsize");
+    E_arrowtailsz = agfindedgeattr(g, "arrowtailsize");
     E_constr = agfindedgeattr(g, "constraint");
     E_layer = agfindedgeattr(g, "layer");
     E_comment = agfindedgeattr(g, "comment");

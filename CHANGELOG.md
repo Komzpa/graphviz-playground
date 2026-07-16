@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- Edge arrows can now be scaled independently with `arrowheadsize` and
+  `arrowtailsize`. Both attributes fall back to `arrowsize` when unset. #1128
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

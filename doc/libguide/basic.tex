@@ -442,7 +442,9 @@ to use these attributes or not.
 \begin{tabular}[t]{|l|l|p{2.5in}|} \hline
 \multicolumn{1}{|c|}{Name} & \multicolumn{1}{c|}{Default} & \multicolumn{1}{c|}{Use} \\ \hline
 {\tt arrowhead} & normal & style of arrowhead at head end \\
+{\tt arrowheadsize} & & scaling factor for arrowhead at head end \\
 {\tt arrowsize} & {\tt 1.0} & scaling factor for arrowheads \\
+{\tt arrowtailsize} & & scaling factor for arrowhead at tail end \\
 {\tt arrowtail} & normal & style of arrowhead at tail end \\
 {\tt color} & {\tt black} & edge stroke color \\
 {\tt decorate} & & if set, draws a line connecting labels with their edges \\
@@ -518,7 +520,8 @@ shapes, the most common attributes being {\tt shape}, {\tt height},
 
 Edges often display additional semantic information with the
 {\tt color} and {\tt style} attributes. If the edge is directed,
-the {\tt arrowhead}, {\tt arrowsize}, {\tt arrowtail} and {\tt dir}
+the {\tt arrowhead}, {\tt arrowheadsize}, {\tt arrowsize},
+{\tt arrowtailsize}, {\tt arrowtail} and {\tt dir}
 attributes can play a role. Using splines rather than line segments
 for edges, as determined by the {\tt splines} attribute, is done
 for aesthetics or clarity rather than to convey more information.
@@ -882,8 +885,9 @@ would touch the tail node. (If there is no arrowhead, {\tt bp->list[0]} will
 touch the node.) Thus, the length and direction of the arrowhead
 is determined by the vector going from {\tt bp->list[0]} to {\tt bp->sp}. 
 The actual
-shape and width of the arrowhead is determined by the {\tt arrowtail} and
-{\tt arrowsize} attributes. Analogously, an arrowhead at the head node is
+shape and width of the arrowhead is determined by the {\tt arrowtail},
+{\tt arrowtailsize} and {\tt arrowsize} attributes. Analogously, an arrowhead
+at the head node is
 specified by {\tt bp->eflag} and the vector 
 from {\tt bp->list[bp->size-1]} to {\tt bp->ep}.
 
@@ -943,4 +947,3 @@ empty string before calling {\tt gvLayout} again.
 Once the application is totally done with a graph, it should call
 {\tt agclose} to close the graph and reclaim the remaining resources associated
 with it.
-

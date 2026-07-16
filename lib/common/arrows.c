@@ -250,12 +250,17 @@ void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
     }
 }
 
-static double arrow_length(edge_t * e, uint32_t flag) {
+static double arrow_size(edge_t *e, attrsym_t *attr) {
+    const double arrowsize = late_double(e, E_arrowsz, 1.0, 0.0);
+    return late_double(e, attr, arrowsize, 0.0);
+}
+
+static double arrow_length(edge_t *e, attrsym_t *attr, uint32_t flag) {
     double length = 0.0;
     int i;
 
     const double penwidth = late_double(e, E_penwidth, 1.0, 0.0);
-    const double arrowsize = late_double(e, E_arrowsz, 1.0, 0.0);
+    const double arrowsize = arrow_size(e, attr);
 
     if (arrowsize == 0) {
 	return 0;
@@ -286,7 +291,7 @@ size_t arrowEndClip(edge_t* e, pointf * ps, size_t startp,
                     size_t endp, bezier *spl, uint32_t eflag) {
     inside_t inside_context;
     pointf sp[4];
-    double elen = arrow_length(e, eflag);
+    double elen = arrow_length(e, E_arrowheadsz, eflag);
     spl->eflag = eflag;
     spl->ep = ps[endp + 3];
     if (endp > startp && DIST(ps[endp], ps[endp + 3]) < elen) {
@@ -314,7 +319,7 @@ size_t arrowStartClip(edge_t* e, pointf * ps, size_t startp,
                       size_t endp, bezier *spl, uint32_t sflag) {
     inside_t inside_context;
     pointf sp[4];
-    double slen = arrow_length(e, sflag);
+    double slen = arrow_length(e, E_arrowtailsz, sflag);
     spl->sflag = sflag;
     spl->sp = ps[startp];
     if (endp > startp && DIST(ps[startp], ps[startp + 3]) < slen) {
@@ -355,8 +360,8 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
     if (sflag && eflag && endp == startp) { /* handle special case of two arrows on a single segment */
 	p = ps[endp];
 	q = ps[endp+3];
-	tlen = arrow_length (e, sflag);
-	hlen = arrow_length (e, eflag);
+	tlen = arrow_length(e, E_arrowtailsz, sflag);
+	hlen = arrow_length(e, E_arrowheadsz, eflag);
         d = DIST(p, q);
 	if (hlen + tlen >= d) {
 	    hlen = tlen = d/3.0;
@@ -390,7 +395,7 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
 	return;
     }
     if (eflag) {
-	hlen = arrow_length(e, eflag);
+	hlen = arrow_length(e, E_arrowheadsz, eflag);
 	p = ps[endp];
 	q = ps[endp+3];
         d = DIST(p, q);
@@ -414,7 +419,7 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
 	spl->ep = q;
     }
     if (sflag) {
-	tlen = arrow_length(e, sflag);
+	tlen = arrow_length(e, E_arrowtailsz, sflag);
 	p = ps[startp];
 	q = ps[startp+3];
         d = DIST(p, q);
