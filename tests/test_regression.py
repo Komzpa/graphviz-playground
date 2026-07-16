@@ -3106,6 +3106,52 @@ def test_2242():
         assert ref == png, "repeated rendering changed output"
 
 
+def _cluster_2276_horizontal_slack(output: str) -> tuple[float, float]:
+    cluster_match = re.search(
+        r"subgraph cluster_0 \{.*?graph \[bb=\"([^\"]+)\"", output, flags=re.S
+    )
+    assert cluster_match is not None, "missing cluster_0 bounding box"
+    left, _, right, _ = [float(x) for x in cluster_match.group(1).split(",")]
+
+    x_extents = []
+    for name in ("a0", "a1", "a2", "a3"):
+        node_match = re.search(rf"\n\s*{name}\s+\[([^\]]+)\]", output, flags=re.S)
+        assert node_match is not None, f"missing node {name}"
+        attrs = node_match.group(1)
+        pos_match = re.search(r'pos="([^"]+)"', attrs)
+        width_match = re.search(r"width=([0-9.]+)", attrs)
+        assert pos_match is not None, f"missing position for {name}"
+        assert width_match is not None, f"missing width for {name}"
+
+        x, _ = [float(x) for x in pos_match.group(1).split(",")]
+        width = float(width_match.group(1)) * 72
+        x_extents.extend((x - width / 2, x + width / 2))
+
+    return min(x_extents) - left, right - max(x_extents)
+
+
+@pytest.mark.parametrize("rankdir", ("LR", "RL"))
+def test_2276(rankdir: str):
+    """
+    LR/RL cluster labels should not leave stale horizontal slack after a later
+    cluster label increases the shared rank spacing.
+    https://gitlab.com/graphviz/graphviz/-/issues/2276
+    """
+
+    slacks = []
+    for case in (0, 1):
+        input = (Path(__file__).parent / f"2276_{case}.dot").read_text(
+            encoding="utf-8"
+        )
+        output = dot(
+            "dot", source=input.replace("rankdir=LR", f"rankdir={rankdir}")
+        )
+        slacks.append(_cluster_2276_horizontal_slack(output))
+
+    for affected, control in zip(slacks[0], slacks[1]):
+        assert affected == pytest.approx(control, abs=1)
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",

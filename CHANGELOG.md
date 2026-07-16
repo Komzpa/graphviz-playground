@@ -72,6 +72,12 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Fixed
+
+- `dot` no longer leaves stale horizontal slack in `rankdir=LR` and `rankdir=RL`
+  clusters with `margin=0` after a later cluster label increases the shared
+  rank spacing. #2276
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
