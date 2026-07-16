@@ -71,20 +71,24 @@ safe_list_append(edge_t * e, elist * L)
 edge_t *fast_edge(edge_t * e)
 {
 #ifdef DEBUG
+    /*
+     * Non-strict graphs can have parallel edges between the same endpoint
+     * nodes, distinguished by port and other attributes.  The fast lists
+     * must not contain the same edge object twice, but endpoint uniqueness is
+     * not a valid invariant.
+     */
     edge_t *f;
     for (int i = 0; (f = ND_out(agtail(e)).list[i]); i++) {
 	if (e == f) {
 	    fprintf(stderr, "duplicate fast edge\n");
 	    return 0;
 	}
-	assert(aghead(e) != aghead(f));
     }
     for (int i = 0; (f = ND_in(aghead(e)).list[i]); i++) {
 	if (e == f) {
 	    fprintf(stderr, "duplicate fast edge\n");
 	    return 0;
 	}
-	assert(agtail(e) != agtail(f));
     }
 #endif
     elist_append(e, ND_out(agtail(e)));

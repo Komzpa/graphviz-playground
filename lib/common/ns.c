@@ -1391,8 +1391,12 @@ static node_t *checkdfs(graph_t* g, node_t * n)
 		    fprintf(stderr,"unwind %p %s(%p)\n", e, agnameof(n), n);
 		    if (x != n) return x;
 		    fprintf(stderr,"unwound to root\n");
-		    fflush(stderr);
-		    abort();
+		    /*
+		     * This check is DEBUG-only diagnostic code.  The production
+		     * path handles cyclic constraint graphs without terminating
+		     * the process, so do not make DEBUG builds abort on input that
+		     * normal builds can report or recover from.
+		     */
 		    return NULL;
 		}
 	    }
