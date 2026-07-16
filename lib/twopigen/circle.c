@@ -289,6 +289,8 @@ getRankseps (Agraph_t* g, uint64_t maxrank)
 static void setAbsolutePos(Agraph_t * g, uint64_t maxrank)
 {
     double* ranksep = getRankseps (g, maxrank);
+    const int rankdir = (GD_rankdir2(agroot(g)) >> 2) & 0x3;
+    const double theta_offset = (double)rankdir * M_PI / 2.0;
     if (Verbose) {
 	fputs ("Rank separation = ", stderr);
 	for (uint64_t i = 0; i <= maxrank; i++)
@@ -299,8 +301,9 @@ static void setAbsolutePos(Agraph_t * g, uint64_t maxrank)
     /* Convert circular to cartesian coordinates */
     for (Agnode_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	double hyp = ranksep[SCENTER(n)];
-	ND_pos(n)[0] = hyp * cos(THETA(n));
-	ND_pos(n)[1] = hyp * sin(THETA(n));
+	const double theta = THETA(n) + theta_offset;
+	ND_pos(n)[0] = hyp * cos(theta);
+	ND_pos(n)[1] = hyp * sin(theta);
     }
     free (ranksep);
 }
