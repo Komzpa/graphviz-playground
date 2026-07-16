@@ -3,6 +3,11 @@
   "extends": [
     "config:recommended",
   ],
+  // Let newly published dependencies age before Renovate opens ordinary
+  // update branches. This reduces dependency churn and supply-chain exposure;
+  // Renovate security updates bypass minimumReleaseAge.
+  "minimumReleaseAge": "14 days",
+  "internalChecksFilter": "strict",
   "packageRules": [
     // Don't update e.g. ubuntu 20.04 to 24.04.
     {
