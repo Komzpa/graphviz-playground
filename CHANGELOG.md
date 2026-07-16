@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Edges between bottom-corner ports on same-rank nodes now route below the rank
+  instead of above it. #2724
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
