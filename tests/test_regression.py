@@ -560,6 +560,29 @@ def test_797():
     assert "&amp; &amp;" in output
 
 
+def test_1090():
+    """
+    headURL and tailURL should emit their endpoint image-map hot spots
+    https://gitlab.com/graphviz/graphviz/-/issues/1090
+    """
+
+    input = """digraph G {
+      node [shape=ellipse, URL="https://node.example/"];
+      a -> b [
+        dir=both,
+        arrowhead=odot,
+        arrowtail=odot,
+        headURL="https://head.example/",
+        tailURL="https://tail.example/"
+      ];
+    }"""
+
+    output = dot("cmapx", source=input)
+
+    assert 'href="https://tail.example/"' in output
+    assert 'href="https://head.example/"' in output
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/813"
 )

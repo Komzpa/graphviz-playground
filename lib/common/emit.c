@@ -2939,26 +2939,44 @@ emit_edge_label(GVJ_t* job, textlabel_t* lbl, emit_state_t lkind, int explicit,
  * a hot spot around point p.
  */
 static void nodeIntersect(GVJ_t *job, pointf p, bool explicit_iurl, char *iurl,
-                          bool explicit_itooltip) {
+                          char *itooltip, char *itarget,
+                          bool explicit_itooltip, const char *idsuffix) {
     obj_state_t *obj = job->obj;
     char* url;
+    char* tooltip = NULL;
+    char* target = NULL;
     bool explicit;
+    agxbuf xb = {0};
+    char *id = NULL;
 
     if (explicit_iurl) url = iurl;
     else url = obj->url;
     if (explicit_itooltip) {
 	explicit = true;
+	tooltip = itooltip;
     }
     else if (obj->explicit_tooltip) {
 	explicit = true;
+	tooltip = obj->tooltip;
     }
     else {
 	explicit = false;
     }
+    if (explicit_iurl)
+	target = itarget;
+    else
+	target = obj->target;
 
     if (url || explicit) {
 	map_point(job, p);
+	if (obj->id && idsuffix) {
+	    agxbprint(&xb, "%s-%s", obj->id, idsuffix);
+	    id = agxbuse(&xb);
+	}
+	gvrender_begin_anchor(job, url, tooltip, target, id);
+	gvrender_end_anchor(job);
     }
+    agxbfree(&xb);
 }
 
 static void emit_end_edge(GVJ_t * job)
@@ -2995,7 +3013,8 @@ static void emit_end_edge(GVJ_t * job)
 	else /* No arrow at start of splines */
 	    p = bz.list[0];
 	nodeIntersect(job, p, obj->explicit_tailurl != 0, obj->tailurl,
-	              obj->explicit_tailtooltip != 0);
+	              obj->tailtooltip, obj->tailtarget,
+	              obj->explicit_tailtooltip != 0, "tail");
         
 	/* process intersection with head node */
 	bz = ED_spl(e)->list[ED_spl(e)->size - 1];
@@ -3004,7 +3023,8 @@ static void emit_end_edge(GVJ_t * job)
 	else /* No arrow at end of splines */
 	    p = bz.list[bz.size - 1];
 	nodeIntersect(job, p, obj->explicit_headurl != 0, obj->headurl,
-	              obj->explicit_headtooltip != 0);
+	              obj->headtooltip, obj->headtarget,
+	              obj->explicit_headtooltip != 0, "head");
     }
 
     emit_edge_label(job, ED_label(e), EMIT_ELABEL,
@@ -4364,4 +4384,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

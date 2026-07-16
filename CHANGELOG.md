@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The cmap/cmapx renderers once again emit image-map areas for edge `headURL`
+  and `tailURL` attributes. #1090
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
