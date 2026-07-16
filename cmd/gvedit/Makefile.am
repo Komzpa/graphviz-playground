@@ -45,15 +45,15 @@ gvedit_LDADD = \
 	$(QTCORE_LIBS) \
 	$(EXPAT_LIBS) $(Z_LIBS)
 
-noinst_HEADERS = csettings.h imageviewer.h mainwindow.h mdichild.h
-if WITH_QT
-BUILT_SOURCES = ui_settings.h
-endif
-
 MOCABLES = moc_csettings.cpp moc_imageviewer.cpp moc_mainwindow.cpp moc_mdichild.cpp qrc_mdi.cpp
 
+noinst_HEADERS = csettings.h imageviewer.h mainwindow.h mdichild.h
+if WITH_QT
+BUILT_SOURCES = ui_settings.h $(MOCABLES)
+endif
+
 gvedit_SOURCES = main.cpp csettings.cpp imageviewer.cpp mainwindow.cpp mdichild.cpp
-nodist_gvedit_SOURCES = $(MOCABLES)
+nodist_gvedit_SOURCES = qrc_mdi.cpp
 
 $(MOCABLES): mocables
 
@@ -81,4 +81,3 @@ clean-local:
 
 distclean-local:
 	-$(MAKE) -f qMakefile distclean
-

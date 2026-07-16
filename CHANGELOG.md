@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
 
+### Fixed
+
+- Gvedit's Qt moc files are now included by their owning sources, avoiding
+  GCC 16 `-Wsfinae-incomplete` warnings from aggregated moc builds. #2842
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
