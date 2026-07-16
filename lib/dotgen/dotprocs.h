@@ -16,6 +16,7 @@ extern "C" {
 
 #include <dotgen/aspect.h>
 #include <stdbool.h>
+#include <util/arena.h>
 #include <util/list.h>
 #include <util/unused.h>
 
@@ -46,6 +47,8 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern Agedge_t *find_flat_edge(Agnode_t *, Agnode_t *);
     extern void flat_edge(Agraph_t *, Agedge_t *);
     extern int flat_edges(Agraph_t *);
+    extern arena_t *dot_virtual_edge_arena(Agraph_t *);
+    extern void dot_free_virtual_edge_arena(Agraph_t *);
     /// @return 0 on success
     extern int install_cluster(Agraph_t *, Agnode_t *, int, node_queue_t *);
     /// @return 0 on success

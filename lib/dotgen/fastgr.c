@@ -13,12 +13,39 @@
 #include <dotgen/dot.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <util/arena.h>
 #include <util/alloc.h>
 #include <util/unused.h>
 
 /*
  * operations on the fast internal graph.
  */
+
+#define VIRTUAL_EDGE_ARENA "DotVirtualEdgeArena"
+
+typedef struct {
+    Agrec_t hdr;
+    arena_t arena;
+} virtual_edge_arena_t;
+
+arena_t *dot_virtual_edge_arena(Agraph_t *g)
+{
+    assert(g != NULL);
+    virtual_edge_arena_t *const rec =
+        agbindrec(agroot(g), VIRTUAL_EDGE_ARENA, sizeof(*rec), false);
+    assert(rec != NULL);
+    return &rec->arena;
+}
+
+void dot_free_virtual_edge_arena(Agraph_t *g)
+{
+    virtual_edge_arena_t *const rec =
+        agbindrec(agroot(g), VIRTUAL_EDGE_ARENA, 0, false);
+    if (rec != NULL) {
+        gv_arena_reset(&rec->arena);
+        agdelrec(agroot(g), VIRTUAL_EDGE_ARENA);
+    }
+}
 
 static edge_t *ffe(node_t * u, elist uL, node_t * v, elist vL)
 {
@@ -130,10 +157,12 @@ void safe_other_edge(edge_t * e)
  */
 edge_t *new_virtual_edge(node_t * u, node_t * v, edge_t * orig)
 {
-    Agedgepair_t* e2 = gv_alloc(sizeof(Agedgepair_t));
+    arena_t *const arena = dot_virtual_edge_arena(agraphof(u));
+    Agedgepair_t *e2 = ARENA_NEW(arena, Agedgepair_t);
     AGTYPE(&e2->in) = AGINEDGE;
     AGTYPE(&e2->out) = AGOUTEDGE;
-    e2->out.base.data = gv_alloc(sizeof(Agedgeinfo_t));
+    Agedgeinfo_t *const info = ARENA_NEW(arena, Agedgeinfo_t);
+    e2->out.base.data = &info->hdr;
     edge_t *e = &e2->out;
     agtail(e) = u;
     aghead(e) = v;

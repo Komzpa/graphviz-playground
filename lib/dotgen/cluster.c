@@ -260,12 +260,9 @@ remove_rankleaders(graph_t * g)
 	/* remove the entire chain */
 	while ((e = ND_out(v).list[0])) {
 	    delete_fast_edge(e);
-	    free(e->base.data);
-	    free(e);
 	}
 	while ((e = ND_in(v).list[0])) {
 	    delete_fast_edge(e);
-	    free(e);
 	}
 	delete_fast_node(dot_root(g), v);
 	free(ND_in(v).list);
