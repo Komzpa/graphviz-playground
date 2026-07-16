@@ -309,6 +309,18 @@ static int setattr(Agobj_t *objp, char *name, char *val) {
   return agxset(objp, gsym, val);
 }
 
+/* Remove an object's explicit attribute override by restoring its graph
+ * default value. Libcgraph stores values for declared attributes, so there is
+ * no per-object "undeclare" operation to call here.
+ */
+static int delattr(Agobj_t *objp, char *name) {
+  Agsym_t *gsym = agattrsym(objp, name);
+  if (!gsym) {
+    return 1;
+  }
+  return agxset(objp, gsym, gsym->defval);
+}
+
 static char *kindToStr(int kind) {
   char *s;
 
@@ -1284,6 +1296,21 @@ static Extype_t getval(Expr_t *pgm, Exnode_t *node, Exid_t *sym, Exref_t *ref,
           v.integer = 1;
         } else {
           v.integer = setattr(objp, name, value);
+        }
+      }
+      break;
+    case F_delattr:
+      objp = int2ptr(args[0].integer);
+      if (!objp) {
+        error(ERROR_WARNING, "NULL object passed to delAttr()");
+        v.integer = 1;
+      } else {
+        char *name = args[1].string;
+        if (!name) {
+          error(ERROR_WARNING, "NULL name passed to delAttr()");
+          v.integer = 1;
+        } else {
+          v.integer = delattr(objp, name);
         }
       }
       break;

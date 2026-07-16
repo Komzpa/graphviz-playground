@@ -1246,6 +1246,37 @@ def test_1585():
     assert c < d, "clustering altered nodes’ horizontal ordering"
 
 
+@pytest.mark.skipif(which("gvpr") is None, reason="gvpr not available")
+def test_1590():
+    """
+    GVPR should be able to remove explicit object attribute values
+    https://gitlab.com/graphviz/graphviz/-/issues/1590
+    """
+
+    gvprbin = which("gvpr")
+    src = "digraph { node [foo=bar]; a [foo=baz]; b; }"
+
+    output = run(
+        gvprbin,
+        "-c",
+        'N[$.name == "a"] { if (delAttr($, "foo")) { exit(1); } }',
+        input=src,
+    )
+
+    assert "node [foo=bar];" in output
+    assert "\ta;" in output
+    assert "foo=baz" not in output
+    assert 'foo=""' not in output
+
+    missing_output = run(
+        gvprbin,
+        "-c",
+        'N[$.name == "a"] { print(delAttr($, "missing"), "\\n"); }',
+        input=src,
+    )
+    assert missing_output.startswith("1\n")
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_1594():
     """
