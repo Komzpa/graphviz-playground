@@ -430,3 +430,5 @@ int CFrmSettings::showSettings(MdiChild *m) {
 void CFrmSettings::setActiveWindow(MdiChild *m) { this->activeWindow = m; }
 
 MdiChild *CFrmSettings::getActiveWindow() { return activeWindow; }
+
+#include "moc_csettings.cpp"

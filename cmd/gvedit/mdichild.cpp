@@ -157,3 +157,5 @@ bool MdiChild::loadPreview(const QString &fileName) {
 }
 
 bool MdiChild::firstTime() { return settingsSet; }
+
+#include "moc_mdichild.cpp"

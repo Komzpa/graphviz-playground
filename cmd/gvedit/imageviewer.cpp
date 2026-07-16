@@ -215,3 +215,5 @@ void ImageViewer::closeEvent(QCloseEvent * event)
     event->accept();
 
 }
+
+#include "moc_imageviewer.cpp"

@@ -587,3 +587,5 @@ void CMainWindow::activateChild(QWidget *window) {
     return;
   mdiArea->setActiveSubWindow(qobject_cast<QMdiSubWindow *>(window));
 }
+
+#include "moc_mainwindow.cpp"
