@@ -1,0 +1,15 @@
+digraph G {
+  {rank=same; A2 B2}
+  {rank=same; A4 B4}
+  {rank=same; A6 B6}
+
+  A2 -> A4 -> A6
+
+  B6:e -> A6:w
+
+  {
+    edge [dir=back]
+    B2 -> A2
+    B4:e -> A4:w
+  }
+}
