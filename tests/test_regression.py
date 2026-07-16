@@ -586,6 +586,53 @@ def test_813():
     ), "rendering of shapes with multiple peripheries is unstable"
 
 
+def test_875():
+    """
+    SVG cluster groups should contain their internal nodes and edges
+    https://gitlab.com/graphviz/graphviz/-/issues/875
+    """
+
+    input = """
+        digraph "test" {
+            subgraph cluster_a {
+                aaa -> bbb
+            }
+            subgraph cluster_b {
+                width=11
+                height=13
+                ccc -> ddd
+            }
+            aaa -> ccc
+            eee -> ddd
+        }
+    """
+
+    output = dot("svg", source=input)
+    root = ET.fromstring(output)
+    ns = "{http://www.w3.org/2000/svg}"
+    parents = {child: parent for parent in root.iter() for child in parent}
+    groups = {group.get("id"): group for group in root.findall(".//" + ns + "g")}
+
+    cluster_a = groups["clust1"]
+    cluster_b = groups["clust2"]
+
+    def group_titles(group):
+        return {
+            title.text
+            for title in group.findall(".//" + ns + "title")
+            if title.text is not None
+        }
+
+    assert {"cluster_a", "aaa", "bbb", "aaa->bbb"} <= group_titles(cluster_a)
+    assert {"cluster_b", "ccc", "ddd", "ccc->ddd"} <= group_titles(cluster_b)
+    assert "aaa->ccc" not in group_titles(cluster_a)
+    assert "eee->ddd" not in group_titles(cluster_b)
+    assert parents[groups["edge1"]] == cluster_a
+    assert parents[groups["edge2"]] == cluster_b
+    assert parents[groups["edge3"]] != cluster_a
+    assert parents[groups["edge4"]] != cluster_b
+
+
 def test_827():
     """
     Graphviz should not crash when processing the b15.gv example
