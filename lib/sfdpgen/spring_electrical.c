@@ -67,6 +67,7 @@ spring_electrical_control spring_electrical_control_new(void){
   ctrl.tscheme = QUAD_TREE_HYBRID;
   ctrl.initial_scaling = -4;
   ctrl.rotation = 0.;
+  ctrl.mode = MODE_SPRING;
   ctrl.edge_labeling_scheme = 0;
   return ctrl;
 }
@@ -77,6 +78,10 @@ static char* smoothings[] = {
 
 static char* tschemes[] = {
   "NONE", "NORMAL", "FAST", "HYBRID"
+};
+
+static char *modes[] = {
+  "SPRING", "MAXENT"
 };
 
 void spring_electrical_control_print(spring_electrical_control ctrl){
@@ -95,6 +100,7 @@ void spring_electrical_control_print(spring_electrical_control ctrl){
   fprintf (stderr, "  smoothing %s overlap %d initial_scaling %.03f do_shrinking %d\n",
     smoothings[ctrl.smoothing], ctrl.overlap, ctrl.initial_scaling, (int)ctrl.do_shrinking);
   fprintf (stderr, "  octree scheme %s\n", tschemes[ctrl.tscheme]);
+  fprintf (stderr, "  mode %s\n", modes[ctrl.mode]);
   fprintf (stderr, "  edge_labeling_scheme %d\n", ctrl.edge_labeling_scheme);
 }
 
