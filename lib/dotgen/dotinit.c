@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <time.h>
+#include <common/utils.h>
 #include <dotgen/dot.h>
 #include <pack/pack.h>
 #include <dotgen/aspect.h>
@@ -300,6 +301,7 @@ static int dotLayout(Agraph_t *g) {
     setAspect(g);
 
     dot_init_subg(g,g);
+    processClusterEdges(g);
     dot_init_node_edge(g);
 
     GV_INFO("Starting phase 1 [dot_rank]");

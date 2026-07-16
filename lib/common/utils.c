@@ -1585,15 +1585,34 @@ static void fillMap (Agraph_t* g, Dt_t* map)
     }
 }
 
+static void fillMapFromSubgraphs(Agraph_t *g, Dt_t *map)
+{
+    for (Agraph_t *subg = agfstsubg(g); subg; subg = agnxtsubg(subg)) {
+        if (is_a_cluster(subg)) {
+            char *s = agnameof(subg);
+            if (!dtmatch(map, s)) {
+                clust_t *ip = gv_alloc(sizeof(clust_t));
+                ip->name = s;
+                ip->clp = subg;
+		dtinsert(map, ip);
+            }
+        }
+        fillMapFromSubgraphs(subg, map);
+    }
+}
+
 /** Generates a dictionary mapping cluster names to corresponding cluster.
  * Used with cgraph as the latter does not support a flat namespace of clusters.
- * Assumes G has already built a cluster tree using GD_n_cluster and GD_clust.
+ * Uses the internal cluster tree when one has already been built, and otherwise
+ * falls back to scanning subgraphs directly.
  */
 Dt_t* mkClustMap (Agraph_t* g)
 {
     Dt_t* map = dtopen (&strDisc, Dtoset);
 
     fillMap (g, map);
+    if (GD_n_cluster(g) == 0)
+        fillMapFromSubgraphs(g, map);
 
     return map;
 }
