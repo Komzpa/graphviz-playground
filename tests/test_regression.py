@@ -1107,6 +1107,56 @@ def test_1489():
     ), "malformed input caused an invalid memory access"
 
 
+def test_1490():
+    """
+    cluster width and height attributes should set minimum cluster dimensions
+    https://gitlab.com/graphviz/graphviz/-/issues/1490
+    https://gitlab.com/graphviz/graphviz/-/issues/1930
+    """
+
+    def cluster_b_size(source: str) -> tuple[float, float]:
+        layout = json.loads(dot("json", source=source))
+        clusters = [obj for obj in layout["objects"] if obj["name"] == "cluster_b"]
+        assert len(clusters) == 1, "could not find cluster_b"
+        llx, lly, urx, ury = (float(v) for v in clusters[0]["bb"].split(","))
+        return urx - llx, ury - lly
+
+    def graph(cluster_attrs: str = "") -> str:
+        return """
+        digraph "test" {
+            subgraph cluster_a {
+                aaa -> bbb
+                eee -> fff
+            }
+            subgraph cluster_b {
+__CLUSTER_ATTRS__
+                ccc -> ddd
+            }
+        }
+    """.replace("__CLUSTER_ATTRS__", cluster_attrs)
+
+    baseline_width, baseline_height = cluster_b_size(graph())
+    width, height = cluster_b_size(graph("                width=11\n"))
+
+    assert width > baseline_width, "cluster width attribute had no effect"
+    assert height == baseline_height, "cluster width unexpectedly changed height"
+    assert width >= 11 * 72, "cluster width is below the requested minimum"
+
+    width, height = cluster_b_size(graph("                height=13\n"))
+
+    assert width == baseline_width, "cluster height unexpectedly changed width"
+    assert height > baseline_height, "cluster height attribute had no effect"
+    assert height >= 13 * 72, "cluster height is below the requested minimum"
+
+    width, height = cluster_b_size(graph("                width=11\n"
+                                         "                height=13\n"))
+
+    assert width > baseline_width, "cluster width attribute had no effect"
+    assert height > baseline_height, "cluster height attribute had no effect"
+    assert width >= 11 * 72, "cluster width is below the requested minimum"
+    assert height >= 13 * 72, "cluster height is below the requested minimum"
+
+
 def test_1494():
     """
     processing this input found by fuzzing should not trigger a double-free

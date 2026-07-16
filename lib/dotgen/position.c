@@ -39,6 +39,23 @@ static void make_lrvn(graph_t * g);
 static void contain_nodes(graph_t * g);
 static bool idealsize(graph_t * g, double);
 
+static double cluster_min_dimension(graph_t *g, char *name) {
+    if (g == dot_root(g)) {
+	return 0;
+    }
+
+    const double inches = late_double(g, agfindgraphattr(g, name), 0, 0);
+    return INCH2PS(inches);
+}
+
+static double cluster_min_layout_width(graph_t *g) {
+    return cluster_min_dimension(g, GD_flip(agroot(g)) ? "height" : "width");
+}
+
+static double cluster_min_layout_height(graph_t *g) {
+    return cluster_min_dimension(g, GD_flip(agroot(g)) ? "width" : "height");
+}
+
 #if defined(DEBUG) && DEBUG > 1
 static void
 dumpNS (graph_t * g)
@@ -714,6 +731,15 @@ static int clust_ht(Agraph_t * g)
 	    ht2 += GD_border(g)[TOP_IX].y;
 	}
     }
+
+    const double min_height = cluster_min_layout_height(g);
+    const double height = ht1 + ht2;
+    if (min_height > height) {
+	const double extra = min_height - height;
+	ht1 += extra / 2;
+	ht2 += extra / 2;
+    }
+
     GD_ht1(g) = ht1;
     GD_ht2(g) = ht2;
 
@@ -1063,6 +1089,11 @@ static void make_lrvn(graph_t * g)
     if (GD_label(g) && g != dot_root(g) && !GD_flip(agroot(g))) {
 	const double w = fmax(GD_border(g)[BOTTOM_IX].x, GD_border(g)[TOP_IX].x);
 	make_aux_edge(ln, rn, w, 0);
+    }
+
+    const double min_width = cluster_min_layout_width(g);
+    if (min_width > 0) {
+	make_aux_edge(ln, rn, min_width, 0);
     }
 
     GD_ln(g) = ln;
