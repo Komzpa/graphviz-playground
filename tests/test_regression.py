@@ -1980,6 +1980,34 @@ def test_1879_2():
     run_raw("dot", "-Gmargin=0", "-Tpng", "-o", os.devnull, input)
 
 
+def test_468():
+    """
+    compound edge tail labels should be placed outside the tail cluster
+    https://gitlab.com/graphviz/graphviz/-/issues/468
+    """
+
+    source = """
+        digraph G {
+            compound=true; nodesep=1.0;
+            subgraph cluster_A {
+               a -> b; a -> c; a -> d;
+            }
+            a -> e [ltail=cluster_A taillabel=tail];
+        }
+    """
+
+    xdot = dot("xdot", source=source)
+    cluster_bb = re.search(r"subgraph cluster_A \{.*?\bbb=\"([^\"]+)\"", xdot, re.S)
+    assert cluster_bb is not None, "missing cluster_A bounding box"
+    _, _, cluster_urx, _ = map(float, cluster_bb.group(1).split(","))
+
+    tail_lp = re.search(r"tail_lp=\"([^\"]+)\"", xdot)
+    assert tail_lp is not None, "missing tail label position"
+    tail_label_x, _ = map(float, tail_lp.group(1).split(","))
+
+    assert tail_label_x > cluster_urx
+
+
 def test_1893():
     """
     an HTML label containing just a ] should work
