@@ -4902,6 +4902,31 @@ def test_2572():
         nodes.append(node)
 
 
+@pytest.mark.skipif(which("neato") is None, reason="neato not available")
+@pytest.mark.parametrize("shape", ("plain", "rect"))
+def test_2573(shape: str):
+    """
+    neato should show cluster labels when node shapes are plain or rectangular
+    https://gitlab.com/graphviz/graphviz/-/issues/2573
+    """
+
+    # find our collocated test case
+    input = Path(__file__).parent / "2573.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render the issue reproducer through neato with the affected node shapes
+    neato = which("neato")
+    svg = run(neato, "-Tsvg", f"-Nshape={shape}", input)
+
+    # the cluster label should be present as visible SVG text, not just metadata
+    root = ET.fromstring(svg)
+    texts = [
+        "".join(text.itertext())
+        for text in root.findall(".//{http://www.w3.org/2000/svg}text")
+    ]
+    assert "AAA" in texts, "cluster label was not rendered"
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_2577():
     """
