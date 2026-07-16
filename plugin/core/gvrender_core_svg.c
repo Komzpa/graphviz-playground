@@ -203,6 +203,11 @@ static void svg_grstyle(GVJ_t * job, int filled, int gid)
 	gvprintf(job, "\" stroke-dasharray=\"%s", sdasharray);
     } else if (obj->pen == PEN_DOTTED) {
 	gvprintf(job, "\" stroke-dasharray=\"%s", sdotarray);
+    } else if (obj->pen == PEN_CUSTOM_DASH) {
+	gvputs(job, "\" stroke-dasharray=\"");
+	gvprintdouble(job, obj->dash);
+	gvputc(job, ',');
+	gvprintdouble(job, obj->gap);
     }
     if (obj->pencolor.type == RGBA_BYTE && obj->pencolor.u.rgba[3] > 0
 	&& obj->pencolor.u.rgba[3] < 255)

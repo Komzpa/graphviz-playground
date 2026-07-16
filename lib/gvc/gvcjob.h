@@ -32,7 +32,7 @@ extern "C" {
     typedef struct gvtextlayout_engine_s gvtextlayout_engine_t;
     typedef struct gvloadimage_engine_s gvloadimage_engine_t;
 
-    typedef enum { PEN_NONE, PEN_DASHED, PEN_DOTTED, PEN_SOLID } pen_type;
+    typedef enum { PEN_NONE, PEN_DASHED, PEN_DOTTED, PEN_SOLID, PEN_CUSTOM_DASH } pen_type;
     typedef enum { FILL_NONE, FILL_SOLID, FILL_LINEAR, FILL_RADIAL } fill_type;
     typedef enum { FONT_REGULAR, FONT_BOLD, FONT_ITALIC } font_type;
     typedef enum { LABEL_PLAIN, LABEL_HTML } label_type;
@@ -197,6 +197,8 @@ extern "C" {
 	pen_type pen;
 	fill_type fill;
 	double penwidth;
+	double dash;
+	double gap;
 	char **rawstyle;
 
 	double z, tail_z, head_z;   /* z depths for 2.5D renderers such as vrml */

@@ -335,6 +335,9 @@ static void cairogen_set_penstyle(GVJ_t *job, cairo_t *cr)
 	cairo_set_dash (cr, dashed, dashed_len, 0.0);
     } else if (obj->pen == PEN_DOTTED) {
 	cairo_set_dash (cr, dotted, dotted_len, 0.0);
+    } else if (obj->pen == PEN_CUSTOM_DASH) {
+	const double custom_dash[] = {obj->dash, obj->gap};
+	cairo_set_dash(cr, custom_dash, ARRAY_SIZE(custom_dash), 0.0);
     } else {
 	cairo_set_dash (cr, dashed, 0, 0.0);
     }

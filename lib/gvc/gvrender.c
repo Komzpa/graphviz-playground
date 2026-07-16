@@ -30,6 +30,7 @@
 #include <gvc/gvcproc.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <util/agxbuf.h>
 #include <util/alloc.h>
 #include <util/strcasecmp.h>
@@ -488,9 +489,11 @@ void gvrender_set_style(GVJ_t * job, char **s)
     if (gvre) {
 	if (s)
 	    while ((p = line = *s++)) {
-		if (streq(line, "solid"))
+		if (streq(line, "solid")) {
 		    obj->pen = PEN_SOLID;
-		else if (streq(line, "dashed"))
+		    obj->dash = 0;
+		    obj->gap = 0;
+		} else if (streq(line, "dashed"))
 		    obj->pen = PEN_DASHED;
 		else if (streq(line, "dotted"))
 		    obj->pen = PEN_DOTTED;
@@ -503,6 +506,31 @@ void gvrender_set_style(GVJ_t * job, char **s)
 			p++;
 		    p++;
 		    obj->penwidth = atof(p);
+		} else if (streq(line, "setdash")) {
+		    while (*p)
+			p++;
+		    p++;
+		    errno = 0;
+		    char *endp = NULL;
+		    const double dash = strtod(p, &endp);
+		    if (errno != 0 || endp == p || *endp != '\0' || dash <= 0) {
+			agwarningf(
+			  "gvrender_set_style: invalid setdash dash length %s - ignoring\n",
+			  p);
+			continue;
+		    }
+		    p = endp + 1;
+		    errno = 0;
+		    const double gap = strtod(p, &endp);
+		    if (errno != 0 || endp == p || *endp != '\0' || gap < 0) {
+			agwarningf(
+			  "gvrender_set_style: invalid setdash gap length %s - ignoring\n",
+			  p);
+			continue;
+		    }
+		    obj->pen = PEN_CUSTOM_DASH;
+		    obj->dash = dash;
+		    obj->gap = gap;
 		} else if (streq(line, "filled"))
 		    obj->fill = FILL_SOLID;
 		else if (streq(line, "unfilled"))

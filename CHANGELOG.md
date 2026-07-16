@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The SVG and Cairo renderers now support custom `setdash(dash,gap)` edge
+  styles. #1059
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

@@ -117,6 +117,8 @@ obj_state_t* push_obj_state(GVJ_t *job)
         obj->pen = parent->pen;
         obj->fill = parent->fill;
         obj->penwidth = parent->penwidth;
+        obj->dash = parent->dash;
+        obj->gap = parent->gap;
 	obj->gradient_angle = parent->gradient_angle;
 	obj->stopcolor = parent->stopcolor;
     }
@@ -124,6 +126,8 @@ obj_state_t* push_obj_state(GVJ_t *job)
 	obj->pen = PEN_SOLID;
 	obj->fill = FILL_NONE;
 	obj->penwidth = PENWIDTH_NORMAL;
+	obj->dash = 0;
+	obj->gap = 0;
     }
     return obj;
 }
@@ -4364,4 +4368,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
