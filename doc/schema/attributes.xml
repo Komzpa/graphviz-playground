@@ -858,6 +858,18 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="fontweight" type="xsd:string">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Font weight used for text, such as <html:span class="val">normal</html:span>,
+					<html:span class="val">bold</html:span>, or a numeric SVG/CSS weight like
+					<html:span class="val">700</html:span>.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<xsd:attribute name="fontpath" type="xsd:string">
 		<xsd:annotation>
@@ -1164,6 +1176,17 @@
 				<html:p>
 					Font size, in <html:a rel="note">points</html:a>, used for headlabel and taillabel.
 					If not set, defaults to edge's fontsize.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="labelfontweight" type="xsd:string">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Font weight used for headlabel and taillabel.
+					If not set, defaults to edge's fontweight.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
@@ -2467,6 +2490,7 @@
 		<xsd:attribute ref="edgetooltip" />
 		<xsd:attribute ref="fontcolor" default="black" />
 		<xsd:attribute ref="fontname" default="Times-Roman" />
+		<xsd:attribute ref="fontweight" />
 		<xsd:attribute ref="fontsize" default="14.0" />
 		<xsd:attribute ref="headURL" />
 		<xsd:attribute ref="headclip" default="true" />
@@ -2484,6 +2508,7 @@
 		<xsd:attribute ref="labelfontcolor" default="black" />
 		<xsd:attribute ref="labelfontname" default="Times-Roman" />
 		<xsd:attribute ref="labelfontsize" default="14.0" />
+		<xsd:attribute ref="labelfontweight" />
 		<xsd:attribute ref="labelhref" />
 		<xsd:attribute ref="labeltarget" />
 		<xsd:attribute ref="labeltooltip" />
@@ -2521,6 +2546,7 @@
 		<xsd:attribute ref="fixedsize" default="false" />
 		<xsd:attribute ref="fontcolor" default="black" />
 		<xsd:attribute ref="fontname" default="Times-Roman" />
+		<xsd:attribute ref="fontweight" />
 		<xsd:attribute ref="fontsize" default="14.0" />
 		<xsd:attribute ref="group" />
 		<xsd:attribute ref="height" default="0.5" />
@@ -2575,6 +2601,7 @@
 		<xsd:attribute ref="fontname" default="Times-Roman" />
 		<xsd:attribute ref="fontnames" />
 		<xsd:attribute ref="fontpath" />
+		<xsd:attribute ref="fontweight" />
 		<xsd:attribute ref="fontsize" default="14.0" />
 		<xsd:attribute ref="label" />
 		<xsd:attribute ref="labeljust" default="c" />
@@ -2641,6 +2668,7 @@
 		<xsd:attribute ref="fixedsize" default="false" />
 		<xsd:attribute ref="fontcolor" default="black" />
 		<xsd:attribute ref="fontname" default="Times-Roman" />
+		<xsd:attribute ref="fontweight" />
 		<xsd:attribute ref="fontsize" default="14.0" />
 		<xsd:attribute ref="label" />
 		<xsd:attribute ref="labeljust" default="c" />

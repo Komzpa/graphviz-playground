@@ -569,7 +569,7 @@ static htmlimg_t *mkImg(htmllexstate_t *ctx, const char **atts) {
 
 static textfont_t *mkFont(htmllexstate_t *ctx, const char **atts,
                           unsigned char flags) {
-  textfont_t tf = {NULL, NULL, NULL, 0.0, 0, 0};
+  textfont_t tf = {0};
 
   tf.size = -1.0; /* unassigned */
   enum { FLAGS_MAX = (1 << GV_TEXTFONT_FLAGS_WIDTH) - 1 };

@@ -726,6 +726,7 @@ void graph_init(graph_t * g, bool use_rankdir)
     N_fontsize = agfindnodeattr(g, "fontsize");
     N_fontname = agfindnodeattr(g, "fontname");
     N_fontcolor = agfindnodeattr(g, "fontcolor");
+    N_fontweight = agfindnodeattr(g, "fontweight");
     N_label = agfindnodeattr(g, "label");
     if (!N_label)
 	N_label = agattr_text(g, AGNODE, "label", NODENAME_ESC);
@@ -757,6 +758,7 @@ void graph_init(graph_t * g, bool use_rankdir)
     E_fontsize = agfindedgeattr(g, "fontsize");
     E_fontname = agfindedgeattr(g, "fontname");
     E_fontcolor = agfindedgeattr(g, "fontcolor");
+    E_fontweight = agfindedgeattr(g, "fontweight");
     E_label = agfindedgeattr(g, "label");
     E_xlabel = agfindedgeattr(g, "xlabel");
     E_label_float = agfindedgeattr(g, "labelfloat");
@@ -766,6 +768,7 @@ void graph_init(graph_t * g, bool use_rankdir)
     E_labelfontsize = agfindedgeattr(g, "labelfontsize");
     E_labelfontname = agfindedgeattr(g, "labelfontname");
     E_labelfontcolor = agfindedgeattr(g, "labelfontcolor");
+    E_labelfontweight = agfindedgeattr(g, "labelfontweight");
     E_labeldistance = agfindedgeattr(g, "labeldistance");
     E_labelangle = agfindedgeattr(g, "labelangle");
     E_minlen = agfindedgeattr(g, "minlen");
@@ -845,7 +848,8 @@ void do_graph_label(graph_t * sg)
 	    late_nnstring(sg, agfindgraphattr(sg, "fontname"),
 			DEFAULT_FONTNAME),
 	    late_nnstring(sg, agfindgraphattr(sg, "fontcolor"),
-			DEFAULT_COLOR));
+			DEFAULT_COLOR),
+	    late_string(sg, agfindgraphattr(sg, "fontweight"), NULL));
 
 	/* set label position */
 	pos = agget(sg, "labelloc");

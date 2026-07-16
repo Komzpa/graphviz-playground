@@ -55,6 +55,7 @@ typedef struct _PostscriptAlias {
 typedef struct {
   char *name;
   char *color;
+  char *weight;
   PostscriptAlias *postscript_alias;
   double size;
   unsigned int flags

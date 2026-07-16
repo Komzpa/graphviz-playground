@@ -50,6 +50,42 @@ static char* pango_psfontResolve (PostscriptAlias* pa)
     return agxbdisown(&buf);
 }
 
+static bool nullable_streq(const char *a, const char *b)
+{
+    if (!a || !b)
+	return a == b;
+    return strcmp(a, b) == 0;
+}
+
+static bool pango_weight_from_string(const char *s, PangoWeight *weight)
+{
+    if (!s)
+	return false;
+
+    char *end = NULL;
+    long numeric_weight = strtol(s, &end, 10);
+    if (end && *end == '\0') {
+	*weight = (PangoWeight)numeric_weight;
+	return true;
+    }
+
+    if (g_ascii_strcasecmp(s, "normal") == 0) {
+	*weight = PANGO_WEIGHT_NORMAL;
+	return true;
+    }
+    if (g_ascii_strcasecmp(s, "bold") == 0 ||
+	g_ascii_strcasecmp(s, "bolder") == 0) {
+	*weight = PANGO_WEIGHT_BOLD;
+	return true;
+    }
+    if (g_ascii_strcasecmp(s, "lighter") == 0) {
+	*weight = PANGO_WEIGHT_LIGHT;
+	return true;
+    }
+
+    return false;
+}
+
 #define FONT_DPI 96.
 
 #define ENABLE_PANGO_MARKUP
@@ -69,6 +105,7 @@ static bool pango_textlayout(textspan_t * span, char **fontpath)
     static PangoContext *context;
     static PangoFontDescription *desc;
     static char *fontname;
+    static char *fontweight;
     static double fontsize;
     static gv_font_map* gv_fmap;
     char *fnt, *psfnt = NULL;
@@ -97,6 +134,7 @@ static bool pango_textlayout(textspan_t * span, char **fontpath)
     }
 
     if (!fontname || strcmp(fontname, span->font->name) != 0 ||
+        !nullable_streq(fontweight, span->font->weight) ||
         !is_exactly_equal(fontsize, span->font->size)) {
 
 	/* check if the conversion to Pango units below will overflow */
@@ -106,6 +144,8 @@ static bool pango_textlayout(textspan_t * span, char **fontpath)
 
 	free(fontname);
 	fontname = gv_strdup(span->font->name);
+	free(fontweight);
+	fontweight = span->font->weight ? gv_strdup(span->font->weight) : NULL;
 	fontsize = span->font->size;
 	pango_font_description_free (desc);
 
@@ -122,6 +162,10 @@ static bool pango_textlayout(textspan_t * span, char **fontpath)
 	    fnt = fontname;
 
 	desc = pango_font_description_from_string(fnt);
+	PangoWeight weight;
+	if (pango_weight_from_string(span->font->weight, &weight)) {
+	    pango_font_description_set_weight(desc, weight);
+	}
         // all text layout is done at a scale of FONT_DPI (nominally 96.)
         pango_font_description_set_size (desc, (int)(fontsize * PANGO_SCALE));
 

@@ -7567,6 +7567,36 @@ def test_duplicate_font_family():
         assert len(families) == len(set(families)), "duplicate font families listed"
 
 
+def test_1567():
+    """
+    SVG output should honor explicit font weights without mangling font names
+    https://gitlab.com/graphviz/graphviz/-/issues/1567
+    """
+
+    source = textwrap.dedent(
+        """\
+    digraph G {
+      graph [fontnames=svg, label="graph", fontname="Times New Roman", fontweight=bold];
+      n [label="node", fontname="Times New Roman", fontweight=700];
+      m [label=<HTML>, fontname="Times New Roman", fontweight=600];
+      n -> m [headlabel="head", labelfontname="Times New Roman", labelfontweight=bold];
+    }
+    """
+    )
+
+    svg = dot("svg", source=source)
+
+    for weight, text in [("700", "node"), ("600", "HTML"), ("bold", "head")]:
+        assert re.search(
+            rf'<text [^>]*font-family="Times New Roman"[^>]*font-weight="{weight}"[^>]*>{text}</text>',
+            svg,
+        )
+    assert re.search(
+        r'<text [^>]*font-family="Times New Roman"[^>]*font-weight="bold"[^>]*>graph</text>',
+        svg,
+    )
+
+
 def test_plugin_version_cmake():
     """confirm the plugin version defined in CMake matches Autotools"""
     autotools_current, autotools_revision, autotools_age = plugin_version()
