@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- `nop` now writes structural line breaks in HTML-like labels, making long
+  table labels easier to read after canonicalization. #2517
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
