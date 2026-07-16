@@ -6523,6 +6523,146 @@ def test_2827(tmp_path: Path):
     assert svg1 == svg2, "state from one graph carried to another"
 
 
+def test_2832():
+    """
+    long cluster labels should not shift image nodes off center
+    https://gitlab.com/graphviz/graphviz/-/issues/2832
+    """
+
+    source = r"""
+        digraph "Test long" {
+          graph [
+            fontcolor="#2D3436",
+            fontname="Sans-Serif",
+            fontsize=15,
+            label="Test long",
+            nodesep=0.60,
+            pad=2.0,
+            rankdir=TB,
+            ranksep=0.75,
+            splines=ortho
+          ];
+          node [
+            fixedsize=true,
+            fontcolor="#2D3436",
+            fontname="Sans-Serif",
+            fontsize=13,
+            height=1.4,
+            imagescale=true,
+            label="\N",
+            labelloc=b,
+            shape=box,
+            style=rounded,
+            width=1.4
+          ];
+          edge [color="#7B8894"];
+          subgraph "cluster_Core Components" {
+            graph [
+              bgcolor="#E5F5FD",
+              fontname="Sans-Serif",
+              fontsize=12,
+              label="Core Components",
+              labeljust=l,
+              pencolor="#AEB6BE",
+              rankdir=LR,
+              shape=box,
+              style=rounded
+            ];
+            subgraph "cluster_openshift-apiserver" {
+              graph [
+                bgcolor=white,
+                fontname="Sans-Serif",
+                fontsize=12,
+                label="openshift-apiserver",
+                labeljust=c,
+                margin=10,
+                pencolor="#AEB6BE",
+                rankdir=LR,
+                shape=box,
+                style=rounded
+              ];
+              n1 [
+                height=2.3,
+                image="tests/2619.jpg",
+                label="\napiserver",
+                shape=none
+              ];
+            }
+            subgraph "cluster_openshift-apiserver-operator" {
+              graph [
+                bgcolor=white,
+                fontname="Sans-Serif",
+                fontsize=12,
+                label="openshift-apiserver-operator",
+                labeljust=c,
+                margin=10,
+                pencolor="#AEB6BE",
+                rankdir=LR,
+                shape=box,
+                style=rounded
+              ];
+              n2 [
+                height=2.3,
+                image="tests/2619.jpg",
+                label="\nopenshift-apiserver-operator",
+                shape=none
+              ];
+            }
+            subgraph "cluster_openshift-authentication" {
+              graph [
+                bgcolor=white,
+                fontname="Sans-Serif",
+                fontsize=12,
+                label="openshift-authentication",
+                labeljust=c,
+                margin=10,
+                pencolor="#AEB6BE",
+                rankdir=LR,
+                shape=box,
+                style=rounded
+              ];
+              n3 [
+                height=2.3,
+                image="tests/2619.jpg",
+                label="\noauth-openshift",
+                shape=none
+              ];
+            }
+          }
+        }
+    """
+
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+    namespace = "{http://www.w3.org/2000/svg}"
+
+    def group_by_title(title: str) -> ET.Element:
+        group = root.find(f".//{namespace}title[.='{title}']/..")
+        assert group is not None, f"{title} not rendered"
+        return group
+
+    def path_center_x(group: ET.Element) -> float:
+        path = group.find(f"{namespace}path")
+        assert path is not None, "cluster outline path not rendered"
+        values = [float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", path.attrib["d"])]
+        xs = values[0::2]
+        return (min(xs) + max(xs)) / 2
+
+    def image_center_x(group: ET.Element) -> float:
+        image = group.find(f"{namespace}image")
+        assert image is not None, "node image not rendered"
+        return float(image.attrib["x"]) + float(image.attrib["width"].rstrip("px")) / 2
+
+    for cluster, node in (
+        ("cluster_openshift-apiserver", "n1"),
+        ("cluster_openshift-apiserver-operator", "n2"),
+        ("cluster_openshift-authentication", "n3"),
+    ):
+        cluster_center = path_center_x(group_by_title(cluster))
+        node_center = image_center_x(group_by_title(node))
+        assert abs(node_center - cluster_center) <= 3
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
 @pytest.mark.xfail(
     raises=AssertionError,
