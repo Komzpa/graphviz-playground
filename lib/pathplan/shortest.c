@@ -70,6 +70,15 @@ static int pointintri(size_t, Ppoint_t *);
 
 static int growops(size_t);
 
+static int straight_path(Ppoint_t eps[2], Ppolyline_t *output) {
+    if (growops(2) != 0)
+	return -2;
+    output->pn = 2;
+    ops[0] = eps[0], ops[1] = eps[1];
+    output->ps = ops;
+    return 0;
+}
+
 static Ppoint_t point_indexer(void *base, size_t index) {
   pointnlink_t **b = base;
   return *b[index]->pp;
@@ -154,11 +163,17 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 #endif
 
     /* generate list of triangles */
-    if (triangulate(pnlps, pnll)) {
+    const int triangulation = triangulate(pnlps, pnll);
+    if (triangulation < 0) {
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
 	return -2;
+    } else if (triangulation > 0) {
+	free(dq.pnlps);
+	free(pnlps);
+	free(pnls);
+	return straight_path(eps, output);
     }
 
 #if defined(DEBUG) && DEBUG >= 2
@@ -200,17 +215,11 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 
     /* mark the strip of triangles from eps[0] to eps[1] */
     if (!marktripath(ftrii, ltrii)) {
-	prerror("cannot find triangle path");
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
 	/* a straight line is better than failing */
-	if (growops(2) != 0)
-		return -2;
-	output->pn = 2;
-	ops[0] = eps[0], ops[1] = eps[1];
-	output->ps = ops;
-	return 0;
+	return straight_path(eps, output);
     }
 
     /* if endpoints in same triangle, use a single line */
@@ -330,7 +339,7 @@ static int triangulate(pointnlink_t **points, size_t point_count) {
 				return triangulate(points, point_count - 1);
 			}
 		}
-		prerror("triangulation failed");
+		return 1;
     } 
 	else {
 		if (loadtriangle(points[0], points[1], points[2]) != 0)

@@ -896,9 +896,6 @@ def test_1425_1():
     assert re.search(r"\btable tip\b", svg) is not None, "tooltip not propagated to SVG"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1435"
-)
 def test_1435():
     """
     triangulation paths should be findable on this graph
