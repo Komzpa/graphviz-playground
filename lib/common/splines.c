@@ -1176,6 +1176,15 @@ void makeSelfEdge(edge_t *edges[], size_t cnt, double sizex, double sizey,
 	selfRight(edges, cnt, sizex, sizey, sinfo);
     }
 
+    /* self edge with both ports on top or bottom side */
+    else if ((ED_tail_port(e).side & TOP) && (ED_head_port(e).side & TOP)) {
+	selfTop(edges, cnt, sizex, sizey, sinfo);
+    }
+    else if ((ED_tail_port(e).side & BOTTOM) &&
+             (ED_head_port(e).side & BOTTOM)) {
+	selfBottom(edges, cnt, sizex, sizey, sinfo);
+    }
+
     /* self edge with port on left side */
     else if ((ED_tail_port(e).side & LEFT) || (ED_head_port(e).side & LEFT)) {
 
@@ -1186,14 +1195,6 @@ void makeSelfEdge(edge_t *edges[], size_t cnt, double sizex, double sizey,
 	else {
 	    selfLeft(edges, cnt, sizex, sizey, sinfo);
 	}
-    }
-
-    /* self edge with both ports on top side */
-    else if (ED_tail_port(e).side & TOP) {
-	selfTop(edges, cnt, sizex, sizey, sinfo);
-    }
-    else if (ED_tail_port(e).side & BOTTOM) {
-	selfBottom(edges, cnt, sizex, sizey, sinfo);
     }
 
     else assert(0);

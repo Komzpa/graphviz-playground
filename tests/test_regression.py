@@ -523,6 +523,59 @@ def test_517():
     ), "regular label missing"
 
 
+def test_739():
+    """
+    self-loops between bottom-corner ports should route below the node
+    https://gitlab.com/graphviz/graphviz/-/issues/739
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "739.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process this
+    plain = dot("plain", input).decode("utf-8")
+
+    nodes = {}
+    edges = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if len(fields) >= 6 and fields[0] == "node":
+            _, name, x, y, width, height = fields[:6]
+            nodes[name] = tuple(map(float, (x, y, width, height)))
+        elif len(fields) >= 6 and fields[0] == "edge":
+            _, tail, head, point_count_s = fields[:4]
+            point_count = int(point_count_s)
+            points = list(map(float, fields[4 : 4 + point_count * 2]))
+            xs = points[0::2]
+            ys = points[1::2]
+            edges.setdefault((tail, head), []).append((xs, ys))
+
+    def bounds(name: str) -> tuple[float, float, float, float]:
+        x, y, width, height = nodes[name]
+        return x - width / 2, x + width / 2, y - height / 2, y + height / 2
+
+    assert all(name in nodes for name in ("x1", "x2", "x3", "x4"))
+
+    # nw -> sw stays on the left side.
+    x1_left, _, _, _ = bounds("x1")
+    assert max(edges[("x1", "x1")][0][0]) <= x1_left + 0.01
+
+    # nw -> ne stays on the top side.
+    _, _, _, x2_top = bounds("x2")
+    assert min(edges[("x2", "x2")][0][1]) >= x2_top - 0.01
+
+    # se <-> sw stays on the bottom side instead of wrapping over the node.
+    _, _, x3_bottom, _ = bounds("x3")
+    assert len(edges[("x3", "x3")]) == 2
+    for _, ys in edges[("x3", "x3")]:
+        assert max(ys) <= x3_bottom + 0.01
+
+    # se -> ne stays on the right side.
+    _, x4_right, _, _ = bounds("x4")
+    assert min(edges[("x4", "x4")][0][0]) >= x4_right - 0.01
+
+
 def test_793():
     """
     Graphviz should not crash when using VRML output with a non-writable current
