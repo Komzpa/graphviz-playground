@@ -799,6 +799,57 @@ def test_1332():
     ), "warnings were printed when processing graph involving triangulation"
 
 
+def test_1357():
+    """
+    none arrowheads on HTML table ports should not render arrow polygons
+    https://gitlab.com/graphviz/graphviz/-/issues/1357
+    """
+
+    source = """
+        digraph unix {
+          sh0004 [shape=rect,label="4"];
+          sh0005 [shape=rect,label=<
+            <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">
+              <TR>
+                <TD></TD>
+                <TD FIXEDSIZE="TRUE" WIDTH="1.0" HEIGHT="18"></TD>
+                <TD></TD>
+              </TR>
+              <TR>
+                <TD FIXEDSIZE="TRUE" WIDTH="22" HEIGHT="1"></TD>
+                <TD BGCOLOR="#0000bb" FIXEDSIZE="TRUE" WIDTH="18" HEIGHT="18"
+                    PORT="h"></TD>
+                <TD FIXEDSIZE="TRUE" WIDTH="22" HEIGHT="1"></TD>
+              </TR>
+              <TR>
+                <TD></TD>
+                <TD FIXEDSIZE="TRUE" WIDTH="1" HEIGHT="18"></TD>
+                <TD></TD>
+              </TR>
+            </TABLE>
+          >];
+          sh0006 [shape=rect,label="6"];
+          sh0004 -> sh0005:h [
+            arrowtail=none, arrowhead=none, minlen=0, color="#FF0000"
+          ];
+          sh0005:h -> sh0006 [
+            arrowtail=empty, arrowhead=none, arrowsize=0.5, minlen=0,
+            color="#00FF00"
+          ];
+        }
+    """
+
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+    namespace = "{http://www.w3.org/2000/svg}"
+
+    for title in ("sh0004->sh0005:h", "sh0005:h->sh0006"):
+        edge = root.find(f".//{namespace}title[.='{title}']/..")
+        assert edge is not None, f"edge {title} not rendered"
+        assert len(edge.findall(f"{namespace}path")) == 1
+        assert not edge.findall(f"{namespace}polygon"), f"edge {title} has arrowhead"
+
+
 def test_1367():
     """
     this graph should not generate a null pointer dereference
