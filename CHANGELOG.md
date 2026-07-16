@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Filled nodes with multiple peripheries now fill every periphery, rather than
+  only the innermost one. #630
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
