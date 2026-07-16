@@ -42,6 +42,7 @@ extern "C" {
 #define BORDER_RIGHT (1 << 12)
 #define BORDER_BOTTOM (1 << 13)
 #define BORDER_MASK (BORDER_LEFT | BORDER_TOP | BORDER_RIGHT | BORDER_BOTTOM)
+#define WIDTH_SET (1 << 14)
 
 #define UNSET_ALIGN 0
 
@@ -102,6 +103,15 @@ typedef struct {
 
 typedef enum { HTML_UNSET = 0, HTML_TBL, HTML_TEXT, HTML_IMAGE } label_type_t;
 
+void free_html_data(htmldata_t *);
+
+static inline void free_html_data_ptr(htmldata_t *p) {
+  if (p) {
+    free_html_data(p);
+    free(p);
+  }
+}
+
 typedef struct htmlcell_t htmlcell_t;
 typedef struct htmltbl_t htmltbl_t;
 
@@ -112,12 +122,14 @@ typedef struct htmltbl_t htmltbl_t;
 
 typedef struct {
   LIST(htmlcell_t *) rp;
+  htmldata_t *rule;
   bool ruled;
 } row_t;
 
 /// Free row. This closes and frees row’s list, then the item itself is freed.
 static inline void free_ritem(row_t *p) {
   LIST_FREE(&p->rp);
+  free_html_data_ptr(p->rule);
   free(p);
 }
 
@@ -162,6 +174,8 @@ struct htmlcell_t {
   uint16_t row;
   htmllabel_t child;
   htmltbl_t *parent;
+  htmldata_t *vrule; ///< vertical rule style
+  htmldata_t *hrule; ///< horizontal rule style
   bool vruled : 1; ///< vertically ruled?
   bool hruled : 1; ///< horizontally ruled?
 };

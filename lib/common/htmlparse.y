@@ -113,6 +113,8 @@ cleanCell (htmlcell_t* cp)
   if (cp->child.kind == HTML_TBL) cleanTbl (cp->child.u.tbl);
   else if (cp->child.kind == HTML_TEXT) free_html_text (cp->child.u.txt);
   free_html_data (&cp->data);
+  free_html_data_ptr(cp->vrule);
+  free_html_data_ptr(cp->hrule);
   free (cp);
 }
 
@@ -178,14 +180,17 @@ popFont (htmlparserstate_t *html_state);
   htmltbl_t*   tbl;
   textfont_t*  font;
   htmlimg_t*   img;
+  htmldata_t*   data;
   row_t *p;
 }
 
 %token T_end_br T_end_img T_row T_end_row T_html T_end_html
 %token T_end_table T_end_cell T_end_font T_string T_error
 %token T_n_italic T_n_bold T_n_underline  T_n_overline T_n_sup T_n_sub T_n_s
-%token T_HR T_hr T_end_hr
-%token T_VR T_vr T_end_vr
+%token <data> T_HR T_hr
+%token T_end_hr
+%token <data> T_VR T_vr
+%token T_end_vr
 %token <i> T_BR T_br
 %token <img> T_IMG T_img
 %token <tbl> T_table
@@ -198,6 +203,7 @@ popFont (htmlparserstate_t *html_state);
 %type <tbl> table fonttable
 %type <img> image
 %type <p> row rows
+%type <data> HR VR
 
 %start html
 
@@ -318,7 +324,7 @@ opt_space : string
 
 rows : row { $$ = $1; }
      | rows row { $$ = $2; }
-     | rows HR row { $1->ruled = true; $$ = $3; }
+     | rows HR row { $1->ruled = true; $1->rule = $2; $$ = $3; }
      ;
 
 row : T_row { addRow (&scanner->parser); } cells T_end_row { $$ = lastRow(&scanner->parser); }
@@ -326,7 +332,7 @@ row : T_row { addRow (&scanner->parser); } cells T_end_row { $$ = lastRow(&scann
 
 cells : cell { $$ = $1; }
       | cells cell { $$ = $2; }
-      | cells VR cell { $1->vruled = true; $$ = $3; }
+      | cells VR cell { $1->vruled = true; $1->vrule = $2; $$ = $3; }
       ;
 
 cell : T_cell fonttable { setCell(&scanner->parser,$1,$2,HTML_TBL); } T_end_cell { $$ = $1; }
@@ -339,12 +345,12 @@ image  : T_img T_end_img { $$ = $1; }
        | T_IMG { $$ = $1; }
        ;
 
-HR  : T_hr T_end_hr
-    | T_HR
+HR  : T_hr T_end_hr { $$ = $1; }
+    | T_HR { $$ = $1; }
     ;
 
-VR  : T_vr T_end_vr
-    | T_VR
+VR  : T_vr T_end_vr { $$ = $1; }
+    | T_VR { $$ = $1; }
     ;
 
 

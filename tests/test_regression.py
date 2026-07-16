@@ -2643,6 +2643,28 @@ def test_2159():
         assert math.isclose(width, widths[0], abs_tol=5), "cells not evenly expanded"
 
 
+def test_392():
+    """
+    HR and VR rules in HTML-like labels should honor their own color and width
+    https://gitlab.com/graphviz/graphviz/-/issues/392
+    """
+
+    source = """digraph {
+      n [shape=plain label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" COLOR="black">
+          <TR><TD>A</TD><TD>B</TD></TR>
+          <HR COLOR="red" WIDTH="4"/>
+          <TR><TD>C</TD><VR COLOR="blue" WIDTH="3"/><TD>D</TD></TR>
+        </TABLE>
+      >]
+    }"""
+
+    svg = dot("svg", source=source)
+
+    assert 'fill="red" stroke="red" stroke-width="4"' in svg
+    assert 'fill="blue" stroke="blue" stroke-width="3"' in svg
+
+
 def test_2168():
     """
     using spline routing should not cause fdp/neato to infinite loop

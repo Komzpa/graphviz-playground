@@ -221,6 +221,19 @@ static void doSide(GVJ_t * job, pointf p, double wd, double ht)
     gvrender_box(job, BF, 1);
 }
 
+static htmldata_t *dup_html_data(const htmldata_t *src)
+{
+    if (!src)
+	return NULL;
+
+    htmldata_t *dst = gv_alloc(sizeof(htmldata_t));
+    dst->flags = src->flags;
+    dst->width = src->width;
+    if (src->pencolor)
+	dst->pencolor = gv_strdup(src->pencolor);
+    return dst;
+}
+
 /* Convert boxf into four corner points
  * If border is > 1, inset the points by half the border.
  * It is assumed AF is pointf[4], so the data is store there
@@ -444,6 +457,21 @@ static void endAnchor(GVJ_t * job, htmlmap_data_t * save)
 
 static void emit_html_cell(GVJ_t * job, htmlcell_t * cp, htmlenv_t * env);
 
+static void
+set_html_rule_style(GVJ_t *job, const htmldata_t *rule, char *table_color)
+{
+    char *color = table_color ? table_color : DEFAULT_COLOR;
+    if (rule && rule->pencolor)
+	color = rule->pencolor;
+
+    const double width =
+	rule && (rule->flags & WIDTH_SET) ? (double)rule->width : 1.0;
+
+    gvrender_set_fillcolor(job, color);
+    gvrender_set_pencolor(job, color);
+    gvrender_set_penwidth(job, width);
+}
+
 /* place vertical and horizontal lines between adjacent cells and
  * extend the lines to intersect the rounded table boundary 
  */
@@ -468,6 +496,7 @@ emit_html_rules(GVJ_t * job, htmlcell_t * cp, htmlenv_t * env, char *color, html
 
     //Determine vertical line coordinate and length
     if (cp->vruled && cp->col + cp->colspan < cp->parent->column_count) {
+	set_html_rule_style(job, cp->vrule, color);
 	if (cp->row == 0) {	// first row
 	    // extend to center of table border and add half cell spacing
 	    base = cp->parent->data.border + cp->parent->data.space / 2;
@@ -486,6 +515,7 @@ emit_html_rules(GVJ_t * job, htmlcell_t * cp, htmlenv_t * env, char *color, html
     }
     //Determine the horizontal coordinate and length
     if (cp->hruled && cp->row + cp->rowspan < cp->parent->row_count) {
+	set_html_rule_style(job, cp->hrule, color);
 	if (cp->col == 0) {	// first column 
 	    // extend to center of table border and add half cell spacing
 	    base = cp->parent->data.border + cp->parent->data.space / 2;
@@ -563,7 +593,6 @@ static void emit_html_tbl(GVJ_t * job, htmltbl_t * tbl, htmlenv_t * env)
 	 * into account wider rules.
 	 */
 	cells = tbl->cells;
-	gvrender_set_penwidth(job, 1.0);
 	while ((cp = *cells++)) {
 	    if (cp->hruled || cp->vruled)
 		emit_html_rules(job, cp, env, tbl->data.pencolor, *cells);
@@ -831,6 +860,8 @@ static void free_html_cell(htmlcell_t * cp)
 {
     free_html_label(&cp->child, 0);
     free_html_data(&cp->data);
+    free_html_data_ptr(cp->vrule);
+    free_html_data_ptr(cp->hrule);
     free(cp);
 }
 
@@ -1197,6 +1228,7 @@ static int processTbl(graph_t * g, htmltbl_t * tbl, htmlenv_t * env)
     size_t n_cols = 0;
     PointSet *ps = newPS();
     bitarray_t is = bitarray_new((size_t)UINT16_MAX + 1);
+    htmldata_t **hrules = gv_calloc((size_t)UINT16_MAX + 1, sizeof(htmldata_t *));
 
     size_t cnt = 0;
     for (uint16_t r = 0; r < LIST_SIZE(&rows); ++r) {
@@ -1204,6 +1236,7 @@ static int processTbl(graph_t * g, htmltbl_t * tbl, htmlenv_t * env)
 	cnt += LIST_SIZE(&rp->rp);
 	if (rp->ruled) {
 	    bitarray_set(&is, r + 1, true);
+	    hrules[r + 1] = rp->rule;
 	}
     }
 
@@ -1221,14 +1254,17 @@ static int processTbl(graph_t * g, htmltbl_t * tbl, htmlenv_t * env)
 	    c += cellp->colspan;
 	    n_cols = MAX(c, n_cols);
 	    n_rows = MAX(r + cellp->rowspan, n_rows);
-	    if (bitarray_get(is, r + cellp->rowspan))
+	    if (bitarray_get(is, r + cellp->rowspan)) {
 		cellp->hruled = true;
+		cellp->hrule = dup_html_data(hrules[r + cellp->rowspan]);
+	    }
 	}
     }
     tbl->row_count = n_rows;
     tbl->column_count = n_cols;
     LIST_FREE(&rows);
     bitarray_reset(&is);
+    free(hrules);
     freePS(ps);
     return rv;
 }
