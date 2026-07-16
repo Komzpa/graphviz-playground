@@ -467,6 +467,33 @@ def test_452(attribute: str):
     dot("svg", source=graph.getvalue())
 
 
+def test_483():
+    """
+    image attributes should support base64 data image URIs
+    https://gitlab.com/graphviz/graphviz/-/issues/483
+    """
+
+    png = (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4"
+        "//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
+    )
+    graph = f'digraph {{ A [image="{png}"]; B; A -> B; }}'
+
+    proc = subprocess.run(
+        ["dot", "-Tsvg"],
+        capture_output=True,
+        input=graph,
+        text=True,
+        check=True,
+    )
+
+    stderr = remove_asan_summary(remove_xtype_warnings(proc.stderr)).strip()
+    assert stderr == "", "loading a data URI image produced warnings"
+    assert f'<image xlink:href="{png}" ' in proc.stdout, "data URI image missing"
+    assert 'width="5px" height="5px"' in proc.stdout, "PNG dimensions not read"
+
+
 def test_510():
     """
     HSV colors should also support an alpha channel
