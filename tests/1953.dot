@@ -1,0 +1,39 @@
+digraph video {
+    graph [rankdir="LR"]
+
+    subgraph cluster_main {
+        MAIN
+    }
+
+    subgraph cluster_ingest {
+        {
+            rank=same
+            edge [weight=999, style=invis]
+            A -> B -> C -> D -> E -> F -> G -> H -> I -> J
+        }
+    }
+
+    subgraph cluster_onprem {
+        {
+            rank=same
+            edge [weight=999, style=invis]
+            M1 -> M2 -> M3 -> M4 -> M5
+        }
+    }
+
+    edge [weight=1]
+
+    D -> M1
+    E -> M2
+    F -> M3
+    G -> M3
+    H -> M3
+    I -> M4
+    J -> M5
+    A -> MAIN
+    B -> MAIN
+    C -> MAIN
+    D -> MAIN
+    M1 -> MAIN
+    M2 -> MAIN
+}

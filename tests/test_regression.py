@@ -1246,6 +1246,29 @@ def test_1585():
     assert c < d, "clustering altered nodes’ horizontal ordering"
 
 
+def test_1953():
+    """
+    rankdir=LR should preserve same-rank weighted-edge node ordering
+    https://gitlab.com/graphviz/graphviz/-/issues/1953
+    """
+
+    input = Path(__file__).parent / "1953.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    plain = dot("plain", input).decode("utf-8")
+    ys = {}
+    for line in plain.splitlines():
+        parts = line.split()
+        if len(parts) >= 4 and parts[0] == "node":
+            ys[parts[1]] = float(parts[3])
+
+    ingest = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+    onprem = ["M1", "M2", "M3", "M4", "M5"]
+    assert all(n in ys for n in ingest + onprem)
+    assert all(ys[a] > ys[b] for a, b in zip(ingest, ingest[1:]))
+    assert all(ys[a] > ys[b] for a, b in zip(onprem, onprem[1:]))
+
+
 def test_2374():
     """
     final positioning should preserve same-rank flat-edge ordering
