@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Self-edges between west ports in the same HTML-like table node no longer
+  loop through preceding nodes when `rankdir=LR` is used. #2190
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
