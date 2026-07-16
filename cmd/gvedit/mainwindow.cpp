@@ -11,6 +11,7 @@
 #include "config.h"
 
 #include "csettings.h"
+#include "filedialog_utils.h"
 #include "mainwindow.h"
 #include "mdichild.h"
 #include <QStringList>
@@ -185,16 +186,10 @@ void CMainWindow::addFile(const QString &fileName) {
 }
 
 void CMainWindow::slotOpen() {
-  QStringList filters{
-      QStringLiteral("*.cpp"),
-      QStringLiteral("*.cxx"),
-      QStringLiteral("*.cc"),
-  };
+  QString fileName = QFileDialog::getOpenFileName(
+      this, tr("Open File"), gvedit::lastFileDialogDirectory());
 
-  QFileDialog fd;
-  fd.setNameFilter(QStringLiteral("XML (*.xml)"));
-  QString fileName = fd.getOpenFileName(this);
-
+  gvedit::rememberFileDialogDirectory(fileName);
   addFile(fileName);
 }
 
@@ -266,7 +261,7 @@ void CMainWindow::slotSaveLog() {
   }
 
   QString fileName = QFileDialog::getSaveFileName(
-      this, tr("Open File"), QStringLiteral("/"), tr("Text File(*.*)"));
+      this, tr("Open File"), gvedit::fileDialogPath(), tr("Text File(*.*)"));
   if (!fileName.isEmpty()) {
 
     QFile file(fileName);
@@ -280,6 +275,7 @@ void CMainWindow::slotSaveLog() {
 
     QTextStream out(&file);
     out << globTextEdit->toPlainText();
+    gvedit::rememberFileDialogDirectory(fileName);
   }
 }
 

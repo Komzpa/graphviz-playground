@@ -45,7 +45,8 @@ gvedit_LDADD = \
 	$(QTCORE_LIBS) \
 	$(EXPAT_LIBS) $(Z_LIBS)
 
-noinst_HEADERS = csettings.h imageviewer.h mainwindow.h mdichild.h
+noinst_HEADERS = csettings.h filedialog_utils.h imageviewer.h mainwindow.h \
+	mdichild.h
 
 MOCABLES = moc_csettings.cpp moc_imageviewer.cpp moc_mainwindow.cpp moc_mdichild.cpp
 
@@ -81,4 +82,3 @@ clean-local:
 
 distclean-local:
 	-$(MAKE) -f qMakefile distclean
-
