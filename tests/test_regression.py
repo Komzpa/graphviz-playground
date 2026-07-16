@@ -1078,6 +1078,45 @@ def test_106():
             assert math.dist(ortho_point, polyline_point) <= 1.1, key
 
 
+def test_2674():
+    """
+    ortho edges with explicit head and tail ports should not penetrate nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/2674
+    """
+
+    input = Path(__file__).parent / "2674.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    data = json.loads(dot("json", input))
+    objects = {o["_gvid"]: o for o in data["objects"]}
+
+    def center(obj) -> tuple[float, float]:
+        x, y = obj["pos"].split(",")
+        return float(x), float(y)
+
+    def node_height_points(obj) -> float:
+        return float(obj["height"]) * 72
+
+    for edge in data["edges"]:
+        assert edge["tailport"] == "s"
+        assert edge["headport"] == "n"
+
+        tail = objects[edge["tail"]]
+        head = objects[edge["head"]]
+        tail_x, tail_y = center(tail)
+        head_x, head_y = center(head)
+        tail_south_y = tail_y - node_height_points(tail) / 2
+        head_north_y = head_y + node_height_points(head) / 2
+
+        points = edge["pos"].split()
+        assert points[0].startswith("e,")
+        head_endpoint = tuple(float(v) for v in points[0][2:].split(","))
+        tail_endpoint = tuple(float(v) for v in points[1].split(","))
+
+        assert math.dist(tail_endpoint, (tail_x, tail_south_y)) <= 1.1
+        assert math.dist(head_endpoint, (head_x, head_north_y)) <= 1.1
+
+
 def test_1449():
     """
     using the SVG color scheme should not cause warnings
