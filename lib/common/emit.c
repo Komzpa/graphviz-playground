@@ -2347,6 +2347,24 @@ static void draw_ortho_corner_markers(GVJ_t *job, const corners_t *corners,
     }
 }
 
+static void gvrender_edge_stem(GVJ_t *job, const bezier *bz,
+                               bool as_polyline) {
+    if (!as_polyline || bz->size < 4 || (bz->size - 1) % 3 != 0) {
+	gvrender_beziercurve(job, bz->list, bz->size, 0);
+	return;
+    }
+
+    const size_t n = (bz->size - 1) / 3 + 1;
+    pointf *points = gv_calloc(n, sizeof(pointf));
+    points[0] = bz->list[0];
+    for (size_t i = 1, j = 3; i < n; ++i, j += 3) {
+	points[i] = bz->list[j];
+    }
+
+    gvrender_polyline(job, points, n);
+    free(points);
+}
+
 static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 {
     int cnum, numsemi = 0;
@@ -2547,6 +2565,8 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 			gvrender_set_fillcolor(job, DEFAULT_COLOR);
 	        }
 	    }
+	    const bool line_splines =
+	        EDGE_TYPE(agraphof(agtail(e))) == EDGETYPE_LINE;
 	    for (size_t i = 0; i < ED_spl(e)->size; i++) {
 		bz = ED_spl(e)->list[i];
 
@@ -2657,12 +2677,12 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		        draw_ortho_corner_markers(job, &corners, radius, color);
 		    } else {
 		        /* No corners found, render normally */
-		        gvrender_beziercurve(job, bz.list, bz.size, 0);
+		        gvrender_edge_stem(job, &bz, line_splines);
 		    }
 		    LIST_FREE(&corners);
 		} else {
 		    /* Non-orthogonal edge, render normally */
-		    gvrender_beziercurve(job, bz.list, bz.size, 0);
+		    gvrender_edge_stem(job, &bz, line_splines);
 		}
 
 		if (bz.sflag) {
@@ -4364,4 +4384,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
