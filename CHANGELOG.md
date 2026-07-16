@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The `ordering` node attribute now constrains ordered neighbors that share a
+  cluster even when the ordered node itself is outside the cluster. #2504
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

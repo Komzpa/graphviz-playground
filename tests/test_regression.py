@@ -4576,6 +4576,40 @@ def test_2502():
     dot("dot", input)
 
 
+def test_2504():
+    """
+    a node-level ordering attribute should constrain same-cluster neighbors
+    https://gitlab.com/graphviz/graphviz/-/issues/2504
+    """
+
+    source = """
+    digraph {
+      T0 [ordering=in]
+      subgraph cluster2 {
+        u0 v0 w0 x0 y0 z0
+      }
+
+      x0 -> T0
+      z0 -> T0
+      y0 -> T0
+      u0 -> T0
+      w0 -> T0
+      v0 -> T0
+    }
+    """
+
+    out = dot("plain", source=source).decode("utf-8")
+    node_xs = {}
+    for line in out.splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and fields[0] == "node":
+            node_xs[fields[1]] = float(fields[2])
+
+    expected = ["x0", "z0", "y0", "u0", "w0", "v0"]
+    assert all(name in node_xs for name in expected), "missing node in output"
+    assert sorted(expected, key=node_xs.__getitem__) == expected
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2516"
 )
