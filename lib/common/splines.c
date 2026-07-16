@@ -1037,7 +1037,11 @@ static void selfRight(edge_t *edges[], size_t cnt, double stepx, double sizey,
 	    } else {
 		width = ED_label(e)->dimen.x;
 	    }
-	    ED_label(e)->pos.x = ND_coord(n).x + dx + width / 2.0;
+	    double label_gap = 0.0;
+	    if (GD_flip(agraphof(agtail(e)))) {
+		label_gap = width + SELF_EDGE_SIZE / 3.0;
+	    }
+	    ED_label(e)->pos.x = ND_coord(n).x + dx + label_gap + width / 2.0;
 	    ED_label(e)->pos.y = ND_coord(n).y;
 	    ED_label(e)->set = true;
 	    if (width > stepx)
@@ -1370,4 +1374,3 @@ splines *getsplinepoints(edge_t * e)
 	    agnameof(agtail(e)), agnameof(aghead(e)));
     return sp;
 }
-
