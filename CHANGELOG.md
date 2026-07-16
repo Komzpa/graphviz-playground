@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The `box3d` shape now centers labels in the front rectangle instead of the
+  full 3D outline. #2305
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
