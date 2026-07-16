@@ -2304,6 +2304,49 @@ def test_2057(tmp_path: Path):
     _, _ = run_c(c_src, tmp_path, link=["gvc"])
 
 
+def test_2074():
+    """
+    dot -v should report performance-related graph attributes
+    https://gitlab.com/graphviz/graphviz/-/issues/2074
+    """
+
+    source = """
+    digraph G {
+      graph [
+        mclimit=0.5
+        nslimit=2
+        nslimit1=3
+        remincross=false
+        searchsize=7
+      ]
+      a -> b
+    }
+    """
+
+    proc = subprocess.run(
+        ["dot", "-v", "-Tsvg"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+    assert (
+        "dot performance attributes: mclimit=0.5 nslimit=2 nslimit1=3 "
+        "remincross=false searchsize=7"
+    ) in proc.stderr
+
+    proc = subprocess.run(
+        ["dot", "-Tsvg"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+    assert "dot performance attributes:" not in proc.stderr
+
+
 def test_2078():
     """
     Incorrectly using the "layout" attribute on a subgraph should result in a
