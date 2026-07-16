@@ -612,7 +612,7 @@ ubuntu-26.04-cmake-ASan-build-and-test-including-ctest:
         - export CFLAGS="-fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=address,undefined -g -Werror"
         - export CXXFLAGS="-fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=address,undefined -g -Werror -DBOOST_ALLOW_DEPRECATED_HEADERS"
         - export LDFLAGS="-fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=address,undefined -g -Werror"
-        - export CMAKE_OPTIONS="-Duse_coverage=ON -Dwith_cxx_tests=ON -Dwith_cxx_api=ON"
+        - export CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=Debug -Duse_coverage=ON -Dwith_cxx_tests=ON -Dwith_cxx_api=ON"
         - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_SMYRNA=OFF"
         - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_LTDL=ON"
         - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_EXPAT=ON"
