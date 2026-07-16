@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import zipfile
 from pathlib import Path
 from typing import Optional, TextIO, Union
 
@@ -64,6 +65,31 @@ def require(program: str, fallback: Path, env: dict[str, str], log: TextIO) -> N
         env["PATH"] = f"{fallback}{os.pathsep}{env['PATH']}"
     else:
         log.write(f"Found {program} at {which}\n")
+
+
+def pdbs_to_archive(build: Path) -> list[Path]:
+    """find target PDB files worth shipping from a Visual Studio build tree"""
+
+    def is_target_pdb(path: Path) -> bool:
+        parts = set(path.parts)
+        if "CMakeFiles" in parts or "_CPack_Packages" in parts:
+            return False
+        return not path.name.lower().startswith("vc")
+
+    return [p for p in sorted(build.rglob("*.pdb")) if is_target_pdb(p)]
+
+
+def archive_pdbs(build: Path, version: str, api: str) -> None:
+    """create a Windows symbols archive next to CPack's installer artifacts"""
+
+    pdbs = pdbs_to_archive(build)
+    assert len(pdbs) != 0, "failed to find PDB files to archive"
+
+    archive = build / f"Graphviz-{version}-{api}-pdb.zip"
+    print(f"+ zip {archive}", flush=True)
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        for pdb in pdbs:
+            z.write(pdb, pdb.relative_to(build))
 
 
 def main(args: list[str]) -> int:
@@ -183,6 +209,9 @@ def main(args: list[str]) -> int:
         api = "win64"
     else:
         api = "win32"
+
+    if options.platform == "x64":
+        archive_pdbs(build, gv_version, api)
 
     # move the installer to the location expected by CI archiving steps
     dst = build / f"graphviz-install-{gv_version}-{api}.exe"

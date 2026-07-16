@@ -228,10 +228,12 @@ def main() -> int:
         "windows-cmake-x64-release-build": [
             f"windows_10_cmake_Release_graphviz-install-{version}-win64.exe",
             f"windows_10_cmake_Release_Graphviz-{version}-win64.zip",
+            f"windows_10_cmake_Release_Graphviz-{version}-win64-pdb.zip",
         ],
         "windows-cmake-x64-debug-build": [
             f"windows_10_cmake_Debug_graphviz-install-{version}-win64.exe",
             f"windows_10_cmake_Debug_Graphviz-{version}-win64.zip",
+            f"windows_10_cmake_Debug_Graphviz-{version}-win64-pdb.zip",
         ],
         "windows-mingw64-cmake-build": [
             f"msys2_*_Graphviz-{version}-win64.exe",
