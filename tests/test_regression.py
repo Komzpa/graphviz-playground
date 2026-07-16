@@ -586,6 +586,38 @@ def test_813():
     ), "rendering of shapes with multiple peripheries is unstable"
 
 
+def test_815():
+    """
+    SVG output with a stylesheet should avoid inline style attributes
+    https://gitlab.com/graphviz/graphviz/-/issues/815
+    """
+
+    source = """
+        digraph {
+            graph [stylesheet="theme.css"];
+            node [
+                class="css_target",
+                style=filled,
+                color=blue,
+                fillcolor=red,
+                fontcolor=green
+            ];
+            n [label="Hello"];
+        }
+    """
+
+    svg = dot("svg", source=source)
+
+    assert (
+        '<?xml-stylesheet href="theme.css" type="text/css"?>' in svg
+    ), "stylesheet processing instruction missing from SVG output"
+    assert 'class="node css_target"' in svg, "node class missing from SVG output"
+    assert " style=" not in svg, "SVG output should not use inline style attributes"
+    assert 'fill="red"' in svg, "expected fill presentation attribute missing"
+    assert 'stroke="blue"' in svg, "expected stroke presentation attribute missing"
+    assert 'fill="green"' in svg, "expected text fill presentation attribute missing"
+
+
 def test_827():
     """
     Graphviz should not crash when processing the b15.gv example
