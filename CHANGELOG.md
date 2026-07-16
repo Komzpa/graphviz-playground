@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- The x11 output device now shows multiple graphs read from stdin in order.
+  #2603
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
