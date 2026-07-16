@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
 
+### Fixed
+
+- Adjacent flat edges between record-shaped nodes are now drawn when the edge
+  has no explicit ports. #2248
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

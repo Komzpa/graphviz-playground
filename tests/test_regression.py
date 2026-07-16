@@ -3082,6 +3082,31 @@ def test_2241():
     assert y_coordinates_abs_difference > min_y_coordinates_abs_difference
 
 
+def test_2248():
+    """
+    adjacent flat edges between record-shaped nodes should still be drawn when
+    the edge has no explicit ports
+    https://gitlab.com/graphviz/graphviz/-/issues/2248
+    """
+
+    source = """
+        graph {
+          node [shape=record];
+          { rank=same C -- B [color=red] }
+        }
+    """
+
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+
+    edge_paths = [
+        path
+        for path in root.findall(".//{http://www.w3.org/2000/svg}path")
+        if path.get("stroke") == "red"
+    ]
+    assert len(edge_paths) == 1, "expected the red flat edge to be drawn"
+
+
 def test_2242():
     """
     repeated runs of a graph with subgraphs should yield a stable result
