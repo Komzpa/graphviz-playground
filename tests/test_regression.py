@@ -598,6 +598,40 @@ def test_827():
     dot("svg", b15gv)
 
 
+@pytest.mark.parametrize(
+    ("page", "expected"),
+    (
+        ("a4-portrait", (595, 842)),
+        ("A4-landscape", (842, 595)),
+        ("b5-Portrait", (499, 709)),
+        ("LETTER-landscape", (792, 612)),
+        ("legal", (612, 1008)),
+    ),
+)
+def test_881(page: str, expected: tuple[int, int]):
+    """
+    named page sizes should be accepted by the page attribute
+    https://gitlab.com/graphviz/graphviz/-/issues/881
+    """
+
+    graph = f"""
+        digraph G {{
+            margin=0;
+            page="{page}";
+            ratio=fill;
+            size="20,20";
+            node [height=4 width=4];
+            1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9;
+        }}
+    """
+
+    ps = dot("ps", source=graph)
+    match = re.search(rb"^%%PageBoundingBox: 0 0 ([0-9]+) ([0-9]+)$", ps, re.M)
+
+    assert match is not None, "PostScript output did not declare a page box"
+    assert tuple(map(int, match.groups())) == expected
+
+
 def test_925():
     """
     spaces should be handled correctly in UTF-8-containing labels in record shapes

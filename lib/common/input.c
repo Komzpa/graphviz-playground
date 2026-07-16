@@ -473,6 +473,68 @@ int dotneato_args_initialize(GVC_t * gvc, int argc, char **argv)
  * If only one number is given, it is used for both x and y.
  * Returns true if the attribute ends in '!'.
  */
+static bool paper_size_name_to_points(const char *name, pointf *result) {
+    static const int iso_paper_sizes_mm[][11][2] = {
+	{{841, 1189}, {594, 841}, {420, 594}, {297, 420}, {210, 297},
+	 {148, 210}, {105, 148}, {74, 105}, {52, 74}, {37, 52}, {26, 37}},
+	{{1000, 1414}, {707, 1000}, {500, 707}, {353, 500}, {250, 353},
+	 {176, 250}, {125, 176}, {88, 125}, {62, 88}, {44, 62}, {31, 44}},
+	{{917, 1297}, {648, 917}, {458, 648}, {324, 458}, {229, 324},
+	 {162, 229}, {114, 162}, {81, 114}, {57, 81}, {40, 57}, {28, 40}},
+    };
+    const char *orientation = strchr(name, '-');
+    size_t name_len = orientation ? (size_t)(orientation - name) : strlen(name);
+    bool landscape = false;
+    double width_in = 0;
+    double height_in = 0;
+
+    if (orientation != NULL) {
+	orientation++;
+	if (strcasecmp(orientation, "landscape") == 0) {
+	    landscape = true;
+	} else if (strcasecmp(orientation, "portrait") != 0) {
+	    return false;
+	}
+    }
+
+    if (name_len == 2 && (name[0] == 'a' || name[0] == 'A' ||
+			  name[0] == 'b' || name[0] == 'B' ||
+			  name[0] == 'c' || name[0] == 'C') &&
+        name[1] >= '0' && name[1] <= '9') {
+	const size_t family = (size_t)(gv_tolower(name[0]) - 'a');
+	const size_t index = (size_t)(name[1] - '0');
+	width_in = iso_paper_sizes_mm[family][index][0] / 25.4;
+	height_in = iso_paper_sizes_mm[family][index][1] / 25.4;
+    } else if (name_len == 3 &&
+	       (name[0] == 'a' || name[0] == 'A' || name[0] == 'b' ||
+		name[0] == 'B' || name[0] == 'c' || name[0] == 'C') &&
+	       name[1] == '1' && name[2] == '0') {
+	const size_t family = (size_t)(gv_tolower(name[0]) - 'a');
+	width_in = iso_paper_sizes_mm[family][10][0] / 25.4;
+	height_in = iso_paper_sizes_mm[family][10][1] / 25.4;
+    } else if (name_len == strlen("letter") &&
+	       strncasecmp(name, "letter", name_len) == 0) {
+	width_in = 8.5;
+	height_in = 11;
+    } else if (name_len == strlen("legal") &&
+	       strncasecmp(name, "legal", name_len) == 0) {
+	width_in = 8.5;
+	height_in = 14;
+    } else {
+	return false;
+    }
+
+    if (landscape) {
+	double tmp = width_in;
+	width_in = height_in;
+	height_in = tmp;
+    }
+
+    result->x = POINTS(width_in);
+    result->y = POINTS(height_in);
+    return true;
+}
+
 static bool getdoubles2ptf(graph_t *g, char *name, pointf *result) {
     char *p;
     int i;
@@ -494,6 +556,9 @@ static bool getdoubles2ptf(graph_t *g, char *name, pointf *result) {
 	    if (i > 0 && xf > 0) {
 		result->y = result->x = POINTS(xf);
 		if (c == '!') rv = true;
+	    }
+	    else if (streq(name, "page") && paper_size_name_to_points(p, result)) {
+		rv = true;
 	    }
 	}
     }
