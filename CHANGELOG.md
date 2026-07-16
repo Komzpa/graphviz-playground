@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- The Autotools build now discovers Qt 6.3.1 and newer through pkg-config
+  before falling back to qmake-based probing. #2580
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
