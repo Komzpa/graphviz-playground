@@ -1078,6 +1078,48 @@ def test_106():
             assert math.dist(ortho_point, polyline_point) <= 1.1, key
 
 
+def test_352():
+    """
+    ortho edges to record fields should attach to the requested field ports
+    https://gitlab.com/graphviz/graphviz/-/issues/352
+    """
+
+    input = Path(__file__).parent / "352.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    data = json.loads(dot("json", input))
+    objects = data["objects"]
+
+    expected_endpoints = {
+        ("struct1", "r1:e", "struct2", "l1:w"): ((61.25, 38.375), (97.25, 88.375)),
+        ("struct1", "r2:e", "struct3", "l2:w"): ((61.25, 13.125), (194.5, 25.125)),
+        ("struct2", "r2:e", "struct3", "l1:w"): ((158.5, 63.125), (194.5, 50.375)),
+        ("struct3", "r2:e", "struct1", "l2:w"): ((255.75, 25.125), (0.0, 13.125)),
+        ("struct2", "r0:e", "struct3", "l0:w"): ((158.5, 113.62), (194.5, 75.625)),
+    }
+
+    seen = set()
+    for edge in data["edges"]:
+        key = (
+            objects[edge["tail"]]["name"],
+            edge["tailport"],
+            objects[edge["head"]]["name"],
+            edge["headport"],
+        )
+        seen.add(key)
+
+        points = edge["pos"].split()
+        assert points[0].startswith("e,")
+        head_endpoint = tuple(float(v) for v in points[0][2:].split(","))
+        tail_endpoint = tuple(float(v) for v in points[1].split(","))
+        expected_tail, expected_head = expected_endpoints[key]
+
+        assert math.dist(tail_endpoint, expected_tail) <= 1.1, key
+        assert math.dist(head_endpoint, expected_head) <= 1.1, key
+
+    assert seen == set(expected_endpoints)
+
+
 def test_2674():
     """
     ortho edges with explicit head and tail ports should not penetrate nodes

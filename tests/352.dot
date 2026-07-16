@@ -1,0 +1,16 @@
+digraph structs {
+  rankdir="LR";
+  splines="ortho";
+
+  node [shape=record];
+
+  struct1 [label="{<l0> l0|<r0> r0}|{<l1> l1|<r1> r1}|{<l2> l2|<r2> r2}}"];
+  struct2 [label="{<l0> l0|<r0> r0}|{<l1> l1|<r1> r1}|{<l2> l2|<r2> r2}}"];
+  struct3 [label="{<l0> l0|<r0> r0}|{<l1> l1|<r1> r1}|{<l2> l2|<r2> r2}}"];
+
+  struct1:r1:e -> struct2:l1:w;
+  struct1:r2:e -> struct3:l2:w;
+  struct2:r2:e -> struct3:l1:w;
+  struct3:r2:e -> struct1:l2:w;
+  struct2:r0:e -> struct3:l0:w;
+}
