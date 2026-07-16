@@ -444,6 +444,48 @@ def test_358():
         assert m is not None, f"font characteristic {1 << i} not enabled in xdot 1.7"
 
 
+@pytest.mark.parametrize("testcase", ("374_0.dot", "374_1.dot"))
+def test_374(testcase: str):
+    """
+    `rank=source` should not flip a constraint=false edge or lose its label
+    https://gitlab.com/graphviz/graphviz/-/issues/374
+    """
+
+    input = Path(__file__).parent / testcase
+    assert input.exists(), "unexpectedly missing test case"
+
+    output = dot("plain", input).decode("utf-8")
+
+    nodes: dict[str, tuple[float, float]] = {}
+    p_to_r: list[str] | None = None
+    for line in output.splitlines():
+        fields = line.split()
+        if fields[:1] == ["node"]:
+            nodes[fields[1]] = (float(fields[2]), float(fields[3]))
+        elif fields[:3] == ["edge", "P", "R"]:
+            p_to_r = fields
+
+    assert p_to_r is not None, "missing P -> R edge"
+    assert {"P", "R"} <= nodes.keys(), "missing P or R node"
+
+    point_count = int(p_to_r[3])
+    assert p_to_r[4 + point_count * 2] == "O", "missing edge label"
+
+    first = (float(p_to_r[4]), float(p_to_r[5]))
+    last = (
+        float(p_to_r[4 + (point_count - 1) * 2]),
+        float(p_to_r[5 + (point_count - 1) * 2]),
+    )
+    p = nodes["P"]
+    r = nodes["R"]
+
+    def distance(a: tuple[float, float], b: tuple[float, float]) -> float:
+        return math.hypot(a[0] - b[0], a[1] - b[1])
+
+    assert distance(first, p) < distance(first, r), "edge does not start near P"
+    assert distance(last, r) < distance(last, p), "edge does not end near R"
+
+
 @pytest.mark.parametrize("attribute", ("samehead", "sametail"))
 def test_452(attribute: str):
     """
