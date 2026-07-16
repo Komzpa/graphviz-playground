@@ -2241,6 +2241,21 @@ def test_1949():
 
 
 @pytest.mark.skipif(which("edgepaint") is None, reason="edgepaint not available")
+def test_1747():
+    """
+    edgepaint should use deterministic default coloring
+    https://gitlab.com/graphviz/graphviz/-/issues/1747
+    """
+
+    source = 'digraph {a [pos="3,4"]; b [pos="1,2"]; a -> b}'
+
+    edgepaint = which("edgepaint")
+    output = run(edgepaint, input=source)
+
+    assert 'a -> b\t[color="#000000"]' in output
+
+
+@pytest.mark.skipif(which("edgepaint") is None, reason="edgepaint not available")
 def test_1971():
     """
     edgepaint should reject invalid command line options
