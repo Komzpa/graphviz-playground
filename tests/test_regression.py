@@ -3027,6 +3027,31 @@ def test_2215():
     run("dot", "-v", input=input)
 
 
+def test_2221():
+    """
+    clustering nodes should not reverse their left-to-right order
+    https://gitlab.com/graphviz/graphviz/-/issues/2221
+    """
+
+    # find our collocated test case
+    input = Path(__file__).parent / "2221.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # run it through Graphviz
+    output = dot("plain", input)
+    if isinstance(output, bytes):
+        output = output.decode("utf-8")
+
+    xs = {}
+    for line in output.splitlines():
+        fields = line.split()
+        if fields[:1] == ["node"] and fields[1] in {"1", "2", "3"}:
+            xs[fields[1]] = float(fields[2])
+
+    assert set(xs) == {"1", "2", "3"}, "could not find clustered nodes"
+    assert sorted(xs, key=xs.get) == ["1", "2", "3"], "cluster reordered nodes"
+
+
 @pytest.mark.xfail(
     is_rocky(),
     strict=True,
