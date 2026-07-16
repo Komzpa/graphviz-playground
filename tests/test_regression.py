@@ -444,6 +444,46 @@ def test_358():
         assert m is not None, f"font characteristic {1 << i} not enabled in xdot 1.7"
 
 
+def test_388():
+    """
+    same-rank edges should leave enough room for large arrowheads
+    https://gitlab.com/graphviz/graphviz/-/issues/388
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "388.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # ask Graphviz for geometry that is easy to measure
+    plain = dot("plain", input).decode("utf-8")
+
+    node_pattern = re.compile(
+        r"^node (?P<name>[ab]) (?P<x>[0-9.]+) [0-9.]+ "
+        r"(?P<width>[0-9.]+) [0-9.]+ ",
+        re.MULTILINE,
+    )
+    nodes = {
+        m.group("name"): {
+            "x": float(m.group("x")),
+            "width": float(m.group("width")),
+        }
+        for m in node_pattern.finditer(plain)
+    }
+    assert nodes.keys() == {"a", "b"}, "could not measure both endpoint nodes"
+
+    border_gap = (
+        nodes["b"]["x"]
+        - nodes["a"]["x"]
+        - nodes["a"]["width"] / 2
+        - nodes["b"]["width"] / 2
+    )
+
+    # Two normal arrowheads at arrowsize=2 are 40pt long in total. The old
+    # layout only left the default 18pt nodesep, causing the arrowheads to
+    # overlap and the spline body to collapse.
+    assert border_gap >= 40 / 72, "large same-rank arrowheads overlapped"
+
+
 @pytest.mark.parametrize("attribute", ("samehead", "sametail"))
 def test_452(attribute: str):
     """

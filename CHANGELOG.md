@@ -83,6 +83,10 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Same-rank edges now leave enough horizontal space for large arrowheads. #388
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

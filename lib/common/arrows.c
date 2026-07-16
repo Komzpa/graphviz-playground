@@ -250,7 +250,7 @@ void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
     }
 }
 
-static double arrow_length(edge_t * e, uint32_t flag) {
+double arrow_length(edge_t * e, uint32_t flag) {
     double length = 0.0;
     int i;
 
