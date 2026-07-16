@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Changed
+
+- Windows NSIS packaging now declares a Graphviz desktop shortcut when `gvedit`
+  is part of the package. #2431
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
