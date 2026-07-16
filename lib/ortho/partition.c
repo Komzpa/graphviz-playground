@@ -287,7 +287,7 @@ static size_t make_new_monotone_poly(vertexchain_t *vert, monchain_t *chain,
   vp0->nextfree++;
   vp1->nextfree++;
 
-#if DEBUG > 0
+#if DEBUG > 1
   fprintf(stderr, "make_poly: mcur = %" PRISIZE_T ", (v0, v1) = (%d, %d)\n",
           mcur, v0, v1);
   fprintf(stderr, "next posns = (p, q) = (%d, %d)\n", p, q);
@@ -668,12 +668,12 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     segment_t* segs = gv_calloc(nsegs + 1, sizeof(segment_t));
     int* permute = gv_calloc(nsegs, sizeof(int));
 
-    if (DEBUG) {
+    if (DEBUG > 1) {
 	fprintf(stderr, "cells = %" PRISIZE_T " segs = %" PRISIZE_T
 	        " traps = dynamic\n", ncells, nsegs);
     }
     genSegments(cells, ncells, bb, segs, 0);
-    if (DEBUG) {
+    if (DEBUG > 1) {
 	fprintf(stderr, "%" PRISIZE_T "\n\n", ncells + 1);
 	for (size_t i = 1; i <= nsegs; i++) {
 	    if (i%4 == 1) fprintf(stderr, "4\n");
@@ -685,7 +685,7 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     generateRandomOrdering(nsegs, permute);
     assert(nsegs <= INT_MAX);
     traps_t hor_traps = construct_trapezoids((int)nsegs, segs, permute);
-    if (DEBUG) {
+    if (DEBUG > 1) {
 	fprintf(stderr, "hor traps = %" PRISIZE_T "\n", LIST_SIZE(&hor_traps));
     }
     if (LIST_SIZE(&hor_traps) == 0) {
@@ -701,7 +701,7 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     genSegments(cells, ncells, bb, segs, 1);
     generateRandomOrdering(nsegs, permute);
     traps_t ver_traps = construct_trapezoids((int)nsegs, segs, permute);
-    if (DEBUG) {
+    if (DEBUG > 1) {
 	fprintf(stderr, "ver traps = %" PRISIZE_T "\n", LIST_SIZE(&ver_traps));
     }
     if (LIST_SIZE(&ver_traps) == 0) {

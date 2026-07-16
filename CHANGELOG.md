@@ -83,6 +83,13 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- DEBUG builds no longer warn about the HTML-like table dump helpers lacking
+  prototypes or using a mismatched debug format string, and ordinary DEBUG=1
+  graph rendering no longer emits Pango font-list or ortho-routing trace dumps
+  to stderr. #2837
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

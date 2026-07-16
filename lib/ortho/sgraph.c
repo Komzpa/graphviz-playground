@@ -159,7 +159,7 @@ int shortPath(pq_t *pq, sgraph *g, snode *from, snode *to) {
     N_VAL(from) = 0;
     
     while ((n = PQremove(pq))) {
-#ifdef DEBUG
+#if DEBUG > 1
 	fprintf (stderr, "process %d\n", n->index);
 #endif
 	N_VAL(n) *= -1;
@@ -170,7 +170,7 @@ int shortPath(pq_t *pq, sgraph *g, snode *from, snode *to) {
 	    if (N_VAL(adjn) < 0) {
 		d = -(N_VAL(n) + E_WT(e));
 		if (N_VAL(adjn) == UNSEEN) {
-#ifdef DEBUG
+#if DEBUG > 1
 		    fprintf (stderr, "new %d (%d)\n", adjn->index, -d);
 #endif
 		    N_VAL(adjn) = d;
@@ -180,7 +180,7 @@ int shortPath(pq_t *pq, sgraph *g, snode *from, snode *to) {
             	}
 		else {
 		    if (N_VAL(adjn) < d) {
-#ifdef DEBUG
+#if DEBUG > 1
 			fprintf (stderr, "adjust %d (%d)\n", adjn->index, -d);
 #endif
 			PQupdate(pq, adjn, d);
@@ -194,4 +194,3 @@ int shortPath(pq_t *pq, sgraph *g, snode *from, snode *to) {
 
     return 0;
 }
-
