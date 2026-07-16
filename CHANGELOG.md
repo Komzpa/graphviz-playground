@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- Octagon nodes with `margin=0` now fit labels more tightly instead of adding
+  excessive padding from generic polygon sizing. #2309
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the

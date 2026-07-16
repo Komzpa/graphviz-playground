@@ -1930,6 +1930,40 @@ bool isPolygon(node_t * n)
     return ND_shape(n) && ND_shape(n)->fns->initfn == poly_init;
 }
 
+static bool is_axis_aligned_octagon(size_t sides, double orientation,
+                                    double distortion, double skew)
+{
+    return sides == 8 && fabs(remainder(orientation, 90.0)) < 0.5 &&
+           is_exactly_zero(distortion) && is_exactly_zero(skew);
+}
+
+static pointf fit_axis_aligned_octagon(pointf label, double min_width,
+                                       double min_height)
+{
+    pointf fit = {.x = fmax(min_width, label.x),
+                  .y = fmax(min_height, label.y)};
+    if (label.x <= 0.0 || label.y <= 0.0) {
+	return fit;
+    }
+
+    /* For an axis-aligned octagon with bounding box W x H, the diagonal side
+     * in the upper-right quadrant lies on x / W + y / H = 1 / sqrt(2), when
+     * using centered half-width/half-height coordinates.  A centered
+     * rectangular label of size label.x x label.y therefore fits when
+     * label.x / W + label.y / H <= sqrt(2).  Scale the minimum dimensions just
+     * enough to satisfy this exact octagon constraint instead of using the
+     * generic circumscribed-ellipse padding, which is overly conservative for
+     * octagons.
+     */
+    const double fit_ratio = label.x / fit.x + label.y / fit.y;
+    if (fit_ratio > SQRT2) {
+	const double scale = fit_ratio / SQRT2;
+	fit.x *= scale;
+	fit.y *= scale;
+    }
+    return fit;
+}
+
 static void poly_init(node_t * n)
 {
     pointf dimen, min_bb;
@@ -2076,6 +2110,8 @@ static void poly_init(node_t * n)
     } else if (ND_shape(n)->polygon->vertices) {
 	poly_desc_t* pd = (poly_desc_t*)ND_shape(n)->polygon->vertices;
 	bb = pd->size_gen(bb);
+    } else if (is_axis_aligned_octagon(sides, orientation, distortion, skew)) {
+	bb = fit_axis_aligned_octagon(bb, width, height);
     } else {
 	/* for all other shapes, compute a smallest ellipse
 	 * containing bb centered on the origin, and then pad for that.
