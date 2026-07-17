@@ -201,6 +201,57 @@ def test_144(testcase: str):
     assert angular_head_point[0] > angular_tail_point[0], "A->C head/tail confusion"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1312"
+)
+def test_1312_wedged_node_per_wedge_svg_metadata():
+    """
+    wedged nodes should allow SVG metadata on each generated wedge path
+    https://gitlab.com/graphviz/graphviz/-/issues/1312
+    """
+
+    source = """
+        graph {
+          node [
+            shape=circle,
+            style=wedged,
+            fixedsize=true,
+            width=1,
+            height=1,
+            label=""
+          ];
+
+          n [
+            color="red:green:blue",
+            tooltip="whole pie",
+            wedgetooltip="Response .0030:UserCPU .0003:Suspend .0026",
+            wedgeid="response:usercpu:suspend"
+          ];
+        }
+    """
+
+    # Current SVG output already emits one `<path>` per wedge. The missing
+    # feature is a user-facing way to put tooltip/id metadata on those paths
+    # instead of only having one tooltip for the whole node.
+    svg = dot("svg", source=textwrap.dedent(source))
+
+    for color in ("red", "green", "blue"):
+        assert (
+            re.search(rf'<path\b[^>]*\bfill="{color}"', svg) is not None
+        ), f"{color} wedge path missing"
+
+    for wedge_id in ("response", "usercpu", "suspend"):
+        assert (
+            re.search(rf'<path\b[^>]*\bid="{wedge_id}"', svg) is not None
+        ), f"{wedge_id} wedge id not propagated to SVG"
+
+    for tooltip in ("Response .0030", "UserCPU .0003", "Suspend .0026"):
+        assert (
+            re.search(rf'<a\b[^>]*\bxlink:title="{re.escape(tooltip)}"', svg)
+            is not None
+        ), f"{tooltip} wedge tooltip not propagated to SVG"
+
+
 def test_146():
     """
     dot should respect an alpha channel value of 0 when writing SVG
