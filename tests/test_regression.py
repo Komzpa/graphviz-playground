@@ -3228,6 +3228,35 @@ def test_2295():
     assert re.search(rb"\bhi mom\b", pdf) is not None, "tooltip not propagated to PDF"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2318"
+)
+def test_2318():
+    """
+    semi-transparent thick edges should not draw an oversized arrowhead outline
+    https://gitlab.com/graphviz/graphviz/-/issues/2318
+    """
+
+    source = r"""
+    digraph {
+      "A" -> "B" [color="#00000080", penwidth="20"]
+      "C" -> "B" [color="#00000080", penwidth="10"]
+    }
+    """
+
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+
+    for elem in root.iter():
+        if not elem.tag.endswith("polygon"):
+            continue
+        if elem.get("fill-opacity") != "0.501961":
+            continue
+
+        stroke_width = float(elem.get("stroke-width", "1"))
+        assert stroke_width <= 1, "arrowhead outline inherited edge pen width"
+
+
 @pytest.mark.parametrize("arg", ("--filepath", "-Gimagepath"))
 def test_2396(arg: str):
     """
