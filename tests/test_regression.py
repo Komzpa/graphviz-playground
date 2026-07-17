@@ -6481,6 +6481,97 @@ def test_2801():
     assert "is not a known color" not in warnings, "`colorscheme` not working"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2816"
+)
+def test_2816():
+    """
+    dot should avoid routing edges through unrelated clusters
+    https://gitlab.com/graphviz/graphviz/-/issues/2816
+    """
+
+    source = """\
+digraph g {
+    rankdir=LR;
+    subgraph cluster_cyclicchain690 {
+      style="filled";
+      color="#ffd163";
+      subgraph cluster_bubble683 {
+        style="filled";
+        color="#9abaf3";
+        460 [width=0.4,height=0.4,shape=rect];
+        412 [width=0.4,height=0.4,shape=rect];
+        412 -> 460;
+      }
+      462 [width=0.4,height=0.4,shape=rect];
+      410 [width=0.4,height=0.4,shape=rect];
+      subgraph cluster_bubble404 {
+        style="filled";
+        color="#9abaf3";
+        17 [width=0.4,height=0.4,shape=rect];
+        57 [width=0.4,height=0.4,shape=rect];
+        17 -> 57;
+      }
+      462 -> 410 [constraint="false"];
+      460 -> 462;
+      410 -> 17;
+      57 -> 412;
+    }
+    }
+"""
+
+    def parse_bbox(bbox: str) -> tuple[float, float, float, float]:
+        x0, y0, x1, y1 = (float(v) for v in bbox.split(","))
+        return x0, y0, x1, y1
+
+    def cubic_point(
+        p0: list[float],
+        p1: list[float],
+        p2: list[float],
+        p3: list[float],
+        t: float,
+    ) -> tuple[float, float]:
+        u = 1 - t
+        return (
+            u**3 * p0[0]
+            + 3 * u**2 * t * p1[0]
+            + 3 * u * t**2 * p2[0]
+            + t**3 * p3[0],
+            u**3 * p0[1]
+            + 3 * u**2 * t * p1[1]
+            + 3 * u * t**2 * p2[1]
+            + t**3 * p3[1],
+        )
+
+    def inside_bbox(
+        point: tuple[float, float], bbox: tuple[float, float, float, float]
+    ) -> bool:
+        x, y = point
+        x0, y0, x1, y1 = bbox
+        return x0 < x < x1 and y0 < y < y1
+
+    layout = json.loads(dot("json", source=source))
+    objects = layout["objects"]
+    obstacle = next(o for o in objects if o["name"] == "cluster_bubble404")
+    obstacle_bbox = parse_bbox(obstacle["bb"])
+    edge = next(
+        e
+        for e in layout["edges"]
+        if objects[e["tail"]]["name"] == "462" and objects[e["head"]]["name"] == "410"
+    )
+    points = next(d["points"] for d in edge["_draw_"] if d["op"] == "b")
+
+    samples_inside = []
+    for offset in range(0, len(points) - 1, 3):
+        p0, p1, p2, p3 = points[offset : offset + 4]
+        for step in range(21):
+            point = cubic_point(p0, p1, p2, p3, step / 20)
+            if inside_bbox(point, obstacle_bbox):
+                samples_inside.append(point)
+
+    assert not samples_inside, "edge 462 -> 410 was routed through cluster_bubble404"
+
+
 def test_2825():
     """
     Graphviz should not crash when `rebuild_vlists` returns -1
