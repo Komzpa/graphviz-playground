@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <common/geomprocs.h>
+#include <common/utils.h>
 #include <dotgen/dot.h>
 #include <dotgen/aspect.h>
 #include <math.h>
@@ -38,6 +39,19 @@ static void expand_leaves(graph_t * g);
 static void make_lrvn(graph_t * g);
 static void contain_nodes(graph_t * g);
 static bool idealsize(graph_t * g, double);
+
+static int dot_ns_iter_limit(graph_t *g, char *exact_limit,
+                             char *scaled_limit) {
+    char *s = agget(g, exact_limit);
+    if (s && s[0])
+	return late_int(g, agfindgraphattr(g, exact_limit), INT_MAX, 0);
+
+    s = agget(g, scaled_limit);
+    if (s)
+	return scale_clamp(agnnodes(g), atof(s));
+
+    return INT_MAX;
+}
 
 #if defined(DEBUG) && DEBUG > 1
 static void
@@ -155,12 +169,7 @@ int dot_position(graph_t *g) {
 
 static int nsiter2(graph_t * g)
 {
-    int maxiter = INT_MAX;
-    char *s;
-
-    if ((s = agget(g, "nslimit")))
-	maxiter = scale_clamp(agnnodes(g), atof(s));
-    return maxiter;
+    return dot_ns_iter_limit(g, "nslimitexact", "nslimit");
 }
 
 static bool go(node_t *u, node_t *v) {

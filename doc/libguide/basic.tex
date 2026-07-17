@@ -359,6 +359,9 @@ edges, graphs, and clusters.
 {\tt model} & {\tt shortpath} & model used for distance matrix \\
 {\tt nodesep} & $.25$ & separation between nodes, in inches \\
 {\tt nslimit} & & if set to {\it f}, bounds network simplex iterations by {\it (f)(number of nodes)} when setting x-coordinates \\
+{\tt nslimitexact} & & bounds network simplex iterations by this exact value when setting x-coordinates \\
+{\tt nslimit1} & & if set to {\it f}, bounds network simplex iterations by {\it (f)(number of nodes)} during rank assignment \\
+{\tt nslimit1exact} & & bounds network simplex iterations by this exact value during rank assignment \\
 {\tt ordering} &  & specify out or in edge ordering \\
 {\tt orientation} & {\tt portrait} & $\dagger$ use landscape orientation if {\tt rotate} is not used and the value is {\tt landscape} \\
 {\tt overlap} & true & specify if and how to remove node overlaps \\
@@ -943,4 +946,3 @@ empty string before calling {\tt gvLayout} again.
 Once the application is totally done with a graph, it should call
 {\tt agclose} to close the graph and reclaim the remaining resources associated
 with it.
-
