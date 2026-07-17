@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- The new `-Tascii:lineart` renderer produces semantic, plain-ASCII graph
+  diagrams without requiring AA-lib. #2829
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

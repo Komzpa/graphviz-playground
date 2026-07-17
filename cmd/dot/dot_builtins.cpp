@@ -22,6 +22,7 @@ extern "C" {
 
 IMPORT extern gvplugin_library_t gvplugin_dot_layout_LTX_library;
 IMPORT extern gvplugin_library_t gvplugin_neato_layout_LTX_library;
+IMPORT extern gvplugin_library_t gvplugin_ascii_LTX_library;
 #ifdef HAVE_QUARTZ
 IMPORT extern gvplugin_library_t gvplugin_quartz_LTX_library;
 #endif
@@ -45,6 +46,7 @@ IMPORT extern gvplugin_library_t gvplugin_gdiplus_LTX_library;
 lt_symlist_t lt_preloaded_symbols[] = {
 	{ "gvplugin_dot_layout_LTX_library", &gvplugin_dot_layout_LTX_library },
 	{ "gvplugin_neato_layout_LTX_library", &gvplugin_neato_layout_LTX_library },
+	{ "gvplugin_ascii_LTX_library", &gvplugin_ascii_LTX_library },
 #ifdef HAVE_QUARTZ
 	{ "gvplugin_quartz_LTX_library", &gvplugin_quartz_LTX_library},
 #endif

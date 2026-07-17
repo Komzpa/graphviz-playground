@@ -57,6 +57,7 @@ if(BUILD_SHARED_LIBS)
     cdt
     cgraph
     gvc
+    gvplugin_ascii
     gvplugin_core
     gvplugin_dot_layout
     gvplugin_neato_layout
@@ -134,6 +135,7 @@ else()
     cdt
     cgraph
     gvc
+    gvplugin_ascii
     gvplugin_core
     gvplugin_dot_layout
     gvplugin_neato_layout

@@ -82,6 +82,7 @@ SUFFIXES = .1 .1.pdf
 dot_static_SOURCES = dot.c dot_builtins.cpp
 dot_static_CPPFLAGS = $(AM_CPPFLAGS) -DDEMAND_LOADING=0
 dot_static_LDADD = \
+	$(top_builddir)/plugin/ascii/.libs/libgvplugin_ascii_C.a \
 	$(top_builddir)/plugin/dot_layout/libgvplugin_dot_layout_C.la \
 	$(top_builddir)/plugin/kitty/libgvplugin_kitty_C.la \
 	$(top_builddir)/plugin/neato_layout/libgvplugin_neato_layout_C.la \
@@ -98,6 +99,7 @@ dot_static_LDADD = \
 dot_builtins_SOURCES = dot.c dot_builtins.cpp
 dot_builtins_CPPFLAGS = $(AM_CPPFLAGS) -DDEMAND_LOADING=1
 dot_builtins_LDADD = \
+	$(top_builddir)/plugin/ascii/libgvplugin_ascii.la \
 	$(top_builddir)/plugin/dot_layout/libgvplugin_dot_layout.la \
 	$(top_builddir)/plugin/kitty/libgvplugin_kitty.la \
 	$(top_builddir)/plugin/neato_layout/libgvplugin_neato_layout.la \

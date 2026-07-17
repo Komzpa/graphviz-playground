@@ -4157,9 +4157,6 @@ def test_2429():
     dot("vt", source=source)
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2829"
-)
 def test_2829_line_art_ascii_output():
     """
     the ascii target should render graphs as text line art
@@ -4175,13 +4172,49 @@ def test_2829_line_art_ascii_output():
         }
     """
 
-    output = dot("ascii", source=textwrap.dedent(source))
+    output = dot("ascii:lineart", source=textwrap.dedent(source)).decode("ascii")
 
     assert output.isascii(), "ascii output contained non-ASCII characters"
     assert "dot file" in output
     assert "diagram" in output
     assert "graphviz" in output
-    assert any(marker in output for marker in "+-|"), "missing line art"
+    assert "+" in output, "missing node borders"
+    assert "-" in output, "missing horizontal geometry"
+    assert ">" in output, "missing directed edge arrow"
+    assert "\x1b" not in output, "line art must not emit ANSI escapes"
+
+
+def test_2829_line_art_ascii_variants():
+    """
+    the line-art renderer should keep basic direction and shape semantics
+    https://gitlab.com/graphviz/graphviz/-/issues/2829
+    """
+
+    top_to_bottom = dot(
+        "ascii:lineart",
+        source=(
+            "digraph { rankdir=TB; top [shape=ellipse]; "
+            "bottom [shape=diamond]; top -> bottom; }"
+        ),
+    ).decode("ascii")
+    assert "top" in top_to_bottom
+    assert "bottom" in top_to_bottom
+    assert "v" in top_to_bottom, "missing top-to-bottom arrow"
+
+    parallel = dot(
+        "ascii:lineart",
+        source="digraph { rankdir=LR; a -> b [label=one]; a -> b [label=two]; }",
+    ).decode("ascii")
+    assert "one" in parallel
+    assert "two" in parallel
+    assert parallel.count(">") >= 2, "parallel edges lost their arrows"
+
+    undirected = dot("ascii:lineart", source="graph { rankdir=LR; a -- b; }").decode(
+        "ascii"
+    )
+    assert "a" in undirected
+    assert "b" in undirected
+    assert ">" not in undirected, "undirected edge acquired an arrow"
 
 
 @pytest.mark.skipif(which("nop") is None, reason="nop not available")
