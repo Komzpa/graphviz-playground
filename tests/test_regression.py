@@ -4249,7 +4249,7 @@ def test_2137_border_to_border_edge_lengths(
     https://gitlab.com/graphviz/graphviz/-/issues/2137
     """
 
-    def layout(attribute: str = "") -> dict[str, tuple[float, ...]]:
+    def layout(attribute: str = "") -> tuple[str, dict[str, tuple[float, ...]]]:
         output = dot(
             "plain",
             source=textwrap.dedent(
@@ -4272,22 +4272,29 @@ def test_2137_border_to_border_edge_lengths(
         targets = ("B1", "B2", "B3")
         assert {"A", *targets} <= nodes.keys(), "missing expected nodes"
 
-        return nodes
+        return output, nodes
 
-    default = layout()
-    minlen = layout("[minlen=3]")
-    len_attribute = layout("[len=3]")
+    default_output, default = layout()
+    _, minlen = layout("[minlen=3]")
+    len_output, _ = layout("[len=3]")
 
     # Four rounded `plain` fields yield a clearance error of at most 0.00015in.
     tolerance = 0.0002
-    assert len_attribute == default, "unsupported len=3 changed the layout"
+    assert len_output == default_output, "unsupported len=3 changed the layout"
     for target in ("B1", "B2", "B3"):
-        clearance = (
+        default_clearance = (
+            abs(default[target][rank_axis] - default["A"][rank_axis])
+            - (default[target][rank_size] + default["A"][rank_size]) / 2
+        )
+        minlen_clearance = (
             abs(minlen[target][rank_axis] - minlen["A"][rank_axis])
             - (minlen[target][rank_size] + minlen["A"][rank_size]) / 2
         )
         assert (
-            clearance >= 1.5 - tolerance
+            minlen_clearance > default_clearance
+        ), f"minlen=3 did not increase rank-axis clearance for {target}"
+        assert (
+            minlen_clearance >= 1.5 - tolerance
         ), f"minlen=3 did not leave the expected rank-axis clearance for {target}"
 
 
