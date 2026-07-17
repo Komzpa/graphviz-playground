@@ -393,9 +393,11 @@ of a node. The normal \fBlabel\fP string is placed within the node shape.
 .PP
 \fBlabelwrapwidth=\fIinches\fR sets the maximum width of a plain node label
 before Graphviz wraps it at whitespace. It must be one finite positive decimal
-or scientific-notation number, optionally surrounded by whitespace; an invalid
-value is ignored with a diagnostic. HTML-like labels and record-shaped nodes are
-not wrapped, and unbreakable words are not hyphenated.
+number, optionally written in scientific notation and surrounded by whitespace.
+An optional sign is accepted, but the resulting value must be positive. Hexadecimal
+floating-point literals, units, and other trailing text are invalid and ignored
+with a diagnostic. HTML-like labels and record-shaped nodes are not wrapped, and
+unbreakable words are not hyphenated.
 .PP
 \fBtarget=\fI"target"\fR is a target string for client\(hyside imagemaps
 and SVG, effective when nodes have a URL.

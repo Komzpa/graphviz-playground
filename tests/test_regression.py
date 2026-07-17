@@ -2372,32 +2372,77 @@ def test_1993_label_word_wrap():
             assert before == after
 
     # labelwrapwidth is deliberately stricter than late_double: the complete
-    # trimmed attribute must be one finite, positive number in inches.
+    # trimmed attribute must be one finite, positive decimal number in inches.
     without_width = source.replace("labelwrapwidth=1.0", "")
     baseline = dot("svg", source=without_width)
-    diagnostics = set()
-    for value in ("1bogus", "1in", "NaN", "Inf", "junk", "0", "-1"):
+    warning = (
+        "Warning: labelwrapwidth must be a positive finite decimal number in inches - ignored\n"
+    )
+    dot_path = which("dot")
+    assert dot_path is not None
+    for value in (
+        "1bogus",
+        "1in",
+        "0x1p0",
+        "NaN",
+        "Inf",
+        "junk",
+        ".",
+        "1e",
+        "1e+",
+        "0",
+        "-1",
+    ):
         bad = f'labelwrapwidth="{value}"'
         disabled = without_width.replace("width=0,", f"width=0, {bad},")
         proc = subprocess.run(
-            ["dot", "-Tsvg"], input=disabled, text=True, capture_output=True, check=True
+            [dot_path, "-Tsvg"], input=disabled, text=True, capture_output=True, check=True
         )
         assert proc.stdout == baseline
+        assert proc.stderr == warning
         for fmt in ("xdot", "plain"):
             before = dot(fmt, source=without_width)
             after = dot(fmt, source=disabled)
             if fmt == "xdot":
                 after = xdot_without_labelwrapwidth(after)
             assert before == after
-        diagnostics.add(proc.stderr)
-    assert diagnostics == {
-        "Warning: labelwrapwidth must be a positive finite number in inches - ignored\n"
-    }
 
-    scientific = dot(
-        "svg", source=source.replace("labelwrapwidth=1.0", 'labelwrapwidth=" 1e0 "')
+    # Decimal notation accepts a fractional significand and a signed exponent,
+    # but no C hex-float syntax or unit suffixes.
+    for value in ("1", "1.", "1e0", "1.0e+0", " +1 "):
+        proc = subprocess.run(
+            [dot_path, "-Tsvg"],
+            input=source.replace("labelwrapwidth=1.0", f'labelwrapwidth="{value}"'),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        assert proc.stdout == svg
+        assert proc.stderr == ""
+
+    fractional = subprocess.run(
+        [dot_path, "-Tsvg"],
+        input=source.replace("labelwrapwidth=1.0", 'labelwrapwidth=".5"'),
+        text=True,
+        capture_output=True,
+        check=True,
     )
-    assert scientific == svg
+    assert fractional.stdout == dot(
+        "svg", source=source.replace("labelwrapwidth=1.0", "labelwrapwidth=0.5")
+    )
+    assert fractional.stderr == ""
+
+    # Cgraph resolves inherited node defaults when each node is initialized, so
+    # an invalid default emits one warning per affected node rather than once
+    # for the graph-level declaration.
+    inherited = subprocess.run(
+        [dot_path, "-Tsvg"],
+        input='graph { node [label="alpha beta", labelwrapwidth="0x1p0"]; a; b; }',
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert inherited.stderr == warning * 2
 
     # A soft wrap replaces one chosen ASCII whitespace byte. All other
     # whitespace survives, including leading/trailing, repeated and tab text;

@@ -16,7 +16,6 @@
 #include <common/geomprocs.h>
 #include <common/htmltable.h>
 #include <common/entities.h>
-#include <ctype.h>
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -69,6 +68,60 @@ double late_double(void *obj, attrsym_t *attr, double defaultValue,
     return rv;
 }
 
+static bool is_ascii_digit(char c) { return c >= '0' && c <= '9'; }
+
+static bool is_ascii_space(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' ||
+           c == '\v';
+}
+
+/*
+ * `strtod` accepts implementation-specific extensions such as hexadecimal
+ * floating-point literals. labelwrapwidth deliberately accepts only a decimal
+ * significand, with an optional decimal exponent:
+ *
+ *   [+-]? ( [0-9]+ ( '.' [0-9]* )? | '.' [0-9]+ ) ( [eE] [+-]? [0-9]+ )?
+ *
+ * The caller strips ASCII whitespace before and after this grammar.
+ */
+static bool is_labelwrapwidth_number(const char *value) {
+    const char *p = value;
+
+    if (*p == '+' || *p == '-')
+        ++p;
+
+    bool has_digits = false;
+    while (is_ascii_digit(*p)) {
+        has_digits = true;
+        ++p;
+    }
+
+    if (*p == '.') {
+        ++p;
+        while (is_ascii_digit(*p)) {
+            has_digits = true;
+            ++p;
+        }
+    }
+    if (!has_digits)
+        return false;
+
+    if (*p == 'e' || *p == 'E') {
+        ++p;
+        if (*p == '+' || *p == '-')
+            ++p;
+        const char *exponent = p;
+        while (is_ascii_digit(*p))
+            ++p;
+        if (p == exponent)
+            return false;
+    }
+
+    while (is_ascii_space(*p))
+        ++p;
+    return *p == '\0';
+}
+
 static bool parse_labelwrapwidth(node_t *n, double *width) {
     if (!N_labelwrapwidth)
         return false;
@@ -77,16 +130,21 @@ static bool parse_labelwrapwidth(node_t *n, double *width) {
     if (!value || *value == '\0')
         return false;
 
-    while (isspace((unsigned char)*value))
+    while (is_ascii_space(*value))
         ++value;
+
+    if (!is_labelwrapwidth_number(value)) {
+        agwarningf("labelwrapwidth must be a positive finite decimal number in inches - ignored\n");
+        return false;
+    }
 
     char *end;
     const double parsed = strtod(value, &end);
-    while (isspace((unsigned char)*end))
+    while (is_ascii_space(*end))
         ++end;
 
-    if (value == end || *end != '\0' || !isfinite(parsed) || parsed <= 0.0) {
-        agwarningf("labelwrapwidth must be a positive finite number in inches - ignored\n");
+    if (*end != '\0' || !isfinite(parsed) || parsed <= 0.0) {
+        agwarningf("labelwrapwidth must be a positive finite decimal number in inches - ignored\n");
         return false;
     }
 

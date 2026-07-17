@@ -1089,10 +1089,12 @@
 					whitespace and does not hyphenate words.
 				</html:p>
 				<html:p>
-					The value must be one finite, positive decimal or scientific-notation
-					number, optionally surrounded by whitespace. A missing value disables
-					wrapping; an invalid value is ignored with a diagnostic. HTML-like labels
-					and record-shaped nodes are not wrapped.
+					The value must be one finite, positive decimal number, optionally written
+					in scientific notation and surrounded by whitespace. An optional sign is
+					accepted, but the resulting value must be positive. Hexadecimal floating-point
+					literals, units, and other trailing text are invalid. A missing value disables
+					wrapping; an invalid value is ignored with a diagnostic. HTML-like labels and
+					record-shaped nodes are not wrapped.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
