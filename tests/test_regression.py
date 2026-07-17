@@ -467,6 +467,35 @@ def test_452(attribute: str):
     dot("svg", source=graph.getvalue())
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/501",
+)
+def test_501():
+    """
+    dot should route port edges between same-rank record nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/501
+    """
+
+    source = """
+        digraph G {
+            rankdir=TB;
+            node [shape=record];
+            a [label="{<f0> left|<f1> right}"];
+            b [label="{<f0> left|<f1> right}"];
+            { rank=same; a; b; }
+            a:f1 -> b:f0;
+        }
+    """
+
+    # process this with dot
+    layout = dot("dot", source=source)
+
+    # the port edge should be present and routed, not lost during flat-edge
+    # routing
+    assert re.search(r"\ba:f1\s*->\s*b:f0\s*\[.*\bpos=", layout, re.S)
+
+
 def test_510():
     """
     HSV colors should also support an alpha channel
