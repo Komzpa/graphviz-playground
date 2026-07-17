@@ -60,6 +60,7 @@ struct aagextra_s {
 
 %{
 
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <cghdr.h>
@@ -116,6 +117,7 @@ static void endedge(aagscan_t scanner);
 static void freestack(aagscan_t scanner);
 static char* concat(aagscan_t scanner, char*, char*);
 static char* concatclass(aagscan_t scanner, char*, char*);
+static bool validclass(const char*);
 static char* concatPort(Agraph_t *G, char*, char*);
 
 static void opensubg(aagscan_t scanner, char *name);
@@ -195,8 +197,23 @@ attrtype :	T_graph {$$ = T_graph;}
 			| T_edge {$$ = T_edge;}
 			;
 
-classselector : '.' atom {$$ = $2;}
-			  | classselector '.' atom {$$ = concatclass(scanner, $1, $3);}
+classselector : '.' atom {
+				if (!validclass($2)) {
+					agerrorf("class selector atoms must be nonempty and contain no whitespace\n");
+					agstrfree(aagget_extra(scanner)->G, $2, false);
+					YYERROR;
+				}
+				$$ = $2;
+			  }
+			  | classselector '.' atom {
+				if (!validclass($3)) {
+					agerrorf("class selector atoms must be nonempty and contain no whitespace\n");
+					agstrfree(aagget_extra(scanner)->G, $1, false);
+					agstrfree(aagget_extra(scanner)->G, $3, false);
+					YYERROR;
+				}
+				$$ = concatclass(scanner, $1, $3);
+			  }
 			  ;
 
 optmacroname : atom '=' {$$ = $1;}
@@ -540,6 +557,16 @@ static char* concatclass(aagscan_t scanner, char* s1, char* s2)
   agstrfree(G, s2, false);
   agxbfree(&buf);
   return s;
+}
+
+static bool validclass(const char* atom)
+{
+  if (*atom == '\0')
+    return false;
+  for (const char *p = atom; *p; ++p)
+    if (isspace((unsigned char)*p))
+      return false;
+  return true;
 }
 
 static char*

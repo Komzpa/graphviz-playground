@@ -7818,11 +7818,40 @@ def test_694_class_defaults(tmp_path: Path):
     assert re.search(r"<!-- a -->.*?<polygon", scoped, re.S)
     assert re.search(r"<!-- b -->.*?<ellipse", scoped, re.S)
 
-    malformed = subprocess.run(
-        [which("dot"), "-Tdot"], input="digraph { node..foo [shape=box]; }", text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    # Explicit values survive later matching rules whose attribute symbols are
+    # local to a subgraph. This applies to both nodes and strict-graph edges.
+    cross_scope_source = textwrap.dedent(
+        """
+        strict digraph {
+          node.foo [shape=box];
+          a [class=foo, shape=ellipse];
+          edge.foo [color=red]; a -> b [class=foo, color=green];
+          subgraph s {
+            node [shape=diamond]; node.foo [shape=hexagon];
+            edge [color=black]; edge.foo [color=blue];
+            a; a -> b;
+          }
+        }
+        """
     )
-    assert malformed.returncode != 0
+    cross_scope = dot("dot", source=cross_scope_source)
+    assert re.search(r"a\s+\[[^]]*shape=ellipse", cross_scope, re.S)
+    assert re.search(r"a\s+->\s+b\s+\[[^]]*color=green", cross_scope, re.S)
+
+    for invalid_selector in (
+        "node..foo",
+        'node.""',
+        'node."foo bar"',
+    ):
+        malformed = subprocess.run(
+            [which("dot"), "-Tdot"],
+            input=f"digraph {{ {invalid_selector} [shape=box]; }}",
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        assert malformed.returncode != 0
 
     c_src = Path(__file__).parent / "694.c"
     stdout, stderr = run_c(c_src, tmp_path, link=["cgraph"])

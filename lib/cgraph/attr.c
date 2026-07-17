@@ -58,7 +58,7 @@ Agdatadict_t *agdatadict(Agraph_t *g, bool cflag) {
 }
 
 typedef struct Agclassapplied_s {
-  Agsym_t *sym;
+  int id;
   bool explicit;
   struct Agclassapplied_s *next;
 } Agclassapplied_t;
@@ -80,20 +80,19 @@ static Agclassappliedrec_t *classapplied(void *obj, bool create) {
                         : (Agclassappliedrec_t *)agbindrec(
                               obj, ClassAppliedName, sizeof(*rec), false);
 }
-static Agclassapplied_t *classappliedsym(Agclassappliedrec_t *rec,
-                                         Agsym_t *sym) {
+static Agclassapplied_t *classappliedid(Agclassappliedrec_t *rec, int id) {
   for (Agclassapplied_t *entry = rec ? rec->first : NULL; entry;
        entry = entry->next)
-    if (entry->sym == sym)
+    if (entry->id == id)
       return entry;
   return NULL;
 }
 void agclassattr_explicit(void *obj, Agsym_t *sym) {
   Agclassappliedrec_t *rec = classapplied(obj, true);
-  Agclassapplied_t *entry = classappliedsym(rec, sym);
+  Agclassapplied_t *entry = classappliedid(rec, sym->id);
   if (!entry) {
     entry = gv_alloc(sizeof(*entry));
-    entry->sym = sym;
+    entry->id = sym->id;
     entry->next = rec->first;
     rec->first = entry;
   }
@@ -105,7 +104,7 @@ void agclassattr_unmark(void *obj, Agsym_t *sym) {
     return;
   for (Agclassapplied_t **entry = &rec->first; *entry;
        entry = &(*entry)->next) {
-    if ((*entry)->sym == sym) {
+    if ((*entry)->id == sym->id) {
       Agclassapplied_t *old = *entry;
       *entry = old->next;
       free(old);
@@ -114,8 +113,23 @@ void agclassattr_unmark(void *obj, Agsym_t *sym) {
   }
 }
 bool agclassattr_applied(void *obj, Agsym_t *sym) {
-  Agclassapplied_t *entry = classappliedsym(classapplied(obj, false), sym);
+  Agclassapplied_t *entry =
+      classappliedid(classapplied(obj, false), sym->id);
   return entry && !entry->explicit;
+}
+static void agclassattr_materialize(void *obj) {
+  Agclassappliedrec_t *rec = classapplied(obj, false);
+  if (!rec)
+    return;
+  for (Agclassapplied_t **entry = &rec->first; *entry;) {
+    if ((*entry)->explicit) {
+      entry = &(*entry)->next;
+      continue;
+    }
+    Agclassapplied_t *old = *entry;
+    *entry = old->next;
+    free(old);
+  }
 }
 Agclassrule_t *agclassattr_begin(Agraph_t *g, int kind, char *selector) {
   Agclassrules_t *rules = agclassattrrules(g, true);
@@ -204,7 +218,8 @@ void agclassattr_apply(Agraph_t *scope, void *obj, int kind) {
       return;
     for (Agclassattr_t *attr = next->attrs; attr; attr = attr->next) {
       Agsym_t *sym = agattr_text(scope, kind, attr->name, NULL);
-      Agclassapplied_t *state = classappliedsym(classapplied(obj, false), sym);
+      Agclassapplied_t *state =
+          classappliedid(classapplied(obj, false), sym->id);
       if (state && state->explicit)
         continue;
       if (attr->is_html)
@@ -212,7 +227,7 @@ void agclassattr_apply(Agraph_t *scope, void *obj, int kind) {
       else
         (void)agxset_text(obj, sym, attr->value);
       agclassattr_explicit(obj, sym);
-      classappliedsym(classapplied(obj, false), sym)->explicit = false;
+      classappliedid(classapplied(obj, false), sym->id)->explicit = false;
     }
     last_specificity = next->specificity;
     last_order = next->order;
@@ -590,6 +605,7 @@ int agraphattr_delete(Agraph_t * g)
     Agattr_t *attr;
 
     agclassattr_delete(g);
+    agclassattr_object_delete(g);
     if ((attr = agattrrec(g))) {
 	freeattr(&g->base, attr);
 	agdelrec(g, attr->h.name);
@@ -698,6 +714,8 @@ static int agxset_(void *obj, Agsym_t *sym, const char *value, bool is_html) {
     Agsym_t *lsym;
 
     Agraph_t *g = agraphof(obj);
+    if (strcmp(sym->name, "class") == 0)
+        agclassattr_materialize(obj);
     agclassattr_unmark(obj, sym);
     Agobj_t *hdr = obj;
     Agattr_t *data = agattrrec(hdr);
