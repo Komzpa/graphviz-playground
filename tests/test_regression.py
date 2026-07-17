@@ -6395,6 +6395,26 @@ def test_2784():
             raise
 
 
+def test_2745():
+    """
+    a reduced bad-rank input should fail cleanly instead of crashing
+    https://gitlab.com/graphviz/graphviz/-/issues/2745
+    """
+
+    proc = subprocess.run(
+        ["dot", "-Kdot", "-Tdot"],
+        input="digraph{{rank=min 00}{rank=max 00}->1->0}\n",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode in (0, 1), "dot crashed instead of rejecting the graph"
+    assert "AddressSanitizer" not in proc.stderr, "dot triggered ASan"
+    assert "heap-buffer-overflow" not in proc.stderr, "dot read out of bounds"
+
+
 @pytest.mark.xfail(
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2796", strict=True
 )
