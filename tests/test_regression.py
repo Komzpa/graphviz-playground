@@ -7789,3 +7789,72 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+def _svg_text_line(svg: Union[bytes, str], text: str) -> str:
+    if isinstance(svg, bytes):
+        svg = svg.decode("utf-8")
+
+    for line in svg.splitlines():
+        if "<text" in line and f">{text}</text>" in line:
+            return line
+
+    raise AssertionError(f"missing SVG text element for {text!r}")
+
+
+@pytest.mark.xfail(strict=True, reason="node labels cannot be rotated yet")
+def test_651_node_labelangle_rotates_label_text():
+    """
+    Node label rotation is still unsupported.
+    https://gitlab.com/graphviz/graphviz/-/issues/651
+    https://gitlab.com/graphviz/graphviz/-/issues/2006
+    """
+
+    svg = dot(
+        "svg",
+        source='digraph { n [shape=box label="Node label" orientation="20" labelangle="20"]; }',
+    )
+
+    assert "rotate(" in _svg_text_line(svg, "Node label")
+
+
+@pytest.mark.xfail(strict=True, reason="edge labels cannot be rotated yet")
+def test_1643_edge_labelangle_rotates_label_text():
+    """
+    Edge, head, and tail label rotation is still unsupported.
+    https://gitlab.com/graphviz/graphviz/-/issues/1643
+    https://gitlab.com/graphviz/graphviz/-/issues/2006
+    """
+
+    svg = dot(
+        "svg",
+        source=textwrap.dedent(
+            """\
+            digraph {
+                a -> b [
+                    label="edge label"
+                    headlabel="head"
+                    taillabel="tail"
+                    labelangle="45"
+                ];
+            }
+            """
+        ),
+    )
+
+    for text in ("edge label", "head", "tail"):
+        assert "rotate(" in _svg_text_line(svg, text)
+
+
+@pytest.mark.xfail(strict=True, reason="xlabels cannot be rotated yet")
+def test_68_xlabel_angle_rotates_label_text():
+    """
+    External label rotation is still unsupported.
+    https://gitlab.com/graphviz/graphviz/-/issues/68
+    https://gitlab.com/graphviz/graphviz/-/issues/2006
+    """
+
+    svg = dot(
+        "svg",
+        source='digraph { n [shape=point xlabel="Metro stop" labelangle="45"]; }',
+    )
+
+    assert "rotate(" in _svg_text_line(svg, "Metro stop")
