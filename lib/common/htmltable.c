@@ -744,6 +744,25 @@ heightOfLbl (htmllabel_t * lp)
     return sz;
 }
 
+static double widthOfLbl(htmllabel_t *lp) {
+  double sz = 0.0;
+
+  switch (lp->kind) {
+  case HTML_TBL:
+    sz = lp->u.tbl->data.box.UR.x - lp->u.tbl->data.box.LL.x;
+    break;
+  case HTML_IMAGE:
+    sz = lp->u.img->box.UR.x - lp->u.img->box.LL.x;
+    break;
+  case HTML_TEXT:
+    sz = lp->u.txt->box.UR.x - lp->u.txt->box.LL.x;
+    break;
+  default:
+    UNREACHABLE();
+  }
+  return sz;
+}
+
 void emit_html_label(GVJ_t * job, htmllabel_t * lp, textlabel_t * tp)
 {
     htmlenv_t env;
@@ -752,6 +771,21 @@ void emit_html_label(GVJ_t * job, htmllabel_t * lp, textlabel_t * tp)
     allocObj(job);
 
     p = tp->pos;
+    if (lp->kind == HTML_TBL) {
+      const double slack = tp->space.x - widthOfLbl(lp);
+      if (slack > 0) {
+        switch (lp->u.tbl->data.flags & HALIGN_MASK) {
+        case HALIGN_LEFT:
+          p.x -= slack / 2.0;
+          break;
+        case HALIGN_RIGHT:
+          p.x += slack / 2.0;
+          break;
+        default:
+          break;
+        }
+      }
+    }
     switch (tp->valign) {
 	case 't':
     	    p.y = tp->pos.y + (tp->space.y - heightOfLbl(lp))/ 2.0 - 1;
