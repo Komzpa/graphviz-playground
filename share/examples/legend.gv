@@ -1,0 +1,76 @@
+/** legend example
+ *
+ * This graph demonstrates one way to add a legend without special Graphviz
+ * legend syntax. The legend is an ordinary HTML-like label on a plaintext node,
+ * and an invisible edge gently keeps it near the bottom of the drawing.
+ */
+
+digraph LegendExample {
+  graph [
+    label="Service deployment with a legend",
+    labelloc=t,
+    rankdir=LR
+  ];
+
+  node [
+    fontname="Helvetica",
+    shape=box,
+    style="rounded,filled"
+  ];
+
+  edge [fontname="Helvetica"];
+
+  developer [
+    label="Developer",
+    fillcolor="#c6dbef"
+  ];
+
+  ci [
+    label="CI",
+    fillcolor="#c7e9c0"
+  ];
+
+  app [
+    label="Application",
+    fillcolor="#c7e9c0"
+  ];
+
+  database [
+    label="Database",
+    fillcolor="#fdd0a2"
+  ];
+
+  developer -> ci [label="push"];
+  ci -> app [label="deploy"];
+  app -> database [label="query", color="#de2d26", penwidth=2];
+
+  legend [
+    shape=plain,
+    label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="4" CELLPADDING="4">
+        <TR>
+          <TD COLSPAN="2"><B>Legend</B></TD>
+        </TR>
+        <TR>
+          <TD BGCOLOR="#c6dbef">      </TD>
+          <TD ALIGN="LEFT">person or team</TD>
+        </TR>
+        <TR>
+          <TD BGCOLOR="#c7e9c0">      </TD>
+          <TD ALIGN="LEFT">service</TD>
+        </TR>
+        <TR>
+          <TD BGCOLOR="#fdd0a2">      </TD>
+          <TD ALIGN="LEFT">data store</TD>
+        </TR>
+        <TR>
+          <TD><FONT COLOR="#de2d26">━━</FONT></TD>
+          <TD ALIGN="LEFT">important dependency</TD>
+        </TR>
+      </TABLE>
+    >
+  ];
+
+  { rank=sink; legend; }
+  database -> legend [style=invis, weight=0];
+}
