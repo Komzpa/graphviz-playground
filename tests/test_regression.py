@@ -544,6 +544,41 @@ def test_793():
             assert p.returncode != -signal.SIGSEGV, "Graphviz segfaulted"
 
 
+@pytest.mark.skipif(
+    shutil.which("dot_builtins") is None, reason="dot_builtins not available"
+)
+def test_864():
+    """
+    `ordering=out` should survive additional unconstrained edges
+    https://gitlab.com/graphviz/graphviz/-/issues/864
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "864.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render to plain output so node coordinates are easy to inspect
+    dot_builtins = shutil.which("dot_builtins")
+    output = subprocess.check_output([dot_builtins, "-Tplain", input], text=True)
+
+    # recover node x coordinates
+    node_x = {}
+    for line in output.splitlines():
+        tokens = line.split()
+        if tokens and tokens[0] == "node":
+            node_x[tokens[1]] = float(tokens[2])
+
+    def assert_left_to_right(*nodes: str) -> None:
+        xs = [node_x[node] for node in nodes]
+        assert xs == sorted(xs), f"{nodes} were not laid out left-to-right"
+
+    # The unconstrained dotted 1→8 edge should not disturb the requested outgoing
+    # edge order.
+    assert_left_to_right("1", "5", "9")
+    assert_left_to_right("6", "7", "8")
+    assert_left_to_right("10", "11", "12")
+
+
 def test_797():
     """
     “&;” should not be considered an XML escape sequence
