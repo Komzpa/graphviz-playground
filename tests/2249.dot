@@ -1,0 +1,15 @@
+digraph G {
+    rankdir = LR;
+    node [shape = circle];
+    node [label = "", width = 0.3];
+
+    S10 -> S5 [label = <i>];
+    S7 [shape = doublecircle];
+    S2 -> S11 [label = <a>];
+    S8 -> S10 [label = <t>];
+    S5 -> S4 [label = <o>];
+    S5 -> S2 [label = <c>];
+    S4 -> S2 [label = <n>];
+    S0 -> S7 [label = <n>];
+    S8 -> S0 [label = <e>];
+}
