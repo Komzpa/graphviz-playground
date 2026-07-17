@@ -478,10 +478,10 @@ static int parseSegs(const char *clrs, colorsegs_t *psegs, bool report) {
 	if ((v = getSegLen(&color)) >= 0) {
 	    double del = v - left;
 	    if (del > 0) {
-		if (!AEQ0(del)) {
-		    rval = 3;
-		    if (report && !atomic_flag_test_and_set(&warned))
+		if (!AEQ0(del) && report &&
+		    !atomic_flag_test_and_set(&warned)) {
 			agwarningf("Total size > 1 in \"%s\" color spec ", clrs);
+		    rval = 3;
 		}
 		v = left;
 	    }

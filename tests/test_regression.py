@@ -408,6 +408,26 @@ def test_1312_wedged_node_rejects_local_id_collisions():
     assert wedge_ids == {"red": None, "green": "duplicate", "blue": None}
 
 
+def test_1312_wedged_node_one_shot_warning_has_no_orphan_context():
+    """A suppressed repeated color warning must not emit standalone context."""
+
+    source = """
+        graph {
+          node [shape=circle, style=wedged, label="", fillcolor="red;2:blue"];
+          a [href="https://example.test/a"];
+          b [href="https://example.test/b"];
+        }
+    """
+    proc = subprocess.run(
+        [which("dot"), "-Tsvg"],
+        input=textwrap.dedent(source),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert proc.stderr == 'Warning: Total size > 1 in "red;2:blue" color spec in node a\n'
+
+
 def test_146():
     """
     dot should respect an alpha channel value of 0 when writing SVG
