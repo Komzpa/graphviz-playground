@@ -4261,6 +4261,33 @@ def test_2416():
     assert abs(y_1 - y_2) > 1, "edge arrows appear to be drawn next to the same node"
 
 
+def test_2445():
+    """
+    edgepaint should handle this graph without a long delay
+    https://gitlab.com/graphviz/graphviz/-/issues/2445
+    """
+
+    input = Path(__file__).parent / "2445.gv"
+    assert input.exists(), "unexpectedly missing test case"
+
+    edgepaint = which("edgepaint")
+    if edgepaint is None:
+        dot_path = which("dot")
+        assert dot_path is not None, "dot not available"
+        edgepaint = dot_path.parent.parent / "edgepaint" / "edgepaint"
+        if not edgepaint.exists():
+            pytest.skip("edgepaint not available")
+
+    dot_cmd = which("dot_builtins") or which("dot")
+    assert dot_cmd is not None, "dot not available"
+
+    laid_out = run(dot_cmd, "-Tdot", input, timeout=10)
+    painted = run(edgepaint, input=laid_out, timeout=10)
+    svg = run(dot_cmd, "-Kneato", "-n2", "-Tsvg", input=painted, timeout=10)
+
+    assert "<svg " in svg, "edgepaint pipeline did not produce SVG output"
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_2454():
     """
