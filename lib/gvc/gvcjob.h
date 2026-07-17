@@ -171,7 +171,7 @@ extern "C" {
      * gvrender_core_dot.c will probably need to be changed.
      */
     typedef enum {
-	EMIT_GDRAW, EMIT_CDRAW, EMIT_TDRAW, EMIT_HDRAW, 
+	EMIT_GDRAW, EMIT_CDRAW, EMIT_TDRAW, EMIT_HDRAW, EMIT_MDRAW,
 	EMIT_GLABEL, EMIT_CLABEL, EMIT_TLABEL, EMIT_HLABEL, 
 	EMIT_NDRAW, EMIT_EDRAW, EMIT_NLABEL, EMIT_ELABEL,
     } emit_state_t;

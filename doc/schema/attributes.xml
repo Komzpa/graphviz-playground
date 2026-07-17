@@ -123,6 +123,13 @@
 			<xsd:enumeration value="none" />
 		</xsd:restriction>
 	</xsd:simpleType>
+
+	<xsd:simpleType name="fraction">
+		<xsd:restriction base="xsd:decimal">
+			<xsd:minInclusive value="0.0" />
+			<xsd:maxInclusive value="1.0" />
+		</xsd:restriction>
+	</xsd:simpleType>
 	
 	
 	<xsd:simpleType name="escString">
@@ -434,6 +441,43 @@
 					Style of arrowhead on the tail node of an edge. 
 					See also the <html:a rel="attr">dir</html:a> attribute, 
 					and the <html:a rel="note">undirected</html:a> note.			
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="midarrowhead" type="arrowType">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Style of an optional arrowhead in the middle of an edge. It points
+					from the tail toward the head and is enabled by
+					<html:a rel="attr">dir</html:a>=<html:code>forward</html:code>
+					or <html:code>both</html:code>.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="midarrowpos" type="fraction" default="0.5">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Fraction of the rendered spline arc length at which optional middle
+					arrowheads are placed. The default is 0.5.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="midarrowtail" type="arrowType">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Style of an optional arrowtail in the middle of an edge. It points
+					from the head toward the tail and is enabled by
+					<html:a rel="attr">dir</html:a>=<html:code>back</html:code>
+					or <html:code>both</html:code>.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
@@ -2455,6 +2499,9 @@
 		<xsd:attribute ref="arrowhead" default="normal" />
 		<xsd:attribute ref="arrowsize" default="1.0" />
 		<xsd:attribute ref="arrowtail" default="normal" />
+		<xsd:attribute ref="midarrowhead" />
+		<xsd:attribute ref="midarrowpos" default="0.5" />
+		<xsd:attribute ref="midarrowtail" />
 		<xsd:attribute ref="color" default="black" />
 		<xsd:attribute ref="colorscheme" />
 		<xsd:attribute ref="comment" />

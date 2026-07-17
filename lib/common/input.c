@@ -779,6 +779,9 @@ void graph_init(graph_t * g, bool use_rankdir)
     E_tailclip = agfindedgeattr(g, "tailclip");
     E_headclip = agfindedgeattr(g, "headclip");
     E_penwidth = agfindedgeattr(g, "penwidth");
+    E_midarrowhead = agfindedgeattr(g, "midarrowhead");
+    E_midarrowtail = agfindedgeattr(g, "midarrowtail");
+    E_midarrowpos = agfindedgeattr(g, "midarrowpos");
 
     /* background */
     GD_drawing(g)->xdots = init_xdot (g);

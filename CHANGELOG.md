@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- Edges can draw optional middle arrowheads and arrowtails with the
+  `midarrowhead`, `midarrowtail`, and `midarrowpos` attributes. #2005
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
