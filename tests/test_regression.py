@@ -4157,6 +4157,33 @@ def test_2429():
     dot("vt", source=source)
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2829"
+)
+def test_2829_line_art_ascii_output():
+    """
+    the ascii target should render graphs as text line art
+    https://gitlab.com/graphviz/graphviz/-/issues/2829
+    """
+
+    source = """
+        digraph {
+          graph [rankdir=LR];
+          a [label="dot file", shape=box];
+          b [label="diagram", shape=box];
+          a -> b [label="graphviz"];
+        }
+    """
+
+    output = dot("ascii", source=textwrap.dedent(source))
+
+    assert output.isascii(), "ascii output contained non-ASCII characters"
+    assert "dot file" in output
+    assert "diagram" in output
+    assert "graphviz" in output
+    assert any(marker in output for marker in "+-|"), "missing line art"
+
+
 @pytest.mark.skipif(which("nop") is None, reason="nop not available")
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2436"
