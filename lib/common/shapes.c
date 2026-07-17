@@ -98,6 +98,7 @@ static polygon_t p_polygon = {.peripheries = 1};
 /* builtin polygon descriptions */
 static polygon_t p_ellipse = {.peripheries = 1, .sides = 1};
 static polygon_t p_circle = {.regular = true, .peripheries = 1, .sides = 1};
+static polygon_t p_donut = {.regular = true, .peripheries = 2, .sides = 1};
 static polygon_t p_egg = {.peripheries = 1, .sides = 1, .distortion = -0.3};
 static polygon_t p_triangle = {.peripheries = 1, .sides = 3};
 static polygon_t p_box = {.peripheries = 1, .sides = 4};
@@ -295,6 +296,7 @@ static shape_desc Shapes[] = {	/* first entry is default for no such shape */
     {.name = "ellipse", .fns = &poly_fns, .polygon = &p_ellipse},
     {.name = "oval", .fns = &poly_fns, .polygon = &p_ellipse},
     {.name = "circle", .fns = &poly_fns, .polygon = &p_circle},
+    {.name = "donut", .fns = &poly_fns, .polygon = &p_donut},
     {.name = "point", .fns = &point_fns, .polygon = &p_circle},
     {.name = "egg", .fns = &poly_fns, .polygon = &p_egg},
     {.name = "triangle", .fns = &poly_fns, .polygon = &p_triangle},
@@ -1977,6 +1979,8 @@ static void poly_init(node_t * n)
     }
 
     peripheries = (size_t)late_int(n, N_peripheries, (int)peripheries, 0);
+    if (ND_shape(n)->polygon == &p_donut && peripheries < 2)
+	peripheries = 2;
     orientation += late_double(n, N_orientation, 0.0, -360.0);
     if (sides == 0) {		/* not for builtins */
 	skew = late_double(n, N_skew, 0.0, -100.0);
@@ -2951,6 +2955,7 @@ static void poly_gencode(GVJ_t * job, node_t * n)
     ysize = ND_ht(n) / INCH2PS(ND_height(n));
 
     const graphviz_polygon_style_t style = stylenode(job, n);
+    const bool is_donut = ND_shape(n)->polygon == &p_donut;
 
     char *clrs[2] = {0};
     if (ND_gui_state(n) & GUI_STATE_ACTIVE) {
@@ -3017,42 +3022,83 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 
     /* draw peripheries first */
     size_t j;
-    for (j = 0; j < peripheries; j++) {
+    if (is_donut && sides <= 2 && peripheries >= 2 && filled != 0 && pfilled) {
+	const size_t outer = peripheries - 1;
 	for (size_t i = 0; i < sides; i++) {
-	    P = vertices[i + j * sides];
+	    P = vertices[i + outer * sides];
 	    AF[i].x = P.x * xsize + ND_coord(n).x;
 	    AF[i].y = P.y * ysize + ND_coord(n).y;
 	}
-	if (sides <= 2) {
-	    if (style.wedged && j == 0 && multicolor(fillcolor)) {
-		int rv = wedgedEllipse (job, AF, fillcolor);
-		if (rv > 1)
-		    agerr (AGPREV, "in node %s\n", agnameof(n));
-		filled = 0;
-	    }
-	    gvrender_ellipse(job, AF, filled);
-	    if (style.diagonals) {
-		Mcircle_hack(job, n);
-	    }
-	} else if (style.striped) {
-	    if (j == 0) {
-		int rv = stripedBox (job, AF, fillcolor, 1);
-		if (rv > 1)
-		    agerr (AGPREV, "in node %s\n", agnameof(n));
-	    }
-	    gvrender_polygon(job, AF, sides, 0);
-	} else if (style.underline) {
-	    gvrender_set_pencolor(job, "transparent");
-	    gvrender_polygon(job, AF, sides, filled);
-	    gvrender_set_pencolor(job, pencolor);
-	    gvrender_polyline(job, AF+2, 2);
-	} else if (SPECIAL_CORNERS(style)) {
-	    round_corners(job, AF, sides, style, filled);
+	if (style.wedged && multicolor(fillcolor)) {
+	    int rv = wedgedEllipse(job, AF, fillcolor);
+	    if (rv > 1)
+		agerr(AGPREV, "in node %s\n", agnameof(n));
 	} else {
-	    gvrender_polygon(job, AF, sides, filled);
+	    gvrender_ellipse(job, AF, filled);
 	}
-	/* fill innermost periphery only */
+	gvrender_set_pencolor(job, pencolor);
+	gvrender_ellipse(job, AF, 0);
+
+	for (j = 1; j < outer; j++) {
+	    for (size_t i = 0; i < sides; i++) {
+		P = vertices[i + j * sides];
+		AF[i].x = P.x * xsize + ND_coord(n).x;
+		AF[i].y = P.y * ysize + ND_coord(n).y;
+	    }
+	    gvrender_ellipse(job, AF, 0);
+	}
+
+	for (size_t i = 0; i < sides; i++) {
+	    P = vertices[i];
+	    AF[i].x = P.x * xsize + ND_coord(n).x;
+	    AF[i].y = P.y * ysize + ND_coord(n).y;
+	}
+	char *bgcolor = agget(agraphof(n), "bgcolor");
+	if (bgcolor == NULL || bgcolor[0] == '\0')
+	    bgcolor = "white";
+	gvrender_set_fillcolor(job, bgcolor);
+	gvrender_ellipse(job, AF, FILL);
+	gvrender_set_pencolor(job, pencolor);
+	gvrender_ellipse(job, AF, 0);
 	filled = 0;
+    } else {
+	for (j = 0; j < peripheries; j++) {
+	    for (size_t i = 0; i < sides; i++) {
+		P = vertices[i + j * sides];
+		AF[i].x = P.x * xsize + ND_coord(n).x;
+		AF[i].y = P.y * ysize + ND_coord(n).y;
+	    }
+	    if (sides <= 2) {
+		if (style.wedged && j == 0 && multicolor(fillcolor)) {
+		    int rv = wedgedEllipse (job, AF, fillcolor);
+		    if (rv > 1)
+			agerr (AGPREV, "in node %s\n", agnameof(n));
+		    filled = 0;
+		}
+		gvrender_ellipse(job, AF, filled);
+		if (style.diagonals) {
+		    Mcircle_hack(job, n);
+		}
+	    } else if (style.striped) {
+		if (j == 0) {
+		    int rv = stripedBox (job, AF, fillcolor, 1);
+		    if (rv > 1)
+			agerr (AGPREV, "in node %s\n", agnameof(n));
+		}
+		gvrender_polygon(job, AF, sides, 0);
+	    } else if (style.underline) {
+		gvrender_set_pencolor(job, "transparent");
+		gvrender_polygon(job, AF, sides, filled);
+		gvrender_set_pencolor(job, pencolor);
+		gvrender_polyline(job, AF+2, 2);
+	    } else if (SPECIAL_CORNERS(style)) {
+		round_corners(job, AF, sides, style, filled);
+	    } else {
+		gvrender_polygon(job, AF, sides, filled);
+	    }
+	    /* fill innermost periphery only */
+	    filled = 0;
+	}
     }
 
     usershape_p = false;

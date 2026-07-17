@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- A `donut` node shape is now available for rendering annular nodes such as
+  wedged donut charts. #1313
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
