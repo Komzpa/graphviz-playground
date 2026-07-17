@@ -11,6 +11,7 @@
 #include "config.h"
 
 #include    <assert.h>
+#include    <errno.h>
 #include    <twopigen/circle.h>
 #include    <inttypes.h>
 #include    <limits.h>
@@ -163,6 +164,51 @@ static uint64_t setParentNodes(Agraph_t * sg, Agnode_t * center)
 	}
     }
     return maxn;
+}
+
+static bool parseTwopiRank(const char *s, uint64_t *rank)
+{
+    char *endp;
+
+    if (!s || *s == '\0') {
+	return false;
+    }
+
+    errno = 0;
+    uintmax_t r = strtoumax(s, &endp, 10);
+    if (errno == ERANGE || endp == s || r > UINT64_MAX) {
+	return false;
+    }
+    while (gv_isspace(*endp)) {
+	endp++;
+    }
+    if (*endp != '\0') {
+	return false;
+    }
+
+    *rank = (uint64_t)r;
+    return true;
+}
+
+static uint64_t applyExplicitRanks(Agraph_t *sg, uint64_t maxrank)
+{
+    Agsym_t *twopirank = agfindnodeattr(agroot(sg), "twopirank");
+    if (!twopirank) {
+	return maxrank;
+    }
+
+    for (Agnode_t *n = agfstnode(sg); n; n = agnxtnode(sg, n)) {
+	uint64_t rank;
+	if (!parseTwopiRank(agxget(n, twopirank), &rank)) {
+	    continue;
+	}
+	SCENTER(n) = rank;
+	if (rank > maxrank) {
+	    maxrank = rank;
+	}
+    }
+
+    return maxrank;
 }
 
 /* Sets each node's subtreeSize, which counts the number of 
@@ -331,6 +377,7 @@ Agnode_t* circleLayout(Agraph_t * sg, Agnode_t * center)
 	agerrorf("twopi: use of weight=0 creates disconnected component.\n");
 	return center;
     }
+    maxNStepsToCenter = applyExplicitRanks(sg, maxNStepsToCenter);
 
     setSubtreeSize(sg);
 

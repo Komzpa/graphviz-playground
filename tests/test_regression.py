@@ -2029,6 +2029,44 @@ def test_1907():
     assert "<title>A&#45;&gt;B</title>" in output, "element title not found in SVG"
 
 
+@pytest.mark.skipif(
+    which("dot_builtins") is None, reason="dot_builtins not available"
+)
+def test_2412():
+    """
+    twopi should allow nodes to specify their radial rank explicitly
+    https://gitlab.com/graphviz/graphviz/-/issues/2412
+    """
+
+    source = """
+        graph {
+          ranksep=1
+          root=A
+          node [shape=point]
+          A -- B -- C
+          A -- D -- E
+          C [twopirank=3]
+        }
+    """
+
+    dot_builtins = which("dot_builtins")
+    output = run(dot_builtins, "-Ktwopi", "-Tplain", input=source)
+
+    positions = {}
+    for line in output.splitlines():
+        fields = line.split()
+        if fields[:1] == ["node"]:
+            positions[fields[1]] = (float(fields[2]), float(fields[3]))
+
+    assert {"A", "C", "E"} <= positions.keys(), "missing node positions"
+    root = positions["A"]
+    c_radius = math.dist(root, positions["C"])
+    e_radius = math.dist(root, positions["E"])
+
+    assert c_radius == pytest.approx(3, abs=0.01)
+    assert e_radius == pytest.approx(2, abs=0.01)
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr not available")
 def test_1909():
     """

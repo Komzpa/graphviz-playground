@@ -332,6 +332,11 @@ of degree 1. If no leaf nodes exists, an arbitrary node is picked as center.
 .PP
 \fBranksep=\fIval\fR. Specifies the radial distance in inches between
 the sequence of rings. The default is 0.75.
+.PP
+\fBtwopirank=\fIn\fR. Node attribute fixing a node to the specified
+radial rank, or ring number, counted outward from the layout root. Rank
+0 is the root ring. If unset, \fItwopi\fP assigns ranks from graph
+distance to the root.
 
 .PP
 \fB(circo\(hyspecific attributes)\fR

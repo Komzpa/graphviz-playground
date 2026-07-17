@@ -2331,6 +2331,19 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="twopirank" type="xsd:nonNegativeInteger" gv:layouts="twopi">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					In <html:span class="val">twopi</html:span>, fixes the node's radial
+					rank, or ring number, counted outward from the layout root. Rank 0 is
+					the root ring. If unset, <html:span class="val">twopi</html:span>
+					assigns the ring from the node's graph-theoretic distance from the root.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<xsd:attribute name="truecolor" type="xsd:boolean">
 		<xsd:annotation>
@@ -2546,6 +2559,7 @@
 		<xsd:attribute ref="style" />
 		<xsd:attribute ref="target" />
 		<xsd:attribute ref="tooltip" />
+		<xsd:attribute ref="twopirank" />
 		<xsd:attribute ref="vertices" />
 		<xsd:attribute ref="width" default="0.75" />
 		<xsd:attribute ref="z" default="0.0" />
