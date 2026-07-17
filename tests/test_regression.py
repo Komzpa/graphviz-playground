@@ -7180,6 +7180,7 @@ Usage: dot [-Vv?] [-(GNEA)name=val] [-(KTlso)<val>] <dot files>
  -Nname=val  - Set node attribute 'name' to 'val'
  -Ename=val  - Set edge attribute 'name' to 'val'
  -Aname=val  - Set attribute 'name' to 'val' for graph, node, and edge
+ --config-file=file - Load default attributes from a DOT file
  -Tv         - Set output format to 'v'
  -Kv         - Set layout engine to 'v' (overrides default based on command name)
  -lv         - Use external library 'v'
@@ -7284,6 +7285,40 @@ def test_dot_Vrandom(tmp_path: Path):
     assert proc.stderr.startswith(
         f"dot - graphviz version {package_version.strip()} ("
     ), "unexpected -V info"
+
+
+def test_2794_config_file_loads_default_attributes(tmp_path: Path):
+    """
+    default attributes should be loadable from an external DOT file
+    https://gitlab.com/graphviz/graphviz/-/issues/2794
+    """
+
+    config = tmp_path / "defaults.gv"
+    config.write_text(
+        textwrap.dedent(
+            """\
+            digraph {
+              graph [rankdir=LR]
+              node [shape=box, color=red]
+              edge [color=blue]
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    dot_exe = which("dot_builtins") or "dot"
+    output = run(
+        dot_exe,
+        f"--config-file={config}",
+        "-Tdot",
+        input="digraph { a -> b [color=green] }\n",
+    )
+
+    assert "\trankdir=LR" in output
+    assert "\tnode [color=red,\n\t\tlabel=\"\\N\",\n\t\tshape=box\n\t];" in output
+    assert "\tedge [color=blue];" in output
+    assert "a -> b\t[color=green," in output
 
 
 def test_pic_font_size():

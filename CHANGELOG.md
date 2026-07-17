@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- The common command line tools now support `--config-file=…` for loading
+  graph, node, and edge default attributes from a DOT file. #2794
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
