@@ -1380,13 +1380,14 @@ def test_rankorder_input_overrides_opposite_flat_edge():
 
 
 def _cluster_crossing_positions(
-    root_rankorder: str = "", cluster_rankorder: str = ""
+    root_rankorder: str = "", cluster_rankorder: str = "", remincross: str = ""
 ) -> dict[str, float]:
     plain = dot(
         "plain",
         source=f"""
             digraph {{
               {root_rankorder}
+              {remincross}
               subgraph cluster_nodes {{
                 {cluster_rankorder}
                 subgraph {{ rank=same; l; r; }}
@@ -1411,14 +1412,37 @@ def test_rankorder_input_applies_to_clusters():
     assert unconstrained["b"] < unconstrained["a"], "dot stopped minimizing crossings"
 
     constrained = _cluster_crossing_positions(cluster_rankorder="rankorder=input;")
-    assert constrained["a"] < constrained["b"], "cluster rankorder=input was not honored"
+    assert (
+        constrained["a"] < constrained["b"]
+    ), "cluster rankorder=input was not honored"
 
 
 def test_rankorder_input_is_inherited_by_clusters():
     """root rankorder=input also constrains the contents of clusters"""
 
     constrained = _cluster_crossing_positions(root_rankorder="rankorder=input;")
-    assert constrained["a"] < constrained["b"], "root rankorder=input did not reach cluster contents"
+    assert (
+        constrained["a"] < constrained["b"]
+    ), "root rankorder=input did not reach cluster contents"
+
+
+def test_rankorder_input_is_inherited_without_remincross():
+    """cluster mincross preserves local and inherited constraints on its own"""
+
+    unconstrained = _cluster_crossing_positions(remincross="remincross=false;")
+    assert unconstrained["b"] < unconstrained["a"], "dot stopped minimizing crossings"
+
+    cluster_local = _cluster_crossing_positions(
+        cluster_rankorder="rankorder=input;", remincross="remincross=false;"
+    )
+    assert cluster_local["a"] < cluster_local["b"], "cluster lost its rankorder=input"
+
+    constrained = _cluster_crossing_positions(
+        root_rankorder="rankorder=input;", remincross="remincross=false;"
+    )
+    assert (
+        constrained["a"] < constrained["b"]
+    ), "cluster mincross lost root rankorder=input"
 
 
 def test_rankorder_input_respects_rankdir():
