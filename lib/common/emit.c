@@ -467,7 +467,7 @@ static double getSegLen(strview_t *s) {
  * Otherwise, psegs is left unchanged and the allocated memory is
  * freed before returning.
  */
-static int parseSegs(const char *clrs, colorsegs_t *psegs) {
+static int parseSegs(const char *clrs, colorsegs_t *psegs, bool report) {
     colorsegs_t segs = {.dtor = freeSeg};
     double v, left = 1;
     static atomic_flag warned;
@@ -478,9 +478,10 @@ static int parseSegs(const char *clrs, colorsegs_t *psegs) {
 	if ((v = getSegLen(&color)) >= 0) {
 	    double del = v - left;
 	    if (del > 0) {
-		if (!AEQ0(del) && !atomic_flag_test_and_set(&warned)) {
-		    agwarningf("Total size > 1 in \"%s\" color spec ", clrs);
+		if (!AEQ0(del)) {
 		    rval = 3;
+		    if (report && !atomic_flag_test_and_set(&warned))
+			agwarningf("Total size > 1 in \"%s\" color spec ", clrs);
 		}
 		v = left;
 	    }
@@ -491,7 +492,10 @@ static int parseSegs(const char *clrs, colorsegs_t *psegs) {
 	    LIST_APPEND(&segs, s);
 	}
 	else {
-	    if (!atomic_flag_test_and_set(&warned)) {
+	    if (!report) {
+		rval = 2;
+	    }
+	    else if (!atomic_flag_test_and_set(&warned)) {
 		agerrorf("Illegal value in \"%s\" color attribute; float expected after ';'\n",
                     clrs);
 		rval = 2;
@@ -587,7 +591,10 @@ static bool nodeHasWedgeAnchorMetadata(node_t *n, size_t wedge_count) {
 
 bool wedgedNodeHasAnchorMetadata(node_t *n, const char *clrs) {
     colorsegs_t segs;
-    const int rv = parseSegs(clrs, &segs);
+    /* This is a preflight for the outer node anchor. Do not consume the
+     * process-wide one-shot color diagnostic before the real renderer parse.
+     */
+    const int rv = parseSegs(clrs, &segs, false);
     if (rv == 1 || rv == 2)
         return false;
 
@@ -620,6 +627,19 @@ static char *wedgeHref(node_t *n, size_t index) {
     return href ? href : wedgeAttribute(n, index, "URL");
 }
 
+static bool wedgeIdCollides(node_t *n, size_t index, const char *id,
+                            const char *node_id) {
+    if (node_id && streq(id, node_id))
+        return true;
+
+    for (size_t i = 0; i < index; ++i) {
+        const char *previous = wedgeAttribute(n, i, "id");
+        if (previous && streq(id, previous))
+            return true;
+    }
+    return false;
+}
+
 #define THIN_LINE 0.5
 
 /* Fill an ellipse whose bounding box is given by 2 points in pf
@@ -638,7 +658,7 @@ int wedgedEllipse(GVJ_t *job, pointf *pf, const char *clrs) {
     Ppolyline_t* pp;
     double angle0, angle1;
 
-    rv = parseSegs(clrs, &segs);
+    rv = parseSegs(clrs, &segs, true);
     if (rv == 1 || rv == 2) return rv;
     const pointf ctr = mid_pointf(pf[0], pf[1]);
     const pointf semi = sub_pointf(pf[1], ctr);
@@ -666,6 +686,12 @@ int wedgedEllipse(GVJ_t *job, pointf *pf, const char *clrs) {
 	    metadata ? wedgeAttribute((node_t *)node, wedge_index, "id") : NULL;
 	char *class =
 	    metadata ? wedgeAttribute((node_t *)node, wedge_index, "class") : NULL;
+	if (id && wedgeIdCollides((node_t *)node, wedge_index, id,
+	                          job->obj->id)) {
+	    agwarningf("wedge%" PRISIZE_T "id \"%s\" duplicates an SVG id - ignored\n",
+	               wedge_index, id);
+	    id = NULL;
+	}
 
 	/* Per-wedge anchors replace the node anchor. Missing values inherit the
 	 * node's normal navigation metadata, while id/class stay path-local. */
@@ -719,7 +745,7 @@ int stripedBox(GVJ_t *job, pointf *AF, const char *clrs, int rotate) {
     double lastx;
     double save_penwidth = job->obj->penwidth;
 
-    rv = parseSegs(clrs, &segs);
+    rv = parseSegs(clrs, &segs, true);
     if (rv == 1 || rv == 2) return rv;
     if (rotate) {
 	pts[0] = AF[2];
@@ -2101,7 +2127,7 @@ static int multicolor(GVJ_t *job, edge_t *e, char **styles, const char *colors,
     double left;
     int first;  /* first segment with t > 0 */
 
-    rv = parseSegs(colors, &segs);
+    rv = parseSegs(colors, &segs, true);
     if (rv > 1) {
 	Agraph_t* g = agraphof(agtail(e));
 	agerr (AGPREV, "in edge %s%s%s\n", agnameof(agtail(e)), (agisdirected(g)?" -> ":" -- "), agnameof(aghead(e)));
@@ -4459,7 +4485,7 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     clrs[0] = NULL;
     clrs[1] = NULL;
 
-    rv = parseSegs(colorlist, &segs);
+    rv = parseSegs(colorlist, &segs, true);
     if (rv || LIST_SIZE(&segs) < 2 || LIST_FRONT(&segs)->color == NULL) {
 	LIST_FREE(&segs);
 	return false;

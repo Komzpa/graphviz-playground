@@ -385,6 +385,29 @@ def test_1312_wedged_node_target_only_metadata_splits_node_anchor():
     assert wedge_anchors["blue"].get("target") == "_parent"
 
 
+def test_1312_wedged_node_rejects_local_id_collisions():
+    """Wedge metadata must not create duplicate IDs inside a node group."""
+
+    source = """
+        graph {
+          n [id="same", shape=circle, style=wedged, label="",
+             color="red:green:blue", wedge0id="same",
+             wedge1id="duplicate", wedge2id="duplicate"];
+        }
+    """
+    root = ET.fromstring(dot("svg", source=textwrap.dedent(source)))
+    namespace = "{http://www.w3.org/2000/svg}"
+    ids = [element.get("id") for element in root.iter() if element.get("id")]
+    assert len(ids) == len(set(ids))
+
+    wedge_ids = {
+        path.get("fill"): path.get("id")
+        for path in root.iter(f"{namespace}path")
+        if path.get("fill") in {"red", "green", "blue"}
+    }
+    assert wedge_ids == {"red": None, "green": "duplicate", "blue": None}
+
+
 def test_146():
     """
     dot should respect an alpha channel value of 0 when writing SVG

@@ -224,11 +224,6 @@ extern "C" {
 	char *tailtarget;
 	char *headtarget; 
 
-	/* Metadata for one renderer primitive. These are borrowed while the
-	 * primitive is emitted and are currently consumed by the SVG renderer. */
-	const char *primitive_id;
-	const char *primitive_class;
-
 	unsigned explicit_tooltip:1;
 	unsigned explicit_tailtooltip:1;
 	unsigned explicit_headtooltip:1;
@@ -257,6 +252,12 @@ extern "C" {
 
 	int headendurl_map_n;           /* head end intersection with node */
 	pointf *headendurl_map_p;
+
+	/* Metadata for one renderer primitive. Append-only to preserve the
+	 * offsets of the existing public plugin ABI fields above. These pointers
+	 * are borrowed while the primitive is emitted. */
+	const char *primitive_id;
+	const char *primitive_class;
     };
 
 /* Note on units:
