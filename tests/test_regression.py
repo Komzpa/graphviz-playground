@@ -7789,3 +7789,126 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+def _issue_1075_graph(rank_lines: str, *, newrank: bool) -> str:
+    newrank_line = "    newrank=true\n" if newrank else ""
+    return textwrap.dedent(
+        f"""\
+        digraph test {{
+            clusterrank=local
+        {newrank_line}    subgraph cluster_X {{
+                subgraph cluster_I {{
+                    "I0"
+                    node [shape=circle]
+                    "I_0" [label="0"]
+                }}
+                subgraph cluster_O {{
+                    "O0" -> "O4"
+                    "O1" -> "O0"
+                    "O2" -> "O3"
+                    "O3" -> "O0"
+                    "O4" -> "O5"
+                    node [shape=circle]
+                    "O_0" [label="0"]
+                    "O_1" [label="1"]
+                    "O_2" [label="2"]
+                    "O_0" -> "O_1" -> "O_2"
+                }}
+                subgraph cluster_Y {{
+                    "Y0" -> {{ "Y1"; "Y2";}}
+                    node [shape=circle]
+                    "Y_0" [label="0"]
+                    "Y_1" [label="1"]
+                    "Y_0" -> "Y_1"
+                }}
+                node [shape=circle]
+                "K_0" [label="0"]
+                "K_1" [label="1"]
+                "K_2" [label="2"]
+                "K_3" [label="3"]
+                "K_0" -> "K_1" -> "K_2" -> "K_3"
+        {rank_lines}
+            }}
+        }}
+        """
+    )
+
+
+def _issue_1075_rank_ys(output: Union[bytes, str]) -> dict[str, float]:
+    if isinstance(output, bytes):
+        output = output.decode("utf-8")
+
+    ys: dict[str, float] = {}
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 4 and fields[0] == "node" and fields[1] in {
+            "I_0",
+            "K_2",
+            "O_0",
+            "Y_0",
+        }:
+            ys[fields[1]] = float(fields[3])
+    return ys
+
+
+@pytest.mark.parametrize(
+    "rank_lines",
+    (
+        textwrap.dedent(
+            """\
+                {rank=same; "K_2"; "I_0";}
+                {rank=same; "K_2"; "O_0";}
+                {rank=same; "K_2"; "Y_0";}
+            """
+        ),
+        textwrap.dedent(
+            """\
+                {rank=same; "O_0"; "I_0";}
+                {rank=same; "Y_0"; "O_0";}
+                {rank=same; "K_2"; "Y_0";}
+            """
+        ),
+        textwrap.dedent(
+            """\
+                {rank=same; "Y_0"; "O_0";}
+                {rank=same; "O_0"; "I_0";}
+                {rank=same; "K_2"; "Y_0";}
+            """
+        ),
+    ),
+)
+def test_1075_newrank_cluster_ranksets_are_order_insensitive(rank_lines: str):
+    """
+    `newrank=true` should keep cross-cluster rank=same constraints order-insensitive.
+    https://gitlab.com/graphviz/graphviz/-/issues/1075
+    """
+
+    output = dot("plain", source=_issue_1075_graph(rank_lines, newrank=True))
+    ys = _issue_1075_rank_ys(output)
+
+    assert set(ys) == {"I_0", "K_2", "O_0", "Y_0"}
+    assert len(set(ys.values())) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="legacy local cluster ranksets remain order-sensitive")
+def test_1075_legacy_cluster_ranksets_are_order_sensitive():
+    """
+    Legacy local cluster ranksets still reproduce the order sensitivity in #1075.
+    """
+
+    output = dot(
+        "plain",
+        source=_issue_1075_graph(
+            textwrap.dedent(
+                """\
+                    {rank=same; "K_2"; "I_0";}
+                    {rank=same; "K_2"; "O_0";}
+                    {rank=same; "K_2"; "Y_0";}
+                """
+            ),
+            newrank=False,
+        ),
+    )
+    ys = _issue_1075_rank_ys(output)
+
+    assert set(ys) == {"I_0", "K_2", "O_0", "Y_0"}
+    assert len(set(ys.values())) == 1
