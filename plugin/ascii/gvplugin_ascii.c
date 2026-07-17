@@ -13,11 +13,11 @@ extern gvplugin_installed_t gvdevice_ascii_cairo_types[];
 #endif
 
 static gvplugin_api_t apis[] = {
+    {API_device, gvdevice_ascii_lineart_types},
 #ifdef HAVE_AALIB
-    // Keep cairo first so the existing bare -Tascii selection is unchanged.
+    // Equal-quality devices are last-wins, so keep cairo as bare -Tascii.
     {API_device, gvdevice_ascii_cairo_types},
 #endif
-    {API_device, gvdevice_ascii_lineart_types},
     {API_render, gvrender_ascii_lineart_types},
     {0},
 };

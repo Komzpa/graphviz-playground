@@ -4217,6 +4217,42 @@ def test_2829_line_art_ascii_variants():
     assert ">" not in undirected, "undirected edge acquired an arrow"
 
 
+def test_2829_ascii_device_selection():
+    """
+    bare ascii should prefer cairo when available and otherwise use line art
+    https://gitlab.com/graphviz/graphviz/-/issues/2829
+    """
+
+    source = "digraph { a [shape=box]; b [shape=box]; a -> b; }"
+    dot_binary = which("dot")
+    assert dot_binary is not None, "dot not available"
+
+    def render(format: str) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            [dot_binary, "-v", f"-T{format}"],
+            input=source.encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+
+    bare = render("ascii")
+    lineart = render("ascii:lineart")
+    assert b"Using device: ascii:lineart:ascii" in lineart.stderr
+
+    cairo = subprocess.run(
+        [dot_binary, "-Tascii:cairo"],
+        input=source.encode("utf-8"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if cairo.returncode == 0:
+        assert b"Using device: ascii:cairo:ascii" in bare.stderr
+    else:
+        assert bare.stdout == lineart.stdout
+
+
 @pytest.mark.skipif(which("nop") is None, reason="nop not available")
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2436"
