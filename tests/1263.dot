@@ -1,0 +1,55 @@
+digraph {
+  graph [
+    label="SM.Problem.Meldung : Process View",
+    charset=latin1,
+    margin="0.5,0.7",
+    size="19,46, 11,12"
+  ]
+  node [
+    shape=box,
+    fontname="Comic Sans MS",
+    fontsize=8,
+    height=0.2,
+    width=0.2,
+    ordering=out
+  ]
+
+  { rank=same; 0 -> 8 [style=invis]; }
+  0 [label="(0, 1)"];
+  8 [label="(0, 2)"];
+
+  { rank=same; 1; }
+  1 [label="(1, 2)"];
+
+  { rank=same; 2; }
+  2 [label="(2, 3)"];
+
+  { rank=same; 5 -> 9 [style=invis]; }
+  5 [label="(3, 6)"];
+  9 [label="(3, 7)"];
+
+  { rank=same; 6 -> 7 -> 10 [style=invis]; }
+  6 [label="(6, 2)"];
+  7 [label="(6, 4)"];
+  10 [label="(7, 3)"];
+
+  { rank=same; 3; }
+  3 [label="(3, 4)"];
+
+  { rank=same; 4; }
+  4 [label="(4, 5)"];
+
+  0 -> 1 [color=green]
+  1 -> 2 [color=green]
+  8 -> 2 [color=orange]
+  2 -> 5 [color=green]
+  5 -> 6 [color=green]
+  6 -> 2 [color=red, tailport=w, headport=w]
+  5 -> 7 [color=green]
+  7 -> 4 [color=green]
+  2 -> 3 [color=green]
+  2 -> 9 [color=green]
+  9 -> 10 [color=green]
+  10 -> 3 [color=orange]
+  3 -> 4 [color=orange]
+}
