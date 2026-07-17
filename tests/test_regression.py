@@ -2286,6 +2286,39 @@ def test_1990():
     run_raw(circo, "-Tsvg", "-o", os.devnull, input)
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1993"
+)
+def test_1993_label_word_wrap():
+    """
+    labels should support automatic word wrapping within a requested width
+    https://gitlab.com/graphviz/graphviz/-/issues/1993
+    """
+
+    source = """
+        graph {
+          n [
+            shape=box,
+            width=1.2,
+            label="Graphviz should wrap generated labels automatically",
+            labelwrap=true,
+            labelwrapwidth=1.0
+          ];
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+
+    # The public request does not specify final attribute names. The provisional
+    # names above make the missing behavior testable: a future implementation
+    # should split the generated label into multiple rendered text lines instead
+    # of growing the node to fit one long line.
+    assert len(re.findall(r"<text\\b", svg)) >= 2, "label was not word-wrapped"
+    assert (
+        "Graphviz should wrap generated labels automatically" not in svg
+    ), "unwrapped label text was emitted as a single SVG text element"
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
