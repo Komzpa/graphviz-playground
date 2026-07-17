@@ -1183,7 +1183,12 @@ void makeSelfEdge(edge_t *edges[], size_t cnt, double sizex, double sizey,
 
 	/* handle L-R specially */
 	if ((ED_tail_port(e).side & RIGHT) || (ED_head_port(e).side & RIGHT)) {
-	    selfTop(edges, cnt, sizex, sizey, sinfo);
+	    if ((ED_tail_port(e).side & BOTTOM) &&
+	        (ED_head_port(e).side & BOTTOM)) {
+		selfBottom(edges, cnt, sizex, sizey, sinfo);
+	    } else {
+		selfTop(edges, cnt, sizex, sizey, sinfo);
+	    }
 	}
 	else {
 	    selfLeft(edges, cnt, sizex, sizey, sinfo);
@@ -1372,4 +1377,3 @@ splines *getsplinepoints(edge_t * e)
 	    agnameof(agtail(e)), agnameof(aghead(e)));
     return sp;
 }
-

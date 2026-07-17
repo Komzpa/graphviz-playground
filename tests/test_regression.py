@@ -523,6 +523,41 @@ def test_517():
     ), "regular label missing"
 
 
+def test_739():
+    """
+    self-loops between bottom corner ports should not wrap around the node
+    https://gitlab.com/graphviz/graphviz/-/issues/739
+    """
+
+    input = Path(__file__).parent / "739.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    output = run("dot", "-Tplain-ext", input)
+    node_y = None
+    for line in output.splitlines():
+        words = line.split()
+        if len(words) >= 4 and words[:2] == ["node", "x3"]:
+            node_y = float(words[3])
+            break
+    assert node_y is not None
+
+    seen = 0
+    for line in output.splitlines():
+        words = line.split()
+        if len(words) < 5 or words[0] != "edge":
+            continue
+        if {words[1], words[2]} != {"x3:se", "x3:sw"}:
+            continue
+
+        point_count = int(words[3])
+        coords = [float(c) for c in words[4 : 4 + 2 * point_count]]
+        y_coords = coords[1::2]
+        assert max(y_coords) < node_y
+        seen += 1
+
+    assert seen == 2
+
+
 def test_793():
     """
     Graphviz should not crash when using VRML output with a non-writable current

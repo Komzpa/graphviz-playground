@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
 
+### Fixed
+
+- Dot self-loops between the south-east and south-west ports of a node no
+  longer wrap around the top of the node. #739
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
