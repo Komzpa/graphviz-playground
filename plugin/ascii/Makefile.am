@@ -26,7 +26,7 @@ libgvplugin_ascii_la_LIBADD = \
 
 if WITH_AALIB
 AM_CPPFLAGS += -DHAVE_AALIB $(AALIB_CFLAGS)
-libgvplugin_ascii_la_SOURCES += gvdevice_ascii.c
+libgvplugin_ascii_C_la_SOURCES += gvdevice_ascii.c
 libgvplugin_ascii_la_LIBADD += $(AA_LIBS)
 endif
 
