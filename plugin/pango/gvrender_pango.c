@@ -210,6 +210,7 @@ static void cairogen_begin_page(GVJ_t * job)
         job->context = cr;
     }
 
+    cairo_save(cr);
     cairo_scale(cr, job->scale.x, job->scale.y);
     cairo_rotate(cr, -job->rotation * M_PI / 180.);
     cairo_translate(cr, job->translation.x, -job->translation.y);
@@ -238,12 +239,15 @@ static void cairogen_end_page(GVJ_t * job)
     case FORMAT_PDF:
     case FORMAT_SVG:
 	cairo_show_page(cr);
-	surface = cairo_surface_reference(cairo_get_target(cr));
-	cairo_surface_finish(surface);
-	status = cairo_surface_status(surface);
-	cairo_surface_destroy(surface);
-	if (status != CAIRO_STATUS_SUCCESS)
-	    fprintf(stderr, "cairo: %s\n", cairo_status_to_string(status));
+	cairo_restore(cr);
+        if (job->common->viewNum == job->numPages) {
+            surface = cairo_surface_reference(cairo_get_target(cr));
+            cairo_surface_finish(surface);
+            status = cairo_surface_status(surface);
+            cairo_surface_destroy(surface);
+            if (status != CAIRO_STATUS_SUCCESS)
+                fprintf(stderr, "cairo: %s\n", cairo_status_to_string(status));
+        }
 	break;
 
     case FORMAT_CAIRO:
@@ -538,6 +542,7 @@ static gvdevice_features_t device_features_eps = {
 
 static gvdevice_features_t device_features_pdf = {
     GVDEVICE_BINARY_FORMAT
+      | GVDEVICE_DOES_PAGES
       | GVRENDER_NO_WHITE_BG
       | GVRENDER_DOES_MAPS
       | GVRENDER_DOES_MAP_RECTANGLE
