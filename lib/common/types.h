@@ -129,6 +129,7 @@ extern "C" {
 	bool radial: 1;
 	bool rounded: 1;
 	bool diagonals: 1;
+	bool no: 1;
 	bool auxlabels: 1;
 	bool invisible: 1;
 	bool striped: 1;

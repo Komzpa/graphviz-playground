@@ -450,6 +450,7 @@ static graphviz_polygon_style_t style_or(graphviz_polygon_style_t a,
     .radial = a.radial || b.radial,
     .rounded = a.rounded || b.rounded,
     .diagonals = a.diagonals || b.diagonals,
+    .no = a.no || b.no,
     .auxlabels = a.auxlabels || b.auxlabels,
     .invisible = a.invisible || b.invisible,
     .striped = a.striped || b.striped,
@@ -488,6 +489,13 @@ static char **checkStyle(node_t *n, graphviz_polygon_style_t *flagp) {
 	    } else if (streq(p, "diagonals")) {
 		istyle.diagonals = true;
 		qp = pp;	/* remove diagonals from list passed to renderer */
+		do {
+		    qp++;
+		    *(qp - 1) = *qp;
+		} while (*qp);
+	    } else if (streq(p, "no")) {
+		istyle.no = true;
+		qp = pp;	/* remove no from list passed to renderer */
 		do {
 		    qp++;
 		    *(qp - 1) = *qp;
@@ -3053,6 +3061,16 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 	}
 	/* fill innermost periphery only */
 	filled = 0;
+    }
+    if (style.no && peripheries > 0 && sides > 2) {
+	pointf slash[2];
+	slash[0] = vertices[0];
+	slash[0].x = slash[0].x * xsize + ND_coord(n).x;
+	slash[0].y = slash[0].y * ysize + ND_coord(n).y;
+	slash[1] = vertices[sides / 2];
+	slash[1].x = slash[1].x * xsize + ND_coord(n).x;
+	slash[1].y = slash[1].y * ysize + ND_coord(n).y;
+	gvrender_polyline(job, slash, 2);
     }
 
     usershape_p = false;

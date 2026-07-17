@@ -4523,6 +4523,53 @@ def test_2490():
                 assert x == expected_second_crow_toe_x
 
 
+def test_2492():
+    """
+    node `style=no` should draw a no/prohibited slash
+    https://gitlab.com/graphviz/graphviz/-/issues/2492
+    """
+
+    # run this through Graphviz and make sure `no` is handled as a node style,
+    # not passed through as an unsupported renderer style
+    src = 'digraph { n [shape=box style=no color=red label=""]; }'
+    proc = subprocess.run(
+        ["dot", "-Tsvg"],
+        input=src,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    assert "unsupported style no" not in proc.stderr
+
+    # load this as XML
+    root = ET.fromstring(proc.stdout)
+    ns = "{http://www.w3.org/2000/svg}"
+
+    # The node should still have its normal red box boundary.
+    boxes = [
+        polygon
+        for polygon in root.findall(f".//{ns}polygon")
+        if polygon.get("stroke") == "red"
+    ]
+    assert len(boxes) == 1, "wrong number of red box boundaries"
+
+    # `style=no` should add exactly one red diagonal across opposite box corners.
+    slashes = [
+        polyline
+        for polyline in root.findall(f".//{ns}polyline")
+        if polyline.get("stroke") == "red"
+    ]
+    assert len(slashes) == 1, "wrong number of no-style slashes"
+
+    corners = boxes[0].get("points").split(" ")[:-1]
+    slash = slashes[0].get("points").split(" ")
+    assert len(slash) == 2
+    assert slash[0] in corners
+    assert slash[1] in corners
+    assert corners.index(slash[0]) == (corners.index(slash[1]) + 2) % 4
+
+
 @pytest.mark.skipif(which("gv2gml") is None, reason="gv2gml not available")
 def test_2493():
     """
