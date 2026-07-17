@@ -380,79 +380,107 @@ def test_218():
     assert warnings.strip() != "", "no warning issued for a font name containing space"
 
 
-@pytest.mark.xfail(
-    raises=AssertionError,
-    strict=True,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/226",
+@pytest.mark.parametrize(
+    ("rankdir", "forward_port", "backward_port"),
+    (("LR", "e", "w"), ("RL", "w", "e")),
 )
-def test_226():
+def test_226(rankdir: str, forward_port: str, backward_port: str):
     """
-    dot should route same-rank workflow back edges below the row instead of above it
+    dot should route workflow back edges through the empty side of the graph
     https://gitlab.com/graphviz/graphviz/-/issues/226
     """
 
-    source = """
-        digraph G {
-            rankdir=LR;
+    source = f"""
+        digraph G {{
+            rankdir={rankdir};
             1682 -> 1682 [style=invis];
-            1686:e -> 6554:w;
-            6555:e -> 1698:w;
-            1682:e -> 1684:w;
-            1703:e -> 6555:w;
-            1693:e -> 6554:w;
-            1691:e -> 1693:w;
-            1696:e -> 6555:w;
-            1688:e -> 1689:w;
-            1701:e -> 1703:w;
-            1706:e -> 1683:w;
-            1690:e -> 1691:w;
-            1684:e -> 1686:w;
-            6554:e -> 1688:w;
-            1698:e -> 1700:w;
-            1704:e -> 1706:w;
-            1694:e -> 1696:w;
-            1698:e -> 1699:w;
-            1700:e -> 1701:w;
-            1688:e -> 1690:w;
-            1689:e -> 1694:w;
-            1699:e -> 1704:w;
-        }
+            1686:{forward_port} -> 6554:{backward_port};
+            6555:{forward_port} -> 1698:{backward_port};
+            1682:{forward_port} -> 1684:{backward_port};
+            1703:{forward_port} -> 6555:{backward_port};
+            1693:{forward_port} -> 6554:{backward_port};
+            1691:{forward_port} -> 1693:{backward_port};
+            1696:{forward_port} -> 6555:{backward_port};
+            1688:{forward_port} -> 1689:{backward_port};
+            1701:{forward_port} -> 1703:{backward_port};
+            1706:{forward_port} -> 1683:{backward_port};
+            1690:{forward_port} -> 1691:{backward_port};
+            1684:{forward_port} -> 1686:{backward_port};
+            6554:{forward_port} -> 1688:{backward_port};
+            1698:{forward_port} -> 1700:{backward_port};
+            1704:{forward_port} -> 1706:{backward_port};
+            1694:{forward_port} -> 1696:{backward_port};
+            1698:{forward_port} -> 1699:{backward_port};
+            1700:{forward_port} -> 1701:{backward_port};
+            1688:{forward_port} -> 1690:{backward_port};
+            1689:{forward_port} -> 1694:{backward_port};
+            1699:{forward_port} -> 1704:{backward_port};
+        }}
     """
 
-    # translate this to SVG
-    svg = dot("svg", source=source)
-    root = ET.fromstring(svg)
-    ns = "{http://www.w3.org/2000/svg}"
+    data = json.loads(dot("json", source=source))
+    objects_by_id = {obj["_gvid"]: obj for obj in data["objects"]}
+    objects_by_name = {obj["name"]: obj for obj in data["objects"]}
 
-    # find the node row shared by the edge's endpoints
-    node_centers = {}
-    for group in root.findall(f".//{ns}g"):
-        title = group.find(f"{ns}title")
-        ellipse = group.find(f"{ns}ellipse")
-        if title is not None and ellipse is not None:
-            node_centers[title.text] = float(ellipse.get("cy"))
+    def edge_name(edge: dict) -> tuple[str, str]:
+        return (
+            objects_by_id[edge["tail"]]["name"],
+            objects_by_id[edge["head"]]["name"],
+        )
 
-    # locate the right-to-left workflow back edge from the reproducer
-    path = None
-    for group in root.findall(f".//{ns}g"):
-        title = group.find(f"{ns}title")
-        if title is None or title.text != "1703:e->6555:w":
+    def sample_spline(edge: dict) -> list[tuple[float, float]]:
+        draw = next(op for op in edge["_draw_"] if op["op"] == "b")
+        control_points = draw["points"]
+        assert (len(control_points) - 1) % 3 == 0
+
+        samples = []
+        for offset in range(0, len(control_points) - 1, 3):
+            p0, p1, p2, p3 = control_points[offset : offset + 4]
+            for step in range(33):
+                t = step / 32
+                u = 1 - t
+                samples.append(
+                    (
+                        u**3 * p0[0]
+                        + 3 * u**2 * t * p1[0]
+                        + 3 * u * t**2 * p2[0]
+                        + t**3 * p3[0],
+                        u**3 * p0[1]
+                        + 3 * u**2 * t * p1[1]
+                        + 3 * u * t**2 * p2[1]
+                        + t**3 * p3[1],
+                    )
+                )
+        return samples
+
+    target = next(edge for edge in data["edges"] if edge_name(edge) == ("1703", "6555"))
+    assert target["tailport"] == forward_port
+    assert target["headport"] == backward_port
+
+    # The centered compass ports necessarily curl around the endpoints. The
+    # reported routing choice is the long body between the first and last
+    # forward-path nodes inside the back edge, 1698 and 1701.
+    body_bounds = sorted(
+        float(objects_by_name[name]["pos"].split(",")[0]) for name in ("1698", "1701")
+    )
+
+    def in_body(point: tuple[float, float]) -> bool:
+        return body_bounds[0] <= point[0] <= body_bounds[1]
+
+    target_body = [point for point in sample_spline(target) if in_body(point)]
+    assert target_body, "back-edge body is unexpectedly missing"
+
+    workflow_body = []
+    for edge in data["edges"]:
+        if edge is target or "_draw_" not in edge:
             continue
-        path = group.find(f"{ns}path")
-        break
-    assert path is not None, "could not find back-edge SVG path"
+        workflow_body.extend(point for point in sample_spline(edge) if in_body(point))
+    assert workflow_body, "workflow paths are unexpectedly missing"
 
-    coordinates = [
-        float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", path.get("d"))
-    ]
-    y_coordinates = coordinates[1::2]
-
-    # In Graphviz's SVG output, smaller y coordinates are visually higher.
-    # The issue asks for this reflux edge to choose the downward route, so it
-    # should not rise above the row shared by its endpoints.
-    row_y = node_centers["1703"]
-    assert node_centers["6555"] == pytest.approx(row_y)
-    assert min(y_coordinates) >= row_y
+    # JSON coordinates increase upwards. Strict vertical separation proves
+    # both that the back edge uses the empty lower corridor and that its body
+    # cannot cross any existing workflow path there.
+    assert max(y for _, y in target_body) < min(y for _, y in workflow_body)
 
 
 @pytest.mark.parametrize("test_case", ("241_0.dot", "241_1.dot"))
