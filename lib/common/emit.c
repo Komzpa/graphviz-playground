@@ -40,6 +40,7 @@
 #include <util/list.h>
 #include <util/lockfile.h>
 #include <util/streq.h>
+#include <util/strcasecmp.h>
 #include <util/strview.h>
 #include <util/tokenize.h>
 #include <util/unreachable.h>
@@ -3774,6 +3775,26 @@ static void emit_end_cluster(GVJ_t *job) {
     pop_obj_state(job);
 }
 
+static void render_cluster_shape(GVJ_t *job, Agraph_t *sg, int filled) {
+    const char *shape = agget(sg, "shape");
+    if (shape == NULL || strcasecmp(shape, "diamond") != 0) {
+	gvrender_box(job, GD_bb(sg), filled);
+	return;
+    }
+
+    const boxf bb = GD_bb(sg);
+    const double mid_x = (bb.LL.x + bb.UR.x) / 2;
+    const double mid_y = (bb.LL.y + bb.UR.y) / 2;
+    pointf diamond[4] = {
+	{.x = mid_x, .y = bb.UR.y},
+	{.x = bb.LL.x, .y = mid_y},
+	{.x = mid_x, .y = bb.LL.y},
+	{.x = bb.UR.x, .y = mid_y},
+    };
+
+    gvrender_polygon(job, diamond, 4, filled);
+}
+
 void emit_clusters(GVJ_t * job, Agraph_t * g, int flags)
 {
     int doPerim, c, filled;
@@ -3902,16 +3923,16 @@ void emit_clusters(GVJ_t * job, Agraph_t * g, int flags)
     		gvrender_set_pencolor(job, pencolor);
 	    if (stripedBox (job, AF, fillcolor, 0) > 1)
 		agerr (AGPREV, "in cluster %s\n", agnameof(sg));
-	    gvrender_box(job, GD_bb(sg), 0);
+	    render_cluster_shape(job, sg, 0);
 	}
 	else {
 	    if (late_int(sg, G_peripheries, 1, 0)) {
     		gvrender_set_pencolor(job, pencolor);
-		gvrender_box(job, GD_bb(sg), filled);
+		render_cluster_shape(job, sg, filled);
 	    }
 	    else if (filled != 0) {
         	gvrender_set_pencolor(job, "transparent");
-		gvrender_box(job, GD_bb(sg), filled);
+		render_cluster_shape(job, sg, filled);
 	    }
 	}
 
@@ -4364,4 +4385,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
