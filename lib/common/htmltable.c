@@ -116,7 +116,8 @@ static void popFontInfo(htmlenv_t * env, textfont_t * savp)
 
 static void
 emit_htextspans(GVJ_t *job, size_t nspans, htextspan_t *spans, pointf p,
-		double halfwidth_x, textfont_t finfo, boxf b, int simple)
+		double halfwidth_x, textfont_t finfo, boxf b, int simple,
+		double angle)
 {
     double center_x, left_x, right_x;
     textspan_t tl = {0};
@@ -174,7 +175,7 @@ emit_htextspans(GVJ_t *job, size_t nspans, htextspan_t *spans, pointf p,
 	    tl.str = ti->str;
 	    tl.font = &tf;
 	    tl.yoffset_layout = ti->yoffset_layout;
-	    tl.angle = 0.0;
+	    tl.angle = angle;
 	    if (simple)
 		tl.yoffset_centerline = ti->yoffset_centerline;
 	    else
@@ -209,7 +210,7 @@ static void emit_html_txt(GVJ_t * job, htmltxt_t * tp, htmlenv_t * env)
     p.y = env->pos.y + (tp->box.UR.y + tp->box.LL.y) / 2.0;
 
     emit_htextspans(job, tp->nspans, tp->spans, p, halfwidth_x, env->finfo,
-		    tp->box, tp->simple);
+		    tp->box, tp->simple, env->angle);
 }
 
 static void doSide(GVJ_t * job, pointf p, double wd, double ht)
@@ -765,6 +766,8 @@ void emit_html_label(GVJ_t * job, htmllabel_t * lp, textlabel_t * tp)
 	    break;
     }
     env.pos = p;
+    /* HTML labels own their text spans, so retain the outer label rotation. */
+    env.angle = tp->angle;
     env.finfo.color = tp->fontcolor;
     env.finfo.name = tp->fontname;
     env.finfo.size = tp->fontsize;
@@ -1866,6 +1869,7 @@ int make_html_label(void *obj, textlabel_t * lp)
     char *s;
 
     env.obj = obj;
+    env.angle = 0.0;
     switch (agobjkind(obj)) {
     case AGRAPH:
 	env.g = ((Agraph_t *) obj)->root;

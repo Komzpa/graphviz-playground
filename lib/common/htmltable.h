@@ -168,6 +168,7 @@ struct htmlcell_t {
 
 typedef struct {
   pointf pos;
+  double angle;
   textfont_t finfo;
   void *obj;
   graph_t *g;

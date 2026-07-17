@@ -153,6 +153,100 @@ def test_68_xlabelangle_downgrades_to_horizontal_on_pic():
     assert "rotate" not in pic
 
 
+def test_68_html_node_xlabel_rotates_each_text_span():
+    """HTML node xlabels preserve auto rotation down to their text spans."""
+
+    source = """
+        digraph {
+          graph [rankdir=LR];
+          node [shape=point, width=0.05, label=""];
+          a [xlabel=<<TABLE BORDER="0"><TR><TD>Node</TD><TD><B>HTML</B></TD></TR></TABLE>>,
+             xlabelangle=auto];
+          a -> b;
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+    transforms = {
+        "".join(text.itertext()): text.get("transform", "")
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+    }
+    for text in ("Node", "HTML"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", transforms[text]
+        ), f"HTML node xlabel text span {text!r} was emitted horizontally"
+
+    xdot = dot("xdot", source=textwrap.dedent(source))
+    assert re.search(r"\bR\s+-?(?:45|90)\b", xdot)
+    for format in ("xdot1.2", "xdot1.4"):
+        assert (
+            re.search(r"\bR(?:\s|$)", dot(format, source=textwrap.dedent(source)))
+            is None
+        )
+
+
+def test_68_html_edge_xlabel_rotates_each_text_span():
+    """HTML edge xlabels preserve auto rotation down to their text spans."""
+
+    source = """
+        digraph {
+          graph [rankdir=LR];
+          node [shape=point, width=0.05, label=""];
+          a -> b [xlabel=<<TABLE BORDER="0"><TR><TD>Edge</TD><TD><I>HTML</I></TD></TR></TABLE>>,
+                  xlabelangle=auto];
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+    transforms = {
+        "".join(text.itertext()): text.get("transform", "")
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+    }
+    for text in ("Edge", "HTML"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", transforms[text]
+        ), f"HTML edge xlabel text span {text!r} was emitted horizontally"
+
+    xdot = dot("xdot", source=textwrap.dedent(source))
+    assert re.search(r"\bR\s+-?(?:45|90)\b", xdot)
+    for format in ("xdot1.2", "xdot1.4"):
+        assert (
+            re.search(r"\bR(?:\s|$)", dot(format, source=textwrap.dedent(source)))
+            is None
+        )
+
+
+def test_68_html_xlabel_rotates_nested_table_spans_only():
+    """Nested HTML xlabels rotate every leaf span without rotating regular labels."""
+
+    source = """
+        digraph {
+          graph [rankdir=LR];
+          a [label=<<TABLE BORDER="0"><TR><TD>Regular</TD><TD>HTML</TD></TR></TABLE>>];
+          b [xlabel=<<TABLE BORDER="0"><TR><TD>Outer</TD><TD><TABLE BORDER="0"><TR><TD>Inner</TD><TD><B>Span</B></TD></TR></TABLE></TD></TR></TABLE>>,
+             xlabelangle=auto];
+          c [xlabel=<<TABLE BORDER="0"><TR><TD>Default</TD></TR></TABLE>>];
+          d [xlabel=<<TABLE BORDER="0"><TR><TD>Zero</TD></TR></TABLE>>, xlabelangle=0];
+          a -> b -> c -> d;
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+    transforms = {
+        "".join(text.itertext()): text.get("transform", "")
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+    }
+    for text in ("Outer", "Inner", "Span"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", transforms[text]
+        ), f"nested HTML xlabel text span {text!r} was emitted horizontally"
+    for text in ("Regular", "HTML", "Default", "Zero"):
+        assert "rotate(" not in transforms[text]
+
+
 def test_xdot_stats_legacy_abi_canary(tmp_path: Path):
     """An old xdot_stats caller must not be overwritten by statXDot."""
 
