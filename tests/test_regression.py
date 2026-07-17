@@ -2803,6 +2803,44 @@ def test_2179_1():
     ), "incorrect warning triggered"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2182"
+)
+def test_2182():
+    """
+    rank=same should not reverse rankdir=TB secondary edge ordering
+    https://gitlab.com/graphviz/graphviz/-/issues/2182
+    """
+
+    # the reporter’s baseline graph places C to the right of B, so the C→B edge
+    # can travel right-to-left while still flowing top-to-bottom
+    baseline = json.loads(
+        dot("json", source="digraph G { rankdir=TB; A -> B; C -> B; }")
+    )
+    baseline_objects = {o["name"]: o for o in baseline["objects"]}
+    baseline_b_x = float(baseline_objects["B"]["pos"].split(",")[0])
+    baseline_c_x = float(baseline_objects["C"]["pos"].split(",")[0])
+    assert baseline_c_x > baseline_b_x, "baseline no longer exercises the issue"
+
+    # adding rank=same should preserve the same secondary ordering preference
+    # instead of forcing the C→B edge to travel left-to-right
+    source = """
+        digraph G {
+            rankdir=TB;
+            {rank = same;
+                A -> B;
+                C -> B;
+            }
+        }
+    """
+    output = json.loads(dot("json", source=source))
+    objects = {o["name"]: o for o in output["objects"]}
+    b_x = float(objects["B"]["pos"].split(",")[0])
+    c_x = float(objects["C"]["pos"].split(",")[0])
+
+    assert c_x > b_x, "rank=same reversed the C→B secondary ordering"
+
+
 def test_2183():
     """
     processing `splines=ortho`, `concentrate=true` should not crash
