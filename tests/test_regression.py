@@ -617,6 +617,33 @@ def test_925():
     assert "ААА ААА ААА" in svg, "incorrect spacing in UTF-8 label"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/705"
+)
+def test_705():
+    """
+    rank=same should align the named nodes, not their containing clusters
+    https://gitlab.com/graphviz/graphviz/-/issues/705
+    """
+
+    source = """\
+digraph test {
+  subgraph clustera { aa ab aa -> ab }
+  subgraph clusterb { ba bb ba -> bb }
+  subgraph clusterc { ca cb ca -> cb }
+  { rank=same ab ba ca }
+}
+"""
+
+    layout = json.loads(dot("json", source=source))
+    objects = {o["name"]: o for o in layout["objects"]}
+    ranks = {
+        node: float(objects[node]["pos"].split(",")[1]) for node in ("ab", "ba", "ca")
+    }
+
+    assert len(set(ranks.values())) == 1, f"rank=same nodes were misaligned: {ranks}"
+
+
 @pytest.mark.parametrize("testcase", ("1213-1.dot", "1213-2.dot"))
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1213"
