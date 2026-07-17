@@ -4234,39 +4234,61 @@ def test_2437():
     assert len(polygons) == 3, "wrong number of polygons in output"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2137"
+@pytest.mark.parametrize(
+    ("rankdir", "tailport", "headport", "rank_axis", "rank_size"),
+    (
+        ("TB", "s", "n", 1, 3),
+        ("LR", "e", "w", 0, 2),
+    ),
 )
-def test_2137_border_to_border_edge_lengths():
+def test_2137_border_to_border_edge_lengths(
+    rankdir: str, tailport: str, headport: str, rank_axis: int, rank_size: int
+):
     """
-    edge lengths should account for node borders, not only node centers
+    minlen should increase rank-axis clearance between fixed-size node borders
     https://gitlab.com/graphviz/graphviz/-/issues/2137
     """
 
-    source = """
-        digraph {
-          node [style="filled,rounded", fixedsize=true];
-          A [label="A", shape="doubleoctagon", width=2.5, height=1.1];
-          node [shape="plaintext", width=1.2, height=0.65];
-          B1 [label="B1"];
-          B2 [label="B2"];
-          B3 [label="B3"];
-          A -> { B1 B2 B3 } [len=3];
-        }
-    """
+    def layout(attribute: str = "") -> dict[str, tuple[float, ...]]:
+        output = dot(
+            "plain",
+            source=textwrap.dedent(
+                f"""
+                digraph {{
+                  graph [rankdir={rankdir}, ranksep=0.5];
+                  node [shape=box, fixedsize=true, width=2.5, height=1.1];
+                  A:{tailport} -> {{ B1:{headport} B2:{headport} B3:{headport} }} {attribute};
+                }}
+                """
+            ),
+        ).decode("utf-8")
 
-    output = dot("plain", source=textwrap.dedent(source))
+        nodes = {}
+        for line in output.splitlines():
+            fields = line.split()
+            if fields and fields[0] == "node":
+                nodes[fields[1]] = tuple(map(float, fields[2:6]))
 
-    nodes = {}
-    for line in output.splitlines():
-        fields = line.split()
-        if fields and fields[0] == "node":
-            nodes[fields[1]] = tuple(map(float, fields[2:6]))
+        targets = ("B1", "B2", "B3")
+        assert {"A", *targets} <= nodes.keys(), "missing expected nodes"
 
-    assert {"A", "B2"} <= nodes.keys(), "missing expected nodes"
+        return nodes
 
-    center_distance = math.dist(nodes["A"][:2], nodes["B2"][:2])
-    assert center_distance >= 3, "len=3 collapsed the border-to-border edge"
+    default = layout()
+    minlen = layout("[minlen=3]")
+    len_attribute = layout("[len=3]")
+
+    # Four rounded `plain` fields yield a clearance error of at most 0.00015in.
+    tolerance = 0.0002
+    assert len_attribute == default, "unsupported len=3 changed the layout"
+    for target in ("B1", "B2", "B3"):
+        clearance = (
+            abs(minlen[target][rank_axis] - minlen["A"][rank_axis])
+            - (minlen[target][rank_size] + minlen["A"][rank_size]) / 2
+        )
+        assert (
+            clearance >= 1.5 - tolerance
+        ), f"minlen=3 did not leave the expected rank-axis clearance for {target}"
 
 
 @pytest.mark.xfail(
