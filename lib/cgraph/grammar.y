@@ -102,6 +102,7 @@ typedef struct gstack_s {
 /* functions */
 static void appendnode(aagscan_t scanner, char *name, char *port, char *sport);
 static void attrstmt(aagscan_t scanner, int tkind, char *macroname);
+static void classattrstmt(aagscan_t scanner, int tkind, char *selector);
 static void startgraph(aagscan_t scanner, char *name, bool directed, bool strict);
 static void getedgeitems(aagscan_t scanner);
 static void newedge(aagscan_t scanner, Agnode_t *t, char *tport, Agnode_t *h, char *hport, char *key);
@@ -114,6 +115,7 @@ static void endnode(aagscan_t scanner);
 static void endedge(aagscan_t scanner);
 static void freestack(aagscan_t scanner);
 static char* concat(aagscan_t scanner, char*, char*);
+static char* concatclass(aagscan_t scanner, char*, char*);
 static char* concatPort(Agraph_t *G, char*, char*);
 
 static void opensubg(aagscan_t scanner, char *name);
@@ -134,7 +136,7 @@ static void graph_error(aagscan_t scanner);
 %token <str> T_atom T_qatom
 
 %type <i>  optstrict graphtype rcompound attrtype
-%type <str> optsubghdr optgraphname optmacroname atom qatom
+%type <str> optsubghdr optgraphname optmacroname atom qatom classselector
 
 
 %%
@@ -184,6 +186,7 @@ node		: atom {appendnode(scanner,$1,NULL,NULL);}
             ;
 
 attrstmt	:  attrtype optmacroname attrlist {attrstmt(scanner,$1,$2);}
+			|  attrtype classselector attrlist {classattrstmt(scanner,$1,$2);}
 			|  graphattrdefs {attrstmt(scanner,T_graph,NULL);}
 			;
 
@@ -191,6 +194,10 @@ attrtype :	T_graph {$$ = T_graph;}
 			| T_node {$$ = T_node;}
 			| T_edge {$$ = T_edge;}
 			;
+
+classselector : '.' atom {$$ = $2;}
+			  | classselector '.' atom {$$ = concatclass(scanner, $1, $3);}
+			  ;
 
 optmacroname : atom '=' {$$ = $1;}
 			| /* empty */ {$$ = NULL; }
@@ -333,6 +340,7 @@ static void applyattrs(aagextra_t *ctx, void *obj)
 				} else {
 				  agxset(obj, aptr->u.asym, aptr->str);
 				}
+				agclassattr_explicit(obj, aptr->u.asym);
 			}
 		}
 		else {
@@ -387,8 +395,31 @@ static void attrstmt(aagscan_t scanner, int tkind, char *macroname)
 			sym = aptr->u.asym;
 		if (S->g == G)
 			sym->print = true;
+		if (kind == AGRAPH)
+			agclassattr_explicit(S->g, sym);
 	}
+	if (kind == AGRAPH)
+		agclassattr_apply(S->g, S->g, kind);
 	deletelist(G, &S->attrlist);
+}
+
+static void classattrstmt(aagscan_t scanner, int tkind, char *selector)
+{
+	int kind;
+	aagextra_t *ctx = aagget_extra(scanner);
+	switch(tkind) {
+	case T_graph: kind = AGRAPH; break;
+	case T_node: kind = AGNODE; break;
+	case T_edge: kind = AGEDGE; break;
+	default: UNREACHABLE();
+	}
+	Agclassrule_t *rule = agclassattr_begin(ctx->S->g, kind, selector);
+	for (item *aptr = ctx->S->attrlist.first; aptr; aptr = aptr->next) {
+		assert(aptr->tag == T_atom);
+		agclassattr_add(rule, ctx->S->g, aptr->u.name, aptr->str);
+	}
+	agstrfree(ctx->G, selector, false);
+	deletelist(ctx->G, &ctx->S->attrlist);
 }
 
 /* nodes */
@@ -422,7 +453,7 @@ static void endnode(aagscan_t scanner)
 
 	bindattrs(ctx, AGNODE);
 	for (ptr = S->nodelist.first; ptr; ptr = ptr->next)
-		applyattrs(ctx, ptr->u.n);
+		applyattrs(ctx, ptr->u.n), agclassattr_apply(S->g, ptr->u.n, AGNODE);
 	deletelist(G, &S->nodelist);
 	deletelist(G, &S->attrlist);
 	deletelist(G, &S->edgelist);
@@ -499,6 +530,18 @@ concat (aagscan_t scanner, char* s1, char* s2)
   return s;
 }
 
+static char* concatclass(aagscan_t scanner, char* s1, char* s2)
+{
+  agxbuf buf = {0};
+  Agraph_t *G = aagget_extra(scanner)->G;
+  agxbprint(&buf, "%s %s", s1, s2);
+  char *const s = agstrdup(G, agxbuse(&buf));
+  agstrfree(G, s1, false);
+  agstrfree(G, s2, false);
+  agxbfree(&buf);
+  return s;
+}
+
 static char*
 concatPort (Agraph_t *G, char* s1, char* s2)
 {
@@ -559,6 +602,7 @@ static void newedge(aagscan_t scanner, Agnode_t *t, char *tport, Agnode_t *h, ch
 		mkport(scanner, e,TAILPORT_ID,tp);
 		mkport(scanner, e,HEADPORT_ID,hp);
 		applyattrs(ctx, e);
+		agclassattr_apply(ctx->S->g, e, AGEDGE);
 	}
 }
 
@@ -652,4 +696,3 @@ Agraph_t *agconcat(Agraph_t *g, const char *filename, void *chan,
 Agraph_t *agread(void *fp, Agdisc_t *disc) {
   return agconcat(NULL, NULL, fp, disc);
 }
-

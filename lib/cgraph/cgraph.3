@@ -285,6 +285,11 @@ field for the attribute's default value, and an \fBint id\fP field containing
 the index of the attribute's specific value for an object in the object's array
 of attribute values. 
 .PP
+DOT class default rules such as \fBnode.notice[shape=box]\fP are applied while
+the matching object statement is read. They are stored with the graph so
+\fBagwrite\fP preserves the compact rule. Changing an object's \fBclass\fP
+through the C API does not retroactively apply or remove rules.
+.PP
 \fBagattr\fP creates or looks up attributes.
 \fBkind\fP may be \fBAGRAPH\fP, \fBAGNODE\fP, or \fBAGEDGE\fP.
 If \fBvalue\fP is \fB(char*)0)\fP, the request is to search
