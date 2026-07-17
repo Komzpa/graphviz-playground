@@ -546,7 +546,7 @@ static bool isWedgeAnchorAttribute(const char *name) {
     suffix += digits;
 
     return streq(suffix, "href") || streq(suffix, "URL") ||
-           streq(suffix, "tooltip");
+           streq(suffix, "tooltip") || streq(suffix, "target");
 }
 
 bool wedgedNodeHasAnchorMetadata(node_t *n) {

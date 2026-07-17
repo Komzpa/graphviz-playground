@@ -337,6 +337,40 @@ def test_1312_wedged_node_metadata_defaults_and_negative_controls():
     ET.fromstring(gzip.decompress(svgz))
 
 
+def test_1312_wedged_node_target_only_metadata_splits_node_anchor():
+    """A wedge target override must not be hidden by the node anchor."""
+
+    source = """
+        graph {
+          n [shape=circle, style=wedged, fixedsize=true, width=1, height=1,
+             label="", color="red;0:green;.5:blue;.5",
+             href="https://node.example/whole", target="_parent",
+             wedge0target="_blank"];
+        }
+    """
+    root = ET.fromstring(dot("svg", source=textwrap.dedent(source)))
+    namespace = "{http://www.w3.org/2000/svg}"
+    xlink_href = "{http://www.w3.org/1999/xlink}href"
+
+    wedge_anchors = {}
+    for anchor in root.iter(f"{namespace}a"):
+        paths = anchor.findall(f"{namespace}path")
+        assert not anchor.findall(f"{namespace}a"), "anchors must not be nested"
+        for path in paths:
+            color = path.get("fill")
+            if color in {"red", "green", "blue"}:
+                assert color not in wedge_anchors
+                wedge_anchors[color] = anchor
+
+    assert set(wedge_anchors) == {"green", "blue"}
+    assert all(
+        anchor.get(xlink_href) == "https://node.example/whole"
+        for anchor in wedge_anchors.values()
+    )
+    assert wedge_anchors["green"].get("target") == "_blank"
+    assert wedge_anchors["blue"].get("target") == "_parent"
+
+
 def test_146():
     """
     dot should respect an alpha channel value of 0 when writing SVG
