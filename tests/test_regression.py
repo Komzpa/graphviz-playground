@@ -4068,34 +4068,47 @@ digraph state_diagram {
 
     # without shape, the same primary label remains plain text
     unshaped = json.loads(dot("json", source=source.replace(", shape=box", "")))
-    assert not any(cmd.get("op") == "p" for cmd in unshaped["edges"][0]["_ldraw_"])
+    unshaped_edge = unshaped["edges"][0]
+    assert edge["_ldraw_"][edge["_ldraw_"].index(rectangles[0]) + 1 :] == (
+        unshaped_edge["_ldraw_"]
+    )
+
+    def draw_streams(rendered_edge):
+        return {
+            key: value
+            for key, value in rendered_edge.items()
+            if key.startswith("_") and key.endswith("draw_")
+        }
+
+    assert {
+        key: value for key, value in draw_streams(edge).items() if key != "_ldraw_"
+    } == {
+        key: value
+        for key, value in draw_streams(unshaped_edge).items()
+        if key != "_ldraw_"
+    }
 
     # unsupported edge shapes remain a no-op
     unsupported = json.loads(
         dot("json", source=source.replace("shape=box", "shape=ellipse"))
     )
-    assert not any(
-        cmd.get("op") in {"p", "P", "e", "E"}
-        for cmd in unsupported["edges"][0]["_ldraw_"]
-    )
+    assert draw_streams(unsupported["edges"][0]) == draw_streams(unshaped_edge)
 
     # shape=box does not apply to xlabel, headlabel, or taillabel
-    auxiliary = json.loads(
-        dot(
-            "json",
-            source="""\
+    auxiliary_source = """\
 digraph {
   rankdir=LR
   A [shape=plain]
   B [shape=plain]
   A -> B [shape=box, xlabel=<x>, headlabel=<head>, taillabel=<tail>]
 }
-""",
-        )
-    )
+"""
+    auxiliary = json.loads(dot("json", source=auxiliary_source))
     auxiliary_edge = auxiliary["edges"][0]
-    for draw_key in ("_ldraw_", "_hldraw_", "_tldraw_"):
-        assert not any(cmd.get("op") == "p" for cmd in auxiliary_edge[draw_key])
+    plain_auxiliary = json.loads(
+        dot("json", source=auxiliary_source.replace("shape=box, ", ""))
+    )
+    assert draw_streams(auxiliary_edge) == draw_streams(plain_auxiliary["edges"][0])
 
 
 def test_2390():
