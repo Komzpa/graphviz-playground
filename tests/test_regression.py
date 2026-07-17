@@ -2438,7 +2438,7 @@ def test_2310_svgconnector_schema_documents_graph_scope():
             super().__init__()
             self.in_svgconnector = False
             self.div_depth = 0
-            self.components = {}
+            self.components = []
             self.span_class = None
 
         def handle_starttag(self, tag, attrs):
@@ -2455,7 +2455,7 @@ def test_2310_svgconnector_schema_documents_graph_scope():
 
         def handle_data(self, data):
             if self.span_class is not None:
-                self.components[data.strip()] = self.span_class
+                self.components.append((data.strip(), self.span_class))
 
         def handle_endtag(self, tag):
             if tag == "span":
@@ -2468,7 +2468,10 @@ def test_2310_svgconnector_schema_documents_graph_scope():
     parser = ComponentParser()
     parser.feed(generated.stdout)
     components = parser.components
-    assert components == {
+    assert len(components) == 5
+    names = [name for name, _ in components]
+    assert len(set(names)) == len(names)
+    assert dict(components) == {
         "graph": {"comp"},
         "edge": {"comp", "missing"},
         "node": {"comp", "missing"},
