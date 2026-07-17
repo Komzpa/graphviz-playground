@@ -128,8 +128,21 @@ static void find_blocks(Agraph_t * g, circ_state * state)
 	}
     }
 
-    if (!root)
-	root = agfstnode(g);
+    if (!root) {
+	/* A highly connected root tends to make the block tree shallower and
+	 * avoids pathological layouts caused by an arbitrary first node. */
+	size_t max_degree = 0;
+	for (Agnode_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+	    size_t degree = 0;
+	    for (Agedge_t *e = agfstedge(g, n); e; e = agnxtedge(g, e, n)) {
+		degree++;
+	    }
+	    if (!root || degree > max_degree) {
+		root = n;
+		max_degree = degree;
+	    }
+	}
+    }
     GV_DEBUG("root = %s", agnameof(root));
     estack_t stk = {0};
     dfs(g, root, state, true, &stk);
