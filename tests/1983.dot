@@ -1,0 +1,6 @@
+digraph AdcamFlow {
+  node [shape=none]
+
+  A -> B [tailport=e, headport=w, dir=none, style=dashed];
+  C -> D [tailport=e, headport=w, dir=none, style=dashed, constraint=false];
+}

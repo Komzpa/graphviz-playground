@@ -2271,6 +2271,35 @@ def test_1971():
         assert p.returncode != 0, "edgepaint incorrectly accepted '-rabbit'"
 
 
+@pytest.mark.skipif(
+    shutil.which("dot_builtins") is None, reason="dot_builtins not available"
+)
+def test_1983():
+    """
+    a dashed edge with `dir=none` and `constraint=false` should not grow an
+    arrowhead
+    https://gitlab.com/graphviz/graphviz/-/issues/1983
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1983.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render to xdot so stroke styles and arrowhead draw operations are explicit
+    dot_builtins = shutil.which("dot_builtins")
+    output = subprocess.check_output([dot_builtins, "-Txdot", input], text=True)
+
+    # Both edges should be drawn as dashed splines with no arrowhead draw
+    # attributes. The former bug turned the unconstrained C→D edge into a solid
+    # arrow.
+    edge_blocks = re.findall(r"\b[AC]:e -> [BD]:w\s+\[(.*?)\];", output, re.DOTALL)
+    assert len(edge_blocks) == 2, "failed to find both issue edges"
+    for block in edge_blocks:
+        assert "S 6 -dashed" in block, "edge was not rendered dashed"
+        assert "_hdraw_" not in block, "edge unexpectedly has a head arrow"
+        assert "_tdraw_" not in block, "edge unexpectedly has a tail arrow"
+
+
 def test_1990():
     """
     using ortho and circo in combination should not cause an assertion failure
