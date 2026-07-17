@@ -4210,6 +4210,49 @@ def test_2434(tmp_path: Path):
     assert before == after, "agmemread/gvContext ordering affected image output"
 
 
+def test_2427():
+    """
+    gap and skip arrowheads should reserve arrow space without drawing an arrow
+    https://gitlab.com/graphviz/graphviz/-/issues/2427
+    """
+
+    def render(arrowhead: str) -> tuple[str, list[ET.Element]]:
+        source = f"digraph {{ a -> b [arrowhead={arrowhead}] }}"
+        proc = subprocess.run(
+            ["dot", "-Tsvg"],
+            input=source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            text=True,
+        )
+
+        assert "unknown" not in proc.stderr
+
+        root = ET.fromstring(proc.stdout)
+        edge = root.find(".//{http://www.w3.org/2000/svg}g[@class='edge']")
+        assert edge is not None
+
+        path = edge.find("{http://www.w3.org/2000/svg}path")
+        assert path is not None
+
+        return path.attrib["d"], edge.findall("{http://www.w3.org/2000/svg}polygon")
+
+    none_path, none_polygons = render("none")
+    normal_path, normal_polygons = render("normal")
+    gap_path, gap_polygons = render("gap")
+    skip_path, skip_polygons = render("skip")
+
+    assert none_polygons == []
+    assert len(normal_polygons) == 1
+    assert gap_polygons == []
+    assert skip_polygons == []
+    assert gap_path != none_path
+    assert skip_path != none_path
+    assert gap_path != normal_path
+    assert skip_path != normal_path
+
+
 def test_2437():
     """
     both an arrowhead and an arrowtail shall be created when using dir=both,

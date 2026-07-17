@@ -44,7 +44,8 @@
 #define ARR_TYPE_DOT      6
 #define ARR_TYPE_CURVE    7
 #define ARR_TYPE_GAP      8
-/* Spare: 9-15 */
+#define ARR_TYPE_SKIP     9
+/* Spare: 10-15 */
 
 /* arrow mods (in (BITS_PER_ARROW - BITS_PER_ARROW_TYPE) bits) */
 #define ARR_MOD_OPEN      (1<<(BITS_PER_ARROW_TYPE+0))
@@ -97,6 +98,8 @@ static const arrowname_t Arrownames[] = {
     {"diamond", ARR_TYPE_DIAMOND},
     {"dot", ARR_TYPE_DOT},
     {"none", ARR_TYPE_GAP},
+    {"gap", ARR_TYPE_SKIP},
+    {"skip", ARR_TYPE_SKIP},
     /* ARR_MOD_INV is used only here to define two additional shapes
        since not all types can use it */
     {"inv", (ARR_TYPE_NORM | ARR_MOD_INV)},
@@ -133,6 +136,7 @@ static pointf arrow_type_diamond(GVJ_t * job, pointf p, pointf u, double arrowsi
 static pointf arrow_type_dot(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
 static pointf arrow_type_curve(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
 static pointf arrow_type_gap(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_skip(GVJ_t *job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
 
 static double arrow_length_generic(double lenfact, double arrowsize, double penwidth, uint32_t flag);
 static double arrow_length_crow(double lenfact, double arrowsize, double penwidth, uint32_t flag);
@@ -152,6 +156,7 @@ static const arrowtype_t Arrowtypes[] = {
     {ARR_TYPE_DOT, 0.8, arrow_type_dot, arrow_length_dot},
     {ARR_TYPE_CURVE, 1.0, arrow_type_curve, arrow_length_curve},
     {ARR_TYPE_GAP, 0.5, arrow_type_gap, arrow_length_generic},
+    {ARR_TYPE_SKIP, 0.5, arrow_type_skip, arrow_length_generic},
 };
 
 static const size_t Arrowtypes_size =
@@ -803,6 +808,17 @@ static pointf arrow_type_gap(GVJ_t *job, pointf p, pointf u, double arrowsize,
     gvrender_polyline(job, a, 2);
 
     return q;
+}
+
+static pointf arrow_type_skip(GVJ_t *job, pointf p, pointf u,
+                              double arrowsize, double penwidth,
+                              uint32_t flag) {
+    (void)job;
+    (void)arrowsize;
+    (void)penwidth;
+    (void)flag;
+
+    return add_pointf(p, u);
 }
 
 static pointf arrow_type_tee(GVJ_t *job, pointf p, pointf u, double arrowsize,
