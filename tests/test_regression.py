@@ -7,6 +7,7 @@ of these indicates that a past bug has been reintroduced.
 
 import dataclasses
 import hashlib
+from html.parser import HTMLParser
 import io
 import json
 import math
@@ -2399,6 +2400,70 @@ def test_2310_svg_edges_expose_inkscape_connectors():
         "svg", source=textwrap.dedent(source).replace("svgconnector=true", "")
     )
     assert "inkscape:" not in default_svg
+
+
+def test_2310_svgconnector_schema_documents_graph_scope():
+    """
+    svgconnector should be documented as a graph-only SVG attribute.
+    https://gitlab.com/graphviz/graphviz/-/issues/2310
+    """
+
+    xsltproc = shutil.which("xsltproc")
+    if xsltproc is None:
+        pytest.skip("xsltproc not available")
+
+    root = Path(__file__).parent.parent
+    stylesheet = root / "doc" / "schema" / "attributes.xslt"
+    schema = root / "doc" / "schema" / "attributes.xml"
+    schema_root = ET.parse(schema).getroot()
+    namespaces = {"xsd": "http://www.w3.org/2001/XMLSchema"}
+    svgconnector = schema_root.find("xsd:attribute[@name='svgconnector']", namespaces)
+    assert svgconnector is not None, "svgconnector is missing from the schema"
+    assert svgconnector.get("default") == "false"
+
+    generated = subprocess.run(
+        [xsltproc, stylesheet, schema],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    class ComponentParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.in_svgconnector = False
+            self.div_depth = 0
+            self.components = {}
+            self.span_class = None
+
+        def handle_starttag(self, tag, attrs):
+            attributes = dict(attrs)
+            if tag == "div" and attributes.get("id") == "content_d_svgconnector":
+                self.in_svgconnector = True
+                self.div_depth = 1
+            elif self.in_svgconnector and tag == "div":
+                self.div_depth += 1
+            elif self.in_svgconnector and tag == "span":
+                self.span_class = set(attributes.get("class", "").split())
+
+        def handle_data(self, data):
+            if self.span_class is not None:
+                self.components[data.strip()] = self.span_class
+
+        def handle_endtag(self, tag):
+            if tag == "span":
+                self.span_class = None
+            elif tag == "div" and self.in_svgconnector:
+                self.div_depth -= 1
+                if self.div_depth == 0:
+                    self.in_svgconnector = False
+
+    parser = ComponentParser()
+    parser.feed(generated.stdout)
+    components = parser.components
+    assert components["graph"] == {"comp"}
+    assert components["edge"] == {"comp", "missing"}
+    assert components["node"] == {"comp", "missing"}
 
 
 def test_2082():
