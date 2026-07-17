@@ -4235,6 +4235,41 @@ def test_2437():
 
 
 @pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2137"
+)
+def test_2137_border_to_border_edge_lengths():
+    """
+    edge lengths should account for node borders, not only node centers
+    https://gitlab.com/graphviz/graphviz/-/issues/2137
+    """
+
+    source = """
+        digraph {
+          node [style="filled,rounded", fixedsize=true];
+          A [label="A", shape="doubleoctagon", width=2.5, height=1.1];
+          node [shape="plaintext", width=1.2, height=0.65];
+          B1 [label="B1"];
+          B2 [label="B2"];
+          B3 [label="B3"];
+          A -> { B1 B2 B3 } [len=3];
+        }
+    """
+
+    output = dot("plain", source=textwrap.dedent(source))
+
+    nodes = {}
+    for line in output.splitlines():
+        fields = line.split()
+        if fields and fields[0] == "node":
+            nodes[fields[1]] = tuple(map(float, fields[2:6]))
+
+    assert {"A", "B2"} <= nodes.keys(), "missing expected nodes"
+
+    center_distance = math.dist(nodes["A"][:2], nodes["B2"][:2])
+    assert center_distance >= 3, "len=3 collapsed the border-to-border edge"
+
+
+@pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2416"
 )
 def test_2416():
