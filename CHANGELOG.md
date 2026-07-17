@@ -74,6 +74,9 @@ and this project adheres to
 
 ### Changed
 
+- Add the graph and subgraph attribute `rankorder=input` to preserve input node
+  order within each rank.
+
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
