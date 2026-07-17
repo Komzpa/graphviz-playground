@@ -4011,6 +4011,43 @@ def test_2377():
     assert svg1 == svg2, "3 letter hex colors were not translated correctly"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2380"
+)
+def test_2380():
+    """
+    edge labels should honor shape attributes
+    https://gitlab.com/graphviz/graphviz/-/issues/2380
+    """
+
+    # an edge with an HTML-like label and a label shape request
+    source = """\
+digraph state_diagram {
+  rankdir=LR
+  A [shape=plain]
+  B [shape=plain]
+  A -> B [label=<This should<br/>be in a box>, shape=box]
+}
+"""
+
+    # process it as JSON so label drawing operations can be inspected
+    output = dot("json", source=source)
+    graph = json.loads(output)
+    edge = graph["edges"][0]
+
+    # sanity check the label still contains both expected lines
+    label_text = [
+        cmd["text"] for cmd in edge.get("_ldraw_", []) if cmd.get("op") == "T"
+    ]
+    assert label_text == ["This should", "be in a box"]
+
+    # the label draw stream should include a primitive for the requested shape
+    label_ops = {cmd.get("op") for cmd in edge.get("_ldraw_", [])}
+    assert label_ops & {"p", "P", "L", "b", "B", "e", "E"}, (
+        "edge label shape=box should draw a label-shape primitive, not only text"
+    )
+
+
 def test_2390():
     """
     using an out of range `xdotversion` should not crash Graphviz
