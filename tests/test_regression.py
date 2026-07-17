@@ -4234,6 +4234,24 @@ def test_2437():
     assert len(polygons) == 3, "wrong number of polygons in output"
 
 
+def test_2442():
+    """
+    --prefix should not add host search paths when cross-compiling with a sysroot
+    https://gitlab.com/graphviz/graphviz/-/issues/2442
+    """
+
+    configure_ac = Path(__file__).resolve().parents[1] / "configure.ac"
+    configure_source = configure_ac.read_text(encoding="utf-8")
+
+    forbidden = {
+        r"CPPFLAGS=.*-I\$\{?prefix\}?/include": "CPPFLAGS use host prefix include",
+        r"LDFLAGS=.*-L\$\{?prefix\}?/lib": "LDFLAGS use host prefix library",
+        r"PKG_CONFIG_PATH=.*\$\{?prefix\}?/lib": "PKG_CONFIG_PATH uses host prefix",
+    }
+    for pattern, problem in forbidden.items():
+        assert re.search(pattern, configure_source) is None, problem
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2416"
 )
