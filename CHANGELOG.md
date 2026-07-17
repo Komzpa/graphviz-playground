@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- The `clusterrank` documentation now explains that `global` is accepted for
+  compatibility, but currently behaves like `none`. #2654
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
