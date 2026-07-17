@@ -165,6 +165,20 @@ static void svg_print_gradient_color(GVJ_t * job, gvcolor_t color)
 static void svg_grstyle(GVJ_t * job, int filled, int gid)
 {
     obj_state_t *obj = job->obj;
+    double penwidth = obj->penwidth;
+
+    /* A partially transparent, thick outline is visible through its filled
+     * arrowhead and makes the SVG look as though it contains two arrowheads.
+     * Keep the thick stroke on the edge spline, but use the normal outline
+     * width for filled arrowheads and arrowtails. */
+    const bool drawing_arrow = obj->emit_state == EMIT_TDRAW ||
+                               obj->emit_state == EMIT_HDRAW;
+    const bool translucent_outline = obj->pencolor.type == RGBA_BYTE &&
+                                     obj->pencolor.u.rgba[3] > 0 &&
+                                     obj->pencolor.u.rgba[3] < 255;
+    if (filled && drawing_arrow && translucent_outline) {
+        penwidth = PENWIDTH_NORMAL;
+    }
 
     gvputs(job, " fill=\"");
     if (filled == GRADIENT) {
@@ -195,9 +209,9 @@ static void svg_grstyle(GVJ_t * job, int filled, int gid)
     svg_print_paint(job, obj->pencolor);
     // will `gvprintdouble` output something different from `PENWIDTH_NORMAL`?
     const double GVPRINT_DOUBLE_THRESHOLD = 0.005;
-    if (!(fabs(obj->penwidth - PENWIDTH_NORMAL) < GVPRINT_DOUBLE_THRESHOLD)) {
+    if (!(fabs(penwidth - PENWIDTH_NORMAL) < GVPRINT_DOUBLE_THRESHOLD)) {
 	gvputs(job, "\" stroke-width=\"");
-        gvprintdouble(job, obj->penwidth);
+        gvprintdouble(job, penwidth);
     }
     if (obj->pen == PEN_DASHED) {
 	gvprintf(job, "\" stroke-dasharray=\"%s", sdasharray);

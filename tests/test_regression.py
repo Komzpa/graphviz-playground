@@ -3228,9 +3228,6 @@ def test_2295():
     assert re.search(rb"\bhi mom\b", pdf) is not None, "tooltip not propagated to PDF"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2318"
-)
 def test_2318():
     """
     semi-transparent thick edges should not draw an oversized arrowhead outline
@@ -3239,22 +3236,49 @@ def test_2318():
 
     source = r"""
     digraph {
-      "A" -> "B" [color="#00000080", penwidth="20"]
+      "A" -> "B" [color="#00000080", penwidth="20", dir="both"]
       "C" -> "B" [color="#00000080", penwidth="10"]
+      "D" -> "E" [color="#000000", penwidth="10"]
+      "F" -> "G" [color="#00000080", penwidth="1"]
+      "H" [shape="box", color="#00000080", penwidth="10"]
     }
     """
 
     svg = dot("svg", source=source)
     root = ET.fromstring(svg)
+    ns = {"svg": "http://www.w3.org/2000/svg"}
 
-    for elem in root.iter():
-        if not elem.tag.endswith("polygon"):
-            continue
-        if elem.get("fill-opacity") != "0.501961":
-            continue
+    edge_groups = {
+        group.find("svg:title", ns).text: group
+        for group in root.findall(".//svg:g[@class='edge']", ns)
+    }
 
-        stroke_width = float(elem.get("stroke-width", "1"))
-        assert stroke_width <= 1, "arrowhead outline inherited edge pen width"
+    for name, expected_path_width, expected_arrow_count in (
+        ("A->B", 20, 2),
+        ("C->B", 10, 1),
+    ):
+        group = edge_groups[name]
+        path = group.find("svg:path", ns)
+        assert float(path.get("stroke-width")) == expected_path_width
+
+        arrows = group.findall("svg:polygon", ns)
+        assert len(arrows) == expected_arrow_count
+        for arrow in arrows:
+            assert arrow.get("fill-opacity") == "0.501961"
+            assert float(arrow.get("stroke-width", "1")) == 1
+
+    opaque_arrow = edge_groups["D->E"].find("svg:polygon", ns)
+    assert float(opaque_arrow.get("stroke-width")) == 10
+
+    thin_translucent_arrow = edge_groups["F->G"].find("svg:polygon", ns)
+    assert float(thin_translucent_arrow.get("stroke-width", "1")) == 1
+
+    node_h = next(
+        group
+        for group in root.findall(".//svg:g[@class='node']", ns)
+        if group.find("svg:title", ns).text == "H"
+    )
+    assert float(node_h.find("svg:polygon", ns).get("stroke-width")) == 10
 
 
 @pytest.mark.parametrize("arg", ("--filepath", "-Gimagepath"))

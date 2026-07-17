@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- SVG output no longer draws thick, semi-transparent arrowhead outlines that
+  make a single arrowhead look doubled. #2318
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
