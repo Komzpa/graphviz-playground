@@ -73,30 +73,30 @@ static bool unit_equals(const char *unit, size_t unit_len, const char *expected)
            strncasecmp(unit, expected, unit_len) == 0;
 }
 
-static double parse_explicit_inches(double value, const char *unit) {
-    while (gv_isspace(*unit))
-        ++unit;
+double explicit_units_to_inches(double value, const char *unit,
+                                const char *unit_end) {
+  while (unit < unit_end && gv_isspace(*unit))
+    ++unit;
 
-    const char *end = unit + strlen(unit);
-    while (end > unit && gv_isspace(end[-1]))
-        --end;
-    size_t unit_len = (size_t)(end - unit);
+  while (unit_end > unit && gv_isspace(unit_end[-1]))
+    --unit_end;
+  size_t unit_len = (size_t)(unit_end - unit);
 
-    if (unit_len == 0)
-        return value;
-    if (unit_equals(unit, unit_len, "i") || unit_equals(unit, unit_len, "in"))
-        return value;
-    if (unit_equals(unit, unit_len, "pt"))
-        return value / POINTS_PER_INCH;
-    if (unit_equals(unit, unit_len, "px"))
-        return value / 96.0;
-    if (unit_equals(unit, unit_len, "cm"))
-        return value / 2.54;
-    if (unit_equals(unit, unit_len, "mm"))
-        return value / 25.4;
-
-    // Preserve historical strtod-like behavior for unknown suffixes.
+  if (unit_len == 0)
     return value;
+  if (unit_equals(unit, unit_len, "i") || unit_equals(unit, unit_len, "in"))
+    return value;
+  if (unit_equals(unit, unit_len, "pt"))
+    return value / POINTS_PER_INCH;
+  if (unit_equals(unit, unit_len, "px"))
+    return value / 96.0;
+  if (unit_equals(unit, unit_len, "cm"))
+    return value / 2.54;
+  if (unit_equals(unit, unit_len, "mm"))
+    return value / 25.4;
+
+  // Preserve historical strtod-like behavior for unknown suffixes.
+  return value;
 }
 
 double late_inch(void *obj, attrsym_t *attr, double defaultValue,
@@ -110,7 +110,7 @@ double late_inch(void *obj, attrsym_t *attr, double defaultValue,
     double rv = strtod(p, &endp);
     if (p == endp)
         return defaultValue; /* invalid double format */
-    rv = parse_explicit_inches(rv, endp);
+    rv = explicit_units_to_inches(rv, endp, endp + strlen(endp));
     if (rv < minimum)
         return minimum;
     return rv;
