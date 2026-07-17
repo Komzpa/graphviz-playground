@@ -74,6 +74,8 @@ and this project adheres to
 
 ### Changed
 
+- The dot `ordering` attribute now accepts `both` to preserve both incoming
+  and outgoing edge orders. #1645
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the

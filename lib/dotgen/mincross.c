@@ -496,6 +496,10 @@ static void do_ordering_for_nodes(graph_t *g) {
         do_ordering_node(g, n, true);
       else if (streq(ordering, "in"))
         do_ordering_node(g, n, false);
+      else if (streq(ordering, "both")) {
+        do_ordering_node(g, n, true);
+        do_ordering_node(g, n, false);
+      }
       else if (ordering[0])
         agerrorf("ordering '%s' not recognized for node '%s'.\n", ordering,
                  agnameof(n));
@@ -519,6 +523,10 @@ static void ordered_edges(graph_t *g) {
       do_ordering(g, true);
     else if (streq(ordering, "in"))
       do_ordering(g, false);
+    else if (streq(ordering, "both")) {
+      do_ordering(g, true);
+      do_ordering(g, false);
+    }
     else if (ordering[0])
       agerrorf("ordering '%s' not recognized.\n", ordering);
   } else {
