@@ -6020,6 +6020,42 @@ def test_2683():
     dot("dot", input)
 
 
+def test_2685():
+    """
+    text in PNG output should not be clipped at the top
+    https://gitlab.com/graphviz/graphviz/-/issues/2685
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2685.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render the issue reproducer to PNG
+    png = dot("png", input)
+
+    # interpret this with Pillow
+    data = io.BytesIO(png)
+    image = Image.open(data).convert("RGBA")
+    width, height = image.size
+
+    def is_dark(x: int, y: int) -> bool:
+        red, green, blue, alpha = image.getpixel((x, y))
+        return alpha > 0 and red < 80 and green < 80 and blue < 80
+
+    # The reported Windows rendering clipped the top of the `B 20` label in the
+    # lower-left node. Check the upper half of that label has enough ink, rather
+    # than only verifying that the PNG file was produced.
+    left = int(width * 0.18)
+    right = int(width * 0.38)
+    top = int(height * 0.70)
+    bottom = int(height * 0.79)
+    dark_pixels = sum(
+        1 for y in range(top, bottom) for x in range(left, right) if is_dark(x, y)
+    )
+
+    assert dark_pixels > 50, "the upper part of the B 20 label was clipped"
+
+
 @pytest.mark.skipif(shutil.which("ps2pdf") is None, reason="ps2pdf not available")
 def test_2699():
     """
