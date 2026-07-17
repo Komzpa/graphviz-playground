@@ -2803,6 +2803,31 @@ def test_2179_1():
     ), "incorrect warning triggered"
 
 
+@pytest.mark.xfail(strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2170")
+def test_2170():
+    """
+    fdp with `splines=ortho` should honor explicit edge positions
+    https://gitlab.com/graphviz/graphviz/-/issues/2170
+    """
+
+    def edge_route(edge_pos: str) -> str:
+        source = f"""\
+digraph {{
+    layout=fdp
+    splines=ortho
+    node1 [pos="0,0!"]
+    node2 [pos="2,2!"]
+    node1 -> node2 [pos="{edge_pos}!"]
+}}
+"""
+
+        plain = dot("plain", source=source)
+        [edge] = (line for line in plain.splitlines() if line.startswith("edge "))
+        return edge
+
+    assert edge_route("1,1") != edge_route("1,2")
+
+
 def test_2183():
     """
     processing `splines=ortho`, `concentrate=true` should not crash
