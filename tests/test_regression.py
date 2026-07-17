@@ -1085,6 +1085,34 @@ def test_1474():
     ), "malformed input caused a buffer overflow"
 
 
+def test_1485():
+    """
+    `splines=curved` should not omit edges between rounded boxes
+    https://gitlab.com/graphviz/graphviz/-/issues/1485
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1485.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render this to JSON so we can inspect the emitted edges
+    output = dot("json", input)
+    data = json.loads(output)
+
+    nodes_by_id = {node["_gvid"]: node["name"] for node in data["objects"]}
+    edges = {
+        (nodes_by_id[edge["tail"]], nodes_by_id[edge["head"]])
+        for edge in data["edges"]
+        if "_draw_" in edge
+    }
+
+    assert edges == {
+        ("fooId", "fooId"),
+        ("barId", "fooId"),
+        ("fooId", "barId"),
+    }, "not all curved edges were emitted"
+
+
 def test_1489():
     """
     processing this input found by fuzzing should not trigger an invalid read
