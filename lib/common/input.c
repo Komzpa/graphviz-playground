@@ -730,6 +730,7 @@ void graph_init(graph_t * g, bool use_rankdir)
     if (!N_label)
 	N_label = agattr_text(g, AGNODE, "label", NODENAME_ESC);
     N_xlabel = agfindnodeattr(g, "xlabel");
+    N_xlabelangle = agfindnodeattr(g, "xlabelangle");
     N_showboxes = agfindnodeattr(g, "showboxes");
     N_penwidth = agfindnodeattr(g, "penwidth");
     N_ordering = agfindnodeattr(g, "ordering");
@@ -759,6 +760,7 @@ void graph_init(graph_t * g, bool use_rankdir)
     E_fontcolor = agfindedgeattr(g, "fontcolor");
     E_label = agfindedgeattr(g, "label");
     E_xlabel = agfindedgeattr(g, "xlabel");
+    E_xlabelangle = agfindedgeattr(g, "xlabelangle");
     E_label_float = agfindedgeattr(g, "labelfloat");
     E_dir = agfindedgeattr(g, "dir");
     E_headlabel = agfindedgeattr(g, "headlabel");

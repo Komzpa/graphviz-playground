@@ -299,6 +299,8 @@ static void cairogen_textspan(GVJ_t * job, pointf p, textspan_t * span)
     cairo_set_dash (cr, dashed, 0, 0.0);  /* clear any dashing */
     cairogen_set_color(cr, &obj->pencolor);
 
+    const double anchor_x = p.x;
+
     switch (span->just) {
     case 'r':
 	p.x -= span->size.x;
@@ -313,8 +315,14 @@ static void cairogen_textspan(GVJ_t * job, pointf p, textspan_t * span)
     }
     p.y += span->yoffset_centerline + span->yoffset_layout;
 
-    cairo_move_to (cr, p.x, -p.y);
     cairo_save(cr);
+    if (span->angle != 0.0) {
+	cairo_translate(cr, anchor_x, -p.y);
+	cairo_rotate(cr, -span->angle * M_PI / 180.0);
+	cairo_move_to(cr, p.x - anchor_x, 0.0);
+    }
+    else
+	cairo_move_to(cr, p.x, -p.y);
     cairo_scale(cr, POINTS_PER_INCH / FONT_DPI, POINTS_PER_INCH / FONT_DPI);
     pango_cairo_show_layout(cr, (PangoLayout*)span->layout);
     cairo_restore(cr);

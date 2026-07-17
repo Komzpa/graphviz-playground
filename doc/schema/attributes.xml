@@ -1124,6 +1124,28 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="xlabel" type="escString">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>Text label placed outside and near a node or edge.</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="xlabelangle" type="xsd:string">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					When set to <html:code>auto</html:code> on a node or edge,
+					its <html:a rel="attr">xlabel</html:a> follows the final
+					external-label placement direction. The chosen angle is one of
+					the eight readable screen-space directions. Omit this attribute,
+					or use <html:code>0</html:code>, to keep the xlabel horizontal.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<xsd:attribute name="labelfloat" type="xsd:boolean">
 		<xsd:annotation>
@@ -2509,6 +2531,8 @@
 		<xsd:attribute ref="target" />
 		<xsd:attribute ref="tooltip" />
 		<xsd:attribute ref="weight" default="1.0" />
+		<xsd:attribute ref="xlabel" />
+		<xsd:attribute ref="xlabelangle" />
 	</xsd:complexType>
 
 	<xsd:complexType name="node">
@@ -2548,6 +2572,8 @@
 		<xsd:attribute ref="tooltip" />
 		<xsd:attribute ref="vertices" />
 		<xsd:attribute ref="width" default="0.75" />
+		<xsd:attribute ref="xlabel" />
+		<xsd:attribute ref="xlabelangle" />
 		<xsd:attribute ref="z" default="0.0" />
 	</xsd:complexType>
 	

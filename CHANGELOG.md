@@ -13,6 +13,11 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+### Added
+
+- Node and edge external labels can opt in to readable, placement-aware text
+  rotation with `xlabelangle=auto`. #68
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

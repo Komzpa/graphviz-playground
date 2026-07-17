@@ -72,6 +72,7 @@ typedef struct {
   double yoffset_layout, yoffset_centerline;
   pointf size;
   char just; ///< 'l' 'n' 'r'
+  double angle; ///< counter-clockwise rotation in degrees about the text anchor
 } textspan_t;
 
 #ifdef __cplusplus

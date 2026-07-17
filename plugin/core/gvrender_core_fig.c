@@ -227,7 +227,8 @@ static void fig_textspan(GVJ_t * job, pointf p, textspan_t * span)
     int pen_style = 0;          /* not used */
     int font = -1;		/* init to xfig's default font */
     double font_size = span->font->size * job->zoom;
-    double angle = job->rotation ? (M_PI / 2.0) : 0.0;
+    double angle = (job->rotation ? (M_PI / 2.0) : 0.0) +
+                   span->angle * M_PI / 180.0;
     int font_flags = 6;		/* PostScript font + Special text */
 /* Special text indicates that latex markup may exist
  * in the output - but note that dot knows nothing about latex,

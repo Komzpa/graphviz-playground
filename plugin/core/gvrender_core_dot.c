@@ -62,6 +62,8 @@ static double penwidth [] = {
     1, 1, 1, 1,
 };
 static unsigned int textflags[EMIT_ELABEL+1];
+/* Text rotation, like text flags, is xdot state scoped to one draw stream. */
+static double textangle[EMIT_ELABEL+1];
 
 typedef struct {
     attrsym_t *g_draw;
@@ -245,6 +247,8 @@ static void xdot_end_node(GVJ_t* job)
     penwidth[EMIT_NLABEL] = 1;
     textflags[EMIT_NDRAW] = 0;
     textflags[EMIT_NLABEL] = 0;
+    textangle[EMIT_NDRAW] = 0.0;
+    textangle[EMIT_NLABEL] = 0.0;
 }
 
 static void xdot_end_edge(GVJ_t* job)
@@ -275,6 +279,12 @@ static void xdot_end_edge(GVJ_t* job)
     textflags[EMIT_HDRAW] = 0;
     textflags[EMIT_TLABEL] = 0;
     textflags[EMIT_HLABEL] = 0;
+    textangle[EMIT_EDRAW] = 0.0;
+    textangle[EMIT_ELABEL] = 0.0;
+    textangle[EMIT_TDRAW] = 0.0;
+    textangle[EMIT_HDRAW] = 0.0;
+    textangle[EMIT_TLABEL] = 0.0;
+    textangle[EMIT_HLABEL] = 0.0;
 }
 
 static void xdot_end_cluster(GVJ_t * job)
@@ -288,6 +298,8 @@ static void xdot_end_cluster(GVJ_t * job)
     penwidth[EMIT_CLABEL] = 1;
     textflags[EMIT_CDRAW] = 0;
     textflags[EMIT_CLABEL] = 0;
+    textangle[EMIT_CDRAW] = 0.0;
+    textangle[EMIT_CLABEL] = 0.0;
 }
 
 static unsigned short versionStr2Version(const char *str) {
@@ -444,6 +456,8 @@ static void xdot_end_graph(graph_t* g)
     penwidth[EMIT_GLABEL] = 1;
     textflags[EMIT_GDRAW] = 0;
     textflags[EMIT_GLABEL] = 0;
+    textangle[EMIT_GDRAW] = 0.0;
+    textangle[EMIT_GLABEL] = 0.0;
 }
 
 // wrappers to handle calling convention differences
@@ -521,6 +535,17 @@ static void xdot_textspan(GVJ_t * job, pointf p, textspan_t * span)
     }
 
     p.y += span->yoffset_centerline;
+    if (textangle[emit_state] != span->angle) {
+	/* R is a text-rotation state introduced with xdot 1.8. Keep ordinary
+	 * xdot byte-for-byte compatible at 1.7 unless a rotated xlabel needs it. */
+	if (xd->version < 18) {
+	    xd->version = 18;
+	    xd->version_s = "1.8";
+	}
+	agxbput(xbufs[emit_state], "R ");
+	xdot_fmt_num(xbufs[emit_state], span->angle);
+	textangle[emit_state] = span->angle;
+    }
     agxbput(xbufs[emit_state], "T ");
     xdot_point(xbufs[emit_state], p);
     agxbprint(xbufs[emit_state], "%d ", j);

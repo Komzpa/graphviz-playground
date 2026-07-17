@@ -279,6 +279,12 @@ static char *parseOp(xdot_op *op, char *s, drawfunc_t ops[], int *error) {
       op->drawfunc = ops[xop_text];
     break;
 
+  case 'R':
+    op->kind = xd_text_rotation;
+    s = parseReal(s, &op->u.text_rotation);
+    CHK(s);
+    break;
+
   case 'F':
     op->kind = xd_font;
     s = parseReal(s, &op->u.font.size);
@@ -565,6 +571,10 @@ static void printXDot_Op(xdot_op *op, pf print, void *info, int more) {
   case xd_fontchar:
     print(info, "t %u", op->u.fontchar);
     break;
+  case xd_text_rotation:
+    print(info, "R");
+    printFloat(op->u.text_rotation, print, info, 1);
+    break;
   case xd_style:
     print(info, "S");
     printString(op->u.style, print, info);
@@ -677,6 +687,10 @@ static void jsonXDot_Op(xdot_op *op, pf print, void *info, int more) {
     break;
   case xd_fontchar:
     print(info, "{\"t\" :  %u", op->u.fontchar);
+    break;
+  case xd_text_rotation:
+    print(info, "{\"R\" : ");
+    printFloat(op->u.text_rotation, print, info, 1);
     break;
   case xd_style:
     print(info, "{\"S\" : ");
@@ -814,6 +828,9 @@ int statXDot(xdot *x, xdot_stats *sp) {
       break;
     case xd_text:
       sp->n_text++;
+      break;
+    case xd_text_rotation:
+      sp->n_text_rotation++;
       break;
     case xd_image:
       sp->n_image++;

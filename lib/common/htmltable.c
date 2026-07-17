@@ -119,7 +119,7 @@ emit_htextspans(GVJ_t *job, size_t nspans, htextspan_t *spans, pointf p,
 		double halfwidth_x, textfont_t finfo, boxf b, int simple)
 {
     double center_x, left_x, right_x;
-    textspan_t tl;
+    textspan_t tl = {0};
     textfont_t tf;
     pointf p_ = { 0.0, 0.0 };
     textspan_t *ti;
@@ -174,6 +174,7 @@ emit_htextspans(GVJ_t *job, size_t nspans, htextspan_t *spans, pointf p,
 	    tl.str = ti->str;
 	    tl.font = &tf;
 	    tl.yoffset_layout = ti->yoffset_layout;
+	    tl.angle = 0.0;
 	    if (simple)
 		tl.yoffset_centerline = ti->yoffset_centerline;
 	    else
@@ -942,7 +943,7 @@ static int size_html_txt(GVC_t *gvc, htmltxt_t * ftxt, htmlenv_t * env)
     double curbline = 0.0;	/* dist. of current base line from top */
     pointf sz;
     double width;
-    textspan_t lp;
+    textspan_t lp = {0};
     textfont_t tf = {NULL,NULL,NULL,0.0,0,0};
     double maxoffset, maxlayout, mxysize = 0.0;
     bool simple = true; // one item per span, same font size/face, no flags

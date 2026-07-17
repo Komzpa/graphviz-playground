@@ -121,7 +121,8 @@ typedef enum {
   xd_image,
   xd_grad_fill_color,
   xd_grad_pen_color,
-  xd_fontchar
+  xd_fontchar,
+  xd_text_rotation
 } xdot_kind;
 
 typedef enum {
@@ -157,6 +158,7 @@ struct _xdot_op {
     xdot_font font;         /* xd_font */
     char *style;            /* xd_style */
     unsigned int fontchar;  /* xd_fontchar */
+    double text_rotation;   /* xd_text_rotation */
   } u;
   drawfunc_t drawfunc;
 };
@@ -187,6 +189,7 @@ typedef struct {
   size_t n_image;
   size_t n_gradcolor;
   size_t n_fontchar;
+  size_t n_text_rotation;
 } xdot_stats;
 
 /* ops are indexed by xop_kind */

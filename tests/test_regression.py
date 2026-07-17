@@ -58,25 +58,22 @@ from gvtest import (  # pylint: disable=wrong-import-position
 )
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/68"
-)
-def test_68_xlabels_can_be_oriented_for_dense_maps():
+@pytest.mark.parametrize("rankdir", ("TB", "BT", "LR", "RL"))
+def test_68_xlabels_can_be_oriented_for_dense_maps(rankdir: str):
     """
     xlabels should be able to rotate according to their placement.
     https://gitlab.com/graphviz/graphviz/-/issues/68
     """
 
-    source = """
-        graph {
-          graph [xlabelorientation=auto];
+    source = f"""
+        digraph {{
+          graph [rankdir={rankdir}];
           node [shape=point, width=0.05, label=""];
-          a [xlabel="Central"];
-          b [xlabel="North East"];
-          c [xlabel="South West"];
-          a -- b;
-          a -- c;
-        }
+          a [xlabel="Node", xlabelangle=auto];
+          b [xlabel="Other"];
+          a -> b [xlabel="Edge", xlabelangle=auto,
+                  headlabel="Head", taillabel="Tail", labelangle=75];
+        }}
     """
 
     svg = dot("svg", source=textwrap.dedent(source))
@@ -85,19 +82,40 @@ def test_68_xlabels_can_be_oriented_for_dense_maps():
     xlabels = [
         text
         for text in root.iter("{http://www.w3.org/2000/svg}text")
-        if "".join(text.itertext()) in {"Central", "North East", "South West"}
+        if "".join(text.itertext()) in {"Node", "Edge", "Head", "Tail"}
     ]
     assert xlabels, "node xlabels were not emitted"
 
-    # The public request asks for xlabels in dense subway-style maps to rotate
-    # according to their eight-way placement instead of always rendering
-    # horizontally. The graph attribute above is provisional coverage-only
-    # syntax; the behavior under test is at least one external label carrying a
-    # non-zero SVG rotation.
-    assert any(
-        re.search(r"\brotate\((?!0(?:[ .,\)]|$))", label.get("transform", ""))
-        for label in xlabels
-    ), "all xlabels were emitted horizontally"
+    rotations = {
+        "".join(label.itertext()): label.get("transform", "") for label in xlabels
+    }
+    for xlabel in ("Node", "Edge"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", rotations[xlabel]
+        ), f"{xlabel} xlabel was emitted horizontally for rankdir={rankdir}"
+    for port_label in ("Head", "Tail"):
+        assert (
+            "rotate(" not in rotations[port_label]
+        ), "xlabelangle must not overload edge labelangle/headlabel/taillabel"
+
+    xdot = dot("xdot", source=textwrap.dedent(source))
+    assert "xdotversion=1.8" in xdot
+    assert len(re.findall(r"\bR\s+-?(?:45|90)\b", xdot)) >= 2
+
+
+def test_68_xlabelangle_zero_preserves_horizontal_rendering():
+    """Omitted and explicit zero xlabelangle do not change renderer geometry."""
+
+    base = 'digraph { a [xlabel="Node"]; b; a -> b [xlabel="Edge"]; }'
+    zero = (
+        'digraph { a [xlabel="Node", xlabelangle=0]; b; '
+        'a -> b [xlabel="Edge", xlabelangle=0]; }'
+    )
+
+    assert dot("svg", source=base) == dot("svg", source=zero)
+    xdot = dot("xdot", source=zero)
+    assert "\tR " not in xdot
+    assert "xdotversion=1.7" in xdot
 
 
 def is_ndebug_defined() -> bool:
@@ -3421,7 +3439,10 @@ def test_xdot_json(tmp_path: Path):
     c_src = Path(__file__).parent / "xdot2json.c"
 
     # some valid xdot commands to process
-    input = "c 9 -#fffffe00 C 7 -#ffffff P 4 0 0 0 36 54 36 54 0"
+    input = (
+        "c 9 -#fffffe00 C 7 -#ffffff P 4 0 0 0 36 54 36 54 0 "
+        "R -45 T 1 2 0 10 4 -text"
+    )
 
     # ask our C helper to process this
     output, err = run_c(c_src, tmp_path, input=input, link=["xdot"])
@@ -3433,6 +3454,8 @@ def test_xdot_json(tmp_path: Path):
         {"c": "#fffffe00"},
         {"C": "#ffffff"},
         {"P": [0.0, 0.0, 0.0, 36.0, 54.0, 36.0, 54.0, 0.0]},
+        {"R": -45.0},
+        {"T": [1.0, 2.0, 0, 10.0, "text"]},
     ]
 
 

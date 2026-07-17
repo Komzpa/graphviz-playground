@@ -336,10 +336,24 @@ static void psgen_textspan(GVJ_t * job, pointf p, textspan_t * span)
         break;
     }
     p.y += span->yoffset_centerline;
+    if (span->angle != 0.0) {
+	const pointf anchor = {.x = p.x + (span->just == 'r' ? span->size.x :
+	                                    span->just == 'n' ? span->size.x / 2.0 : 0.0),
+	                       .y = p.y};
+	gvputs(job, "gsave ");
+	gvprintpointf(job, anchor);
+	gvputs(job, " translate ");
+	gvprintdouble(job, span->angle);
+	gvputs(job, " rotate ");
+	p.x -= anchor.x;
+	p.y -= anchor.y;
+    }
     gvprintpointf(job, p);
     gvputs(job, " moveto ");
     gvprintdouble(job, span->size.x);
     gvprintf(job, " %s alignedtext\n", str);
+	if (span->angle != 0.0)
+	gvputs(job, "grestore\n");
     free(str);
 }
 
