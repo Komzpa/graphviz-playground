@@ -1150,6 +1150,35 @@ def test_1514():
 
 
 @pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1525"
+)
+def test_1525():
+    """
+    rank=max should not change unrelated ranks outside its subgraph
+    https://gitlab.com/graphviz/graphviz/-/issues/1525
+    """
+
+    source = """
+        digraph {
+            A -> B
+            C -> D -> E
+            {rank=max F}
+        }
+    """
+
+    output = json.loads(dot("json", source=source))
+    objects = {o["name"]: o for o in output["objects"]}
+
+    y_a = float(objects["A"]["pos"].split(",")[1])
+    y_b = float(objects["B"]["pos"].split(",")[1])
+    y_c = float(objects["C"]["pos"].split(",")[1])
+    y_d = float(objects["D"]["pos"].split(",")[1])
+
+    assert y_a == y_c, "rank=max changed A’s rank outside the subgraph"
+    assert y_b == y_d, "rank=max changed B’s rank outside the subgraph"
+
+
+@pytest.mark.xfail(
     is_autotools() and is_rocky_10(),
     strict=False,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2807",
