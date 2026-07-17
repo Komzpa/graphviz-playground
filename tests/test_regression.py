@@ -6313,6 +6313,59 @@ def test_2734():
             gradient = this_gradient
 
 
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+def test_2740():
+    """
+    dot should use edge weight when minimizing crossings
+    https://gitlab.com/graphviz/graphviz/-/issues/2740
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2740.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    plain = run(which("dot_builtins"), "-Tplain", src)
+
+    # get the left-to-right order of both constrained ranks
+    node_x = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if len(fields) >= 4 and fields[0] == "node":
+            node_x[fields[1]] = float(fields[2])
+
+    top = {
+        name: i
+        for i, name in enumerate(sorted(("a0", "a1", "a2", "a3"), key=node_x.get))
+    }
+    bottom = {
+        name: i
+        for i, name in enumerate(sorted(("b0", "b1", "b2", "b3"), key=node_x.get))
+    }
+
+    # This graph has two one-crossing layouts. The bad layout crosses the
+    # two weight=1000 edges a2->b0 and a0->b3, for a weighted crossing cost of
+    # 1,000,000. The good layout crosses only a weight=1000 edge with a
+    # weight=1 edge, for a weighted crossing cost of 1,000.
+    edges = [
+        ("a2", "b0", 1000),
+        ("a2", "b3", 1),
+        ("a1", "b1", 1),
+        ("a3", "b2", 1),
+        ("a0", "b0", 1000),
+        ("a0", "b3", 1000),
+    ]
+    cost = 0
+    for i, (tail1, head1, weight1) in enumerate(edges):
+        for tail2, head2, weight2 in edges[i + 1 :]:
+            if tail1 == tail2 or head1 == head2:
+                continue
+            if (top[tail1] - top[tail2]) * (bottom[head1] - bottom[head2]) < 0:
+                cost += weight1 * weight2
+
+    assert cost == 1000
+
+
 def test_2743():
     """
     Graphviz should not crash when processing this graph
