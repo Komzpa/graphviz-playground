@@ -4235,6 +4235,39 @@ def test_2437():
 
 
 @pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2005"
+)
+def test_2005_middle_arrowheads():
+    """
+    edges should be able to render arrowheads in the middle of the spline
+    https://gitlab.com/graphviz/graphviz/-/issues/2005
+    """
+
+    source = """
+        digraph {
+          rankdir=LR;
+          a -> b [arrowhead=normal, midarrowhead=normal];
+        }
+    """
+
+    # translate this to SVG
+    svg = dot("svg", source=textwrap.dedent(source))
+
+    # load this as XML
+    root = ET.fromstring(svg)
+
+    edge_group = root.find(
+        ".//{http://www.w3.org/2000/svg}g[@class='edge']"
+    )
+    assert edge_group is not None, "missing edge output"
+
+    # A middle arrowhead would add at least one more arrow polygon beyond the
+    # normal terminal arrowhead.
+    polygons = edge_group.findall(".//{http://www.w3.org/2000/svg}polygon")
+    assert len(polygons) >= 2, "missing middle arrowhead polygon"
+
+
+@pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2416"
 )
 def test_2416():
