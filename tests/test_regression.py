@@ -2286,37 +2286,102 @@ def test_1990():
     run_raw(circo, "-Tsvg", "-o", os.devnull, input)
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1993"
-)
 def test_1993_label_word_wrap():
     """
     labels should support automatic word wrapping within a requested width
     https://gitlab.com/graphviz/graphviz/-/issues/1993
     """
 
-    source = """
+    base = """
         graph {
           n [
             shape=box,
-            width=1.2,
-            label="Graphviz should wrap generated labels automatically",
-            labelwrap=true,
+            fontname=Courier,
+            fontsize=10,
+            label="alpine birch cedar dogwood",
+            width=0,
             labelwrapwidth=1.0
           ];
         }
     """
+    source = textwrap.dedent(base)
+    svg = dot("svg", source=source)
+    xdot = dot("xdot", source=source)
+    plain = dot("plain", source=source).decode("utf-8")
 
-    svg = dot("svg", source=textwrap.dedent(source))
+    svg_root = ET.fromstring(svg)
+    svg_lines = [
+        text.text
+        for text in svg_root.iter("{http://www.w3.org/2000/svg}text")
+        if text.text
+    ]
+    # The logical lines, rather than the renderer's number of text elements,
+    # prove that automatic wrapping grouped words using measured glyph widths.
+    assert len(svg_lines) == 3
+    assert all(1 <= len(line.split()) <= 2 for line in svg_lines)
+    assert " T " in xdot and xdot.count(" T ") == len(svg_lines)
 
-    # The public request does not specify final attribute names. The provisional
-    # names above make the missing behavior testable: a future implementation
-    # should split the generated label into multiple rendered text lines instead
-    # of growing the node to fit one long line.
-    assert len(re.findall(r"<text\\b", svg)) >= 2, "label was not word-wrapped"
-    assert (
-        "Graphviz should wrap generated labels automatically" not in svg
-    ), "unwrapped label text was emitted as a single SVG text element"
+    node = next(line for line in plain.splitlines() if line.startswith("node "))
+    _, _, _, width, height, *_ = node.split()
+    assert float(width) <= 1.25
+    assert float(height) > 0.5
+
+    # A larger font changes the measured line layout, not a character-count
+    # threshold. Courier keeps this check independent of font discovery.
+    larger = dot("svg", source=source.replace("fontsize=10", "fontsize=20"))
+    larger_lines = [
+        text.text
+        for text in ET.fromstring(larger).iter("{http://www.w3.org/2000/svg}text")
+        if text.text
+    ]
+    assert len(larger_lines) > len(svg_lines)
+
+    # Explicit hard-line alignment is retained by every generated soft line.
+    aligned = dot(
+        "svg",
+        source='graph { n [shape=box, label="north west\\lcenter east\\nright south\\r", labelwrapwidth=0.8]; }',
+    )
+    anchors = [
+        text.attrib.get("text-anchor", "middle")
+        for text in ET.fromstring(aligned).iter("{http://www.w3.org/2000/svg}text")
+    ]
+    assert anchors.count("start") >= 1
+    assert anchors.count("end") >= 1
+    assert anchors.count("middle") >= 1
+
+    # An unbreakable word is preserved intact even if it exceeds the requested
+    # width; HTML labels and record labels remain byte-for-byte unaffected.
+    long_word = dot(
+        "svg", source='graph { n [label="electroencephalographically", labelwrapwidth=0.1]; }'
+    )
+    assert len(
+        [text for text in ET.fromstring(long_word).iter("{http://www.w3.org/2000/svg}text")]
+    ) == 1
+
+    def xdot_without_labelwrapwidth(output: str) -> str:
+        return re.sub(r"\n\s*labelwrapwidth=[^,\n]+,", "", output)
+
+    for label in ('<<TABLE><TR><TD>alpine birch cedar</TD></TR></TABLE>>', '"<a> alpine birch cedar"'):
+        plain_label = f"graph {{ n [shape={'record' if label.startswith(chr(34)) else 'box'}, label={label}]; }}"
+        wrapped_label = plain_label.replace("]; }", ", labelwrapwidth=0.1]; }")
+        for fmt in ("svg", "xdot", "plain"):
+            before = dot(fmt, source=plain_label)
+            after = dot(fmt, source=wrapped_label)
+            if fmt == "xdot":
+                after = xdot_without_labelwrapwidth(after)
+            assert before == after
+
+    # Missing, nonnumeric, and nonpositive values are no-ops. This mirrors the
+    # quiet fallback used by the existing numeric node attributes.
+    without_width = source.replace("labelwrapwidth=1.0", "")
+    for bad in ('labelwrapwidth="bogus"', "labelwrapwidth=0", "labelwrapwidth=-1"):
+        disabled = without_width.replace("width=0,", f"width=0, {bad},")
+        for fmt in ("svg", "xdot", "plain"):
+            before = dot(fmt, source=without_width)
+            after = dot(fmt, source=disabled)
+            if fmt == "xdot":
+                after = xdot_without_labelwrapwidth(after)
+            assert before == after
 
 
 @pytest.mark.skipif(

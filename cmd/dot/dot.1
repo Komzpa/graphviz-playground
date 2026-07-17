@@ -391,6 +391,11 @@ to be the same as the outline color.
 \fBxlabel=\fI"text"\fR specifies a label that will be place near, but outside,
 of a node. The normal \fBlabel\fP string is placed within the node shape.
 .PP
+\fBlabelwrapwidth=\fIinches\fR sets the maximum width of a plain node label
+before Graphviz wraps it at whitespace. A missing, nonnumeric or nonpositive
+value disables wrapping. HTML-like labels and record-shaped nodes are not
+wrapped, and unbreakable words are not hyphenated.
+.PP
 \fBtarget=\fI"target"\fR is a target string for client\(hyside imagemaps
 and SVG, effective when nodes have a URL.
 The target string is used to determine which window of the browser is used

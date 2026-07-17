@@ -1078,6 +1078,25 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="labelwrapwidth" type="xsd:decimal">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					Maximum width, in inches, for automatic word wrapping of a plain node
+					label. Graphviz converts the value to <html:a rel="note">points</html:a>
+					for text layout, breaks only at
+					whitespace and does not hyphenate words.
+				</html:p>
+				<html:p>
+					A missing, nonnumeric or nonpositive value disables wrapping, as do
+					HTML-like labels and record-shaped nodes. Invalid numeric values are
+					ignored without a diagnostic, consistently with other numeric node
+					attributes.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<xsd:attribute name="labelURL" type="xsd:anyURI">
 		<xsd:annotation>
@@ -2527,6 +2546,7 @@
 		<xsd:attribute ref="image" />
 		<xsd:attribute ref="imagescale" default="false" />
 		<xsd:attribute ref="label" default="\N" />
+		<xsd:attribute ref="labelwrapwidth" />
 		<xsd:attribute ref="layer" />
 		<xsd:attribute ref="margin" />
 		<xsd:attribute ref="nojustify" default="false" />

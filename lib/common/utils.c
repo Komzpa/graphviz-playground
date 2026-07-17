@@ -440,6 +440,13 @@ void common_init_node(node_t * n)
     fi.fontcolor = late_nnstring(n, N_fontcolor, DEFAULT_COLOR);
     ND_label(n) = make_label(n, str, aghtmlstr(str), shapeOf(n) == SH_RECORD,
 		fi.fontsize, fi.fontname, fi.fontcolor);
+    const double labelwrapwidth =
+        late_double(n, N_labelwrapwidth, 0.0, -DBL_MAX);
+    if (!ND_label(n)->html && shapeOf(n) != SH_RECORD &&
+        isfinite(labelwrapwidth) && labelwrapwidth > 0.0) {
+      wrap_label(GD_gvc(agraphof(n)), ND_label(n),
+                 labelwrapwidth * POINTS_PER_INCH);
+    }
     if (N_xlabel && (str = agxget(n, N_xlabel)) && str[0]) {
 	ND_xlabel(n) = make_label(n, str, aghtmlstr(str), false,
 				fi.fontsize, fi.fontname, fi.fontcolor);

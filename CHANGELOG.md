@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- Plain node labels can use `labelwrapwidth` to wrap at whitespace within a
+  positive width in inches. #1993
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
