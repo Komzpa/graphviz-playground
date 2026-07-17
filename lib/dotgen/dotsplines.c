@@ -315,7 +315,7 @@ static int dot_splines_(graph_t *g, int normalize) {
          * reflect the loops and associated labels. We restore
          * the original value here.
          */
-        if (ND_node_type(n) == NORMAL) {
+        if (ND_node_type(n) == NORMAL && et != EDGETYPE_CURVED) {
           SWAP(&ND_rw(n), &ND_mval(n));
         }
         for (int k = 0; (e = ND_other(n).list[k]); k++) {
