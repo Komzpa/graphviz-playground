@@ -535,6 +535,52 @@ static int parseSegs(const char *clrs, colorsegs_t *psegs) {
     return rval;
 }
 
+static bool isWedgeAnchorAttribute(const char *name) {
+    if (strncmp(name, "wedge", 5) != 0)
+        return false;
+
+    const char *suffix = name + 5;
+    const size_t digits = strspn(suffix, "0123456789");
+    if (digits == 0)
+        return false;
+    suffix += digits;
+
+    return streq(suffix, "href") || streq(suffix, "URL") ||
+           streq(suffix, "tooltip");
+}
+
+bool wedgedNodeHasAnchorMetadata(node_t *n) {
+    for (Agsym_t *attr = agnxtattr(agraphof(n), AGNODE, NULL); attr;
+         attr = agnxtattr(agraphof(n), AGNODE, attr)) {
+        if (isWedgeAnchorAttribute(attr->name) && agxget(n, attr)[0])
+            return true;
+    }
+    return false;
+}
+
+/* Dynamic wedgeN{tooltip,href,URL,target,id,class} node attributes are
+ * intentionally kept out of attributes.xml: N is an emitted wedge index, not
+ * a finite attribute name. Only renderers advertising this capability consume
+ * them; SVG and SVGZ share the SVG renderer. */
+static bool supportsWedgeMetadata(const GVJ_t *job) {
+    return (job->flags & GVRENDER_DOES_WEDGE_METADATA) != 0;
+}
+
+static char *wedgeAttribute(node_t *n, size_t index, const char *suffix) {
+    char name[64];
+    const int written =
+        snprintf(name, sizeof(name), "wedge%" PRISIZE_T "%s", index, suffix);
+    assert(written >= 0 && (size_t)written < sizeof(name));
+
+    char *value = agget(n, name);
+    return value && value[0] ? value : NULL;
+}
+
+static char *wedgeHref(node_t *n, size_t index) {
+    char *href = wedgeAttribute(n, index, "href");
+    return href ? href : wedgeAttribute(n, index, "URL");
+}
+
 #define THIN_LINE 0.5
 
 /* Fill an ellipse whose bounding box is given by 2 points in pf
@@ -561,10 +607,38 @@ int wedgedEllipse(GVJ_t *job, pointf *pf, const char *clrs) {
 	gvrender_set_penwidth(job, THIN_LINE);
 	
     angle0 = 0;
+    const bool metadata = supportsWedgeMetadata(job);
+    const bool wedge_anchors =
+        metadata && wedgedNodeHasAnchorMetadata(job->obj->u.n);
+    size_t wedge_index = 0;
     for (size_t i = 0; i < LIST_SIZE(&segs); ++i) {
 	const colorseg_t s = LIST_GET(&segs, i);
 	if (s.color == NULL) break;
 	if (s.t <= 0) continue;
+	const node_t *node = job->obj->u.n;
+	char *href = metadata ? wedgeHref((node_t *)node, wedge_index) : NULL;
+	char *tooltip = metadata
+	                    ? wedgeAttribute((node_t *)node, wedge_index, "tooltip")
+	                    : NULL;
+	char *target =
+	    metadata ? wedgeAttribute((node_t *)node, wedge_index, "target") : NULL;
+	char *id =
+	    metadata ? wedgeAttribute((node_t *)node, wedge_index, "id") : NULL;
+	char *class =
+	    metadata ? wedgeAttribute((node_t *)node, wedge_index, "class") : NULL;
+
+	/* Per-wedge anchors replace the node anchor. Missing values inherit the
+	 * node's normal navigation metadata, while id/class stay path-local. */
+	if (wedge_anchors) {
+	    href = href ? href : job->obj->url;
+	    tooltip = tooltip ? tooltip : job->obj->tooltip;
+	    target = target ? target : job->obj->target;
+	}
+	const bool do_anchor = wedge_anchors && (href || tooltip);
+	if (do_anchor)
+	    gvrender_begin_anchor(job, href, tooltip, target, NULL);
+	job->obj->primitive_id = id;
+	job->obj->primitive_class = class;
 	gvrender_set_fillcolor(job, s.color);
 
 	if (i + 1 == LIST_SIZE(&segs))
@@ -573,8 +647,13 @@ int wedgedEllipse(GVJ_t *job, pointf *pf, const char *clrs) {
 	    angle1 = angle0 + 2 * M_PI * s.t;
 	pp = ellipticWedge (ctr, semi.x, semi.y, angle0, angle1);
 	gvrender_beziercurve(job, pp->ps, pp->pn, 1);
+	job->obj->primitive_id = NULL;
+	job->obj->primitive_class = NULL;
+	if (do_anchor)
+	    gvrender_end_anchor(job);
 	angle0 = angle1;
 	freePath (pp);
+	++wedge_index;
     }
 
     if (save_penwidth > THIN_LINE)
@@ -4364,4 +4443,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

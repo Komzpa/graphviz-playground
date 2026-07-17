@@ -106,6 +106,7 @@ extern "C" {
 #define GVRENDER_NO_WHITE_BG (1<<25)
 #define LAYOUT_NOT_REQUIRED (1<<26)
 #define OUTPUT_NOT_REQUIRED (1<<27)
+#define GVRENDER_DOES_WEDGE_METADATA (1<<28)
 
     typedef struct {
 	int flags;
@@ -222,6 +223,11 @@ extern "C" {
 	char *labeltarget;
 	char *tailtarget;
 	char *headtarget; 
+
+	/* Metadata for one renderer primitive. These are borrowed while the
+	 * primitive is emitted and are currently consumed by the SVG renderer. */
+	const char *primitive_id;
+	const char *primitive_class;
 
 	unsigned explicit_tooltip:1;
 	unsigned explicit_tailtooltip:1;
