@@ -1079,7 +1079,7 @@
 		</xsd:annotation>
 	</xsd:attribute>
 
-	<xsd:attribute name="labelwrapwidth" type="xsd:decimal">
+	<xsd:attribute name="labelwrapwidth" type="xsd:double">
 		<xsd:annotation>
 			<xsd:documentation>
 				<html:p>
@@ -1089,10 +1089,10 @@
 					whitespace and does not hyphenate words.
 				</html:p>
 				<html:p>
-					A missing, nonnumeric or nonpositive value disables wrapping, as do
-					HTML-like labels and record-shaped nodes. Invalid numeric values are
-					ignored without a diagnostic, consistently with other numeric node
-					attributes.
+					The value must be one finite, positive decimal or scientific-notation
+					number, optionally surrounded by whitespace. A missing value disables
+					wrapping; an invalid value is ignored with a diagnostic. HTML-like labels
+					and record-shaped nodes are not wrapped.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>

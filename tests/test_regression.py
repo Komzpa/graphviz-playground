@@ -2371,17 +2371,57 @@ def test_1993_label_word_wrap():
                 after = xdot_without_labelwrapwidth(after)
             assert before == after
 
-    # Missing, nonnumeric, and nonpositive values are no-ops. This mirrors the
-    # quiet fallback used by the existing numeric node attributes.
+    # labelwrapwidth is deliberately stricter than late_double: the complete
+    # trimmed attribute must be one finite, positive number in inches.
     without_width = source.replace("labelwrapwidth=1.0", "")
-    for bad in ('labelwrapwidth="bogus"', "labelwrapwidth=0", "labelwrapwidth=-1"):
+    baseline = dot("svg", source=without_width)
+    diagnostics = set()
+    for value in ("1bogus", "1in", "NaN", "Inf", "junk", "0", "-1"):
+        bad = f'labelwrapwidth="{value}"'
         disabled = without_width.replace("width=0,", f"width=0, {bad},")
-        for fmt in ("svg", "xdot", "plain"):
+        proc = subprocess.run(
+            ["dot", "-Tsvg"], input=disabled, text=True, capture_output=True, check=True
+        )
+        assert proc.stdout == baseline
+        for fmt in ("xdot", "plain"):
             before = dot(fmt, source=without_width)
             after = dot(fmt, source=disabled)
             if fmt == "xdot":
                 after = xdot_without_labelwrapwidth(after)
             assert before == after
+        diagnostics.add(proc.stderr)
+    assert diagnostics == {
+        "Warning: labelwrapwidth must be a positive finite number in inches - ignored\n"
+    }
+
+    scientific = dot(
+        "svg", source=source.replace("labelwrapwidth=1.0", 'labelwrapwidth=" 1e0 "')
+    )
+    assert scientific == svg
+
+    # A soft wrap replaces one chosen ASCII whitespace byte. All other
+    # whitespace survives, including leading/trailing, repeated and tab text;
+    # SVG encodes repeated spaces as NBSP to preserve their rendering.
+    whitespace = dot(
+        "svg",
+        source='graph { n [fontname=Courier fontsize=10 shape=box width=0 label="  alpha  \t beta  " labelwrapwidth=0.5]; }',
+    )
+    whitespace_lines = [
+        text.text
+        for text in ET.fromstring(whitespace).iter("{http://www.w3.org/2000/svg}text")
+    ]
+    assert whitespace_lines == [" \u00a0alpha \u00a0\t", "beta \u00a0"]
+
+    # NBSP is not ASCII break whitespace, so Graphviz keeps it with the word.
+    nbsp = dot(
+        "svg",
+        source='graph { n [fontname=Courier fontsize=10 shape=box width=0 label="alpha&#160;beta gamma" labelwrapwidth=0.5]; }',
+    )
+    nbsp_lines = [
+        text.text
+        for text in ET.fromstring(nbsp).iter("{http://www.w3.org/2000/svg}text")
+    ]
+    assert nbsp_lines == ["alpha\u00a0beta", "gamma"]
 
 
 @pytest.mark.skipif(

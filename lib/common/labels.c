@@ -120,6 +120,7 @@ static void wrap_line(GVC_t *gvc, textlabel_t *lp, const char *line,
                       char terminator, double width) {
   agxbuf current = {0};
   const char *p = line;
+  bool current_has_text = false;
 
   while (*p) {
     const char *space = p;
@@ -129,28 +130,25 @@ static void wrap_line(GVC_t *gvc, textlabel_t *lp, const char *line,
     while (*p && !isspace((unsigned char)*p))
       ++p;
 
+    agxbput_n(&current, space, (size_t)(word - space));
     if (word == p)
       break;
 
-    if (agxblen(&current) == 0) {
-      agxbput_n(&current, word, (size_t)(p - word));
-      continue;
+    const size_t word_start = agxblen(&current);
+    agxbput_n(&current, word, (size_t)(p - word));
+    if (current_has_text && word_start > 0 && word != space &&
+        !text_fits(gvc, lp, agxbstart(&current), width)) {
+      /* Replace exactly the final whitespace byte before this word. This
+       * keeps all leading, trailing, repeated and tab whitespace intact.
+       */
+      char *text = agxbdisown(&current);
+      char *suffix = gv_strdup(text + word_start);
+      text[word_start - 1] = '\0';
+      storeline(gvc, lp, text, terminator);
+      agxbput(&current, suffix);
+      free(suffix);
     }
-
-    agxbuf candidate = {0};
-    agxbput_n(&candidate, agxbstart(&current), agxblen(&current));
-    agxbput_n(&candidate, space, (size_t)(word - space));
-    agxbput_n(&candidate, word, (size_t)(p - word));
-    char *candidate_text = agxbdisown(&candidate);
-
-    if (text_fits(gvc, lp, candidate_text, width)) {
-      agxbclear(&current);
-      agxbput(&current, candidate_text);
-    } else {
-      storeline(gvc, lp, agxbdisown(&current), terminator);
-      agxbput_n(&current, word, (size_t)(p - word));
-    }
-    free(candidate_text);
+    current_has_text = true;
   }
 
   if (agxblen(&current) == 0)

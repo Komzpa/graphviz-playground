@@ -16,6 +16,7 @@
 #include <common/geomprocs.h>
 #include <common/htmltable.h>
 #include <common/entities.h>
+#include <ctype.h>
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -66,6 +67,31 @@ double late_double(void *obj, attrsym_t *attr, double defaultValue,
     if (rv < minimum)
         return minimum;
     return rv;
+}
+
+static bool parse_labelwrapwidth(node_t *n, double *width) {
+    if (!N_labelwrapwidth)
+        return false;
+
+    char *value = agxget(n, N_labelwrapwidth);
+    if (!value || *value == '\0')
+        return false;
+
+    while (isspace((unsigned char)*value))
+        ++value;
+
+    char *end;
+    const double parsed = strtod(value, &end);
+    while (isspace((unsigned char)*end))
+        ++end;
+
+    if (value == end || *end != '\0' || !isfinite(parsed) || parsed <= 0.0) {
+        agwarningf("labelwrapwidth must be a positive finite number in inches - ignored\n");
+        return false;
+    }
+
+    *width = parsed;
+    return true;
 }
 
 /** Return value for PSinputscale. If this is > 0, it has been set on the
@@ -440,10 +466,9 @@ void common_init_node(node_t * n)
     fi.fontcolor = late_nnstring(n, N_fontcolor, DEFAULT_COLOR);
     ND_label(n) = make_label(n, str, aghtmlstr(str), shapeOf(n) == SH_RECORD,
 		fi.fontsize, fi.fontname, fi.fontcolor);
-    const double labelwrapwidth =
-        late_double(n, N_labelwrapwidth, 0.0, -DBL_MAX);
+    double labelwrapwidth;
     if (!ND_label(n)->html && shapeOf(n) != SH_RECORD &&
-        isfinite(labelwrapwidth) && labelwrapwidth > 0.0) {
+        parse_labelwrapwidth(n, &labelwrapwidth)) {
       wrap_label(GD_gvc(agraphof(n)), ND_label(n),
                  labelwrapwidth * POINTS_PER_INCH);
     }
