@@ -72,6 +72,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- Edge `shape=box` now draws an unfilled rectangle around the primary edge
+  label. #2380
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

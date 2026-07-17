@@ -4011,9 +4011,6 @@ def test_2377():
     assert svg1 == svg2, "3 letter hex colors were not translated correctly"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2380"
-)
 def test_2380():
     """
     edge labels should honor shape attributes
@@ -4041,11 +4038,64 @@ digraph state_diagram {
     ]
     assert label_text == ["This should", "be in a box"]
 
-    # the label draw stream should include a primitive for the requested shape
-    label_ops = {cmd.get("op") for cmd in edge.get("_ldraw_", [])}
-    assert label_ops & {"p", "P", "L", "b", "B", "e", "E"}, (
-        "edge label shape=box should draw a label-shape primitive, not only text"
+    # shape=box draws one unfilled rectangle behind the primary label
+    rectangles = [
+        cmd
+        for cmd in edge.get("_ldraw_", [])
+        if cmd.get("op") == "p" and len(cmd.get("points", [])) == 4
+    ]
+    assert len(rectangles) == 1
+    assert edge["_ldraw_"].index(rectangles[0]) < next(
+        i for i, cmd in enumerate(edge["_ldraw_"]) if cmd.get("op") == "T"
+    ), "label box should be drawn behind its text"
+    points = rectangles[0]["points"]
+    left = min(point[0] for point in points)
+    right = max(point[0] for point in points)
+    bottom = min(point[1] for point in points)
+    top = max(point[1] for point in points)
+    for text in (cmd for cmd in edge["_ldraw_"] if cmd.get("op") == "T"):
+        x, y = text["pt"]
+        if text["align"] == "l":
+            text_left, text_right = x, x + text["width"]
+        elif text["align"] == "c":
+            text_left = x - text["width"] / 2
+            text_right = x + text["width"] / 2
+        else:
+            assert text["align"] == "r"
+            text_left, text_right = x - text["width"], x
+        assert left <= text_left <= text_right <= right
+        assert bottom <= y <= top
+
+    # without shape, the same primary label remains plain text
+    unshaped = json.loads(dot("json", source=source.replace(", shape=box", "")))
+    assert not any(cmd.get("op") == "p" for cmd in unshaped["edges"][0]["_ldraw_"])
+
+    # unsupported edge shapes remain a no-op
+    unsupported = json.loads(
+        dot("json", source=source.replace("shape=box", "shape=ellipse"))
     )
+    assert not any(
+        cmd.get("op") in {"p", "P", "e", "E"}
+        for cmd in unsupported["edges"][0]["_ldraw_"]
+    )
+
+    # shape=box does not apply to xlabel, headlabel, or taillabel
+    auxiliary = json.loads(
+        dot(
+            "json",
+            source="""\
+digraph {
+  rankdir=LR
+  A [shape=plain]
+  B [shape=plain]
+  A -> B [shape=box, xlabel=<x>, headlabel=<head>, taillabel=<tail>]
+}
+""",
+        )
+    )
+    auxiliary_edge = auxiliary["edges"][0]
+    for draw_key in ("_ldraw_", "_hldraw_", "_tldraw_"):
+        assert not any(cmd.get("op") == "p" for cmd in auxiliary_edge[draw_key])
 
 
 def test_2390():
