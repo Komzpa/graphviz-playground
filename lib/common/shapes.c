@@ -2935,7 +2935,7 @@ static void poly_gencode(GVJ_t * job, node_t * n)
     const graphviz_polygon_style_t style = stylenode(job, n);
     int doMap = (obj->url || obj->explicit_tooltip) &&
         !(style.wedged && (job->flags & GVRENDER_DOES_WEDGE_METADATA) &&
-          wedgedNodeHasAnchorMetadata(n));
+          wedgedNodeHasAnchorMetadata(n, findFill(n)));
 
     if (doMap && !(job->flags & EMIT_CLUSTERS_LAST))
 	gvrender_begin_anchor(job,

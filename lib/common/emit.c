@@ -535,27 +535,66 @@ static int parseSegs(const char *clrs, colorsegs_t *psegs) {
     return rval;
 }
 
-static bool isWedgeAnchorAttribute(const char *name) {
+static bool wedgeAnchorAttributeIndex(const char *name, size_t *index) {
     if (strncmp(name, "wedge", 5) != 0)
         return false;
 
-    const char *suffix = name + 5;
-    const size_t digits = strspn(suffix, "0123456789");
-    if (digits == 0)
+    const char *p = name + 5;
+    if (*p < '0' || *p > '9')
         return false;
-    suffix += digits;
+    if (*p == '0' && p[1] >= '0' && p[1] <= '9')
+        return false;
 
-    return streq(suffix, "href") || streq(suffix, "URL") ||
-           streq(suffix, "tooltip") || streq(suffix, "target");
+    size_t value = 0;
+    do {
+        const size_t digit = (size_t)(*p - '0');
+        if (value > (SIZE_MAX - digit) / 10)
+            return false;
+        value = value * 10 + digit;
+        ++p;
+    } while (*p >= '0' && *p <= '9');
+
+    if (!(streq(p, "href") || streq(p, "URL") || streq(p, "tooltip") ||
+          streq(p, "target")))
+        return false;
+
+    *index = value;
+    return true;
 }
 
-bool wedgedNodeHasAnchorMetadata(node_t *n) {
+static size_t emittedWedgeCount(const colorsegs_t *segs) {
+    size_t count = 0;
+    for (size_t i = 0; i < LIST_SIZE(segs); ++i) {
+        const colorseg_t s = LIST_GET(segs, i);
+        if (s.color == NULL)
+            break;
+        if (s.t > 0)
+            ++count;
+    }
+    return count;
+}
+
+static bool nodeHasWedgeAnchorMetadata(node_t *n, size_t wedge_count) {
     for (Agsym_t *attr = agnxtattr(agraphof(n), AGNODE, NULL); attr;
          attr = agnxtattr(agraphof(n), AGNODE, attr)) {
-        if (isWedgeAnchorAttribute(attr->name) && agxget(n, attr)[0])
+        size_t index;
+        if (wedgeAnchorAttributeIndex(attr->name, &index) &&
+            index < wedge_count && agxget(n, attr)[0])
             return true;
     }
     return false;
+}
+
+bool wedgedNodeHasAnchorMetadata(node_t *n, const char *clrs) {
+    colorsegs_t segs;
+    const int rv = parseSegs(clrs, &segs);
+    if (rv == 1 || rv == 2)
+        return false;
+
+    const bool found =
+        nodeHasWedgeAnchorMetadata(n, emittedWedgeCount(&segs));
+    LIST_FREE(&segs);
+    return found;
 }
 
 /* Dynamic wedgeN{tooltip,href,URL,target,id,class} node attributes are
@@ -608,8 +647,9 @@ int wedgedEllipse(GVJ_t *job, pointf *pf, const char *clrs) {
 	
     angle0 = 0;
     const bool metadata = supportsWedgeMetadata(job);
-    const bool wedge_anchors =
-        metadata && wedgedNodeHasAnchorMetadata(job->obj->u.n);
+    const bool wedge_anchors = metadata && nodeHasWedgeAnchorMetadata(
+                                               job->obj->u.n,
+                                               emittedWedgeCount(&segs));
     size_t wedge_index = 0;
     for (size_t i = 0; i < LIST_SIZE(&segs); ++i) {
 	const colorseg_t s = LIST_GET(&segs, i);

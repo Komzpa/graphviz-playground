@@ -153,7 +153,7 @@ RENDER_API textlabel_t *make_label(void *obj, char *str, bool is_html,
     RENDER_API void textfont_dict_close(GVC_t *gvc);
     RENDER_API void translate_bb(Agraph_t *, int);
     RENDER_API int wedgedEllipse(GVJ_t *job, pointf *pf, const char *clrs);
-    RENDER_API bool wedgedNodeHasAnchorMetadata(node_t *n);
+    RENDER_API bool wedgedNodeHasAnchorMetadata(node_t *n, const char *clrs);
     RENDER_API void update_bb_bz(boxf *bb, pointf *cp);
     RENDER_API boxf xdotBB (graph_t* g);
 

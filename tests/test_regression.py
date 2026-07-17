@@ -318,6 +318,20 @@ def test_1312_wedged_node_metadata_defaults_and_negative_controls():
     assert len(plain_anchors) == 1
     assert len(plain_anchors[0].findall(f"{namespace}path")) == 3
 
+    # Metadata beyond the number of positive emitted wedges is inert. In
+    # particular it must not replace the one ordinary node anchor with a set
+    # of per-wedge anchors.
+    out_of_range = plain_wedge.replace(
+        'href="https://node.example/whole"];',
+        'href="https://node.example/whole", wedge9href="https://ignored", '
+        'wedge9tooltip="ignored", wedge9target="_blank", '
+        'wedge00tooltip="noncanonical", '
+        'wedge999999999999999999999999999999href="https://overflow"];',
+    )
+    assert dot("svg", source=textwrap.dedent(out_of_range)) == dot(
+        "svg", source=textwrap.dedent(plain_wedge)
+    )
+
     non_wedge = """
         graph {
           n [shape=circle, style=filled, label="", color=red,
