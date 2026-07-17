@@ -6327,6 +6327,40 @@ def test_2743():
     dot("dot", src)
 
 
+@pytest.mark.parametrize("testcase", ("2755.dot", "2763.dot"))
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+def test_2755_2763(testcase: str):
+    """
+    malformed clusters using `concentrate=true` should not crash in contain_nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/2755
+    https://gitlab.com/graphviz/graphviz/-/issues/2763
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / testcase
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    dot_builtins = which("dot_builtins")
+    proc = subprocess.run(
+        [dot_builtins, "-Tdot", "-o", os.devnull, src],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert proc.returncode == 1, "malformed input did not fail cleanly"
+    assert (
+        b"Error: rebuild_vlists: lead is null for rank 1" in proc.stderr
+    ), "expected rebuild_vlists diagnostic missing"
+    assert (
+        re.search(rb"\bAddressSanitizer: SEGV\b", proc.stderr) is None
+    ), "malformed input caused an invalid memory access"
+    assert (
+        re.search(rb"\bAddressSanitizer:DEADLYSIGNAL\b", proc.stderr) is None
+    ), "malformed input caused an AddressSanitizer deadly signal"
+    assert proc.returncode != -signal.SIGSEGV, "Graphviz segfaulted"
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",
