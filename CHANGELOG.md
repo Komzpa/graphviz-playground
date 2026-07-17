@@ -72,6 +72,12 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- SVG output can now opt into Inkscape connector metadata with the graph
+  attribute `svgconnector=true`. Edge paths reference their tail and head node
+  groups, allowing Inkscape to keep edges connected while nodes are moved.
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default

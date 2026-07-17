@@ -2304,6 +2304,19 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="svgconnector" type="xsd:boolean" default="false" gv:formats="svg">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					When true, SVG output includes Inkscape connector metadata on edge paths.
+					Each connector references the SVG IDs of its tail and head node groups,
+					so moving a node in Inkscape can keep the edge attached. The Inkscape
+					namespace and metadata are omitted by default.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<xsd:attribute name="target" type="escString">
 		<xsd:annotation>

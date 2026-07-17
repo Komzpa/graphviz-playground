@@ -2350,9 +2350,6 @@ def test_2078():
     ), "incorrect warning output"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2310"
-)
 def test_2310_svg_edges_expose_inkscape_connectors():
     """
     SVG edge output should expose node-to-node connector metadata.
@@ -2376,17 +2373,32 @@ def test_2310_svg_edges_expose_inkscape_connectors():
     assert edge_groups, "no SVG edge groups emitted"
 
     # GitLab #2310 asks for Inkscape-style diagram connectors so manually
-    # moving nodes in an SVG editor can keep edges attached. The graph
-    # attribute name above is provisional coverage-only syntax; the behavior
-    # under test is connector metadata with explicit start/end node links.
+    # moving nodes in an SVG editor can keep edges attached.
     ink = "{http://www.inkscape.org/namespaces/inkscape}"
-    assert any(
-        element.get(f"{ink}connector-type")
-        and element.get(f"{ink}connection-start")
-        and element.get(f"{ink}connection-end")
+    connector_paths = [
+        element
         for edge_group in edge_groups
         for element in edge_group.iter()
-    ), "SVG edge output does not expose Inkscape connector start/end links"
+        if element.get(f"{ink}connector-type")
+    ]
+    assert connector_paths, "SVG edge output does not expose Inkscape connectors"
+
+    emitted_ids = {
+        element.get("id")
+        for element in root.iter()
+        if element.get("id")
+    }
+    for connector in connector_paths:
+        assert connector.get(f"{ink}connector-type") == "polyline"
+        for endpoint in ("connection-start", "connection-end"):
+            reference = connector.get(f"{ink}{endpoint}")
+            assert reference and reference.startswith("#")
+            assert reference[1:] in emitted_ids
+
+    default_svg = dot(
+        "svg", source=textwrap.dedent(source).replace("svgconnector=true", "")
+    )
+    assert "inkscape:" not in default_svg
 
 
 def test_2082():
