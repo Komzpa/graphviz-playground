@@ -1138,18 +1138,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   double midx, midy, leftx, rightx;
   pointf del;
   edge_t *hvye = NULL;
-  static atomic_flag warned;
-
   tn = agtail(e0), hn = aghead(e0);
-  if (shapeOf(tn) == SH_RECORD || shapeOf(hn) == SH_RECORD) {
-    if (!atomic_flag_test_and_set(&warned)) {
-      agwarningf("flat edge between adjacent nodes one of which has a record "
-                 "shape - replace records with HTML-like labels\n");
-      agerr(AGPREV, "  Edge %s %s %s\n", agnameof(tn),
-            agisdirected(g) ? "->" : "--", agnameof(hn));
-    }
-    return 0;
-  }
   unsigned labels = 0;
   bool ports = false;
   for (unsigned i = 0; i < cnt; i++) {
@@ -1249,7 +1238,6 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   }
   for (unsigned i = 0; i < cnt; i++) {
     bezier *auxbz;
-    bezier *bz;
 
     e = edges[i];
     for (; ED_edge_type(e) != NORMAL; e = ED_to_orig(e))
@@ -1258,29 +1246,99 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     if ((auxe == hvye) & !ED_alg(auxe))
       continue; /* pseudo-edge */
     auxbz = ED_spl(auxe)->list;
-    bz = new_spline(e, auxbz->size);
-    bz->sflag = auxbz->sflag;
-    bz->sp = transformf(auxbz->sp, del, GD_flip(g));
-    bz->eflag = auxbz->eflag;
-    bz->ep = transformf(auxbz->ep, del, GD_flip(g));
-    for (size_t j = 0; j < auxbz->size;) {
-      pointf cp[4];
-      cp[0] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      if (j >= auxbz->size)
-        break;
-      cp[1] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[2] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[3] = transformf(auxbz->list[j], del, GD_flip(g));
-      update_bb_bz(&GD_bb(g), cp);
-    }
     if (ED_label(e)) {
       ED_label(e)->pos = transformf(ED_label(auxe)->pos, del, GD_flip(g));
       ED_label(e)->set = true;
       updateBB(g, ED_label(e));
     }
+    if (shapeOf(agtail(e)) != SH_RECORD && shapeOf(aghead(e)) != SH_RECORD) {
+      bezier *bz = new_spline(e, auxbz->size);
+      bz->sflag = auxbz->sflag;
+      bz->sp = transformf(auxbz->sp, del, GD_flip(g));
+      bz->eflag = auxbz->eflag;
+      bz->ep = transformf(auxbz->ep, del, GD_flip(g));
+      for (size_t j = 0; j < auxbz->size;) {
+        pointf cp[4];
+        cp[0] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
+        j++;
+        if (j >= auxbz->size)
+          break;
+        cp[1] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
+        j++;
+        cp[2] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
+        j++;
+        cp[3] = transformf(auxbz->list[j], del, GD_flip(g));
+        update_bb_bz(&GD_bb(g), cp);
+      }
+      continue;
+    }
+
+    /* The auxiliary graph routes around labels and separates parallel edges,
+     * but its rotated record fields are not the original port geometry.
+     * Re-anchor the routed middle at the original ports, then use the normal
+     * installer to clip the endpoint fields and arrows. */
+    node_t *start_node = agtail(e);
+    node_t *end_node = aghead(e);
+    port start_port = ED_tail_port(e);
+    port end_port = ED_head_port(e);
+    if (sinfo.swapEnds(e)) {
+      SWAP(&start_node, &end_node);
+      SWAP(&start_port, &end_port);
+    }
+    port start_route = start_port.dyna
+                           ? resolvePort(start_node, end_node, &start_port)
+                           : start_port;
+    port end_route =
+        end_port.dyna ? resolvePort(end_node, start_node, &end_port) : end_port;
+    if (et == EDGETYPE_LINE) {
+      pointf points[4];
+      points[0] = points[1] = add_pointf(ND_coord(start_node), start_port.p);
+      points[2] = points[3] = add_pointf(ND_coord(end_node), end_port.p);
+      clip_and_install(e, aghead(e), points, 4, &sinfo);
+      continue;
+    }
+
+    const size_t anchors = et == EDGETYPE_PLINE ? 12 : 6;
+    const size_t pointn = auxbz->size + anchors;
+    pointf *points = gv_calloc(pointn, sizeof(pointf));
+    points[0] = add_pointf(ND_coord(start_node), start_port.p);
+    pointf start_waypoint = add_pointf(ND_coord(start_node), start_route.p);
+    if (start_route.constrained) {
+      start_waypoint.x += GD_nodesep(g) * cos(start_route.theta);
+      start_waypoint.y += GD_nodesep(g) * sin(start_route.theta);
+    }
+    const pointf aux_start = transformf(auxbz->list[0], del, GD_flip(g));
+    size_t offset;
+    if (et == EDGETYPE_PLINE) {
+      points[1] = points[0];
+      points[2] = points[3] = points[4] = points[5] = start_waypoint;
+      points[5] = points[6] = aux_start;
+      offset = 6;
+    } else {
+      points[1] = start_waypoint;
+      points[2] = aux_start;
+      offset = 3;
+    }
+    for (size_t j = 0; j < auxbz->size; j++)
+      points[j + offset] = transformf(auxbz->list[j], del, GD_flip(g));
+    pointf end_waypoint = add_pointf(ND_coord(end_node), end_route.p);
+    if (end_route.constrained) {
+      end_waypoint.x += GD_nodesep(g) * cos(end_route.theta);
+      end_waypoint.y += GD_nodesep(g) * sin(end_route.theta);
+    }
+    if (et == EDGETYPE_PLINE) {
+      const pointf end = add_pointf(ND_coord(end_node), end_port.p);
+      points[pointn - 6] = points[pointn - 7];
+      points[pointn - 5] = points[pointn - 4] = points[pointn - 3] =
+          end_waypoint;
+      points[pointn - 2] = points[pointn - 1] = end;
+    } else {
+      points[pointn - 3] = points[pointn - 4];
+      points[pointn - 2] = end_waypoint;
+      points[pointn - 1] = add_pointf(ND_coord(end_node), end_port.p);
+    }
+    clip_and_install(e, aghead(e), points, pointn, &sinfo);
+    free(points);
   }
 
   cleanupCloneGraph(auxg, &attrs);
