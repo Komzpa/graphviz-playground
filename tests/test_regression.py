@@ -380,6 +380,81 @@ def test_218():
     assert warnings.strip() != "", "no warning issued for a font name containing space"
 
 
+@pytest.mark.xfail(
+    raises=AssertionError,
+    strict=True,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/226",
+)
+def test_226():
+    """
+    dot should route same-rank workflow back edges below the row instead of above it
+    https://gitlab.com/graphviz/graphviz/-/issues/226
+    """
+
+    source = """
+        digraph G {
+            rankdir=LR;
+            1682 -> 1682 [style=invis];
+            1686:e -> 6554:w;
+            6555:e -> 1698:w;
+            1682:e -> 1684:w;
+            1703:e -> 6555:w;
+            1693:e -> 6554:w;
+            1691:e -> 1693:w;
+            1696:e -> 6555:w;
+            1688:e -> 1689:w;
+            1701:e -> 1703:w;
+            1706:e -> 1683:w;
+            1690:e -> 1691:w;
+            1684:e -> 1686:w;
+            6554:e -> 1688:w;
+            1698:e -> 1700:w;
+            1704:e -> 1706:w;
+            1694:e -> 1696:w;
+            1698:e -> 1699:w;
+            1700:e -> 1701:w;
+            1688:e -> 1690:w;
+            1689:e -> 1694:w;
+            1699:e -> 1704:w;
+        }
+    """
+
+    # translate this to SVG
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+    ns = "{http://www.w3.org/2000/svg}"
+
+    # find the node row shared by the edge's endpoints
+    node_centers = {}
+    for group in root.findall(f".//{ns}g"):
+        title = group.find(f"{ns}title")
+        ellipse = group.find(f"{ns}ellipse")
+        if title is not None and ellipse is not None:
+            node_centers[title.text] = float(ellipse.get("cy"))
+
+    # locate the right-to-left workflow back edge from the reproducer
+    path = None
+    for group in root.findall(f".//{ns}g"):
+        title = group.find(f"{ns}title")
+        if title is None or title.text != "1703:e->6555:w":
+            continue
+        path = group.find(f"{ns}path")
+        break
+    assert path is not None, "could not find back-edge SVG path"
+
+    coordinates = [
+        float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", path.get("d"))
+    ]
+    y_coordinates = coordinates[1::2]
+
+    # In Graphviz's SVG output, smaller y coordinates are visually higher.
+    # The issue asks for this reflux edge to choose the downward route, so it
+    # should not rise above the row shared by its endpoints.
+    row_y = node_centers["1703"]
+    assert node_centers["6555"] == pytest.approx(row_y)
+    assert min(y_coordinates) >= row_y
+
+
 @pytest.mark.parametrize("test_case", ("241_0.dot", "241_1.dot"))
 def test_241(test_case: str):
     """
