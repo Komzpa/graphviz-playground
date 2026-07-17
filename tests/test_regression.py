@@ -58,6 +58,48 @@ from gvtest import (  # pylint: disable=wrong-import-position
 )
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/68"
+)
+def test_68_xlabels_can_be_oriented_for_dense_maps():
+    """
+    xlabels should be able to rotate according to their placement.
+    https://gitlab.com/graphviz/graphviz/-/issues/68
+    """
+
+    source = """
+        graph {
+          graph [xlabelorientation=auto];
+          node [shape=point, width=0.05, label=""];
+          a [xlabel="Central"];
+          b [xlabel="North East"];
+          c [xlabel="South West"];
+          a -- b;
+          a -- c;
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+
+    xlabels = [
+        text
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+        if "".join(text.itertext()) in {"Central", "North East", "South West"}
+    ]
+    assert xlabels, "node xlabels were not emitted"
+
+    # The public request asks for xlabels in dense subway-style maps to rotate
+    # according to their eight-way placement instead of always rendering
+    # horizontally. The graph attribute above is provisional coverage-only
+    # syntax; the behavior under test is at least one external label carrying a
+    # non-zero SVG rotation.
+    assert any(
+        re.search(r"\brotate\((?!0(?:[ .,\)]|$))", label.get("transform", ""))
+        for label in xlabels
+    ), "all xlabels were emitted horizontally"
+
+
 def is_ndebug_defined() -> bool:
     """
     are assertions disabled in the Graphviz build under test?
