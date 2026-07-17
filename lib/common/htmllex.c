@@ -914,7 +914,7 @@ static unsigned long htmllineno_ctx(htmllexstate_t *ctx) {
 #endif
 }
 
-#ifdef DEBUG
+#if defined(DEBUG) && DEBUG > 1
 static void printTok(htmllexstate_t *ctx, int tok) {
   char *s;
 
@@ -1103,7 +1103,7 @@ int htmllex(union HTMLSTYPE *htmllval, htmlscan_t *scanner) {
     if (endp)
       ctx->ptr = endp;
   } while (ctx->tok == 0);
-#ifdef DEBUG
+#if defined(DEBUG) && DEBUG > 1
   printTok(ctx, ctx->tok);
 #endif
   return ctx->tok;

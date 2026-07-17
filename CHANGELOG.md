@@ -88,6 +88,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- Ordinary DEBUG=1 graph rendering no longer emits HTML lexer token traces or
+  pathplan visibility dumps to stderr/stdout. #2837
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
