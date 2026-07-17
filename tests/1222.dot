@@ -1,0 +1,8 @@
+digraph {
+  subgraph "cluster_1" {
+    1;
+  }
+  subgraph "cluster_2" {
+    2
+  }
+}

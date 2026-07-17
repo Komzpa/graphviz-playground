@@ -129,6 +129,34 @@ def test_121():
     dot("pdf", input)
 
 
+@pytest.mark.skipif(
+    shutil.which("dot_builtins") is None, reason="dot_builtins not available"
+)
+def test_1222():
+    """
+    `newrank` and `packmode=graph` should not lose clusters
+    https://gitlab.com/graphviz/graphviz/-/issues/1222
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1222.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process it with the option combination reported by the issue title
+    dot_builtins = shutil.which("dot_builtins")
+    output = subprocess.check_output(
+        [dot_builtins, "-Gnewrank=true", "-Gpackmode=graph", "-Tdot", input],
+        text=True,
+    )
+
+    assert re.search(
+        r"\bsubgraph\s+cluster_1\s*\{[^}]*\b1\b", output, flags=re.DOTALL
+    ), "cluster_1 was lost"
+    assert re.search(
+        r"\bsubgraph\s+cluster_2\s*\{[^}]*\b2\b", output, flags=re.DOTALL
+    ), "cluster_2 was lost"
+
+
 def test_131():
     """
     PIC back end should produce valid output
