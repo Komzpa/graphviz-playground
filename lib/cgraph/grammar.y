@@ -84,6 +84,7 @@ typedef struct item_s {		/* generic list */
 	int				tag;	/* T_node, T_subgraph, T_edge, T_attr */
 	val_t			u;		/* primary element */
 	char			*str;	/* secondary value - port or attr value */
+	bool			duplicate_node;
 	struct item_s	*next;
 } item;
 
@@ -113,6 +114,7 @@ static void endgraph(aagscan_t scanner);
 static void endnode(aagscan_t scanner);
 static void endedge(aagscan_t scanner);
 static void freestack(aagscan_t scanner);
+static bool warn_duplicate_nodes(Agraph_t *g);
 static char* concat(aagscan_t scanner, char*, char*);
 static char* concatPort(Agraph_t *G, char*, char*);
 
@@ -237,6 +239,7 @@ static item *newitem(int tag, void *p0, char *p1)
 	rv->tag = tag;
 	rv->u.name = p0;
 	rv->str = p1;
+	rv->duplicate_node = false;
 	return rv;
 }
 
@@ -399,11 +402,14 @@ static void appendnode(aagscan_t scanner, char *name, char *port, char *sport)
 	aagextra_t 	*ctx = aagget_extra(scanner);
 	Agraph_t *G = ctx->G;
 	gstack_t *S = ctx->S;
+	Agnode_t *existing_node;
 
 	if (sport) {
 		port = concatPort (G, port, sport);
 	}
+	existing_node = agnode(S->g, name, 0);
 	elt = cons_node(agnode(S->g, name, 1), port);
+	elt->duplicate_node = existing_node != NULL;
 	listapp(&S->nodelist, elt);
 	agstrfree(G, name, false);
 }
@@ -421,12 +427,24 @@ static void endnode(aagscan_t scanner)
 	gstack_t *S = ctx->S;
 
 	bindattrs(ctx, AGNODE);
-	for (ptr = S->nodelist.first; ptr; ptr = ptr->next)
+	for (ptr = S->nodelist.first; ptr; ptr = ptr->next) {
+		if (ptr->duplicate_node && warn_duplicate_nodes(S->g)) {
+			agwarningf("duplicate node declaration for \"%s\"\n",
+			           agnameof(ptr->u.n));
+		}
 		applyattrs(ctx, ptr->u.n);
+	}
 	deletelist(G, &S->nodelist);
 	deletelist(G, &S->attrlist);
 	deletelist(G, &S->edgelist);
 	S->subg = 0;  /* notice a pattern here? :-( */
+}
+
+static bool warn_duplicate_nodes(Agraph_t *g)
+{
+	char *value = agget(g, "warnDuplicateNodes");
+	return value != NULL &&
+	       (streq(value, "true") || streq(value, "1") || streq(value, "yes"));
 }
 
 /* edges - store up node/subg lists until optional edge key can be seen */
@@ -652,4 +670,3 @@ Agraph_t *agconcat(Agraph_t *g, const char *filename, void *chan,
 Agraph_t *agread(void *fp, Agdisc_t *disc) {
   return agconcat(NULL, NULL, fp, disc);
 }
-

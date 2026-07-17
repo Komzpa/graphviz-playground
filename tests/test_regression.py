@@ -358,6 +358,46 @@ def test_191():
         assert p.returncode != 0, "syntax error was only a warning, not an error"
 
 
+def test_2048():
+    """
+    users should be able to opt into warnings about duplicate node declarations
+    https://gitlab.com/graphviz/graphviz/-/issues/2048
+    """
+
+    default_source = "digraph { a; a; a -> b; a -> b; }"
+    proc = subprocess.run(
+        ["dot", "-Tdot"],
+        input=default_source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+
+    assert "duplicate node declaration" not in proc.stderr
+
+    warning_source = (
+        "digraph {\n"
+        "  graph [warnDuplicateNodes=true]\n"
+        "  a;\n"
+        "  a;\n"
+        "  a -> b;\n"
+        "  a -> b;\n"
+        "}\n"
+    )
+    proc = subprocess.run(
+        ["dot", "-Tdot"],
+        input=warning_source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+
+    assert proc.stderr.count('duplicate node declaration for "a"') == 1
+    assert 'duplicate node declaration for "b"' not in proc.stderr
+
+
 def test_218():
     """
     out-of-spec font names should cause warnings in the core PS renderer
