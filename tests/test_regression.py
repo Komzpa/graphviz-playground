@@ -7775,6 +7775,35 @@ def test_mm2gv_cmplx():
     assert proc.returncode in (0, 1), "mm2gv crashed"
 
 
+@pytest.mark.xfail(strict=True, reason="CSS-like class defaults are not supported yet")
+def test_694_css_like_class_defaults():
+    """
+    CSS-like class default blocks should be parsed and applied.
+    https://gitlab.com/graphviz/graphviz/-/issues/694
+    """
+
+    output = dot(
+        "dot",
+        source=textwrap.dedent(
+            """
+            digraph new_feature_request {
+              node [shape=circle, color=black];
+              node.foo [shape=rectangle, color=red];
+              node.bar [shape=diamond, color=green];
+              node.foo.bar [shape=ellipse];
+              R [label="red rectangle", class=foo];
+              D [label="green diamond", class="bar"];
+              E [label="green ellipse", class="foo bar"];
+            }
+            """
+        ),
+    )
+
+    assert re.search(r"R\s+\[[^]]*color=red[^]]*shape=rectangle", output, re.S)
+    assert re.search(r"D\s+\[[^]]*color=green[^]]*shape=diamond", output, re.S)
+    assert re.search(r"E\s+\[[^]]*color=green[^]]*shape=ellipse", output, re.S)
+
+
 def test_negative_dpi():
     """can Graphviz deal with an illegal negative `dpi` value?"""
 
