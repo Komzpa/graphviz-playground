@@ -4781,6 +4781,37 @@ def test_2564():
         starts += [start]
 
 
+@pytest.mark.skipif(
+    shutil.which("dot_builtins") is None, reason="dot_builtins not available"
+)
+def test_2766():
+    """
+    malformed rank-set/cluster input with `concentrate=true` should not crash in
+    keepout_othernodes
+    https://gitlab.com/graphviz/graphviz/-/issues/2766
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2766.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process it with Graphviz. The input is malformed enough that a diagnostic
+    # failure is acceptable; the regression is the former ASan SEGV.
+    dot_builtins = shutil.which("dot_builtins")
+    proc = subprocess.run(
+        [dot_builtins, "-Kdot", "-Tdot", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+    )
+
+    assert proc.returncode in (0, 1), "dot crashed on malformed cluster input"
+    assert "rebuild_vlists" in proc.stderr
+    assert "AddressSanitizer" not in proc.stderr
+    assert "DEADLYSIGNAL" not in proc.stderr
+
+
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 @pytest.mark.skipif(
     platform.system() == "Windows",
