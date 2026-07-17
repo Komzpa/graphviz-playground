@@ -7789,3 +7789,53 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+def _issue_1716_plain_parallel_label_xs(output: Union[bytes, str]) -> list[float]:
+    if isinstance(output, bytes):
+        output = output.decode("utf-8")
+
+    xs = []
+    for line in output.splitlines():
+        fields = line.split()
+        if (
+            len(fields) >= 6
+            and fields[0] == "edge"
+            and fields[1] == "Op_0"
+            and fields[2] == "Op_1"
+            and fields[-4] == '"[1,10]"'
+        ):
+            xs.append(float(fields[-3]))
+    return xs
+
+
+@pytest.mark.xfail(strict=True, reason="parallel edges are not placed symmetrically yet")
+def test_1716_parallel_edges_between_same_nodes_are_symmetric():
+    """
+    Parallel edges between the same nodes should be distributed symmetrically.
+    https://gitlab.com/graphviz/graphviz/-/issues/1716
+    """
+
+    output = dot(
+        "plain",
+        source=textwrap.dedent(
+            """\
+            digraph NnModel {
+                graph [dpi=72, ordering=in];
+                node [height=0, label="\\N", shape=box, width=0];
+                Op_0 [height=0.398287, width=0.941492];
+                Op_1 [height=0.398287, width=2.10816];
+                Op_0 -> Op_1 [label="[1,10]"];
+                Op_0 -> Op_1 [label="[1,10]"];
+                Op_0 -> Op_1 [label="[1,10]"];
+                Dst_1 [height=0.398287, width=3.08038];
+                Op_1 -> Dst_1 [label="[3,10]"];
+                Src_2 [height=0.398287, width=1.02483];
+                Src_2 -> Op_0 [label="[3,10]"];
+            }
+            """
+        ),
+    )
+
+    xs = sorted(_issue_1716_plain_parallel_label_xs(output))
+
+    assert len(xs) == 3
+    assert math.isclose(xs[1] - xs[0], xs[2] - xs[1], rel_tol=0.02)
