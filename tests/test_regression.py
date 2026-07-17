@@ -2420,6 +2420,11 @@ def test_2310_svgconnector_schema_documents_graph_scope():
     svgconnector = schema_root.find("xsd:attribute[@name='svgconnector']", namespaces)
     assert svgconnector is not None, "svgconnector is missing from the schema"
     assert svgconnector.get("default") == "false"
+    graph = schema_root.find("xsd:complexType[@name='graph']", namespaces)
+    assert graph is not None, "graph component is missing from the schema"
+    svgconnector_refs = graph.findall("xsd:attribute[@ref='svgconnector']", namespaces)
+    assert len(svgconnector_refs) == 1, "svgconnector is not graph-only"
+    assert svgconnector_refs[0].get("default") == "false"
 
     generated = subprocess.run(
         [xsltproc, stylesheet, schema],
@@ -2444,7 +2449,9 @@ def test_2310_svgconnector_schema_documents_graph_scope():
             elif self.in_svgconnector and tag == "div":
                 self.div_depth += 1
             elif self.in_svgconnector and tag == "span":
-                self.span_class = set(attributes.get("class", "").split())
+                classes = set(attributes.get("class", "").split())
+                if "comp" in classes:
+                    self.span_class = classes
 
         def handle_data(self, data):
             if self.span_class is not None:
@@ -2461,9 +2468,13 @@ def test_2310_svgconnector_schema_documents_graph_scope():
     parser = ComponentParser()
     parser.feed(generated.stdout)
     components = parser.components
-    assert components["graph"] == {"comp"}
-    assert components["edge"] == {"comp", "missing"}
-    assert components["node"] == {"comp", "missing"}
+    assert components == {
+        "graph": {"comp"},
+        "edge": {"comp", "missing"},
+        "node": {"comp", "missing"},
+        "subgraph": {"comp", "missing"},
+        "cluster": {"comp", "missing"},
+    }
 
 
 def test_2082():
