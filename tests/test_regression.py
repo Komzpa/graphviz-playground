@@ -6121,6 +6121,35 @@ def test_2717():
     run(fdp, "-o", os.devnull, input)
 
 
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+def test_2718():
+    """
+    Edges should be routed from a node inside a cluster to the cluster itself
+    https://gitlab.com/graphviz/graphviz/-/issues/2718
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2718.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process it with Graphviz
+    dot_builtins = which("dot_builtins")
+    output = run(dot_builtins, "-Tjson", input)
+    data = json.loads(output)
+
+    # map IDs to names, including the synthetic node that represents clusterA
+    objects = {obj["_gvid"]: obj["name"] for obj in data["objects"]}
+
+    # both links in “a -> clusterA -> b” should be present and routed
+    edges = {
+        (objects[edge["tail"]], objects[edge["head"]]): edge
+        for edge in data["edges"]
+    }
+    for edge in (("a", "clusterA"), ("clusterA", "b")):
+        assert edge in edges, f"{edge[0]} -> {edge[1]} edge missing"
+        assert "pos" in edges[edge], f"{edge[0]} -> {edge[1]} edge not routed"
+
+
 @pytest.mark.skipif(which("osage") is None, reason="osage is not available")
 def test_2721():
     """

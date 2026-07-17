@@ -1,0 +1,10 @@
+digraph {
+  subgraph clusterA {
+    label = "clusterA";
+    a;
+  }
+
+  b;
+
+  a -> clusterA -> b;
+}
