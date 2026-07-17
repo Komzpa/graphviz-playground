@@ -1246,6 +1246,95 @@ def test_1585():
     assert c < d, "clustering altered nodes’ horizontal ordering"
 
 
+@pytest.mark.xfail(
+    raises=AssertionError,
+    strict=True,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/1569",
+)
+def test_1569():
+    """
+    nodes in a same-rank family row should keep their input order
+    https://gitlab.com/graphviz/graphviz/-/issues/1569
+    """
+
+    source = """
+        graph KingsReduced {
+          splines=true;
+          node [shape=point];
+          Eight -- Nine -- Ten -- Eleven -- Twelve -- Thirteen -- Fourteen;
+          node [style=filled, fontname=arial, fontsize=14];
+
+          subgraph { rank=same; Eight;
+            fHumfrey [shape=box, label="unnamed\\nman"];
+            Sorority [shape=box, label="Sorority sisters"];
+            Calliope [shape=box]; Euterpe [shape=box]; Melpomene [shape=box];
+            Terpsichore [shape=box]; Erato [shape=box]; Polyhymnia [shape=box];
+            Urania [shape=box]; Thalia [shape=box];
+          }
+          subgraph { rank=same; Nine;
+            cHum [label="Humboldt's and Humfrey's father"];
+            cMaid [label="Taiwan and China"];
+            cMuse [label="Child of Muse"];
+          }
+          subgraph { rank=same; Ten;
+            Dara [shape=box];
+            mDaHu [shape=point, label="Marriage of Dara and Humfrey"];
+            Humboldt [shape=box];
+            uHsis [shape=box, label="unnamed\\nwoman"];
+            mTaHu [shape=point, label="Marriage of Taiwan and Humfrey"];
+            Taiwan [shape=box, label="Maiden Taiwan"];
+            China [shape=box, label="Maiden China"];
+            Japan [shape=box, label="Maiden Japan"];
+            Mexico [shape=box, label="Maiden Mexico"];
+            uuMuse [shape=box, label="unnamed child\\nby unnamed Muse"];
+          }
+          subgraph { rank=same; Eleven;
+            Rose [shape=box]; mRoHu [shape=point]; Humfrey [shape=hexagon];
+            mSoHu2 [shape=point];
+          }
+          subgraph { rank=same; Thirteen;
+            cDaHu [label="Children of Dara and Humfrey"];
+            cJapa [label="Children of Maiden Japan"];
+          }
+          subgraph { rank=same; Fourteen;
+            Dafrey [shape=box]; Matt [shape=box]; Yukay [shape=box];
+          }
+
+          Dara -- mDaHu -- Humfrey;
+          Humfrey -- mTaHu -- Taiwan;
+          Rose -- mRoHu -- Humfrey;
+          Sorority -- { cMaid Japan Mexico };
+          fHumfrey -- cHum -- { Humboldt Humfrey uHsis };
+          cMaid -- { Taiwan China };
+          { Calliope Euterpe Melpomene Terpsichore Erato Polyhymnia Urania
+            Thalia } -- cMuse -- uuMuse [style=dotted];
+          mDaHu -- cDaHu -- { Dafrey Matt };
+          Japan -- cJapa -- Yukay;
+        }
+    """
+
+    plain = dot("plain", source=source).decode("utf-8")
+    node_x = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if fields[:1] == ["node"]:
+            node_x[fields[1]] = float(fields[2])
+
+    row = [
+        "Dara",
+        "mDaHu",
+        "Humboldt",
+        "uHsis",
+        "mTaHu",
+        "Taiwan",
+        "China",
+        "Japan",
+        "Mexico",
+        "uuMuse",
+    ]
+    assert all(node_x[a] <= node_x[b] for a, b in zip(row, row[1:]))
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_1594():
     """
