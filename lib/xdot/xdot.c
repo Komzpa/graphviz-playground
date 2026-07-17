@@ -829,9 +829,6 @@ int statXDot(xdot *x, xdot_stats *sp) {
     case xd_text:
       sp->n_text++;
       break;
-    case xd_text_rotation:
-      sp->n_text_rotation++;
-      break;
     case xd_image:
       sp->n_image++;
       break;

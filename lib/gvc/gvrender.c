@@ -423,9 +423,14 @@ void gvrender_textspan(GVJ_t * job, pointf p, textspan_t * span)
 	    PF = p;
 	else
 	    PF = gvrender_ptf(job, p);
-	if (gvre) {
-	    if (gvre->textspan)
-		gvre->textspan(job, PF, span);
+	if (gvre && gvre->textspan) {
+	    /* A renderer must opt in before it receives a rotated span. This keeps
+	     * xlabelangle=auto horizontal on legacy backends instead of silently
+	     * handing them a field they ignore. */
+	    textspan_t rendered = *span;
+	    if (!(job->flags & GVRENDER_DOES_TEXT_ROTATION))
+		rendered.angle = 0.0;
+	    gvre->textspan(job, PF, &rendered);
 	}
     }
 }

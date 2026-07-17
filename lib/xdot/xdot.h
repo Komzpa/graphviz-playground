@@ -189,7 +189,6 @@ typedef struct {
   size_t n_image;
   size_t n_gradcolor;
   size_t n_fontchar;
-  size_t n_text_rotation;
 } xdot_stats;
 
 /* ops are indexed by xop_kind */

@@ -509,6 +509,7 @@ static gvrender_engine_t psgen_engine = {
 
 static gvrender_features_t render_features_ps = {
     GVRENDER_DOES_TRANSFORM
+	| GVRENDER_DOES_TEXT_ROTATION
 	| GVRENDER_DOES_MAPS
 	| GVRENDER_NO_WHITE_BG
 	| GVRENDER_DOES_MAP_RECTANGLE,

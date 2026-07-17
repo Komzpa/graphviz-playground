@@ -513,7 +513,8 @@ static gvrender_engine_t cairogen_engine = {
 
 static gvrender_features_t render_features_cairo = {
     GVRENDER_Y_GOES_DOWN
-	| GVRENDER_DOES_TRANSFORM, /* flags */
+	| GVRENDER_DOES_TRANSFORM
+	| GVRENDER_DOES_TEXT_ROTATION, /* flags */
     4.,                         /* default pad - graph units */
     0,				/* knowncolors */
     0,				/* sizeof knowncolors */

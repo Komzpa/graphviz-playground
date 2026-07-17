@@ -562,7 +562,8 @@ static gvrender_engine_t gdgen_engine = {
 };
 
 static gvrender_features_t render_features_gd = {
-    GVRENDER_Y_GOES_DOWN,	/* flags */
+    GVRENDER_Y_GOES_DOWN
+	| GVRENDER_DOES_TEXT_ROTATION,	/* flags */
     4.,                         /* default pad - graph units */
     NULL,			/* knowncolors */
     0,				/* sizeof knowncolors */

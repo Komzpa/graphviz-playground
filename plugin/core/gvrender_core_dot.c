@@ -78,6 +78,7 @@ typedef struct {
     attrsym_t *tl_draw;
     unsigned short version;
     char* version_s;
+    bool fixed_version;
     double yOff; ///< ymin + ymax
 } xdot_state_t;
 static xdot_state_t* xd;
@@ -353,10 +354,12 @@ static void xdot_begin_graph(graph_t *g, bool s_arrows, bool e_arrows,
     if (id == FORMAT_XDOT14) {
 	xd->version = 14;
 	xd->version_s = "1.4";
+	xd->fixed_version = true;
     }
     else if (id == FORMAT_XDOT12) {
 	xd->version = 12;
 	xd->version_s = "1.2";
+	xd->fixed_version = true;
     }
     else if ((s = agget(g, "xdotversion")) && s[0] && ((us = versionStr2Version(s)) > 10)) {
 	xd->version = us;
@@ -535,9 +538,11 @@ static void xdot_textspan(GVJ_t * job, pointf p, textspan_t * span)
     }
 
     p.y += span->yoffset_centerline;
-    if (textangle[emit_state] != span->angle) {
+    if (!xd->fixed_version && textangle[emit_state] != span->angle) {
 	/* R is a text-rotation state introduced with xdot 1.8. Keep ordinary
-	 * xdot byte-for-byte compatible at 1.7 unless a rotated xlabel needs it. */
+	 * xdot byte-for-byte compatible at 1.7 unless a rotated xlabel needs it.
+	 * Explicit xdot1.2 and xdot1.4 requests cannot carry R, so they stay
+	 * horizontal rather than changing the requested language version. */
 	if (xd->version < 18) {
 	    xd->version = 18;
 	    xd->version_s = "1.8";
@@ -766,7 +771,8 @@ static gvrender_features_t render_features_xdot = {
     GVRENDER_DOES_TRANSFORM 	/* not really - uses raw graph coords */  
 	| GVRENDER_DOES_MAPS
 	| GVRENDER_DOES_TARGETS
-	| GVRENDER_DOES_TOOLTIPS, /* flags */
+	| GVRENDER_DOES_TOOLTIPS
+	| GVRENDER_DOES_TEXT_ROTATION, /* flags */
     0.,                         /* default pad - graph units */
     NULL,			/* knowncolors */
     0,				/* sizeof knowncolors */

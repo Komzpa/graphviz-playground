@@ -74,6 +74,7 @@ extern "C" {
  GVRENDER_DOES_TARGETS		can represent target info (open link in a new tab or window) 
  GVRENDER_DOES_Z		render support 2.5D representation -Tvrml 
  GVRENDER_NO_WHITE_BG		don't paint white background, assumes white paper -Tps 
+ GVRENDER_DOES_TEXT_ROTATION	renderer honours textspan_t::angle
  LAYOUT_NOT_REQUIRED 		don't perform layout -Tcanon 		
  OUTPUT_NOT_REQUIRED		don't use gvdevice for output (basically when agwrite() used instead) -Tcanon, -Txdot 
  */
@@ -104,6 +105,7 @@ extern "C" {
 #define GVRENDER_DOES_TARGETS (1<<23)
 #define GVRENDER_DOES_Z (1<<24)
 #define GVRENDER_NO_WHITE_BG (1<<25)
+#define GVRENDER_DOES_TEXT_ROTATION (1<<28)
 #define LAYOUT_NOT_REQUIRED (1<<26)
 #define OUTPUT_NOT_REQUIRED (1<<27)
 

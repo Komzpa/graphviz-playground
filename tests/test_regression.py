@@ -118,6 +118,49 @@ def test_68_xlabelangle_zero_preserves_horizontal_rendering():
     assert "xdotversion=1.7" in xdot
 
 
+@pytest.mark.parametrize(
+    ("format", "version"), (("xdot1.2", "1.2"), ("xdot1.4", "1.4"))
+)
+def test_68_xlabelangle_respects_explicit_xdot_version(format: str, version: str):
+    """Legacy xdot versions keep their requested grammar and horizontal text."""
+
+    source = '''
+        digraph {
+          node [shape=point, width=0.05, label=""];
+          a [xlabel="Node", xlabelangle=auto];
+          a -> b [xlabel="Edge", xlabelangle=auto];
+        }
+    '''
+
+    xdot = dot(format, source=textwrap.dedent(source))
+    assert f"xdotversion={version}" in xdot
+    assert re.search(r"\bR(?:\s|$)", xdot) is None
+
+
+def test_68_xlabelangle_downgrades_to_horizontal_on_pic():
+    """Renderers without text-rotation capability receive a horizontal span."""
+
+    source = '''
+        digraph {
+          node [shape=point, width=0.05, label=""];
+          a [xlabel="Node", xlabelangle=auto];
+          a -> b [xlabel="Edge", xlabelangle=auto];
+        }
+    '''
+
+    pic = dot("pic", source=textwrap.dedent(source))
+    assert re.search(r'"(?:Node|Edge)" at \(', pic)
+    assert "rotate" not in pic
+
+
+def test_xdot_stats_legacy_abi_canary(tmp_path: Path):
+    """An old xdot_stats caller must not be overwritten by statXDot."""
+
+    c_src = Path(__file__).parent / "xdot-stats-abi.c"
+    assert c_src.exists(), "missing legacy ABI canary"
+    run_c(c_src, tmp_path, link=["xdot"])
+
+
 def is_ndebug_defined() -> bool:
     """
     are assertions disabled in the Graphviz build under test?
