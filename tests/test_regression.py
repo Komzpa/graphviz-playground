@@ -617,6 +617,33 @@ def test_925():
     assert "ААА ААА ААА" in svg, "incorrect spacing in UTF-8 label"
 
 
+def test_936():
+    """
+    database nodes should render as first-class shapes
+    https://gitlab.com/graphviz/graphviz/-/issues/936
+    """
+
+    # run dot with a database-shaped node
+    dot_exe = which("dot_builtins") or which("dot")
+    assert dot_exe is not None, "dot is not available"
+    proc = subprocess.run(
+        [dot_exe, "-Tsvg"],
+        input='digraph { db [shape=database label="Database"]; }',
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        text=True,
+    )
+
+    assert "unknown shape database" not in proc.stderr
+
+    # a database shape is rendered like the existing cylinder shape: two curved
+    # paths rather than a rectangular box fallback.
+    root = ET.fromstring(proc.stdout)
+    paths = root.findall(".//{http://www.w3.org/2000/svg}path")
+    assert len(paths) == 2, "database shape was not rendered as a cylinder"
+
+
 @pytest.mark.parametrize("testcase", ("1213-1.dot", "1213-2.dot"))
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1213"
