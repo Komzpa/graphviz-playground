@@ -149,6 +149,17 @@ Alternative plugins providing support for a given output format
 can be found from the error message resulting from appending a ':' to the format. e.g. \fB\-Tpng:\fP
 The first plugin listed is always the default.
 .PP
+The core SVG renderer, used by the default \fB\-Tsvg\fP and
+\fB\-Tsvgz\fP variants in typical installations, emits structured SVG
+groups for graph objects and preserves object metadata such as \fBid\fP,
+\fBclass\fP, \fBURL\fP, and \fBcomment\fP attributes where the SVG format
+supports them.  Cairo-backed SVG output, selected explicitly as
+\fB\-Tsvg:cairo:cairo\fP on installations that provide it, is produced by
+Cairo's SVG surface.  It is useful when Cairo text and drawing behavior is
+desired, but it should be treated as flattened drawing output and does not
+promise the same per-node, per-edge, or per-cluster SVG grouping or metadata
+preservation as the core SVG renderer.
+.PP
 The \fB\-P\fP switch can be used to produce a graph of all output variants supported by plugins in the local installation of graphviz.
 .SH GRAPH FILE LANGUAGE
 Here is a synopsis of the graph file language, normally using the extension \fB.gv\fR, for graphs:
