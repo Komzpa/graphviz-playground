@@ -83,6 +83,11 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- On Windows, text rendered through Pango/Cairo is no longer clipped at the
+  top. #2685
+
 ## [15.1.0] – 2026-06-17
 
 ### Added

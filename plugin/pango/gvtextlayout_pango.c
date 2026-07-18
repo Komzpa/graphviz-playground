@@ -88,7 +88,12 @@ static bool pango_textlayout(textspan_t * span, char **fontpath)
 	cairo_font_options_t* options = cairo_font_options_create();
 	cairo_font_options_set_antialias(options,CAIRO_ANTIALIAS_GRAY);
 	cairo_font_options_set_hint_style(options,CAIRO_HINT_STYLE_FULL);
+#ifdef _WIN32
+	/* Explicitly enabling hinted metrics clips PangoWin32 glyph tops. */
+	cairo_font_options_set_hint_metrics(options,CAIRO_HINT_METRICS_OFF);
+#else
 	cairo_font_options_set_hint_metrics(options,CAIRO_HINT_METRICS_ON);
+#endif
 	cairo_font_options_set_subpixel_order(options,CAIRO_SUBPIXEL_ORDER_BGR);
 	pango_cairo_context_set_font_options(context, options);
 	pango_cairo_context_set_resolution(context, FONT_DPI);

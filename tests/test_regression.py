@@ -6020,6 +6020,7 @@ def test_2683():
     dot("dot", input)
 
 
+@pytest.mark.skipif(platform.system() != "Windows", reason="only relevant on Windows")
 def test_2685():
     """
     text in PNG output should not be clipped at the top
@@ -6042,18 +6043,23 @@ def test_2685():
         red, green, blue, alpha = image.getpixel((x, y))
         return alpha > 0 and red < 80 and green < 80 and blue < 80
 
-    # The reported Windows rendering clipped the top of the `B 20` label in the
-    # lower-left node. Check the upper half of that label has enough ink, rather
-    # than only verifying that the PNG file was produced.
-    left = int(width * 0.18)
-    right = int(width * 0.38)
+    # Isolate the `B 20` label in the lower-left node. The unbroken glyphs have
+    # a wide row of ink across their top; the reported Pango/Win32 rendering
+    # clipped that row completely.
+    left = int(width * 0.14)
+    right = int(width * 0.40)
     top = int(height * 0.70)
-    bottom = int(height * 0.79)
-    dark_pixels = sum(
-        1 for y in range(top, bottom) for x in range(left, right) if is_dark(x, y)
-    )
+    bottom = int(height * 0.80)
+    ink_by_row = [
+        sum(1 for x in range(left, right) if is_dark(x, y))
+        for y in range(top, bottom)
+    ]
+    ink_by_row = [ink for ink in ink_by_row if ink != 0]
 
-    assert dark_pixels > 50, "the upper part of the B 20 label was clipped"
+    assert len(ink_by_row) >= 2, "could not locate the B 20 label"
+    assert ink_by_row[0] - ink_by_row[1] >= 4, (
+        f"the upper part of the B 20 label was clipped: {ink_by_row[:2]}"
+    )
 
 
 @pytest.mark.skipif(shutil.which("ps2pdf") is None, reason="ps2pdf not available")
