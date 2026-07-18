@@ -516,8 +516,11 @@ void dot_layout(Agraph_t * g)
 	     * treats this field as the "layout completed" marker, so clear it
 	     * when dot layout fails.
 	     */
-	    free(GD_drawing(g));
+	    layout_t *drawing = GD_drawing(g);
+	    if (GD_drawing(agroot(g)) == drawing)
+		GD_drawing(agroot(g)) = NULL;
 	    GD_drawing(g) = NULL;
+	    free(drawing);
 	    return;
 	}
     }
