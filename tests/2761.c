@@ -13,12 +13,13 @@
 #include <stddef.h>
 
 static const char malformed_root[] =
-    "digraph{00[0=0]00[0=0]{subgraph cluster{{c}->A{Act000->4}Act004->0}}"
-    "{Act000->Act004[0=0]rank=same}pack=0}";
+    "digraph{id=\"owned\";00[0=0]00[0=0]{subgraph cluster{{c}->A"
+    "{Act000->4}Act004->0}}{Act000->Act004[0=0]rank=same}pack=0}";
 
 static const char malformed_subgraph[] =
-    "digraph root{subgraph target{00[0=0]00[0=0]{subgraph cluster{{c}->A"
-    "{Act000->4}Act004->0}}{Act000->Act004[0=0]rank=same}pack=0}}";
+    "digraph root{subgraph target{id=\"owned\";00[0=0]00[0=0]{subgraph "
+    "cluster{{c}->A{Act000->4}Act004->0}}{Act000->Act004[0=0]rank=same}"
+    "pack=0}}";
 
 static const char valid_root[] = "digraph{a->b}";
 
