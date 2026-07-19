@@ -87,6 +87,7 @@ enum {
   EDGE_ATTRIBUTE_FONT_COLOR = 1u << 21,
   EDGE_ATTRIBUTE_LABEL_FONT_COLOR = 1u << 22,
   EDGE_ATTRIBUTE_LABEL_FONTNAME = 1u << 23,
+  EDGE_ATTRIBUTE_COMPOUND_ONLY = 1u << 24,
 };
 
 typedef struct {
@@ -152,8 +153,8 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {"labeltarget", EDGE_ATTRIBUTE_TARGET_ALIAS},
         {"labeltooltip",
          EDGE_ATTRIBUTE_TOOLTIP_ALIAS | EDGE_ATTRIBUTE_SUBSTITUTED},
-        {"lhead", EDGE_ATTRIBUTE_ENDPOINT},
-        {"ltail", EDGE_ATTRIBUTE_ENDPOINT},
+        {"lhead", EDGE_ATTRIBUTE_ENDPOINT | EDGE_ATTRIBUTE_COMPOUND_ONLY},
+        {"ltail", EDGE_ATTRIBUTE_ENDPOINT | EDGE_ATTRIBUTE_COMPOUND_ONLY},
         {"minlen", EDGE_ATTRIBUTE_LAYOUT_ONLY},
         {"penwidth", EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE},
         {"samehead", EDGE_ATTRIBUTE_ENDPOINT},
@@ -341,6 +342,11 @@ static bool edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
   }
   if ((flags & EDGE_ATTRIBUTE_LABEL_COLOR) != 0 &&
       !edge_uses_label_color(root_graph, edge, attribute_name)) {
+    return false;
+  }
+  /* dotLayout() calls dot_compoundEdges() only for a truthy compound graph. */
+  if ((flags & EDGE_ATTRIBUTE_COMPOUND_ONLY) != 0 &&
+      !mapbool(agget(root_graph, "compound"))) {
     return false;
   }
   return true;

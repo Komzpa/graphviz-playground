@@ -5206,6 +5206,25 @@ def test_concentrate_matches_lhead_ltail_by_physical_endpoint(splines: str):
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_gates_cluster_endpoints_on_compound(splines: str):
+    """``dotLayout`` renders lhead/ltail only through ``dot_compoundEdges``."""
+
+    compound_off = _concentrated_graph(
+        splines,
+        "a",
+        "subgraph cluster_outer { subgraph cluster_inner { b } }",
+        "a -> b [lhead=cluster_inner]",
+        "b -> a [ltail=cluster_outer]",
+    )
+    assert len(_drawn_edges(compound_off)) == 1
+
+    compound_on = compound_off.replace(
+        "graph [concentrate=true", "graph [compound=true concentrate=true"
+    )
+    assert len(_drawn_edges(compound_on)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_compares_endpoint_label_substitutions(splines: str):
     """Endpoint labels compare after edge-name substitution."""
 
