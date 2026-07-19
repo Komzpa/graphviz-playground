@@ -5304,6 +5304,23 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     assert sum("_hdraw_" in edge for edge in edges) == 1
 
 
+def test_concentrate_edge_helpers_are_exported_to_windows_plugins():
+    """class2.c, conc.c, and ortho.c can import edge identity helpers."""
+
+    header = (Path(__file__).parent.parent / "lib/common/edgeattr.h").read_text(
+        encoding="utf-8"
+    )
+    assert "#define EDGEATTR_API __declspec(dllexport)" in header
+    assert "#define EDGEATTR_API __declspec(dllimport)" in header
+    for helper in (
+        "gv_edge_attributes_are_equal",
+        "gv_opposite_edge_attributes_are_equal",
+        "gv_edge_ports_are_equal",
+        "gv_opposite_edge_ports_are_equal",
+    ):
+        assert re.search(rf"EDGEATTR_API bool {helper}\s*\(", header)
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_preserves_distinct_edge_styles(splines: str):
     """Concentration preserves visibly distinct line styles."""
