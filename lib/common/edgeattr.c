@@ -75,6 +75,7 @@ typedef enum {
   ATTRIBUTE_RENDER_ANY_LABEL,
   ATTRIBUTE_RENDER_MAIN_LABEL,
   ATTRIBUTE_RENDER_PRIMARY_LABEL,
+  ATTRIBUTE_RENDER_PLAIN_PRIMARY_LABEL,
   ATTRIBUTE_RENDER_ENDPOINT_LABEL,
   ATTRIBUTE_RENDER_LAYOUT_ONLY,
   ATTRIBUTE_RENDER_ARROW_DECORATION,
@@ -166,6 +167,9 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {.name = "href", .alias_group = ATTRIBUTE_ALIAS_URL},
         {.name = "id", .substituted = true},
         {.name = "labelURL", .alias_group = ATTRIBUTE_ALIAS_URL},
+        {.name = "labelaligned",
+         .default_kind = ATTRIBUTE_DEFAULT_FALSE,
+         .render_scope = ATTRIBUTE_RENDER_PLAIN_PRIMARY_LABEL},
         /* place_portlabel() reads these only for headlabel/taillabel. */
         {.name = "labelangle",
          .default_kind = ATTRIBUTE_DEFAULT_LABEL_ANGLE,
@@ -393,6 +397,13 @@ static bool edge_attribute_is_rendered(
   if (classification->render_scope == ATTRIBUTE_RENDER_PRIMARY_LABEL &&
       named_attribute_value(root_graph, edge, "label").text[0] == '\0') {
     return false;
+  }
+  if (classification->render_scope == ATTRIBUTE_RENDER_PLAIN_PRIMARY_LABEL) {
+    const comparable_attribute_value_t label =
+        named_attribute_value(root_graph, edge, "label");
+    if (label.text[0] == '\0' || label.is_html) {
+      return false;
+    }
   }
   if (classification->render_scope == ATTRIBUTE_RENDER_ENDPOINT_LABEL &&
       !edge_has_endpoint_label(root_graph, edge)) {

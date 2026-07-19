@@ -4887,6 +4887,14 @@ def _assert_concentrated_edge_counts(
             ),
         ),
         _named_edge_count_cases(
+            "labelaligned-plain-primary-label-only",
+            _edge_count_case(
+                1,
+                "a -> b [labelaligned=true]",
+                "a -> b",
+            ),
+        ),
+        _named_edge_count_cases(
             "explicit-rendering-defaults",
             _edge_count_case(
                 4,
@@ -5116,6 +5124,19 @@ def test_concentrate_drawn_edge_counts(
                 2,
                 "a -> b [label=x decorate=false]",
                 "a -> b [label=x decorate=true]",
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "labelaligned-plain-primary-label",
+            "splines=ortho",
+            _edge_count_case(
+                4,
+                "a -> b [label=<x> labelaligned=true]",
+                "a -> b [label=<x>]",
+                "b -> c [label=x labelaligned=true]",
+                "b -> c [label=x]",
+                "c -> d [xlabel=x labelaligned=true]",
+                "c -> d [xlabel=x]",
             ),
         ),
         _fixed_edge_count_cases(
