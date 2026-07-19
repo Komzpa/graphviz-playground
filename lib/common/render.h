@@ -127,6 +127,7 @@ extern "C" {
     RENDER_API splines *getsplinepoints(edge_t * e);
     RENDER_API void gv_fixLocale (int set);
     RENDER_API void gv_free_splines(edge_t * e);
+    RENDER_API void gv_cleanup_concentrated_edge_arrows(Agedge_t *e);
     RENDER_API void gv_cleanup_edge(Agedge_t * e);
     RENDER_API void gv_cleanup_node(Agnode_t * n);
     RENDER_API void* init_xdot (Agraph_t* g);

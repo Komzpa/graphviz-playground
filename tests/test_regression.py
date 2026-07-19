@@ -5288,6 +5288,63 @@ def test_concentrate_preserves_reverse_arrow_after_no_arrow_duplicate(splines: s
     assert _arrow_polygon_point_count(drawn_edges[0], "t") == 3
 
 
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
+def test_concentrate_repeated_layout_discards_accumulated_arrows(tmp_path: Path):
+    """``gv_cleanup_edge`` drops the private arrow fold before a second layout."""
+
+    c_src = (Path(__file__).parent / "concentrate_repeat_layout.c").resolve()
+    core = _find_plugin_so("core")
+    dot_layout = _find_plugin_so("dot_layout")
+    if core is None or dot_layout is None:
+        # The focused developer-test shim points directly into a CMake tree,
+        # rather than an installed Graphviz prefix understood by _find_plugin_so().
+        build_root = which("dot").resolve().parents[2]
+        core = build_root / "plugin/core/libgvplugin_core.so"
+        dot_layout = build_root / "plugin/dot_layout/libgvplugin_dot_layout.so"
+        cgraph = build_root / "lib/cgraph/libcgraph.so"
+        gvc = build_root / "lib/gvc/libgvc.so"
+        for library in (core, dot_layout, cgraph, gvc):
+            assert library.exists(), f"missing build library {library}"
+        link = [cgraph, gvc, core, dot_layout]
+        library_directories = (
+            cgraph.parent,
+            gvc.parent,
+            core.parent,
+            dot_layout.parent,
+        )
+    else:
+        link = ["cgraph", "gvc", core, dot_layout]
+        library_directories = (core.parent, dot_layout.parent)
+
+    exe = tmp_path / "concentrate-repeat-layout"
+    source_lib = Path(__file__).parent.parent / "lib"
+    compile_c(
+        c_src,
+        cflags=[
+            f"-I{source_lib}",
+            f"-I{source_lib / 'cdt'}",
+            f"-I{source_lib / 'cgraph'}",
+            f"-I{source_lib / 'common'}",
+            f"-I{source_lib / 'gvc'}",
+            f"-I{source_lib / 'pathplan'}",
+        ],
+        link=link,
+        dst=exe,
+    )
+    env = os.environ.copy()
+    library_paths = os.pathsep.join(str(path) for path in library_directories)
+    loader_path = "DYLD_LIBRARY_PATH" if is_macos() else "LD_LIBRARY_PATH"
+    env[loader_path] = os.pathsep.join(
+        part for part in (library_paths, env.get(loader_path, "")) if part
+    )
+    result = subprocess.run(exe, capture_output=True, env=env, check=True, text=True)
+    rendered = json.loads(result.stdout)
+    assert len([edge for edge in rendered["edges"] if "_draw_" in edge]) == 1
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_same_direction_arrows_ignore_borrowed_reverse_arrows(
     splines: str,

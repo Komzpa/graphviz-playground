@@ -109,6 +109,10 @@ static arrow_decoration_t *concentrated_arrow_decoration_record(
   return record == NULL ? NULL : record->endpoints;
 }
 
+void gv_cleanup_concentrated_edge_arrows(Agedge_t *edge) {
+  agdelrec(edge, CONCENTRATED_ARROW_DECORATION_RECORD);
+}
+
 static char *effective_edge_arrow_fillcolor(Agedge_t *edge, bool *is_html) {
   Agraph_t *const root_graph = agroot(agraphof(edge));
   Agsym_t *const fillcolor_attribute =
