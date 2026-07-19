@@ -198,8 +198,17 @@ static void accumulated_edge_arrow_decorations(
   own_edge_arrow_decorations(edge, decorations);
 }
 
-static bool arrow_fillcolors_are_equal(const arrow_decoration_t *first,
-                                       const arrow_decoration_t *second) {
+static bool arrow_decorations_are_equal(const arrow_decoration_t *first,
+                                        const arrow_decoration_t *second) {
+  if (first->shape_flags != second->shape_flags) {
+    return false;
+  }
+  if (first->shape_flags == 0) {
+    return true;
+  }
+  if (first->arrowsize != second->arrowsize) {
+    return false;
+  }
   if (first->fillcolor == NULL || second->fillcolor == NULL) {
     return first->fillcolor == second->fillcolor;
   }
@@ -209,18 +218,6 @@ static bool arrow_fillcolors_are_equal(const arrow_decoration_t *first,
   }
   return first->fillcolor_is_html == second->fillcolor_is_html &&
          strcmp(first->fillcolor, second->fillcolor) == 0;
-}
-
-static bool arrow_decorations_are_equal(const arrow_decoration_t *first,
-                                        const arrow_decoration_t *second) {
-  if (first->shape_flags != second->shape_flags) {
-    return false;
-  }
-  if (first->shape_flags == 0) {
-    return true;
-  }
-  return first->arrowsize == second->arrowsize &&
-         arrow_fillcolors_are_equal(first, second);
 }
 
 static bool arrow_decorations_can_fold(const arrow_decoration_t *retained,

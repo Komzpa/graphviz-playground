@@ -243,15 +243,6 @@ static comparable_attribute_value_t plain_attribute_value(const char *text) {
 }
 
 static comparable_attribute_value_t
-declared_attribute_value(Agedge_t *edge, Agsym_t *attribute) {
-  const char *const text = agxget(edge, attribute);
-  return (comparable_attribute_value_t){
-      .text = text,
-      .is_html = aghtmlstr(text),
-  };
-}
-
-static comparable_attribute_value_t
 named_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
                       const char *attribute_name) {
   Agsym_t *const attribute = agfindedgeattr(root_graph, (char *)attribute_name);
@@ -259,7 +250,11 @@ named_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
     /* aghtmlstr() accepts Cgraph refstrings, not this empty literal. */
     return plain_attribute_value("");
   }
-  return declared_attribute_value(edge, attribute);
+  const char *const text = agxget(edge, attribute);
+  return (comparable_attribute_value_t){
+      .text = text,
+      .is_html = aghtmlstr(text),
+  };
 }
 
 static comparable_attribute_value_t
@@ -317,19 +312,10 @@ static bool edge_has_main_label(Agraph_t *root_graph, Agedge_t *edge) {
                                     ATTRIBUTE_COUNT(main_labels));
 }
 
-static bool edge_has_primary_label(Agraph_t *root_graph, Agedge_t *edge) {
-  return named_attribute_value(root_graph, edge, "label").text[0] != '\0';
-}
-
 static bool edge_has_endpoint_label(Agraph_t *root_graph, Agedge_t *edge) {
   static const char *const endpoint_labels[] = {"headlabel", "taillabel"};
   return edge_has_any_of_attributes(root_graph, edge, endpoint_labels,
                                     ATTRIBUTE_COUNT(endpoint_labels));
-}
-
-static bool edge_has_any_label(Agraph_t *root_graph, Agedge_t *edge) {
-  return edge_has_main_label(root_graph, edge) ||
-         edge_has_endpoint_label(root_graph, edge);
 }
 
 static bool edge_uses_label_color(Agraph_t *root_graph, Agedge_t *edge,
@@ -357,7 +343,8 @@ static bool edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
     return false;
   }
   if ((flags & EDGE_ATTRIBUTE_LABEL_ONLY) != 0 &&
-      !edge_has_any_label(root_graph, edge)) {
+      !edge_has_main_label(root_graph, edge) &&
+      !edge_has_endpoint_label(root_graph, edge)) {
     return false;
   }
   if ((flags & EDGE_ATTRIBUTE_MAIN_LABEL_ONLY) != 0 &&
@@ -365,7 +352,7 @@ static bool edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
     return false;
   }
   if ((flags & EDGE_ATTRIBUTE_PRIMARY_LABEL_ONLY) != 0 &&
-      !edge_has_primary_label(root_graph, edge)) {
+      named_attribute_value(root_graph, edge, "label").text[0] == '\0') {
     return false;
   }
   if ((flags & EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY) != 0 &&
@@ -407,17 +394,6 @@ edge_color_default_value(Agraph_t *root_graph, Agedge_t *edge,
   return plain_attribute_value(DEFAULT_COLOR);
 }
 
-static comparable_attribute_value_t
-edge_effective_color_value(Agraph_t *root_graph, Agedge_t *edge,
-                           const char *attribute_name,
-                           comparable_attribute_value_t value) {
-  if (edge_attribute_has_flag(attribute_name, EDGE_ATTRIBUTE_COLOR) &&
-      value.text[0] == '\0') {
-    return edge_color_default_value(root_graph, edge, attribute_name);
-  }
-  return value;
-}
-
 static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
                              gvcolor_t *color) {
   if (value.is_html || value.text[0] == '\0' ||
@@ -454,13 +430,6 @@ static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
   return true;
 }
 
-static bool edge_fontsize_value(Agraph_t *root_graph, Agedge_t *edge,
-                                double *number) {
-  return edge_numeric_attribute_value(
-      named_attribute_value(root_graph, edge, "fontsize"), DEFAULT_FONTSIZE,
-      MIN_FONTSIZE, number);
-}
-
 static bool edge_numeric_projected_value(Agraph_t *root_graph, Agedge_t *edge,
                                          const char *attribute_name,
                                          comparable_attribute_value_t value,
@@ -475,7 +444,9 @@ static bool edge_numeric_projected_value(Agraph_t *root_graph, Agedge_t *edge,
     default_value = DEFAULT_FONTSIZE;
     minimum = MIN_FONTSIZE;
   } else if ((flags & EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_FONT_SIZE) != 0) {
-    if (!edge_fontsize_value(root_graph, edge, &default_value)) {
+    if (!edge_numeric_attribute_value(
+            named_attribute_value(root_graph, edge, "fontsize"),
+            DEFAULT_FONTSIZE, MIN_FONTSIZE, &default_value)) {
       return false;
     }
     minimum = MIN_FONTSIZE;
@@ -501,11 +472,6 @@ edge_fontname_default_value(Agraph_t *root_graph, Agedge_t *edge,
   return plain_attribute_value(DEFAULT_FONTNAME);
 }
 
-static edge_endpoint_t endpoint_for_port_attribute(const char *attribute_name) {
-  return strcmp(attribute_name, "headport") == 0 ? EDGE_HEAD_ENDPOINT
-                                                 : EDGE_TAIL_ENDPOINT;
-}
-
 static port edge_endpoint_port(Agedge_t *edge, edge_endpoint_t endpoint) {
   return endpoint == EDGE_HEAD_ENDPOINT ? ED_head_port(edge)
                                         : ED_tail_port(edge);
@@ -521,8 +487,10 @@ static void append_projected_attribute_value(agxbuf *signature,
   const edge_attribute_flags_t flags = edge_attribute_flags(attribute_name);
 
   if ((flags & EDGE_ATTRIBUTE_PORT) != 0) {
-    const port resolved_port =
-        edge_endpoint_port(edge, endpoint_for_port_attribute(attribute_name));
+    const edge_endpoint_t endpoint = strcmp(attribute_name, "headport") == 0
+                                         ? EDGE_HEAD_ENDPOINT
+                                         : EDGE_TAIL_ENDPOINT;
+    const port resolved_port = edge_endpoint_port(edge, endpoint);
     if (resolved_port.defined) {
       agxbuf resolved_value = {0};
       agxbprint(&resolved_value, "%a,%a", resolved_port.p.x, resolved_port.p.y);
@@ -550,7 +518,9 @@ static void append_projected_attribute_value(agxbuf *signature,
   }
 
   if ((flags & EDGE_ATTRIBUTE_COLOR) != 0) {
-    value = edge_effective_color_value(root_graph, edge, attribute_name, value);
+    if (value.text[0] == '\0') {
+      value = edge_color_default_value(root_graph, edge, attribute_name);
+    }
     gvcolor_t color;
     if (edge_color_value(edge, value, &color)) {
       agxbuf rendered_color = {0};
@@ -982,11 +952,6 @@ project_rendered_edge_identity(Agedge_t *edge, bool reverse_orientation) {
   return (rendered_edge_identity_t){.text = agxbdisown(&signature)};
 }
 
-static void free_rendered_edge_identity(rendered_edge_identity_t *identity) {
-  free(identity->text);
-  identity->text = NULL;
-}
-
 static bool edge_rendered_identities_are_equal(Agedge_t *first_edge,
                                                Agedge_t *second_edge,
                                                bool reverse_second_edge) {
@@ -995,8 +960,8 @@ static bool edge_rendered_identities_are_equal(Agedge_t *first_edge,
   rendered_edge_identity_t second_identity =
       project_rendered_edge_identity(second_edge, reverse_second_edge);
   const bool equal = strcmp(first_identity.text, second_identity.text) == 0;
-  free_rendered_edge_identity(&first_identity);
-  free_rendered_edge_identity(&second_identity);
+  free(first_identity.text);
+  free(second_identity.text);
   return equal;
 }
 

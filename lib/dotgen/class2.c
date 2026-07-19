@@ -30,15 +30,6 @@
 #include <util/alloc.h>
 #include <util/gv_math.h>
 
-bool edge_attributes_are_equal(edge_t *first_edge, edge_t *second_edge) {
-  return gv_edge_attributes_are_equal(first_edge, second_edge);
-}
-
-bool opposite_edge_attributes_are_equal(edge_t *first_edge,
-                                        edge_t *second_edge) {
-  return gv_opposite_edge_attributes_are_equal(first_edge, second_edge);
-}
-
 static node_t *make_label_virtual_node(graph_t *graph, edge_t *original_edge) {
   const pointf label_dimensions = ED_label(original_edge)->dimen;
   node_t *const label_node = virtual_node(graph);
@@ -62,12 +53,6 @@ static void widen_virtual_node(graph_t *graph, node_t *virtual_node) {
   ND_rw(virtual_node) += half_node_separation;
 }
 
-static node_t *make_plain_virtual_node(graph_t *graph) {
-  node_t *const plain_node = virtual_node(graph);
-  widen_virtual_node(graph, plain_node);
-  return plain_node;
-}
-
 static node_t *rank_leader(node_t *node) {
   if (ND_ranktype(node) != CLUSTER) {
     return UF_find(node);
@@ -89,9 +74,12 @@ static void make_virtual_edge_chain(graph_t *graph, node_t *first_node,
   for (int rank = ND_rank(first_node) + 1; rank <= ND_rank(last_node); rank++) {
     node_t *chain_head;
     if (rank < ND_rank(last_node)) {
-      chain_head = rank == label_rank
-                       ? make_label_virtual_node(graph, original_edge)
-                       : make_plain_virtual_node(graph);
+      if (rank == label_rank) {
+        chain_head = make_label_virtual_node(graph, original_edge);
+      } else {
+        chain_head = virtual_node(graph);
+        widen_virtual_node(graph, chain_head);
+      }
       ND_rank(chain_head) = rank;
     } else {
       chain_head = last_node;
@@ -190,7 +178,7 @@ static edge_t *find_prior_concentrated_representative(graph_t *graph,
 
     if (same_endpoints && prior_edge_owns_chain && both_edges_are_unlabeled &&
         ports_eq(prior_edge, edge) &&
-        edge_attributes_are_equal(prior_edge, edge) &&
+        gv_edge_attributes_are_equal(prior_edge, edge) &&
         same_direction_edge_arrow_decorations_are_equal(prior_edge, edge)) {
       return prior_edge;
     }
@@ -231,7 +219,7 @@ static edge_t *find_prior_flat_concentrated_equivalent(graph_t *graph,
     if (same_endpoints && prior_edge_is_flat &&
         ED_edge_type(prior_edge) == NORMAL && ED_edge_type(edge) == NORMAL &&
         both_edges_are_unlabeled && ports_eq(prior_edge, edge) &&
-        edge_attributes_are_equal(prior_edge, edge) &&
+        gv_edge_attributes_are_equal(prior_edge, edge) &&
         same_direction_edge_arrow_decorations_are_equal(prior_edge, edge)) {
       return prior_edge;
     }
@@ -275,10 +263,6 @@ static bool route_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
   return true;
 }
 
-bool opposite_edge_ports_are_equal(edge_t *edge, edge_t *opposite_edge) {
-  return gv_opposite_edge_ports_are_equal(edge, opposite_edge);
-}
-
 /*
  * A backward edge can share the chain of a previously classified edge running
  * in the other direction. When concentration is enabled, the opposite edge
@@ -310,11 +294,12 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
     if (connects_same_nodes && !is_self_edge && is_available) {
       const bool compatible_endpoints = edge_has_no_labels(backward_edge) &&
                                         edge_has_no_labels(opposite_edge) &&
-                                        opposite_edge_ports_are_equal(
+                                        gv_opposite_edge_ports_are_equal(
                                             backward_edge, opposite_edge);
       if (compatible_endpoints) {
         if (Concentrate &&
-            opposite_edge_attributes_are_equal(backward_edge, opposite_edge) &&
+            gv_opposite_edge_attributes_are_equal(backward_edge,
+                                                  opposite_edge) &&
             opposite_direction_edge_arrow_decorations_are_mergeable(
                 opposite_edge, backward_edge)) {
           /*
@@ -380,8 +365,9 @@ static bool suppress_concentrated_cluster_edge_with_opposite(edge_t *edge) {
     const bool both_edges_are_unlabeled = edge_has_no_labels(opposite_edge);
 
     if (connects_same_nodes && is_available && owns_route &&
-        both_edges_are_unlabeled && opposite_edge_ports_are_equal(edge, opposite_edge) &&
-        opposite_edge_attributes_are_equal(edge, opposite_edge) &&
+        both_edges_are_unlabeled &&
+        gv_opposite_edge_ports_are_equal(edge, opposite_edge) &&
+        gv_opposite_edge_attributes_are_equal(edge, opposite_edge) &&
         opposite_direction_edge_arrow_decorations_are_mergeable(opposite_edge,
                                                                  edge)) {
       fold_concentrated_edge_arrow_decorations(opposite_edge, edge, true);

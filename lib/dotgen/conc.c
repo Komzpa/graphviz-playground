@@ -15,6 +15,7 @@
 
 #include "config.h"
 
+#include <common/edgeattr.h>
 #include	<dotgen/dot.h>
 #include	<stdbool.h>
 
@@ -35,7 +36,7 @@ static bool samedir(edge_t * e, edge_t * f)
 	return false;
     if (ED_conc_opp_flag(f0))
 	return false;
-    return edge_attributes_are_equal(e0, f0) &&
+    return gv_edge_attributes_are_equal(e0, f0) &&
            same_direction_edge_arrow_decorations_are_equal(e0, f0) &&
            ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
                 (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
@@ -244,14 +245,14 @@ static bool flat_edges_are_equivalent(edge_t *edge,
                               aghead(edge) == aghead(representative_edge);
   if (same_direction) {
     return ports_eq(edge, representative_edge) &&
-           edge_attributes_are_equal(edge, representative_edge) &&
+           gv_edge_attributes_are_equal(edge, representative_edge) &&
            same_direction_edge_arrow_decorations_are_equal(
                representative_edge, edge);
   }
 
   return edges_run_in_opposite_directions(edge, representative_edge) &&
-         opposite_edge_ports_are_equal(edge, representative_edge) &&
-         opposite_edge_attributes_are_equal(edge, representative_edge) &&
+         gv_opposite_edge_ports_are_equal(edge, representative_edge) &&
+         gv_opposite_edge_attributes_are_equal(edge, representative_edge) &&
          opposite_direction_edge_arrow_decorations_are_mergeable(
              representative_edge, edge);
 }
