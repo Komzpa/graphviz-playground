@@ -5131,7 +5131,7 @@ def test_concentrate_matches_tooltip_aliases(splines: str):
           b -> a [edgetooltip="\\T"]
         """,
     )
-    assert len(_drawn_edges(substituted_reverse_tooltips)) == 2
+    assert len(_drawn_edges(substituted_reverse_tooltips)) == 1
 
     substituted_endpoint_tooltips = _concentrated_graph(
         splines,
@@ -5140,7 +5140,7 @@ def test_concentrate_matches_tooltip_aliases(splines: str):
           b -> a [taillabel=x tailtooltip="\\T"]
         """,
     )
-    assert len(_drawn_edges(substituted_endpoint_tooltips)) == 2
+    assert len(_drawn_edges(substituted_endpoint_tooltips)) == 1
 
 
 def test_concentrate_gates_label_tooltips_on_rendered_labels():
@@ -5167,6 +5167,19 @@ def test_concentrate_matches_implicit_endpoint_label_tooltips():
         "b -> c [headlabel=x headURL=u headtooltip=y]",
     )
     assert len(_drawn_edges(endpoint_tooltips)) == 3
+
+
+def test_concentrate_preprocesses_explicit_tooltips():
+    """emit_begin_edge() applies preprocessTooltip() before substitution."""
+
+    tooltips = _concentrated_graph(
+        "",
+        'a -> b [tooltip="A&amp;B"]',
+        'a -> b [tooltip="A&B"]',
+        'b -> c [tooltip="A&amp;B"]',
+        'b -> c [tooltip="A&C"]',
+    )
+    assert len(_drawn_edges(tooltips)) == 3
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

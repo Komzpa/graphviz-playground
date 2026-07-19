@@ -42,6 +42,7 @@
 #include <common/colorprocs.h>
 #include <common/const.h>
 #include <common/edgeattr.h>
+#include <common/render.h>
 #include <common/utils.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -911,6 +912,7 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
           hyperlink_layer_names_for_kind(source_layer, kind, &names_size);
       comparable_attribute_value_t value = named_first_nonempty_attribute_value(
           root_graph, edge, names, names_size);
+      bool tooltip_uses_fallback = false;
       if (kind == HYPERLINK_VALUE_TOOLTIP && value.text[0] == '\0') {
         const comparable_attribute_value_t url =
             named_first_nonempty_attribute_value(
@@ -920,13 +922,21 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
           value = named_first_nonempty_attribute_value(
               root_graph, edge, source_layer->tooltip_fallback_names,
               source_layer->tooltip_fallback_names_size);
+          tooltip_uses_fallback = true;
         }
       }
 
       agxbuf slot_name = {0};
       agxbprint(&slot_name, "hyperlink:%s:%s", canonical_layer->name,
                 hyperlink_value_kind_name(kind));
-      if (value.is_html) {
+      if (kind == HYPERLINK_VALUE_TOOLTIP && !tooltip_uses_fallback) {
+        char *const preprocessed = preprocessTooltip((char *)value.text, edge);
+        char *const substituted = strdup_and_subst_obj(preprocessed, edge);
+        append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                    substituted);
+        free(substituted);
+        free(preprocessed);
+      } else if (value.is_html) {
         append_signature_slot(signature, agxbuse(&slot_name), value);
       } else {
         char *const substituted =

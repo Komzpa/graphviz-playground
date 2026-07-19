@@ -117,6 +117,7 @@ extern "C" {
     RENDER_API bool emit_once(char *message);
     RENDER_API void emit_once_reset(void);
     RENDER_API void emit_map_rect(GVJ_t *job, boxf b);
+    RENDER_API char *preprocessTooltip(char *s, void *gobj);
     RENDER_API void endpath(path *, Agedge_t *, int, pathend_t *, bool);
     RENDER_API void epsf_init(node_t * n);
     RENDER_API void epsf_free(node_t * n);

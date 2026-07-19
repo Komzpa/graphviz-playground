@@ -298,7 +298,7 @@ interpretCRNL (char* ins)
  * sequences into UTF8. This is already occurring when tooltips are input
  * via HTML-like tables.
  */ 
-static char*
+char*
 preprocessTooltip(char* s, void* gobj)
 {
     Agraph_t* g = agroot(gobj);
