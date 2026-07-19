@@ -4962,6 +4962,98 @@ def test_concentrate_ignores_unused_label_colors(splines: str):
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_ignores_decorate_for_endpoint_labels(splines: str):
+    """emit_end_edge() gives headlabel/taillabel no decorate attachment."""
+
+    endpoint_label_only = _concentrated_graph(
+        splines,
+        "a -> b [headlabel=x decorate=false]",
+        "a -> b [headlabel=x decorate=true]",
+    )
+    assert len(_drawn_edges(endpoint_label_only)) == 1
+
+
+def test_concentrate_preserves_decorate_for_main_labels():
+    """emit_end_edge() attaches decorate splines to label/xlabel."""
+
+    same_decorate = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [label=x decorate=false]",
+        "a -> b [label=x decorate=false]",
+    )
+    assert len(_drawn_edges(same_decorate)) == 1
+
+    main_label = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [label=x decorate=false]",
+        "a -> b [label=x decorate=true]",
+    )
+    assert len(_drawn_edges(main_label)) == 2
+
+
+@pytest.mark.parametrize(
+    ("attribute", "first_value", "second_value"),
+    (
+        ("labelangle", "10", "20"),
+        ("labeldistance", "1", "2"),
+        ("labelfontcolor", "red", "blue"),
+        ("labelfontname", "Helvetica", "Courier"),
+        ("labelfontsize", "10", "20"),
+    ),
+)
+def test_concentrate_gates_endpoint_label_attributes(
+    attribute: str, first_value: str, second_value: str
+):
+    """place_portlabel()/initFontLabelEdgeAttr() consume endpoint-label rows."""
+
+    main_label_only = _concentrated_graph(
+        "splines=ortho",
+        f"a -> b [xlabel=x {attribute}={first_value}]",
+        f"a -> b [xlabel=x {attribute}={second_value}]",
+    )
+    assert len(_drawn_edges(main_label_only)) == 1
+
+    same_endpoint_attribute = _concentrated_graph(
+        "splines=ortho",
+        f"a -> b [headlabel=x {attribute}={first_value}]",
+        f"a -> b [headlabel=x {attribute}={first_value}]",
+    )
+    assert len(_drawn_edges(same_endpoint_attribute)) == 1
+
+    endpoint_label = _concentrated_graph(
+        "splines=ortho",
+        f"a -> b [headlabel=x {attribute}={first_value}]",
+        f"a -> b [headlabel=x {attribute}={second_value}]",
+    )
+    assert len(_drawn_edges(endpoint_label)) == 2
+
+
+def test_concentrate_gates_labelfloat_on_primary_label():
+    """common_init_edge() reads labelfloat only while creating ED_label."""
+
+    external_label_only = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [xlabel=x labelfloat=false]",
+        "a -> b [xlabel=x labelfloat=true]",
+    )
+    assert len(_drawn_edges(external_label_only)) == 1
+
+    same_labelfloat = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [label=x labelfloat=false]",
+        "a -> b [label=x labelfloat=false]",
+    )
+    assert len(_drawn_edges(same_labelfloat)) == 1
+
+    primary_label = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [label=x labelfloat=false]",
+        "a -> b [label=x labelfloat=true]",
+    )
+    assert len(_drawn_edges(primary_label)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_resolved_port_spellings(splines: str):
     """Raw headport/tailport spelling does not override resolved ports."""
 

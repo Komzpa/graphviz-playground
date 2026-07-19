@@ -88,6 +88,9 @@ enum {
   EDGE_ATTRIBUTE_LABEL_FONT_COLOR = 1u << 22,
   EDGE_ATTRIBUTE_LABEL_FONTNAME = 1u << 23,
   EDGE_ATTRIBUTE_COMPOUND_ONLY = 1u << 24,
+  EDGE_ATTRIBUTE_MAIN_LABEL_ONLY = 1u << 25,
+  EDGE_ATTRIBUTE_PRIMARY_LABEL_ONLY = 1u << 26,
+  EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY = 1u << 27,
 };
 
 typedef struct {
@@ -112,8 +115,9 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {"arrowtail", EDGE_ATTRIBUTE_ARROW_DECORATION},
         {"color", EDGE_ATTRIBUTE_COLOR},
         {"constraint", EDGE_ATTRIBUTE_LAYOUT_ONLY},
+        /* emit_end_edge() attaches decorate splines only to label/xlabel. */
         {"decorate",
-         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE},
+         EDGE_ATTRIBUTE_MAIN_LABEL_ONLY | EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE},
         {"dir", EDGE_ATTRIBUTE_ARROW_DECORATION},
         {"edgeURL", EDGE_ATTRIBUTE_URL_ALIAS},
         {"edgehref", EDGE_ATTRIBUTE_URL_ALIAS},
@@ -137,17 +141,22 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {"href", EDGE_ATTRIBUTE_URL_ALIAS},
         {"id", EDGE_ATTRIBUTE_SUBSTITUTED},
         {"labelURL", EDGE_ATTRIBUTE_URL_ALIAS},
-        {"labelangle", EDGE_ATTRIBUTE_LABEL_ONLY |
+        /* place_portlabel() reads these only for headlabel/taillabel. */
+        {"labelangle", EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY |
                            EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_ANGLE},
-        {"labeldistance",
-         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE},
+        {"labeldistance", EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY |
+                              EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE},
+        /* common_init_edge() reads labelfloat only while creating ED_label. */
         {"labelfloat",
-         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE},
-        {"labelfontcolor",
-         EDGE_LABEL_COLOR_FLAGS | EDGE_ATTRIBUTE_LABEL_FONT_COLOR},
-        {"labelfontname", EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_FONTNAME |
+         EDGE_ATTRIBUTE_PRIMARY_LABEL_ONLY | EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE},
+        /* initFontLabelEdgeAttr() supplies only headlabel/taillabel fonts. */
+        {"labelfontcolor", EDGE_ATTRIBUTE_COLOR | EDGE_ATTRIBUTE_LABEL_COLOR |
+                               EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY |
+                               EDGE_ATTRIBUTE_LABEL_FONT_COLOR},
+        {"labelfontname", EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY |
+                              EDGE_ATTRIBUTE_FONTNAME |
                               EDGE_ATTRIBUTE_LABEL_FONTNAME},
-        {"labelfontsize", EDGE_ATTRIBUTE_LABEL_ONLY |
+        {"labelfontsize", EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY |
                               EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_FONT_SIZE},
         {"labelhref", EDGE_ATTRIBUTE_URL_ALIAS},
         {"labeltarget", EDGE_ATTRIBUTE_TARGET_ALIAS},
@@ -301,6 +310,10 @@ static bool edge_has_main_label(Agraph_t *root_graph, Agedge_t *edge) {
                                     ATTRIBUTE_COUNT(main_labels));
 }
 
+static bool edge_has_primary_label(Agraph_t *root_graph, Agedge_t *edge) {
+  return named_attribute_value(root_graph, edge, "label").text[0] != '\0';
+}
+
 static bool edge_has_endpoint_label(Agraph_t *root_graph, Agedge_t *edge) {
   static const char *const endpoint_labels[] = {"headlabel", "taillabel"};
   return edge_has_any_of_attributes(root_graph, edge, endpoint_labels,
@@ -338,6 +351,18 @@ static bool edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
   }
   if ((flags & EDGE_ATTRIBUTE_LABEL_ONLY) != 0 &&
       !edge_has_any_label(root_graph, edge)) {
+    return false;
+  }
+  if ((flags & EDGE_ATTRIBUTE_MAIN_LABEL_ONLY) != 0 &&
+      !edge_has_main_label(root_graph, edge)) {
+    return false;
+  }
+  if ((flags & EDGE_ATTRIBUTE_PRIMARY_LABEL_ONLY) != 0 &&
+      !edge_has_primary_label(root_graph, edge)) {
+    return false;
+  }
+  if ((flags & EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY) != 0 &&
+      !edge_has_endpoint_label(root_graph, edge)) {
     return false;
   }
   if ((flags & EDGE_ATTRIBUTE_LABEL_COLOR) != 0 &&
