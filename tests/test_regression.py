@@ -4724,15 +4724,37 @@ def _drawn_edges(source: str) -> list[dict]:
     return [edge for edge in layout["edges"] if "_draw_" in edge]
 
 
-def _drawn_edge_colors(source: str) -> list[str]:
-    """Read pen colors from xdot's ``c`` operations."""
+def _concentrated_graph(splines: str, *body: str) -> str:
+    """Wrap readable DOT statements in a concentrated directed graph."""
 
-    return [
-        operation["color"]
-        for edge in _drawn_edges(source)
-        for operation in edge["_draw_"]
-        if operation["op"] == "c"
-    ]
+    body_source = "\n".join(body)
+    return f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          {body_source}
+        }}
+    """
+
+
+def _drawn_edge_color(edge: dict) -> str:
+    """Read the pen color from an edge's xdot ``c`` operation."""
+
+    operation = next(
+        operation for operation in edge["_draw_"] if operation["op"] == "c"
+    )
+    return operation["color"]
+
+
+def _drawn_edge_colors(source: str) -> list[str]:
+    """Read each drawn edge's pen color."""
+
+    return [_drawn_edge_color(edge) for edge in _drawn_edges(source)]
+
+
+def _drawn_edges_by_color(source: str) -> dict[str, dict]:
+    """Group drawn edges by their xdot pen color."""
+
+    return {_drawn_edge_color(edge): edge for edge in _drawn_edges(source)}
 
 
 def _drawn_edge_styles(source: str) -> list[str]:
@@ -4763,79 +4785,88 @@ def _route_x_coordinates(edge: dict) -> tuple[float, ...]:
     return tuple(point[0] for point in bezier["points"])
 
 
+def _assert_distinct_drawn_edge_routes(source: str, expected_count: int) -> None:
+    """Assert the number of distinct visible routes in a graph."""
+
+    routes = {_route_x_coordinates(edge) for edge in _drawn_edges(source)}
+    assert len(routes) == expected_count
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_preserves_distinct_edge_attributes(splines: str):
-    """Concentration must not erase visible attribute differences."""
+def test_concentrate_preserves_distinct_edge_colors(splines: str):
+    """Concentration preserves the colors and routes of visibly distinct edges."""
 
-    distinct_colors = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=blue]
-        }}
-    """
-    distinct_color_edges = _drawn_edges(distinct_colors)
-    assert {
-        operation["color"]
-        for edge in distinct_color_edges
-        for operation in edge["_draw_"]
-        if operation["op"] == "c"
-    } == {"#ff0000", "#0000ff"}
-    assert len({_route_x_coordinates(edge) for edge in distinct_color_edges}) == 2
+    distinct_parallel_colors = _concentrated_graph(
+        splines,
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+    )
+    assert set(_drawn_edge_colors(distinct_parallel_colors)) == {
+        "#ff0000",
+        "#0000ff",
+    }
+    _assert_distinct_drawn_edge_routes(distinct_parallel_colors, 2)
 
-    opposite_colors = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          b -> a [color=blue]
-        }}
-    """
-    opposite_color_edges = _drawn_edges(opposite_colors)
-    assert {
-        operation["color"]
-        for edge in opposite_color_edges
-        for operation in edge["_draw_"]
-        if operation["op"] == "c"
-    } == {"#ff0000", "#0000ff"}
-    assert len({_route_x_coordinates(edge) for edge in opposite_color_edges}) == 2
+    distinct_opposite_colors = _concentrated_graph(
+        splines,
+        "a -> b [color=red]",
+        "b -> a [color=blue]",
+    )
+    assert set(_drawn_edge_colors(distinct_opposite_colors)) == {
+        "#ff0000",
+        "#0000ff",
+    }
+    _assert_distinct_drawn_edge_routes(distinct_opposite_colors, 2)
 
-    distinct_styles = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [style=dashed]
-          a -> b [style=dotted]
-        }}
-    """
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_distinct_edge_styles(splines: str):
+    """Concentration preserves visibly distinct line styles."""
+
+    distinct_styles = _concentrated_graph(
+        splines,
+        "a -> b [style=dashed]",
+        "a -> b [style=dotted]",
+    )
     assert set(_drawn_edge_styles(distinct_styles)) == {"dashed", "dotted"}
 
-    distinct_labels = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [label=first]
-          a -> b [label=second]
-        }}
-    """
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_distinct_edge_labels(splines: str):
+    """Concentration preserves visibly distinct edge labels."""
+
+    distinct_labels = _concentrated_graph(
+        splines,
+        "a -> b [label=first]",
+        "a -> b [label=second]",
+    )
     label_edges = json.loads(dot("json", source=distinct_labels))["edges"]
     assert {edge["label"] for edge in label_edges} == {"first", "second"}
 
-    distinct_label_colors = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [label=x fontcolor=red]
-          a -> b [label=x fontcolor=blue]
-          b -> c [headlabel=x labelfontcolor=red]
-          b -> c [headlabel=x labelfontcolor=blue]
-        }}
-    """
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_distinct_endpoint_label_colors(splines: str):
+    """Concentration preserves visible edge and endpoint label colors."""
+
+    distinct_label_colors = _concentrated_graph(
+        splines,
+        "a -> b [label=x fontcolor=red]",
+        "a -> b [label=x fontcolor=blue]",
+        "b -> c [headlabel=x labelfontcolor=red]",
+        "b -> c [headlabel=x labelfontcolor=blue]",
+    )
     assert len(_drawn_edges(distinct_label_colors)) == 4
 
-    distinct_directions = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [dir=forward]
-          a -> b [dir=both]
-        }}
-    """
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_distinct_edge_directions(splines: str):
+    """Concentration preserves visibly distinct arrow directions."""
+
+    distinct_directions = _concentrated_graph(
+        splines,
+        "a -> b [dir=forward]",
+        "a -> b [dir=both]",
+    )
     direction_edges = json.loads(dot("json", source=distinct_directions))["edges"]
     assert {
         (bool(edge.get("_tdraw_")), bool(edge.get("_hdraw_")))
@@ -4847,23 +4878,19 @@ def test_concentrate_preserves_distinct_edge_attributes(splines: str):
 def test_concentrate_merges_equivalent_parallel_edges(splines: str):
     """Equivalent edges share one route even when input order separates them."""
 
-    adjacent_equivalent_edges = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=red]
-        }}
-    """
+    adjacent_equivalent_edges = _concentrated_graph(
+        splines,
+        "a -> b [color=red]",
+        "a -> b [color=red]",
+    )
     assert _drawn_edge_colors(adjacent_equivalent_edges) == ["#ff0000"]
 
-    interleaved_equivalent_edges = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=blue]
-          a -> b [color=red]
-        }}
-    """
+    interleaved_equivalent_edges = _concentrated_graph(
+        splines,
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+        "a -> b [color=red]",
+    )
     assert sorted(_drawn_edge_colors(interleaved_equivalent_edges)) == [
         "#0000ff",
         "#ff0000",
@@ -4871,62 +4898,54 @@ def test_concentrate_merges_equivalent_parallel_edges(splines: str):
 
     # The invisible path forces a->b to run against rank order. This exercises
     # the backward-edge classifier, which must apply the same equivalence rule.
-    backward_interleaved_equivalent_edges = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          b -> c [style=invis]
-          c -> a [style=invis]
-          a -> b [constraint=false color=red]
-          a -> b [constraint=false color=blue]
-          a -> b [constraint=false color=red]
-        }}
-    """
+    backward_interleaved_equivalent_edges = _concentrated_graph(
+        splines,
+        "b -> c [style=invis]",
+        "c -> a [style=invis]",
+        "a -> b [constraint=false color=red]",
+        "a -> b [constraint=false color=blue]",
+        "a -> b [constraint=false color=red]",
+    )
     assert sorted(_drawn_edge_colors(backward_interleaved_equivalent_edges)) == [
         "#0000ff",
         "#ff0000",
     ]
 
-    explicit_default_arrows = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [arrowhead=normal]
-          a -> b
-          a -> b [arrowtail=vee]
-        }}
-    """
+    explicit_default_arrows = _concentrated_graph(
+        splines,
+        "a -> b [arrowhead=normal]",
+        "a -> b",
+        "a -> b [arrowtail=vee]",
+    )
     assert len(_drawn_edges(explicit_default_arrows)) == 1
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_equivalent_color_spellings(splines: str):
-    """Color values should compare by rendered color when both parse cleanly."""
+    """Color values compare by rendered color when both parse cleanly."""
 
-    equivalent_color_spellings = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color="#ff0000"]
-        }}
-    """
+    equivalent_color_spellings = _concentrated_graph(
+        splines,
+        "a -> b [color=red]",
+        'a -> b [color="#ff0000"]',
+    )
     assert _drawn_edge_colors(equivalent_color_spellings) == ["#ff0000"]
 
-    fillcolor_defaults_to_color = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red]
-          a -> b [color=red fillcolor=red]
-        }}
-    """
+    fillcolor_defaults_to_color = _concentrated_graph(
+        splines,
+        "a -> b [color=red]",
+        "a -> b [color=red fillcolor=red]",
+    )
     assert _drawn_edge_colors(fillcolor_defaults_to_color) == ["#ff0000"]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_ignores_unused_label_colors(splines: str):
-    """Label-only colors should not split unlabeled edge routes."""
+    """Label-only colors do not split unlabeled edge routes."""
 
-    unused_label_colors = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    unused_label_colors = _concentrated_graph(
+        splines,
+        """
           a -> b [fontcolor=red]
           a -> b [fontcolor=blue]
           b -> c [labelfontcolor=red]
@@ -4937,34 +4956,32 @@ def test_concentrate_ignores_unused_label_colors(splines: str):
                   labelfontname=Courier labeldistance=2 labelangle=30
                   decorate=true]
           d -> e
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(unused_label_colors)) == 4
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_resolved_port_spellings(splines: str):
-    """Raw headport/tailport spelling must not override resolved ports."""
+    """Raw headport/tailport spelling does not override resolved ports."""
 
-    equivalent_port_spellings = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          node [shape=record]
-          a [label="<p>p"]
-          a:p -> b [color=red]
-          a:p:c -> b [color=red]
-        }}
-    """
+    equivalent_port_spellings = _concentrated_graph(
+        splines,
+        "node [shape=record]",
+        'a [label="<p>p"]',
+        "a:p -> b [color=red]",
+        "a:p:c -> b [color=red]",
+    )
     assert len(_drawn_edges(equivalent_port_spellings)) == 1
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_explicit_rendering_defaults(splines: str):
-    """Explicit rendered defaults should not split equivalent routes."""
+    """Explicit rendered defaults do not split equivalent routes."""
 
-    explicit_edge_defaults = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    explicit_edge_defaults = _concentrated_graph(
+        splines,
+        """
           a -> b [style=solid penwidth=1 arrowsize=1]
           a -> b
           b -> c [labelfloat=false]
@@ -4973,40 +4990,38 @@ def test_concentrate_matches_explicit_rendering_defaults(splines: str):
           c -> d [dir=none]
           d -> e [dir=none fillcolor=red]
           d -> e [dir=none fillcolor=blue]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(explicit_edge_defaults)) == 4
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_tooltip_aliases(splines: str):
-    """tooltip and edgetooltip describe the same rendered edge tooltip."""
+    """Tooltip aliases concentrate only when their rendered values match."""
 
-    equivalent_tooltip_aliases = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [tooltip="tip"]
-          a -> b [edgetooltip="tip"]
-        }}
-    """
+    equivalent_tooltip_aliases = _concentrated_graph(
+        splines,
+        'a -> b [tooltip="tip"]',
+        'a -> b [edgetooltip="tip"]',
+    )
     assert len(_drawn_edges(equivalent_tooltip_aliases)) == 1
 
-    substituted_reverse_tooltips = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    substituted_reverse_tooltips = _concentrated_graph(
+        splines,
+        """
           a -> b [tooltip="\\T"]
           b -> a [edgetooltip="\\T"]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(substituted_reverse_tooltips)) == 2
 
-    substituted_endpoint_tooltips = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    substituted_endpoint_tooltips = _concentrated_graph(
+        splines,
+        """
           a -> b [headtooltip="\\T"]
           b -> a [tailtooltip="\\T"]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(substituted_endpoint_tooltips)) == 2
 
 
@@ -5014,93 +5029,77 @@ def test_concentrate_matches_tooltip_aliases(splines: str):
 def test_concentrate_same_rank_parallel_edges_find_prior_equivalent(splines: str):
     """Same-rank duplicates still concentrate when separated by distinct edges."""
 
-    separated_flat_duplicates = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          subgraph same_rank {{
-            rank=same
-            a
-            b
-          }}
-          a -> b [color=red]
-          a -> b [color=blue]
-          a -> b [color=red]
-          a -> b [color=blue]
-        }}
-    """
-    assert sorted(edge["color"] for edge in _drawn_edges(separated_flat_duplicates)) == [
-        "blue",
-        "red",
+    separated_flat_duplicates = _concentrated_graph(
+        splines,
+        "subgraph same_rank { rank=same; a; b }",
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+    )
+    assert sorted(_drawn_edge_colors(separated_flat_duplicates)) == [
+        "#0000ff",
+        "#ff0000",
     ]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_url_href_aliases(splines: str):
-    """Documented URL/href aliases should not split equivalent routes."""
+    """URL/href aliases concentrate only when rendered endpoint values match."""
 
-    same_direction_aliases = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [URL="u"]
-          a -> b [href="u"]
-          b -> c [edgeURL="u"]
-          b -> c [edgehref="u"]
-          c -> d [labelURL="u"]
-          c -> d [labelhref="u"]
-          d -> e [URL="u"]
-          d -> e [edgeURL="u"]
-        }}
-    """
+    same_direction_aliases = _concentrated_graph(
+        splines,
+        'a -> b [URL="u"]',
+        'a -> b [href="u"]',
+        'b -> c [edgeURL="u"]',
+        'b -> c [edgehref="u"]',
+        'c -> d [labelURL="u"]',
+        'c -> d [labelhref="u"]',
+        'd -> e [URL="u"]',
+        'd -> e [edgeURL="u"]',
+    )
     assert len(_drawn_edges(same_direction_aliases)) == 4
 
-    reverse_endpoint_aliases = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [headURL="u"]
-          b -> a [tailhref="u"]
-        }}
-    """
+    reverse_endpoint_aliases = _concentrated_graph(
+        splines,
+        'a -> b [headURL="u"]',
+        'b -> a [tailhref="u"]',
+    )
     assert len(_drawn_edges(reverse_endpoint_aliases)) == 1
 
-    substituted_reverse_endpoint_aliases = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    substituted_reverse_endpoint_aliases = _concentrated_graph(
+        splines,
+        """
           a -> b [headURL="\\T"]
           b -> a [tailhref="\\T"]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(substituted_reverse_endpoint_aliases)) == 2
 
-    same_grammar_endpoint_aliases = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [headURL="u"]
-          b -> a [headhref="u"]
-        }}
-    """
+    same_grammar_endpoint_aliases = _concentrated_graph(
+        splines,
+        'a -> b [headURL="u"]',
+        'b -> a [headhref="u"]',
+    )
     assert len(_drawn_edges(same_grammar_endpoint_aliases)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_target_fallbacks(splines: str):
-    """Map target defaults should compare by their rendered anchor target."""
+    """Map target defaults compare by their rendered anchor target."""
 
-    edge_target_fallback = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [URL=u target=t]
-          a -> b [URL=u edgetarget=t]
-        }}
-    """
+    edge_target_fallback = _concentrated_graph(
+        splines,
+        "a -> b [URL=u target=t]",
+        "a -> b [URL=u edgetarget=t]",
+    )
     assert len(_drawn_edges(edge_target_fallback)) == 1
 
-    head_target_fallback = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [headlabel=x headURL=u target=t]
-          a -> b [headlabel=x headURL=u headtarget=t]
-        }}
-    """
+    head_target_fallback = _concentrated_graph(
+        splines,
+        "a -> b [headlabel=x headURL=u target=t]",
+        "a -> b [headlabel=x headURL=u headtarget=t]",
+    )
     assert len(_drawn_edges(head_target_fallback)) == 1
 
 
@@ -5108,22 +5107,22 @@ def test_concentrate_matches_target_fallbacks(splines: str):
 def test_concentrate_matches_substituted_ids(splines: str):
     """Explicit IDs are substituted before they reach renderers."""
 
-    same_direction_id = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    same_direction_id = _concentrated_graph(
+        splines,
+        """
           a -> b [id="\\T"]
           a -> b [id="a"]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(same_direction_id)) == 1
 
-    reverse_id = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    reverse_id = _concentrated_graph(
+        splines,
+        """
           a -> b [id="\\T"]
           b -> a [id="\\T"]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(reverse_id)) == 2
 
 
@@ -5131,22 +5130,18 @@ def test_concentrate_matches_substituted_ids(splines: str):
 def test_concentrate_matches_label_font_fallbacks(splines: str):
     """Endpoint label font attributes inherit edge font attributes."""
 
-    endpoint_label_fontsize = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [headlabel=x fontsize=20]
-          a -> b [headlabel=x fontsize=20 labelfontsize=20]
-        }}
-    """
+    endpoint_label_fontsize = _concentrated_graph(
+        splines,
+        "a -> b [headlabel=x fontsize=20]",
+        "a -> b [headlabel=x fontsize=20 labelfontsize=20]",
+    )
     assert len(_drawn_edges(endpoint_label_fontsize)) == 1
 
-    endpoint_label_fontname = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [headlabel=x fontname=Courier]
-          a -> b [headlabel=x fontname=Courier labelfontname=Courier]
-        }}
-    """
+    endpoint_label_fontname = _concentrated_graph(
+        splines,
+        "a -> b [headlabel=x fontname=Courier]",
+        "a -> b [headlabel=x fontname=Courier labelfontname=Courier]",
+    )
     assert len(_drawn_edges(endpoint_label_fontname)) == 1
 
 
@@ -5154,22 +5149,18 @@ def test_concentrate_matches_label_font_fallbacks(splines: str):
 def test_concentrate_matches_samehead_sametail_by_physical_endpoint(splines: str):
     """samehead/sametail tags are owned by physical edge endpoints."""
 
-    same_physical_endpoint = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [samehead=x]
-          b -> a [sametail=x]
-        }}
-    """
+    same_physical_endpoint = _concentrated_graph(
+        splines,
+        "a -> b [samehead=x]",
+        "b -> a [sametail=x]",
+    )
     assert len(_drawn_edges(same_physical_endpoint)) == 1
 
-    same_grammar_endpoint = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [samehead=x]
-          b -> a [samehead=x]
-        }}
-    """
+    same_grammar_endpoint = _concentrated_graph(
+        splines,
+        "a -> b [samehead=x]",
+        "b -> a [samehead=x]",
+    )
     assert len(_drawn_edges(same_grammar_endpoint)) == 2
 
 
@@ -5177,100 +5168,93 @@ def test_concentrate_matches_samehead_sametail_by_physical_endpoint(splines: str
 def test_concentrate_matches_lhead_ltail_by_physical_endpoint(splines: str):
     """Compound cluster endpoints are owned by physical edge endpoints."""
 
-    same_physical_clusters = f"""
-        digraph {{
-          graph [compound=true concentrate=true {splines}]
-          subgraph cluster_a {{ a }}
-          subgraph cluster_b {{ b }}
-          a -> b [ltail=cluster_a lhead=cluster_b]
-          b -> a [ltail=cluster_b lhead=cluster_a]
-        }}
-    """
+    same_physical_clusters = _concentrated_graph(
+        splines,
+        "graph [compound=true]",
+        "subgraph cluster_a { a }",
+        "subgraph cluster_b { b }",
+        "a -> b [ltail=cluster_a lhead=cluster_b]",
+        "b -> a [ltail=cluster_b lhead=cluster_a]",
+    )
     assert len(_drawn_edges(same_physical_clusters)) == 1
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_compares_endpoint_label_substitutions(splines: str):
-    """Endpoint labels should compare after edge-name substitution."""
+    """Endpoint labels compare after edge-name substitution."""
 
-    same_rendered_endpoint_label = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    same_rendered_endpoint_label = _concentrated_graph(
+        splines,
+        """
           a -> b [headlabel="\\H"]
           b -> a [taillabel="\\T"]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(same_rendered_endpoint_label)) == 1
 
-    different_rendered_endpoint_label = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
+    different_rendered_endpoint_label = _concentrated_graph(
+        splines,
+        """
           a -> b [headlabel="\\T"]
           b -> a [taillabel="\\T"]
-        }}
-    """
+        """,
+    )
     assert len(_drawn_edges(different_rendered_endpoint_label)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_backward_edges_find_prior_equivalent(splines: str):
-    """Backward edges should still suppress earlier same-direction duplicates."""
+    """Backward edges still suppress earlier same-direction duplicates."""
 
-    separated_backward_duplicates = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          b
-          a -> b [color=blue]
-          b -> a [constraint=false color=red]
-          b -> a [constraint=false color=red]
-        }}
-    """
-    assert sorted(edge["color"] for edge in _drawn_edges(separated_backward_duplicates)) == [
-        "blue",
-        "red",
+    separated_backward_duplicates = _concentrated_graph(
+        splines,
+        "b",
+        "a -> b [color=blue]",
+        "b -> a [constraint=false color=red]",
+        "b -> a [constraint=false color=red]",
+    )
+    assert sorted(_drawn_edge_colors(separated_backward_duplicates)) == [
+        "#0000ff",
+        "#ff0000",
     ]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_reverse_edge_arrow_shapes(splines: str):
-    """Each retained edge must borrow arrows from its exact reverse mate."""
+    """Each retained edge borrows arrows from its exact reverse mate."""
 
-    opposite_equivalent_pairs = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red arrowhead=normal]
-          a -> b [color=blue arrowhead=vee]
-          b -> a [color=red arrowhead=normal]
-          b -> a [color=blue arrowhead=vee]
-        }}
-    """
-    drawn_concentrated_edges = _drawn_edges(opposite_equivalent_pairs)
+    opposite_equivalent_pairs = _concentrated_graph(
+        splines,
+        "a -> b [color=red arrowhead=normal]",
+        "a -> b [color=blue arrowhead=vee]",
+        "b -> a [color=red arrowhead=normal]",
+        "b -> a [color=blue arrowhead=vee]",
+    )
+    drawn_edges_by_color = _drawn_edges_by_color(opposite_equivalent_pairs)
     # JSON names the head and tail arrow streams `_hdraw_` and `_tdraw_`.
     head_endpoint = "h"
     tail_endpoint = "t"
     actual_arrow_polygon_points = {
-        edge["color"]: (
+        color: (
             _arrow_polygon_point_count(edge, head_endpoint),
             _arrow_polygon_point_count(edge, tail_endpoint),
         )
-        for edge in drawn_concentrated_edges
+        for color, edge in drawn_edges_by_color.items()
     }
-    expected_arrow_polygon_points = {"red": (3, 3), "blue": (8, 8)}
+    expected_arrow_polygon_points = {"#ff0000": (3, 3), "#0000ff": (8, 8)}
     assert actual_arrow_polygon_points == expected_arrow_polygon_points
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_preserves_reverse_arrow_after_no_arrow_duplicate(splines: str):
-    """A later reverse duplicate without arrows must not erase saved arrows."""
+    """A later reverse duplicate without arrows does not erase saved arrows."""
 
-    reverse_arrow_then_no_arrow = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [dir=none]
-          b -> a [arrowhead=normal]
-          b -> a [dir=none]
-        }}
-    """
+    reverse_arrow_then_no_arrow = _concentrated_graph(
+        splines,
+        "a -> b [dir=none]",
+        "b -> a [arrowhead=normal]",
+        "b -> a [dir=none]",
+    )
     drawn_edges = _drawn_edges(reverse_arrow_then_no_arrow)
     assert len(drawn_edges) == 1
     assert "_tdraw_" in drawn_edges[0]
@@ -5284,14 +5268,12 @@ def test_concentrate_same_direction_arrows_ignore_borrowed_reverse_arrows(
 ):
     """Borrowed reverse arrows are render state, not same-direction identity."""
 
-    borrowed_reverse_arrow = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [color=red arrowhead=normal]
-          b -> a [color=red arrowhead=vee]
-          a -> b [color=red dir=both arrowhead=normal arrowtail=vee]
-        }}
-    """
+    borrowed_reverse_arrow = _concentrated_graph(
+        splines,
+        "a -> b [color=red arrowhead=normal]",
+        "b -> a [color=red arrowhead=vee]",
+        "a -> b [color=red dir=both arrowhead=normal arrowtail=vee]",
+    )
     assert len(_drawn_edges(borrowed_reverse_arrow)) == 2
 
 
@@ -5299,19 +5281,17 @@ def test_concentrate_same_direction_arrows_ignore_borrowed_reverse_arrows(
 def test_concentrate_distinguishes_html_like_attribute_values(splines: str):
     """HTML-like identity is semantic even when the string bytes are equal."""
 
-    html_and_plain_headlabels = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [headlabel=<<B>x</B>>]
-          a -> b [headlabel="<B>x</B>"]
-        }}
-    """
+    html_and_plain_headlabels = _concentrated_graph(
+        splines,
+        "a -> b [headlabel=<<B>x</B>>]",
+        'a -> b [headlabel="<B>x</B>"]',
+    )
     assert len(_drawn_edges(html_and_plain_headlabels)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_unconcentrated_parallel_edges_keep_separate_routes(splines: str):
-    """The attribute guard must not alter ordinary multi-edge routing."""
+    """The attribute guard does not alter ordinary multi-edge routing."""
 
     parallel_edges_without_concentration = f"""
         digraph {{
@@ -5334,20 +5314,14 @@ def test_unconcentrated_opposite_edges_share_multi_edge_routing():
           b -> a [color=blue]
         }
     """
-    opposite_edges = _drawn_edges(opposite_edges_without_concentration)
-
     # A missed merge_chain() call routes both edges down the same centerline.
     # Comparing their Bezier x coordinates catches that overlap without tying
     # the test to exact node positions.
-    route_x_coordinates = {_route_x_coordinates(edge) for edge in opposite_edges}
-    assert len(route_x_coordinates) == 2
+    _assert_distinct_drawn_edge_routes(opposite_edges_without_concentration, 2)
 
 
 def test_unconcentrated_opposite_port_edges_share_multi_edge_routing():
-    """
-    Reverse edges compare ports at the same physical endpoint.
-    https://gitlab.com/graphviz/graphviz/-/work_items/1039
-    """
+    """Reverse edges compare ports at physical endpoints (GitLab #1039)."""
 
     opposite_edges_with_a_shared_port = """
         digraph {
@@ -5356,148 +5330,147 @@ def test_unconcentrated_opposite_port_edges_share_multi_edge_routing():
           berlin -> bonn:s
         }
     """
-    opposite_edges = _drawn_edges(opposite_edges_with_a_shared_port)
-
     # Sharing one virtual chain lets the regular multi-edge router separate the
     # two visible splines. Two independent chains collapse onto the centerline.
-    route_x_coordinates = {_route_x_coordinates(edge) for edge in opposite_edges}
-    assert len(route_x_coordinates) == 2
+    _assert_distinct_drawn_edge_routes(opposite_edges_with_a_shared_port, 2)
 
-    nonmatching_physical_ports = """
-        digraph {
-          graph [concentrate=true]
-          node [shape=box]
-          bonn:n -> berlin
-          berlin -> bonn:s
-        }
-    """
+    nonmatching_physical_ports = _concentrated_graph(
+        "",
+        "node [shape=box]",
+        "bonn:n -> berlin",
+        "berlin -> bonn:s",
+    )
     assert len(_drawn_edges(nonmatching_physical_ports)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_reverse_ports_by_physical_endpoint(splines: str):
-    """Reverse port attributes exchange head/tail roles at each endpoint."""
+    """Reverse ports exchange endpoint roles before matching (GitLab #1039)."""
 
-    equivalent_reverse_ports = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          node [shape=box]
-          bonn:s -> berlin
-          berlin -> bonn:s
-        }}
-    """
+    equivalent_reverse_ports = _concentrated_graph(
+        splines,
+        "node [shape=box]",
+        "bonn:s -> berlin",
+        "berlin -> bonn:s",
+    )
     assert len(_drawn_edges(equivalent_reverse_ports)) == 1
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_reverse_clipping_by_physical_endpoint(splines: str):
-    """
-    Reverse clipping attributes exchange head/tail roles at each endpoint.
-    https://gitlab.com/graphviz/graphviz/-/work_items/448
-    """
+    """Reverse clipping exchanges head/tail roles at endpoints (GitLab #448)."""
 
-    same_grammar_role = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [tailclip=true, headclip=false]
-          b -> a [tailclip=true, headclip=false]
-        }}
-    """
+    same_grammar_role = _concentrated_graph(
+        splines,
+        "a -> b [tailclip=true, headclip=false]",
+        "b -> a [tailclip=true, headclip=false]",
+    )
     assert len(_drawn_edges(same_grammar_role)) == 2
 
-    same_physical_endpoint = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [tailclip=true, headclip=false]
-          b -> a [tailclip=false, headclip=true]
-        }}
-    """
+    same_physical_endpoint = _concentrated_graph(
+        splines,
+        "a -> b [tailclip=true, headclip=false]",
+        "b -> a [tailclip=false, headclip=true]",
+    )
     assert len(_drawn_edges(same_physical_endpoint)) == 1
 
 
 def test_concentrate_does_not_materialize_unmatched_opposite_chains():
-    """An unmatched backward edge must not pre-classify later parallel edges."""
+    """An unmatched backward edge does not pre-classify later parallel edges."""
 
-    separated_equivalent_edges = """
-        digraph {
-          graph [concentrate=true]
-
-          // Creating b first makes this backward edge run before a's outgoing
-          // edges. constraint=false leaves a -> b to determine their ranks.
-          b -> a [color=green constraint=false]
-          a -> b [color=red]
-          a -> b [color=blue]
-          a -> b [color=red]
-        }
-    """
-    drawn_colors = [
-        edge["color"] for edge in _drawn_edges(separated_equivalent_edges)
+    separated_equivalent_edges = _concentrated_graph(
+        "",
+        "// Creating b first makes this backward edge run before a's outgoing",
+        "// edges. constraint=false leaves a -> b to determine their ranks.",
+        "b -> a [color=green constraint=false]",
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+        "a -> b [color=red]",
+    )
+    assert sorted(_drawn_edge_colors(separated_equivalent_edges)) == [
+        "#0000ff",
+        "#00ff00",
+        "#ff0000",
     ]
-    assert sorted(drawn_colors) == ["blue", "green", "red"]
 
 
-def test_concentrate_same_rank_reverse_edges():
-    """
-    Same-rank reverse edges concentrate only when they are equivalent.
-    https://gitlab.com/graphviz/graphviz/-/work_items/150
-    """
+_SAME_RANK_REVERSE_EDGES = """
+    strict digraph {
+      concentrate=true
+      subgraph same_rank {
+        rank=same
+        a
+        b
+      }
+      a -> b
+      b -> a
+    }
+"""
 
-    same_rank_edges = """
-        strict digraph {
-          concentrate=true
-          subgraph same_rank {
-            rank=same
-            a
-            b
-          }
-          a -> b
-          b -> a
-        }
-    """
-    concentrated_reverse_edges = _drawn_edges(same_rank_edges)
+
+def test_concentrate_same_rank_equivalent_reverse_edges():
+    """Equivalent same-rank reverse edges concentrate together (GitLab #150)."""
+
+    concentrated_reverse_edges = _drawn_edges(_SAME_RANK_REVERSE_EDGES)
     assert len(concentrated_reverse_edges) == 1
     assert "_hdraw_" in concentrated_reverse_edges[0]
     assert "_tdraw_" in concentrated_reverse_edges[0]
 
-    concentration_disabled = same_rank_edges.replace(
+    concentration_disabled = _SAME_RANK_REVERSE_EDGES.replace(
         "concentrate=true", "concentrate=false"
     )
     assert len(_drawn_edges(concentration_disabled)) == 2
 
-    distinct_reverse_edges = same_rank_edges.replace(
+
+def test_concentrate_same_rank_preserves_distinct_edge_colors():
+    """Distinct same-rank reverse colors stay separate (GitLab #150)."""
+
+    distinct_reverse_edges = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a -> b [color=red]"
     ).replace("b -> a", "b -> a [color=blue]")
-    assert {edge["color"] for edge in _drawn_edges(distinct_reverse_edges)} == {
-        "red",
-        "blue",
+    assert set(_drawn_edge_colors(distinct_reverse_edges)) == {
+        "#ff0000",
+        "#0000ff",
     }
 
-    equivalent_reverse_ports = same_rank_edges.replace(
+
+def test_concentrate_same_rank_matches_ports_by_physical_endpoint():
+    """Same-rank reverse ports match by physical endpoint (GitLab #150)."""
+
+    equivalent_reverse_ports = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a:s -> b"
     ).replace("b -> a", "b -> a:s")
     assert len(_drawn_edges(equivalent_reverse_ports)) == 1
 
-    nonmatching_reverse_ports = same_rank_edges.replace(
+    nonmatching_reverse_ports = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a:n -> b"
     ).replace("b -> a", "b -> a:s")
     assert len(_drawn_edges(nonmatching_reverse_ports)) == 2
 
-    same_grammar_endpoint_labels = same_rank_edges.replace(
+
+def test_concentrate_same_rank_compares_labels_by_rendering_role():
+    """Same-rank labels compare by their rendered endpoint role (GitLab #150)."""
+
+    same_grammar_endpoint_labels = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a -> b [headlabel=x]"
     ).replace("b -> a", "b -> a [headlabel=x]")
     assert len(_drawn_edges(same_grammar_endpoint_labels)) == 2
 
-    same_physical_endpoint_labels = same_rank_edges.replace(
+    same_physical_endpoint_labels = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a -> b [headlabel=x]"
     ).replace("b -> a", "b -> a [taillabel=x]")
     assert len(_drawn_edges(same_physical_endpoint_labels)) == 1
 
-    same_rank_xlabels = same_rank_edges.replace(
+    same_rank_xlabels = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a -> b [xlabel=x]"
     ).replace("b -> a", "b -> a [xlabel=x]")
     assert len(_drawn_edges(same_rank_xlabels)) == 2
 
-    compatible_reverse_arrows = same_rank_edges.replace(
+
+def test_concentrate_same_rank_compares_arrows_by_physical_endpoint():
+    """Same-rank reverse arrows combine only at matching endpoints (GitLab #150)."""
+
+    compatible_reverse_arrows = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a -> b [arrowhead=normal]"
     ).replace("b -> a", "b -> a [arrowhead=vee]")
     drawn_compatible_reverse_arrows = _drawn_edges(compatible_reverse_arrows)
@@ -5505,10 +5478,14 @@ def test_concentrate_same_rank_reverse_edges():
     assert _arrow_polygon_point_count(drawn_compatible_reverse_arrows[0], "h") == 3
     assert _arrow_polygon_point_count(drawn_compatible_reverse_arrows[0], "t") == 8
 
-    conflicting_physical_endpoint_arrows = same_rank_edges.replace(
+    conflicting_physical_endpoint_arrows = _SAME_RANK_REVERSE_EDGES.replace(
         "a -> b", "a -> b [dir=both arrowhead=normal arrowtail=dot]"
     ).replace("b -> a", "b -> a [dir=both arrowhead=vee arrowtail=box]")
     assert len(_drawn_edges(conflicting_physical_endpoint_arrows)) == 2
+
+
+def test_concentrate_same_rank_reverse_edges_across_rank_spans():
+    """Same-rank reverse concentration works across rank spans (GitLab #150)."""
 
     rank_span_one = """
         strict digraph {
@@ -5523,9 +5500,9 @@ def test_concentrate_same_rank_reverse_edges():
           b -> a [color=red]
         }
     """
-    assert sorted(edge["color"] for edge in _drawn_edges(rank_span_one)) == [
-        "green",
-        "red",
+    assert sorted(_drawn_edge_colors(rank_span_one)) == [
+        "#00ff00",
+        "#ff0000",
     ]
 
     rank_span_two = """
@@ -5542,79 +5519,63 @@ def test_concentrate_same_rank_reverse_edges():
           b -> a [color=red]
         }
     """
-    assert sorted(edge["color"] for edge in _drawn_edges(rank_span_two)) == [
-        "green",
-        "green",
-        "red",
+    assert sorted(_drawn_edge_colors(rank_span_two)) == [
+        "#00ff00",
+        "#00ff00",
+        "#ff0000",
     ]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_same_rank_edges_compare_their_actual_direction(splines: str):
-    """ND_other contains same-direction edges as well as reversed edges."""
+    """Same-rank peers compare endpoint attributes in their actual direction."""
 
-    same_direction_distinct_ports = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          subgraph same_rank {{
-            rank=same
-            a
-            b
-          }}
-          a:n -> b:s [color=red]
-          a:s -> b:n [color=red]
-        }}
-    """
+    same_direction_distinct_ports = _concentrated_graph(
+        splines,
+        "subgraph same_rank { rank=same; a; b }",
+        "a:n -> b:s [color=red]",
+        "a:s -> b:n [color=red]",
+    )
     assert len(_drawn_edges(same_direction_distinct_ports)) == 2
 
-    one_sided_clipping = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          subgraph same_rank {{
-            rank=same
-            a
-            b
-          }}
-          a -> b [headclip=false]
-          b -> a
-        }}
-    """
+    one_sided_clipping = _concentrated_graph(
+        splines,
+        "subgraph same_rank { rank=same; a; b }",
+        "a -> b [headclip=false]",
+        "b -> a",
+    )
     assert len(_drawn_edges(one_sided_clipping)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_ignores_layout_only_edge_attributes(splines: str):
-    """Ranking inputs should not block concentration after layout is fixed."""
+    """Ranking inputs do not block concentration after layout is fixed."""
 
-    layout_only_differences = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [constraint=false]
-          a -> b
-          b -> c [weight=8]
-          b -> c
-          c -> d [minlen=2]
-          c -> d
-        }}
-    """
+    layout_only_differences = _concentrated_graph(
+        splines,
+        "a -> b [constraint=false]",
+        "a -> b",
+        "b -> c [weight=8]",
+        "b -> c",
+        "c -> d [minlen=2]",
+        "c -> d",
+    )
     assert len(_drawn_edges(layout_only_differences)) == 3
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_explicit_default_edge_attributes(splines: str):
-    """Explicit default attributes should not block concentration."""
+    """Explicit default attributes do not block concentration."""
 
-    explicit_defaults = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [dir=forward]
-          a -> b
-          b -> c [headclip=true]
-          b -> c
-          c -> d [tailclip=true]
-          c -> d
-        }}
-    """
+    explicit_defaults = _concentrated_graph(
+        splines,
+        "a -> b [dir=forward]",
+        "a -> b",
+        "b -> c [headclip=true]",
+        "b -> c",
+        "c -> d [tailclip=true]",
+        "c -> d",
+    )
     assert len(_drawn_edges(explicit_defaults)) == 3
 
 
@@ -5624,13 +5585,11 @@ def test_concentrate_matches_reverse_arrowheads_by_physical_endpoint(
 ):
     """Opposite arrowheads render at opposite physical endpoints."""
 
-    compatible_reverse_arrows = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [arrowhead=normal]
-          b -> a [arrowhead=vee]
-        }}
-    """
+    compatible_reverse_arrows = _concentrated_graph(
+        splines,
+        "a -> b [arrowhead=normal]",
+        "b -> a [arrowhead=vee]",
+    )
     drawn_edges = _drawn_edges(compatible_reverse_arrows)
     assert len(drawn_edges) == 1
     assert _arrow_polygon_point_count(drawn_edges[0], "h") == 3
@@ -5641,52 +5600,41 @@ def test_concentrate_matches_reverse_arrowheads_by_physical_endpoint(
 def test_concentrate_rejects_conflicting_physical_endpoint_arrows(splines: str):
     """Packed arrow flags cannot hold two different shapes at one endpoint."""
 
-    conflicting_reverse_arrows = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          a -> b [dir=both arrowhead=normal arrowtail=dot]
-          b -> a [dir=both arrowhead=vee arrowtail=box]
-        }}
-    """
+    conflicting_reverse_arrows = _concentrated_graph(
+        splines,
+        "a -> b [dir=both arrowhead=normal arrowtail=dot]",
+        "b -> a [dir=both arrowhead=vee arrowtail=box]",
+    )
     assert len(_drawn_edges(conflicting_reverse_arrows)) == 2
 
 
 def test_concentrate_flat_cycle_keeps_virtual_representatives_private():
-    """Flat cycle reversal can create a non-Cgraph representative edge."""
+    """Flat cycle reversal keeps non-Cgraph representative edges private."""
 
-    flat_cycle = """
-        digraph {
-          graph [concentrate=true]
-          subgraph same_rank {
-            rank=same
-            a
-            b
-            c
-          }
-          a -> b
-          b -> c
-          c -> a
-          a -> c
-        }
-    """
+    flat_cycle = _concentrated_graph(
+        "",
+        "subgraph same_rank { rank=same; a; b; c }",
+        "a -> b",
+        "b -> c",
+        "c -> a",
+        "a -> c",
+    )
     assert len(_drawn_edges(flat_cycle)) == 3
 
 
 def test_concentrate_ortho_ignores_suppressed_representatives():
-    """Suppressed edges must not become ortho concentration group heads."""
+    """Suppressed edges never become ortho concentration group heads."""
 
-    ignored_reverse_first = """
-        digraph {
-          graph [concentrate=true splines=ortho]
-          b
-          a -> b [color=red]
-          b -> a [constraint=false color=red]
-          a -> b [color=blue]
-        }
-    """
-    assert sorted(edge["color"] for edge in _drawn_edges(ignored_reverse_first)) == [
-        "blue",
-        "red",
+    ignored_reverse_first = _concentrated_graph(
+        "splines=ortho",
+        "b",
+        "a -> b [color=red]",
+        "b -> a [constraint=false color=red]",
+        "a -> b [color=blue]",
+    )
+    assert sorted(_drawn_edge_colors(ignored_reverse_first)) == [
+        "#0000ff",
+        "#ff0000",
     ]
 
 
@@ -5695,10 +5643,7 @@ def test_concentrate_ortho_ignores_suppressed_representatives():
 def test_concentrate_preserves_distinct_record_port_continuations(
     direction: str, splines: str
 ):
-    """
-    Concentration must retain continuations ending at different record ports.
-    https://gitlab.com/graphviz/graphviz/-/work_items/449
-    """
+    """Concentration retains distinct record-port continuations (GitLab #449)."""
 
     if direction == "down":
         rank_constraint = "subgraph { rank=source; source }"
@@ -5715,14 +5660,12 @@ def test_concentrate_preserves_distinct_record_port_continuations(
           problem:p3 -> sink
         """
 
-    distinct_ports = f"""
-        digraph {{
-          graph [concentrate=true {splines}]
-          problem [shape=record, label="<p1>p1|<p2>p2|<p3>p3"]
-          {rank_constraint}
-          {distinct_edges}
-        }}
-    """
+    distinct_ports = _concentrated_graph(
+        splines,
+        'problem [shape=record, label="<p1>p1|<p2>p2|<p3>p3"]',
+        rank_constraint,
+        distinct_edges,
+    )
     assert len(_drawn_edges(distinct_ports)) == 3
 
     same_port_duplicates = distinct_ports.replace("problem:p3", "problem:p2")
