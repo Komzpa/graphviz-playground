@@ -354,6 +354,21 @@ edge_uses_label_color(Agraph_t *root_graph, Agedge_t *edge,
   return true;
 }
 
+static bool
+edge_uses_base_font(Agraph_t *root_graph, Agedge_t *edge,
+                    const edge_attribute_classification_t *classification) {
+  if (edge_has_main_label(root_graph, edge)) {
+    return true;
+  }
+  if (!edge_has_endpoint_label(root_graph, edge)) {
+    return false;
+  }
+
+  const char *const endpoint_override =
+      classification->fontname ? "labelfontname" : "labelfontsize";
+  return agfindedgeattr(root_graph, (char *)endpoint_override) == NULL;
+}
+
 static bool edge_attribute_is_rendered(
     Agraph_t *root_graph, Agedge_t *edge,
     const edge_attribute_classification_t *classification) {
@@ -387,7 +402,8 @@ static bool edge_attribute_is_rendered(
       !edge_uses_label_color(root_graph, edge, classification)) {
     return false;
   }
-  if (classification->base_font && !edge_has_main_label(root_graph, edge)) {
+  if (classification->base_font &&
+      !edge_uses_base_font(root_graph, edge, classification)) {
     return false;
   }
   /* dotLayout() calls dot_compoundEdges() only for a truthy compound graph. */

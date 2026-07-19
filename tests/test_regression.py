@@ -4981,6 +4981,16 @@ def _assert_concentrated_edge_counts(
             ),
         ),
         _named_edge_count_cases(
+            "undeclared-endpoint-label-font-fallbacks",
+            _edge_count_case(
+                4,
+                "a -> b [headlabel=x fontname=Courier]",
+                "a -> b [headlabel=x fontname=Times]",
+                "b -> c [headlabel=x fontsize=10]",
+                "b -> c [headlabel=x fontsize=30]",
+            ),
+        ),
+        _named_edge_count_cases(
             "samehead-sametail-physical-endpoint",
             _edge_count_case(1, "a -> b [samehead=x]", "b -> a [sametail=x]"),
             _edge_count_case(2, "a -> b [samehead=x]", "b -> a [samehead=x]"),
