@@ -148,6 +148,11 @@ static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
       .shape_flags = shape_flags,
       .arrowsize = late_double(edge, E_arrowsz, 1.0, 0.0),
   };
+  const char *const spline_color = agget(edge, "color");
+  if (spline_color != NULL && !aghtmlstr(spline_color) &&
+      strchr(spline_color, ':') != NULL) {
+    return decoration;
+  }
   decoration.fillcolor = effective_edge_arrow_fillcolor(
       edge, &decoration.fillcolor_is_html);
 
@@ -195,6 +200,9 @@ static void accumulated_edge_arrow_decorations(
 
 static bool arrow_fillcolors_are_equal(const arrow_decoration_t *first,
                                        const arrow_decoration_t *second) {
+  if (first->fillcolor == NULL || second->fillcolor == NULL) {
+    return first->fillcolor == second->fillcolor;
+  }
   if (first->fillcolor_is_rgba && second->fillcolor_is_rgba) {
     return memcmp(first->fillcolor_rgba, second->fillcolor_rgba,
                   sizeof(first->fillcolor_rgba)) == 0;

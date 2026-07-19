@@ -5100,6 +5100,19 @@ def test_concentrate_matches_explicit_rendering_defaults(splines: str):
     assert len(_drawn_edges(explicit_edge_defaults)) == 4
 
 
+def test_concentrate_ignores_fillcolor_for_multicolor_arrows():
+    """multicolor() fills arrows from spline segments, not edge fillcolor."""
+
+    arrow_fills = _concentrated_graph(
+        "",
+        'a -> b [color="red:blue" fillcolor=green]',
+        'a -> b [color="red:blue" fillcolor=yellow]',
+        "b -> c [color=red fillcolor=green]",
+        "b -> c [color=red fillcolor=yellow]",
+    )
+    assert len(_drawn_edges(arrow_fills)) == 3
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_tooltip_aliases(splines: str):
     """Tooltip aliases concentrate only when their rendered values match."""
