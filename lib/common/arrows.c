@@ -14,8 +14,11 @@
 #include "config.h"
 
 #include <assert.h>
+#include <common/colorprocs.h>
+#include <common/const.h>
 #include <common/geomprocs.h>
 #include <common/render.h>
+#include <common/utils.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -59,54 +62,255 @@ typedef struct {
     uint32_t eflag;
 } arrowdir_t;
 
+typedef struct {
+  uint32_t shape_flags;
+  double arrowsize;
+  char *fillcolor;
+  bool fillcolor_is_html;
+  bool fillcolor_is_rgba;
+  unsigned char fillcolor_rgba[4];
+} arrow_decoration_t;
+
 /*
- * class2() retains one edge from a concentrated opposite-direction pair, but
- * arrow_flags() still needs the suppressed edge's endpoint arrows. A private
- * Cgraph record accumulates those flags without extending the public
- * Agedgeinfo_t layout.
+ * This private record is the accumulated arrow-decoration fold for a retained
+ * edge. Each endpoint is either absent or one complete rendered record
+ * {shape flags, arrowsize, fillcolor}. Absence is neutral, equal records are
+ * idempotent, and unequal records conflict before concentration suppresses an
+ * edge.
  *
- * Agrec_t must be the first member of every Cgraph record. Binding with
- * move_to_front=false is deliberate because ED_* macros expect Agedgeinfo_t to
- * remain the front record returned by AGDATA().
+ * The record stores complete state, including the retained edge's own arrows,
+ * because later candidates must be checked against the accumulated route, not
+ * merely against the first input edge. Keeping scalars beside shapes also lets
+ * clipping and emission use the contributor's values when the retained edge
+ * had no arrow there.
+ *
+ * Agrec_t must remain first. move_to_front=false preserves Agedgeinfo_t as the
+ * front record expected by ED_* macros. fillcolor points into Cgraph-owned
+ * attribute storage (or a static default) and is valid for the graph lifetime.
  */
 typedef struct {
   Agrec_t header;
-  uint32_t suppressed_start_flag;
-  uint32_t suppressed_end_flag;
-} concentrated_opposite_edge_record_t;
+  arrow_decoration_t endpoints[EDGE_ARROW_ENDPOINT_COUNT];
+} concentrated_arrow_decoration_record_t;
 
-#define CONCENTRATED_OPPOSITE_EDGE_RECORD "concentrated opposite edge"
+#define CONCENTRATED_ARROW_DECORATION_RECORD "concentrated arrow decoration"
 
-void remember_suppressed_opposite_edge(Agedge_t *retained_edge,
-                                       Agedge_t *suppressed_opposite_edge) {
-  uint32_t suppressed_start_flag;
-  uint32_t suppressed_end_flag;
+static arrow_decoration_t *concentrated_arrow_decoration_record(
+    Agedge_t *edge, bool create) {
+  if (create) {
+    concentrated_arrow_decoration_record_t *const record = agbindrec(
+        edge, CONCENTRATED_ARROW_DECORATION_RECORD, sizeof(*record), false);
+    return record->endpoints;
+  }
 
-  edge_arrow_flags(suppressed_opposite_edge, &suppressed_start_flag,
-                   &suppressed_end_flag);
-
-  concentrated_opposite_edge_record_t *const record = agbindrec(
-      retained_edge, CONCENTRATED_OPPOSITE_EDGE_RECORD, sizeof(*record), false);
-  record->suppressed_start_flag |= suppressed_start_flag;
-  record->suppressed_end_flag |= suppressed_end_flag;
+  concentrated_arrow_decoration_record_t *const record =
+      (concentrated_arrow_decoration_record_t *)aggetrec(
+          edge, CONCENTRATED_ARROW_DECORATION_RECORD, false);
+  return record == NULL ? NULL : record->endpoints;
 }
 
-static void add_suppressed_opposite_arrow_flags(Agedge_t *retained_edge,
-                                                uint32_t *start_flag,
-                                                uint32_t *end_flag) {
-  concentrated_opposite_edge_record_t *const record =
-      (concentrated_opposite_edge_record_t *)aggetrec(
-          retained_edge, CONCENTRATED_OPPOSITE_EDGE_RECORD, false);
+static char *effective_edge_arrow_fillcolor(Agedge_t *edge, bool *is_html) {
+  Agraph_t *const root_graph = agroot(agraphof(edge));
+  Agsym_t *const fillcolor_attribute =
+      agfindedgeattr(root_graph, "fillcolor");
+  if (fillcolor_attribute != NULL) {
+    char *const fillcolor = agxget(edge, fillcolor_attribute);
+    if (fillcolor[0] != '\0') {
+      *is_html = aghtmlstr(fillcolor);
+      return fillcolor;
+    }
+  }
+
+  Agsym_t *const color_attribute = agfindedgeattr(root_graph, "color");
+  if (color_attribute != NULL) {
+    char *const color = agxget(edge, color_attribute);
+    if (color[0] != '\0') {
+      *is_html = aghtmlstr(color);
+      return color;
+    }
+  }
+
+  *is_html = false;
+  return (char *)DEFAULT_COLOR;
+}
+
+static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
+                                                uint32_t shape_flags) {
+  if (shape_flags == 0) {
+    return (arrow_decoration_t){0};
+  }
+
+  arrow_decoration_t decoration = {
+      .shape_flags = shape_flags,
+      .arrowsize = late_double(edge, E_arrowsz, 1.0, 0.0),
+  };
+  decoration.fillcolor = effective_edge_arrow_fillcolor(
+      edge, &decoration.fillcolor_is_html);
+
+  if (!decoration.fillcolor_is_html && decoration.fillcolor[0] != '\0' &&
+      strchr(decoration.fillcolor, ':') == NULL) {
+    gvcolor_t color;
+    char *const previous_color_scheme =
+        setColorScheme(agget(edge, "colorscheme"));
+    const int result = colorxlate(decoration.fillcolor, &color, RGBA_BYTE);
+    char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+    free(previous_color_scheme);
+    free(restored_color_scheme);
+    if (result == COLOR_OK) {
+      decoration.fillcolor_is_rgba = true;
+      memcpy(decoration.fillcolor_rgba, color.u.rgba,
+             sizeof(decoration.fillcolor_rgba));
+    }
+  }
+  return decoration;
+}
+
+static void own_edge_arrow_decorations(
+    Agedge_t *edge,
+    arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT]) {
+  uint32_t start_flags;
+  uint32_t end_flags;
+  edge_arrow_flags(edge, &start_flags, &end_flags);
+  decorations[EDGE_ARROW_START] =
+      edge_arrow_decoration(edge, start_flags);
+  decorations[EDGE_ARROW_END] = edge_arrow_decoration(edge, end_flags);
+}
+
+static void accumulated_edge_arrow_decorations(
+    Agedge_t *edge,
+    arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT]) {
+  const arrow_decoration_t *const accumulated =
+      concentrated_arrow_decoration_record(edge, false);
+  if (accumulated != NULL) {
+    memcpy(decorations, accumulated, sizeof(*decorations) *
+                                         EDGE_ARROW_ENDPOINT_COUNT);
+    return;
+  }
+  own_edge_arrow_decorations(edge, decorations);
+}
+
+static bool arrow_fillcolors_are_equal(const arrow_decoration_t *first,
+                                       const arrow_decoration_t *second) {
+  if (first->fillcolor_is_rgba && second->fillcolor_is_rgba) {
+    return memcmp(first->fillcolor_rgba, second->fillcolor_rgba,
+                  sizeof(first->fillcolor_rgba)) == 0;
+  }
+  return first->fillcolor_is_html == second->fillcolor_is_html &&
+         strcmp(first->fillcolor, second->fillcolor) == 0;
+}
+
+static bool arrow_decorations_are_equal(const arrow_decoration_t *first,
+                                        const arrow_decoration_t *second) {
+  if (first->shape_flags != second->shape_flags) {
+    return false;
+  }
+  if (first->shape_flags == 0) {
+    return true;
+  }
+  return first->arrowsize == second->arrowsize &&
+         arrow_fillcolors_are_equal(first, second);
+}
+
+static bool arrow_decorations_can_fold(const arrow_decoration_t *retained,
+                                       const arrow_decoration_t *candidate) {
+  return retained->shape_flags == 0 || candidate->shape_flags == 0 ||
+         arrow_decorations_are_equal(retained, candidate);
+}
+
+static edge_arrow_endpoint_t
+oriented_candidate_endpoint(edge_arrow_endpoint_t retained_endpoint,
+                            bool candidate_runs_in_opposite_direction) {
+  if (!candidate_runs_in_opposite_direction) {
+    return retained_endpoint;
+  }
+  return retained_endpoint == EDGE_ARROW_START ? EDGE_ARROW_END
+                                                : EDGE_ARROW_START;
+}
+
+bool same_direction_edge_arrow_decorations_are_equal(Agedge_t *first_edge,
+                                                     Agedge_t *second_edge) {
+  arrow_decoration_t first[EDGE_ARROW_ENDPOINT_COUNT];
+  arrow_decoration_t second[EDGE_ARROW_ENDPOINT_COUNT];
+  own_edge_arrow_decorations(first_edge, first);
+  own_edge_arrow_decorations(second_edge, second);
+
+  for (edge_arrow_endpoint_t endpoint = EDGE_ARROW_START;
+       endpoint < EDGE_ARROW_ENDPOINT_COUNT; endpoint++) {
+    if (!arrow_decorations_are_equal(&first[endpoint], &second[endpoint])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool opposite_direction_edge_arrow_decorations_are_mergeable(
+    Agedge_t *retained_edge, Agedge_t *candidate_edge) {
+  arrow_decoration_t retained[EDGE_ARROW_ENDPOINT_COUNT];
+  arrow_decoration_t candidate[EDGE_ARROW_ENDPOINT_COUNT];
+  accumulated_edge_arrow_decorations(retained_edge, retained);
+  own_edge_arrow_decorations(candidate_edge, candidate);
+
+  for (edge_arrow_endpoint_t retained_endpoint = EDGE_ARROW_START;
+       retained_endpoint < EDGE_ARROW_ENDPOINT_COUNT; retained_endpoint++) {
+    const edge_arrow_endpoint_t candidate_endpoint =
+        oriented_candidate_endpoint(retained_endpoint, true);
+    if (!arrow_decorations_can_fold(&retained[retained_endpoint],
+                                    &candidate[candidate_endpoint])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void fold_concentrated_edge_arrow_decorations(
+    Agedge_t *retained_edge, Agedge_t *candidate_edge,
+    bool candidate_runs_in_opposite_direction) {
+  arrow_decoration_t retained[EDGE_ARROW_ENDPOINT_COUNT];
+  arrow_decoration_t candidate[EDGE_ARROW_ENDPOINT_COUNT];
+  accumulated_edge_arrow_decorations(retained_edge, retained);
+  own_edge_arrow_decorations(candidate_edge, candidate);
 
   /*
-   * The retained edge supplies the shared spline. Borrow the suppressed
-   * reverse edges' arrows so both original directions remain visible.
-   * Reversing direction maps its start to our end, and its end to our start.
+   * This assignment is the concentration fold, not post-hoc arrow recovery.
+   * A tempting OR of shape flags would corrupt packed arrow types, while
+   * comparing candidate declarations would let arrow-less scalar values block
+   * a merge. Only an absent endpoint adopts a candidate's complete record.
    */
-  if (record != NULL) {
-    *end_flag |= record->suppressed_start_flag;
-    *start_flag |= record->suppressed_end_flag;
+  for (edge_arrow_endpoint_t retained_endpoint = EDGE_ARROW_START;
+       retained_endpoint < EDGE_ARROW_ENDPOINT_COUNT; retained_endpoint++) {
+    const edge_arrow_endpoint_t candidate_endpoint =
+        oriented_candidate_endpoint(retained_endpoint,
+                                    candidate_runs_in_opposite_direction);
+    assert(arrow_decorations_can_fold(&retained[retained_endpoint],
+                                      &candidate[candidate_endpoint]));
+    if (retained[retained_endpoint].shape_flags == 0) {
+      retained[retained_endpoint] = candidate[candidate_endpoint];
+    }
   }
+
+  arrow_decoration_t *const accumulated =
+      concentrated_arrow_decoration_record(retained_edge, true);
+  memcpy(accumulated, retained,
+         sizeof(*accumulated) * EDGE_ARROW_ENDPOINT_COUNT);
+}
+
+double edge_arrow_arrowsize(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
+  arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT];
+  accumulated_edge_arrow_decorations(edge, decorations);
+  if (decorations[endpoint].shape_flags != 0) {
+    return decorations[endpoint].arrowsize;
+  }
+  return late_double(edge, E_arrowsz, 1.0, 0.0);
+}
+
+char *edge_arrow_fillcolor(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
+  arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT];
+  accumulated_edge_arrow_decorations(edge, decorations);
+  if (decorations[endpoint].shape_flags != 0) {
+    return decorations[endpoint].fillcolor;
+  }
+  bool is_html;
+  return effective_edge_arrow_fillcolor(edge, &is_html);
 }
 
 static const arrowdir_t Arrowdirs[] = {
@@ -292,19 +496,17 @@ void edge_arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
 }
 
 void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
-    edge_arrow_flags(e, sflag, eflag);
-    if (ED_conc_opp_flag(e)) {
-      add_suppressed_opposite_arrow_flags(e, sflag, eflag);
-    }
+    arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT];
+    accumulated_edge_arrow_decorations(e, decorations);
+    *sflag = decorations[EDGE_ARROW_START].shape_flags;
+    *eflag = decorations[EDGE_ARROW_END].shape_flags;
 }
 
-static double arrow_length(edge_t * e, uint32_t flag) {
+static double arrow_length(edge_t *e, uint32_t flag, double arrowsize) {
     double length = 0.0;
     int i;
 
     const double penwidth = late_double(e, E_penwidth, 1.0, 0.0);
-    const double arrowsize = late_double(e, E_arrowsz, 1.0, 0.0);
-
     if (arrowsize == 0) {
 	return 0;
     }
@@ -331,10 +533,11 @@ static bool inside(inside_t * inside_context, pointf p)
 }
 
 size_t arrowEndClip(edge_t* e, pointf * ps, size_t startp,
-                    size_t endp, bezier *spl, uint32_t eflag) {
+                    size_t endp, bezier *spl, uint32_t eflag,
+                    double arrowsize) {
     inside_t inside_context;
     pointf sp[4];
-    double elen = arrow_length(e, eflag);
+    double elen = arrow_length(e, eflag, arrowsize);
     spl->eflag = eflag;
     spl->ep = ps[endp + 3];
     if (endp > startp && DIST(ps[endp], ps[endp + 3]) < elen) {
@@ -359,10 +562,11 @@ size_t arrowEndClip(edge_t* e, pointf * ps, size_t startp,
 }
 
 size_t arrowStartClip(edge_t* e, pointf * ps, size_t startp,
-                      size_t endp, bezier *spl, uint32_t sflag) {
+                      size_t endp, bezier *spl, uint32_t sflag,
+                      double arrowsize) {
     inside_t inside_context;
     pointf sp[4];
-    double slen = arrow_length(e, sflag);
+    double slen = arrow_length(e, sflag, arrowsize);
     spl->sflag = sflag;
     spl->sp = ps[startp];
     if (endp > startp && DIST(ps[startp], ps[startp + 3]) < slen) {
@@ -396,15 +600,16 @@ size_t arrowStartClip(edge_t* e, pointf * ps, size_t startp,
  * that the truncated spl clips to the arrow shape.
  */
 void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
-                    bezier *spl, uint32_t sflag, uint32_t eflag) {
+                    bezier *spl, uint32_t sflag, uint32_t eflag,
+                    double start_arrowsize, double end_arrowsize) {
     pointf p, q, r, s, t;
     double d, tlen, hlen, maxd;
 
     if (sflag && eflag && endp == startp) { /* handle special case of two arrows on a single segment */
 	p = ps[endp];
 	q = ps[endp+3];
-	tlen = arrow_length (e, sflag);
-	hlen = arrow_length (e, eflag);
+	tlen = arrow_length(e, sflag, start_arrowsize);
+	hlen = arrow_length(e, eflag, end_arrowsize);
         d = DIST(p, q);
 	if (hlen + tlen >= d) {
 	    hlen = tlen = d/3.0;
@@ -438,7 +643,7 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
 	return;
     }
     if (eflag) {
-	hlen = arrow_length(e, eflag);
+	hlen = arrow_length(e, eflag, end_arrowsize);
 	p = ps[endp];
 	q = ps[endp+3];
         d = DIST(p, q);
@@ -462,7 +667,7 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
 	spl->ep = q;
     }
     if (sflag) {
-	tlen = arrow_length(e, sflag);
+	tlen = arrow_length(e, sflag, start_arrowsize);
 	p = ps[startp];
 	q = ps[startp+3];
         d = DIST(p, q);

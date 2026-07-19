@@ -36,6 +36,7 @@ static bool samedir(edge_t * e, edge_t * f)
     if (ED_conc_opp_flag(f0))
 	return false;
     return edge_attributes_are_equal(e0, f0) &&
+           same_direction_edge_arrow_decorations_are_equal(e0, f0) &&
            ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
                 (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
             0);
@@ -243,12 +244,16 @@ static bool flat_edges_are_equivalent(edge_t *edge,
                               aghead(edge) == aghead(representative_edge);
   if (same_direction) {
     return ports_eq(edge, representative_edge) &&
-           edge_attributes_are_equal(edge, representative_edge);
+           edge_attributes_are_equal(edge, representative_edge) &&
+           same_direction_edge_arrow_decorations_are_equal(
+               representative_edge, edge);
   }
 
   return edges_run_in_opposite_directions(edge, representative_edge) &&
          opposite_edge_ports_are_equal(edge, representative_edge) &&
-         opposite_edge_attributes_are_equal(edge, representative_edge);
+         opposite_edge_attributes_are_equal(edge, representative_edge) &&
+         opposite_direction_edge_arrow_decorations_are_mergeable(
+             representative_edge, edge);
 }
 
 static void concentrate_flat_edges(graph_t *graph) {
@@ -270,14 +275,12 @@ static void concentrate_flat_edges(graph_t *graph) {
       edge_t *const representative_edge = ED_to_virt(edge);
 
       if (flat_edges_are_equivalent(edge, representative_edge)) {
-        if (edges_run_in_opposite_directions(edge, representative_edge)) {
-          /*
-           * The representative owns the shared spline. Retain the exact
-           * reverse edge so arrow rendering can put both original endpoint
-           * arrows on that spline.
-           */
+        const bool opposite_direction =
+            edges_run_in_opposite_directions(edge, representative_edge);
+        fold_concentrated_edge_arrow_decorations(representative_edge, edge,
+                                                 opposite_direction);
+        if (opposite_direction) {
           ED_conc_opp_flag(representative_edge) = true;
-          remember_suppressed_opposite_edge(representative_edge, edge);
         }
         zapinlist(&ND_other(node), edge);
         ED_edge_type(edge) = IGNORED;

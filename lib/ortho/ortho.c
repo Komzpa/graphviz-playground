@@ -58,12 +58,17 @@ typedef struct {
   size_t edge_capacity;
 } ortho_concentrate_state_t;
 
+static bool ortho_edges_run_in_opposite_directions(Agedge_t *first_edge,
+                                                   Agedge_t *second_edge) {
+  return agtail(first_edge) != agtail(second_edge) &&
+         agtail(first_edge) == aghead(second_edge) &&
+         aghead(first_edge) == agtail(second_edge);
+}
+
 static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
                                             Agedge_t *second_edge) {
   const bool compare_opposite_endpoints =
-      agtail(first_edge) != agtail(second_edge) &&
-      agtail(first_edge) == aghead(second_edge) &&
-      aghead(first_edge) == agtail(second_edge);
+      ortho_edges_run_in_opposite_directions(first_edge, second_edge);
 
   if (compare_opposite_endpoints &&
       !gv_opposite_edge_ports_are_equal(first_edge, second_edge)) {
@@ -79,21 +84,29 @@ static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
              : gv_edge_attributes_are_equal(first_edge, second_edge);
 }
 
-static bool
-edge_group_contains_equivalent(Agedge_t *edge, const epair_t *routed_edges,
-                               const ortho_concentrate_state_t *state,
-                               size_t first_edge_index) {
+static Agedge_t *
+find_equivalent_edge_in_group(Agedge_t *edge, const epair_t *routed_edges,
+                              const ortho_concentrate_state_t *state,
+                              size_t first_edge_index) {
   size_t edge_index = first_edge_index;
 
   while (edge_index != state->edge_capacity) {
     Agedge_t *const routed_edge = routed_edges[edge_index].e;
+    const bool opposite_direction =
+        routed_edge != NULL &&
+        ortho_edges_run_in_opposite_directions(routed_edge, edge);
     if (routed_edge != NULL && ED_edge_type(routed_edge) != IGNORED &&
-        ortho_edge_attributes_are_equal(edge, routed_edge)) {
-      return true;
+        ortho_edge_attributes_are_equal(edge, routed_edge) &&
+        (opposite_direction
+             ? opposite_direction_edge_arrow_decorations_are_mergeable(
+                   routed_edge, edge)
+             : same_direction_edge_arrow_decorations_are_equal(routed_edge,
+                                                                edge))) {
+      return routed_edge;
     }
     edge_index = state->next_in_group[edge_index];
   }
-  return false;
+  return NULL;
 }
 
 static void ortho_concentrate_state_init(ortho_concentrate_state_t *state,
@@ -144,7 +157,16 @@ static bool register_ortho_edge(ortho_concentrate_state_t *state,
   assert(stored_group_head >= 0);
   const size_t group_head = (size_t)stored_group_head;
 
-  if (edge_group_contains_equivalent(edge, routed_edges, state, group_head)) {
+  Agedge_t *const representative_edge = find_equivalent_edge_in_group(
+      edge, routed_edges, state, group_head);
+  if (representative_edge != NULL) {
+    const bool opposite_direction =
+        ortho_edges_run_in_opposite_directions(representative_edge, edge);
+    fold_concentrated_edge_arrow_decorations(representative_edge, edge,
+                                             opposite_direction);
+    if (opposite_direction) {
+      ED_conc_opp_flag(representative_edge) = true;
+    }
     return false;
   }
 

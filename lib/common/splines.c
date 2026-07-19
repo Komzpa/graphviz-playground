@@ -77,6 +77,9 @@ arrow_clip(edge_t * fe, node_t * hn,
 	j = info->swapEnds(e);
     uint32_t sflag, eflag;
     arrow_flags(e, &sflag, &eflag);
+    double start_arrowsize =
+        edge_arrow_arrowsize(e, EDGE_ARROW_START);
+    double end_arrowsize = edge_arrow_arrowsize(e, EDGE_ARROW_END);
     if (info->splineMerge(hn))
 	eflag = ARR_NONE;
     if (info->splineMerge(agtail(fe)))
@@ -84,16 +87,20 @@ arrow_clip(edge_t * fe, node_t * hn,
     /* swap the two ends */
     if (j) {
 	SWAP(&sflag, &eflag);
+	SWAP(&start_arrowsize, &end_arrowsize);
     }
     if (info->isOrtho) {
 	if (eflag || sflag)
-	    arrowOrthoClip(e, ps, *startp, *endp, spl, sflag, eflag);
+	    arrowOrthoClip(e, ps, *startp, *endp, spl, sflag, eflag,
+	                   start_arrowsize, end_arrowsize);
     }
     else {
 	if (sflag)
-	    *startp = arrowStartClip(e, ps, *startp, *endp, spl, sflag);
+	    *startp = arrowStartClip(e, ps, *startp, *endp, spl, sflag,
+	                             start_arrowsize);
 	if (eflag)
-	    *endp = arrowEndClip(e, ps, *startp, *endp, spl, eflag);
+	    *endp = arrowEndClip(e, ps, *startp, *endp, spl, eflag,
+	                         end_arrowsize);
     }
 }
 
@@ -1370,4 +1377,3 @@ splines *getsplinepoints(edge_t * e)
 	    agnameof(agtail(e)), agnameof(aghead(e)));
     return sp;
 }
-
