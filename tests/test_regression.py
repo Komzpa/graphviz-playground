@@ -4792,6 +4792,375 @@ def _assert_distinct_drawn_edge_routes(source: str, expected_count: int) -> None
     assert len(routes) == expected_count
 
 
+def _edge_count_case(expected_count: int, *body: str) -> tuple[int, tuple[str, ...]]:
+    """Describe one graph and its expected number of visible edges."""
+
+    return expected_count, body
+
+
+def _named_edge_count_cases(case_id: str, *cases: tuple[int, tuple[str, ...]]):
+    """Give a group of count oracles one meaningful pytest ID."""
+
+    return pytest.param(cases, id=case_id)
+
+
+def _fixed_edge_count_cases(
+    case_id: str, splines: str, *cases: tuple[int, tuple[str, ...]]
+):
+    """Give fixed-spline count oracles one meaningful pytest ID."""
+
+    return pytest.param(splines, cases, id=case_id)
+
+
+def _assert_concentrated_edge_counts(
+    splines: str, cases: tuple[tuple[int, tuple[str, ...]], ...]
+) -> None:
+    """Check every independent drawn-edge-count oracle in a table row."""
+
+    for expected_count, body in cases:
+        source = _concentrated_graph(splines, *body)
+        assert len(_drawn_edges(source)) == expected_count
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+@pytest.mark.parametrize(
+    "cases",
+    (
+        _named_edge_count_cases(
+            "distinct-endpoint-label-colors",
+            _edge_count_case(
+                4,
+                "a -> b [label=x fontcolor=red]",
+                "a -> b [label=x fontcolor=blue]",
+                "b -> c [headlabel=x labelfontcolor=red]",
+                "b -> c [headlabel=x labelfontcolor=blue]",
+            ),
+        ),
+        _named_edge_count_cases(
+            "ignore-unused-label-colors",
+            _edge_count_case(
+                4,
+                """
+                      a -> b [fontcolor=red]
+                      a -> b [fontcolor=blue]
+                      b -> c [labelfontcolor=red]
+                      b -> c [labelfontcolor=blue]
+                      c -> d [headlabel=x fontcolor=red labelfontcolor=black]
+                      c -> d [headlabel=x fontcolor=blue labelfontcolor=black]
+                      d -> e [fontsize=20 fontname=Courier labelfontsize=20
+                              labelfontname=Courier labeldistance=2 labelangle=30
+                              decorate=true]
+                      d -> e
+                    """,
+            ),
+        ),
+        _named_edge_count_cases(
+            "ignore-endpoint-label-decorate",
+            _edge_count_case(
+                1,
+                "a -> b [headlabel=x decorate=false]",
+                "a -> b [headlabel=x decorate=true]",
+            ),
+        ),
+        _named_edge_count_cases(
+            "explicit-rendering-defaults",
+            _edge_count_case(
+                4,
+                """
+                      a -> b [style=solid penwidth=1 arrowsize=1]
+                      a -> b
+                      b -> c [labelfloat=false]
+                      b -> c
+                      c -> d [dir=none arrowsize=2]
+                      c -> d [dir=none]
+                      d -> e [dir=none fillcolor=red]
+                      d -> e [dir=none fillcolor=blue]
+                    """,
+            ),
+        ),
+        _named_edge_count_cases(
+            "tooltip-aliases-and-substitution",
+            _edge_count_case(1, 'a -> b [tooltip="tip"]', 'a -> b [edgetooltip="tip"]'),
+            _edge_count_case(
+                1,
+                'a -> b [tooltip="\\T"]',
+                'b -> a [edgetooltip="\\T"]',
+            ),
+            _edge_count_case(
+                1,
+                'a -> b [headlabel=x headtooltip="\\T"]',
+                'b -> a [taillabel=x tailtooltip="\\T"]',
+            ),
+        ),
+        _named_edge_count_cases(
+            "url-href-aliases",
+            _edge_count_case(
+                4,
+                'a -> b [URL="u"]',
+                'a -> b [href="u"]',
+                'b -> c [edgeURL="u"]',
+                'b -> c [edgehref="u"]',
+                'c -> d [labelURL="u"]',
+                'c -> d [labelhref="u"]',
+                'd -> e [URL="u"]',
+                'd -> e [edgeURL="u"]',
+            ),
+            _edge_count_case(1, 'a -> b [headURL="u"]', 'b -> a [tailhref="u"]'),
+            _edge_count_case(2, 'a -> b [headURL="\\T"]', 'b -> a [tailhref="\\T"]'),
+            _edge_count_case(2, 'a -> b [headURL="u"]', 'b -> a [headhref="u"]'),
+        ),
+        _named_edge_count_cases(
+            "endpoint-url-is-not-edge-only-url",
+            _edge_count_case(
+                2,
+                'a -> b [headlabel=x URL="u"]',
+                'a -> b [headlabel=x edgeURL="u"]',
+            ),
+            _edge_count_case(
+                2,
+                'a -> b [headlabel=x URL="u" headtooltip="tip"]',
+                'a -> b [headlabel=x edgeURL="u" headtooltip="tip"]',
+            ),
+            _edge_count_case(
+                1,
+                'a -> b [headlabel=x URL="u"]',
+                'a -> b [headlabel=x href="u"]',
+            ),
+        ),
+        _named_edge_count_cases(
+            "target-fallbacks",
+            _edge_count_case(
+                1, "a -> b [URL=u target=t]", "a -> b [URL=u edgetarget=t]"
+            ),
+            _edge_count_case(
+                1,
+                "a -> b [headlabel=x headURL=u target=t]",
+                "a -> b [headlabel=x headURL=u headtarget=t]",
+            ),
+        ),
+        _named_edge_count_cases(
+            "substituted-ids",
+            _edge_count_case(1, 'a -> b [id="\\T"]', 'a -> b [id="a"]'),
+            _edge_count_case(2, 'a -> b [id="\\T"]', 'b -> a [id="\\T"]'),
+        ),
+        _named_edge_count_cases(
+            "endpoint-label-font-fallbacks",
+            _edge_count_case(
+                1,
+                "a -> b [headlabel=x fontsize=20]",
+                "a -> b [headlabel=x fontsize=20 labelfontsize=20]",
+            ),
+            _edge_count_case(
+                1,
+                "a -> b [headlabel=x fontname=Courier]",
+                "a -> b [headlabel=x fontname=Courier labelfontname=Courier]",
+            ),
+        ),
+        _named_edge_count_cases(
+            "samehead-sametail-physical-endpoint",
+            _edge_count_case(1, "a -> b [samehead=x]", "b -> a [sametail=x]"),
+            _edge_count_case(2, "a -> b [samehead=x]", "b -> a [samehead=x]"),
+        ),
+        _named_edge_count_cases(
+            "lhead-ltail-physical-endpoint",
+            _edge_count_case(
+                1,
+                "graph [compound=true]",
+                "subgraph cluster_a { a }",
+                "subgraph cluster_b { b }",
+                "a -> b [ltail=cluster_a lhead=cluster_b]",
+                "b -> a [ltail=cluster_b lhead=cluster_a]",
+            ),
+        ),
+        _named_edge_count_cases(
+            "gate-cluster-endpoints-on-compound",
+            _edge_count_case(
+                1,
+                "a",
+                "subgraph cluster_outer { subgraph cluster_inner { b } }",
+                "a -> b [lhead=cluster_inner]",
+                "b -> a [ltail=cluster_outer]",
+            ),
+            _edge_count_case(
+                2,
+                "graph [compound=true]",
+                "a",
+                "subgraph cluster_outer { subgraph cluster_inner { b } }",
+                "a -> b [lhead=cluster_inner]",
+                "b -> a [ltail=cluster_outer]",
+            ),
+        ),
+        _named_edge_count_cases(
+            "endpoint-label-substitution",
+            _edge_count_case(
+                1,
+                'a -> b [headlabel="\\H"]',
+                'b -> a [taillabel="\\T"]',
+            ),
+            _edge_count_case(
+                2,
+                'a -> b [headlabel="\\T"]',
+                'b -> a [taillabel="\\T"]',
+            ),
+        ),
+        _named_edge_count_cases(
+            "html-like-versus-plain-attribute",
+            _edge_count_case(
+                2,
+                "a -> b [headlabel=<<B>x</B>>]",
+                'a -> b [headlabel="<B>x</B>"]',
+            ),
+        ),
+        _named_edge_count_cases(
+            "ignore-layout-only-attributes",
+            _edge_count_case(
+                3,
+                "a -> b [constraint=false]",
+                "a -> b",
+                "b -> c [weight=8]",
+                "b -> c",
+                "c -> d [minlen=2]",
+                "c -> d",
+            ),
+        ),
+        _named_edge_count_cases(
+            "explicit-default-edge-attributes",
+            _edge_count_case(
+                3,
+                "a -> b [dir=forward]",
+                "a -> b",
+                "b -> c [headclip=true]",
+                "b -> c",
+                "c -> d [tailclip=true]",
+                "c -> d",
+            ),
+        ),
+    ),
+)
+def test_concentrate_drawn_edge_counts(
+    splines: str, cases: tuple[tuple[int, tuple[str, ...]], ...]
+):
+    """Structurally identical concentration scenarios keep readable case IDs."""
+
+    _assert_concentrated_edge_counts(splines, cases)
+
+
+@pytest.mark.parametrize(
+    ("splines", "cases"),
+    (
+        _fixed_edge_count_cases(
+            "colorscheme-resolution",
+            "",
+            _edge_count_case(
+                3,
+                "a -> b [colorscheme=X11]",
+                "a -> b",
+                "b -> c [colorscheme=X11 color=green]",
+                "b -> c [colorscheme=svg color=green]",
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "main-label-decorate",
+            "splines=ortho",
+            _edge_count_case(
+                1,
+                "a -> b [label=x decorate=false]",
+                "a -> b [label=x decorate=false]",
+            ),
+            _edge_count_case(
+                2,
+                "a -> b [label=x decorate=false]",
+                "a -> b [label=x decorate=true]",
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "labelfloat-primary-label-gate",
+            "splines=ortho",
+            _edge_count_case(
+                1,
+                "a -> b [xlabel=x labelfloat=false]",
+                "a -> b [xlabel=x labelfloat=true]",
+            ),
+            _edge_count_case(
+                1,
+                "a -> b [label=x labelfloat=false]",
+                "a -> b [label=x labelfloat=false]",
+            ),
+            _edge_count_case(
+                2,
+                "a -> b [label=x labelfloat=false]",
+                "a -> b [label=x labelfloat=true]",
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "multicolor-arrow-fillcolor",
+            "",
+            _edge_count_case(
+                3,
+                'a -> b [color="red:blue" fillcolor=green]',
+                'a -> b [color="red:blue" fillcolor=yellow]',
+                "b -> c [color=red fillcolor=green]",
+                "b -> c [color=red fillcolor=yellow]",
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "label-tooltip-render-gate",
+            "",
+            _edge_count_case(
+                3,
+                "a -> b [labeltooltip=left]",
+                "a -> b [labeltooltip=right]",
+                "b -> c [label=x labeltooltip=left]",
+                "b -> c [label=x labeltooltip=right]",
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "implicit-endpoint-label-tooltip",
+            "",
+            _edge_count_case(
+                3,
+                "a -> b [headlabel=x headURL=u]",
+                "a -> b [headlabel=x headURL=u headtooltip=x]",
+                "b -> c [headlabel=x headURL=u]",
+                "b -> c [headlabel=x headURL=u headtooltip=y]",
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "preprocess-explicit-tooltip",
+            "",
+            _edge_count_case(
+                3,
+                'a -> b [tooltip="A&amp;B"]',
+                'a -> b [tooltip="A&B"]',
+                'b -> c [tooltip="A&amp;B"]',
+                'b -> c [tooltip="A&C"]',
+            ),
+        ),
+        _fixed_edge_count_cases(
+            "overridden-endpoint-label-fonts",
+            "",
+            _edge_count_case(
+                6,
+                "a -> b [headlabel=x fontname=Courier labelfontname=Helvetica]",
+                "a -> b [headlabel=x fontname=Times labelfontname=Helvetica]",
+                "b -> c [headlabel=x fontsize=10 labelfontsize=20]",
+                "b -> c [headlabel=x fontsize=30 labelfontsize=20]",
+                "c -> d [headlabel=x fontname=Courier]",
+                "c -> d [headlabel=x fontname=Times]",
+                "d -> e [headlabel=x fontsize=10]",
+                "d -> e [headlabel=x fontsize=30]",
+            ),
+        ),
+    ),
+)
+def test_concentrate_fixed_spline_drawn_edge_counts(
+    splines: str, cases: tuple[tuple[int, tuple[str, ...]], ...]
+):
+    """Count-only scenarios that intentionally use one spline mode."""
+
+    _assert_concentrated_edge_counts(splines, cases)
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_preserves_distinct_edge_colors(splines: str):
     """Concentration preserves the colors and routes of visibly distinct edges."""
@@ -4842,20 +5211,6 @@ def test_concentrate_preserves_distinct_edge_labels(splines: str):
     )
     label_edges = json.loads(dot("json", source=distinct_labels))["edges"]
     assert {edge["label"] for edge in label_edges} == {"first", "second"}
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_preserves_distinct_endpoint_label_colors(splines: str):
-    """Concentration preserves visible edge and endpoint label colors."""
-
-    distinct_label_colors = _concentrated_graph(
-        splines,
-        "a -> b [label=x fontcolor=red]",
-        "a -> b [label=x fontcolor=blue]",
-        "b -> c [headlabel=x labelfontcolor=red]",
-        "b -> c [headlabel=x labelfontcolor=blue]",
-    )
-    assert len(_drawn_edges(distinct_label_colors)) == 4
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -4939,71 +5294,6 @@ def test_concentrate_matches_equivalent_color_spellings(splines: str):
     assert _drawn_edge_colors(fillcolor_defaults_to_color) == ["#ff0000"]
 
 
-def test_concentrate_compares_colors_after_colorscheme_resolution():
-    """colorxlate() consumes colorscheme; the scheme is not rendered itself."""
-
-    resolved_colors = _concentrated_graph(
-        "",
-        "a -> b [colorscheme=X11]",
-        "a -> b",
-        "b -> c [colorscheme=X11 color=green]",
-        "b -> c [colorscheme=svg color=green]",
-    )
-    assert len(_drawn_edges(resolved_colors)) == 3
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_ignores_unused_label_colors(splines: str):
-    """Label-only colors do not split unlabeled edge routes."""
-
-    unused_label_colors = _concentrated_graph(
-        splines,
-        """
-          a -> b [fontcolor=red]
-          a -> b [fontcolor=blue]
-          b -> c [labelfontcolor=red]
-          b -> c [labelfontcolor=blue]
-          c -> d [headlabel=x fontcolor=red labelfontcolor=black]
-          c -> d [headlabel=x fontcolor=blue labelfontcolor=black]
-          d -> e [fontsize=20 fontname=Courier labelfontsize=20
-                  labelfontname=Courier labeldistance=2 labelangle=30
-                  decorate=true]
-          d -> e
-        """,
-    )
-    assert len(_drawn_edges(unused_label_colors)) == 4
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_ignores_decorate_for_endpoint_labels(splines: str):
-    """emit_end_edge() gives headlabel/taillabel no decorate attachment."""
-
-    endpoint_label_only = _concentrated_graph(
-        splines,
-        "a -> b [headlabel=x decorate=false]",
-        "a -> b [headlabel=x decorate=true]",
-    )
-    assert len(_drawn_edges(endpoint_label_only)) == 1
-
-
-def test_concentrate_preserves_decorate_for_main_labels():
-    """emit_end_edge() attaches decorate splines to label/xlabel."""
-
-    same_decorate = _concentrated_graph(
-        "splines=ortho",
-        "a -> b [label=x decorate=false]",
-        "a -> b [label=x decorate=false]",
-    )
-    assert len(_drawn_edges(same_decorate)) == 1
-
-    main_label = _concentrated_graph(
-        "splines=ortho",
-        "a -> b [label=x decorate=false]",
-        "a -> b [label=x decorate=true]",
-    )
-    assert len(_drawn_edges(main_label)) == 2
-
-
 @pytest.mark.parametrize(
     ("attribute", "first_value", "second_value"),
     (
@@ -5041,31 +5331,6 @@ def test_concentrate_gates_endpoint_label_attributes(
     assert len(_drawn_edges(endpoint_label)) == 2
 
 
-def test_concentrate_gates_labelfloat_on_primary_label():
-    """common_init_edge() reads labelfloat only while creating ED_label."""
-
-    external_label_only = _concentrated_graph(
-        "splines=ortho",
-        "a -> b [xlabel=x labelfloat=false]",
-        "a -> b [xlabel=x labelfloat=true]",
-    )
-    assert len(_drawn_edges(external_label_only)) == 1
-
-    same_labelfloat = _concentrated_graph(
-        "splines=ortho",
-        "a -> b [label=x labelfloat=false]",
-        "a -> b [label=x labelfloat=false]",
-    )
-    assert len(_drawn_edges(same_labelfloat)) == 1
-
-    primary_label = _concentrated_graph(
-        "splines=ortho",
-        "a -> b [label=x labelfloat=false]",
-        "a -> b [label=x labelfloat=true]",
-    )
-    assert len(_drawn_edges(primary_label)) == 2
-
-
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_resolved_port_spellings(splines: str):
     """Raw headport/tailport spelling does not override resolved ports."""
@@ -5078,108 +5343,6 @@ def test_concentrate_matches_resolved_port_spellings(splines: str):
         "a:p:c -> b [color=red]",
     )
     assert len(_drawn_edges(equivalent_port_spellings)) == 1
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_explicit_rendering_defaults(splines: str):
-    """Explicit rendered defaults do not split equivalent routes."""
-
-    explicit_edge_defaults = _concentrated_graph(
-        splines,
-        """
-          a -> b [style=solid penwidth=1 arrowsize=1]
-          a -> b
-          b -> c [labelfloat=false]
-          b -> c
-          c -> d [dir=none arrowsize=2]
-          c -> d [dir=none]
-          d -> e [dir=none fillcolor=red]
-          d -> e [dir=none fillcolor=blue]
-        """,
-    )
-    assert len(_drawn_edges(explicit_edge_defaults)) == 4
-
-
-def test_concentrate_ignores_fillcolor_for_multicolor_arrows():
-    """multicolor() fills arrows from spline segments, not edge fillcolor."""
-
-    arrow_fills = _concentrated_graph(
-        "",
-        'a -> b [color="red:blue" fillcolor=green]',
-        'a -> b [color="red:blue" fillcolor=yellow]',
-        "b -> c [color=red fillcolor=green]",
-        "b -> c [color=red fillcolor=yellow]",
-    )
-    assert len(_drawn_edges(arrow_fills)) == 3
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_tooltip_aliases(splines: str):
-    """Tooltip aliases concentrate only when their rendered values match."""
-
-    equivalent_tooltip_aliases = _concentrated_graph(
-        splines,
-        'a -> b [tooltip="tip"]',
-        'a -> b [edgetooltip="tip"]',
-    )
-    assert len(_drawn_edges(equivalent_tooltip_aliases)) == 1
-
-    substituted_reverse_tooltips = _concentrated_graph(
-        splines,
-        """
-          a -> b [tooltip="\\T"]
-          b -> a [edgetooltip="\\T"]
-        """,
-    )
-    assert len(_drawn_edges(substituted_reverse_tooltips)) == 1
-
-    substituted_endpoint_tooltips = _concentrated_graph(
-        splines,
-        """
-          a -> b [headlabel=x headtooltip="\\T"]
-          b -> a [taillabel=x tailtooltip="\\T"]
-        """,
-    )
-    assert len(_drawn_edges(substituted_endpoint_tooltips)) == 1
-
-
-def test_concentrate_gates_label_tooltips_on_rendered_labels():
-    """emit_edge_label() ignores tooltip layers without a label or xlabel."""
-
-    label_tooltips = _concentrated_graph(
-        "",
-        "a -> b [labeltooltip=left]",
-        "a -> b [labeltooltip=right]",
-        "b -> c [label=x labeltooltip=left]",
-        "b -> c [label=x labeltooltip=right]",
-    )
-    assert len(_drawn_edges(label_tooltips)) == 3
-
-
-def test_concentrate_matches_implicit_endpoint_label_tooltips():
-    """emit_begin_edge() defaults an anchored endpoint tooltip to its label."""
-
-    endpoint_tooltips = _concentrated_graph(
-        "",
-        "a -> b [headlabel=x headURL=u]",
-        "a -> b [headlabel=x headURL=u headtooltip=x]",
-        "b -> c [headlabel=x headURL=u]",
-        "b -> c [headlabel=x headURL=u headtooltip=y]",
-    )
-    assert len(_drawn_edges(endpoint_tooltips)) == 3
-
-
-def test_concentrate_preprocesses_explicit_tooltips():
-    """emit_begin_edge() applies preprocessTooltip() before substitution."""
-
-    tooltips = _concentrated_graph(
-        "",
-        'a -> b [tooltip="A&amp;B"]',
-        'a -> b [tooltip="A&B"]',
-        'b -> c [tooltip="A&amp;B"]',
-        'b -> c [tooltip="A&C"]',
-    )
-    assert len(_drawn_edges(tooltips)) == 3
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -5198,227 +5361,6 @@ def test_concentrate_same_rank_parallel_edges_find_prior_equivalent(splines: str
         "#0000ff",
         "#ff0000",
     ]
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_url_href_aliases(splines: str):
-    """URL/href aliases concentrate only when rendered endpoint values match."""
-
-    same_direction_aliases = _concentrated_graph(
-        splines,
-        'a -> b [URL="u"]',
-        'a -> b [href="u"]',
-        'b -> c [edgeURL="u"]',
-        'b -> c [edgehref="u"]',
-        'c -> d [labelURL="u"]',
-        'c -> d [labelhref="u"]',
-        'd -> e [URL="u"]',
-        'd -> e [edgeURL="u"]',
-    )
-    assert len(_drawn_edges(same_direction_aliases)) == 4
-
-    reverse_endpoint_aliases = _concentrated_graph(
-        splines,
-        'a -> b [headURL="u"]',
-        'b -> a [tailhref="u"]',
-    )
-    assert len(_drawn_edges(reverse_endpoint_aliases)) == 1
-
-    substituted_reverse_endpoint_aliases = _concentrated_graph(
-        splines,
-        """
-          a -> b [headURL="\\T"]
-          b -> a [tailhref="\\T"]
-        """,
-    )
-    assert len(_drawn_edges(substituted_reverse_endpoint_aliases)) == 2
-
-    same_grammar_endpoint_aliases = _concentrated_graph(
-        splines,
-        'a -> b [headURL="u"]',
-        'b -> a [headhref="u"]',
-    )
-    assert len(_drawn_edges(same_grammar_endpoint_aliases)) == 2
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_distinguishes_endpoint_url_from_edge_only_url(splines: str):
-    """``emit_begin_edge`` does not inherit edgeURL into endpoint-label URLs."""
-
-    endpoint_and_edge_urls = _concentrated_graph(
-        splines,
-        'a -> b [headlabel=x URL="u"]',
-        'a -> b [headlabel=x edgeURL="u"]',
-    )
-    assert len(_drawn_edges(endpoint_and_edge_urls)) == 2
-
-    endpoint_and_edge_urls_with_tooltip = _concentrated_graph(
-        splines,
-        'a -> b [headlabel=x URL="u" headtooltip="tip"]',
-        'a -> b [headlabel=x edgeURL="u" headtooltip="tip"]',
-    )
-    assert len(_drawn_edges(endpoint_and_edge_urls_with_tooltip)) == 2
-
-    equivalent_endpoint_fallbacks = _concentrated_graph(
-        splines,
-        'a -> b [headlabel=x URL="u"]',
-        'a -> b [headlabel=x href="u"]',
-    )
-    assert len(_drawn_edges(equivalent_endpoint_fallbacks)) == 1
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_target_fallbacks(splines: str):
-    """Map target defaults compare by their rendered anchor target."""
-
-    edge_target_fallback = _concentrated_graph(
-        splines,
-        "a -> b [URL=u target=t]",
-        "a -> b [URL=u edgetarget=t]",
-    )
-    assert len(_drawn_edges(edge_target_fallback)) == 1
-
-    head_target_fallback = _concentrated_graph(
-        splines,
-        "a -> b [headlabel=x headURL=u target=t]",
-        "a -> b [headlabel=x headURL=u headtarget=t]",
-    )
-    assert len(_drawn_edges(head_target_fallback)) == 1
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_substituted_ids(splines: str):
-    """Explicit IDs are substituted before they reach renderers."""
-
-    same_direction_id = _concentrated_graph(
-        splines,
-        """
-          a -> b [id="\\T"]
-          a -> b [id="a"]
-        """,
-    )
-    assert len(_drawn_edges(same_direction_id)) == 1
-
-    reverse_id = _concentrated_graph(
-        splines,
-        """
-          a -> b [id="\\T"]
-          b -> a [id="\\T"]
-        """,
-    )
-    assert len(_drawn_edges(reverse_id)) == 2
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_label_font_fallbacks(splines: str):
-    """Endpoint label font attributes inherit edge font attributes."""
-
-    endpoint_label_fontsize = _concentrated_graph(
-        splines,
-        "a -> b [headlabel=x fontsize=20]",
-        "a -> b [headlabel=x fontsize=20 labelfontsize=20]",
-    )
-    assert len(_drawn_edges(endpoint_label_fontsize)) == 1
-
-    endpoint_label_fontname = _concentrated_graph(
-        splines,
-        "a -> b [headlabel=x fontname=Courier]",
-        "a -> b [headlabel=x fontname=Courier labelfontname=Courier]",
-    )
-    assert len(_drawn_edges(endpoint_label_fontname)) == 1
-
-
-def test_concentrate_ignores_overridden_endpoint_label_fonts():
-    """common_init_edge() lets labelfont attributes replace base font inputs."""
-
-    endpoint_fonts = _concentrated_graph(
-        "",
-        "a -> b [headlabel=x fontname=Courier labelfontname=Helvetica]",
-        "a -> b [headlabel=x fontname=Times labelfontname=Helvetica]",
-        "b -> c [headlabel=x fontsize=10 labelfontsize=20]",
-        "b -> c [headlabel=x fontsize=30 labelfontsize=20]",
-        "c -> d [headlabel=x fontname=Courier]",
-        "c -> d [headlabel=x fontname=Times]",
-        "d -> e [headlabel=x fontsize=10]",
-        "d -> e [headlabel=x fontsize=30]",
-    )
-    assert len(_drawn_edges(endpoint_fonts)) == 6
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_samehead_sametail_by_physical_endpoint(splines: str):
-    """samehead/sametail tags are owned by physical edge endpoints."""
-
-    same_physical_endpoint = _concentrated_graph(
-        splines,
-        "a -> b [samehead=x]",
-        "b -> a [sametail=x]",
-    )
-    assert len(_drawn_edges(same_physical_endpoint)) == 1
-
-    same_grammar_endpoint = _concentrated_graph(
-        splines,
-        "a -> b [samehead=x]",
-        "b -> a [samehead=x]",
-    )
-    assert len(_drawn_edges(same_grammar_endpoint)) == 2
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_lhead_ltail_by_physical_endpoint(splines: str):
-    """Compound cluster endpoints are owned by physical edge endpoints."""
-
-    same_physical_clusters = _concentrated_graph(
-        splines,
-        "graph [compound=true]",
-        "subgraph cluster_a { a }",
-        "subgraph cluster_b { b }",
-        "a -> b [ltail=cluster_a lhead=cluster_b]",
-        "b -> a [ltail=cluster_b lhead=cluster_a]",
-    )
-    assert len(_drawn_edges(same_physical_clusters)) == 1
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_gates_cluster_endpoints_on_compound(splines: str):
-    """``dotLayout`` renders lhead/ltail only through ``dot_compoundEdges``."""
-
-    compound_off = _concentrated_graph(
-        splines,
-        "a",
-        "subgraph cluster_outer { subgraph cluster_inner { b } }",
-        "a -> b [lhead=cluster_inner]",
-        "b -> a [ltail=cluster_outer]",
-    )
-    assert len(_drawn_edges(compound_off)) == 1
-
-    compound_on = compound_off.replace(
-        "graph [concentrate=true", "graph [compound=true concentrate=true"
-    )
-    assert len(_drawn_edges(compound_on)) == 2
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_compares_endpoint_label_substitutions(splines: str):
-    """Endpoint labels compare after edge-name substitution."""
-
-    same_rendered_endpoint_label = _concentrated_graph(
-        splines,
-        """
-          a -> b [headlabel="\\H"]
-          b -> a [taillabel="\\T"]
-        """,
-    )
-    assert len(_drawn_edges(same_rendered_endpoint_label)) == 1
-
-    different_rendered_endpoint_label = _concentrated_graph(
-        splines,
-        """
-          a -> b [headlabel="\\T"]
-          b -> a [taillabel="\\T"]
-        """,
-    )
-    assert len(_drawn_edges(different_rendered_endpoint_label)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -5551,18 +5493,6 @@ def test_concentrate_same_direction_arrows_ignore_borrowed_reverse_arrows(
         "a -> b [color=red dir=both arrowhead=normal arrowtail=vee]",
     )
     assert len(_drawn_edges(borrowed_reverse_arrow)) == 2
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_distinguishes_html_like_attribute_values(splines: str):
-    """HTML-like identity is semantic even when the string bytes are equal."""
-
-    html_and_plain_headlabels = _concentrated_graph(
-        splines,
-        "a -> b [headlabel=<<B>x</B>>]",
-        'a -> b [headlabel="<B>x</B>"]',
-    )
-    assert len(_drawn_edges(html_and_plain_headlabels)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -5840,38 +5770,6 @@ def test_concentrate_same_rank_edges_compare_their_actual_direction(splines: str
         "b -> a",
     )
     assert len(_drawn_edges(one_sided_clipping)) == 2
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_ignores_layout_only_edge_attributes(splines: str):
-    """Ranking inputs do not block concentration after layout is fixed."""
-
-    layout_only_differences = _concentrated_graph(
-        splines,
-        "a -> b [constraint=false]",
-        "a -> b",
-        "b -> c [weight=8]",
-        "b -> c",
-        "c -> d [minlen=2]",
-        "c -> d",
-    )
-    assert len(_drawn_edges(layout_only_differences)) == 3
-
-
-@pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_matches_explicit_default_edge_attributes(splines: str):
-    """Explicit default attributes do not block concentration."""
-
-    explicit_defaults = _concentrated_graph(
-        splines,
-        "a -> b [dir=forward]",
-        "a -> b",
-        "b -> c [headclip=true]",
-        "b -> c",
-        "c -> d [tailclip=true]",
-        "c -> d",
-    )
-    assert len(_drawn_edges(explicit_defaults)) == 3
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -7532,7 +7430,6 @@ def test_2734():
 
     # look at each path
     for path in root.findall(".//{http://www.w3.org/2000/svg}path"):
-
         # get the definition and make it slightly easier to parse
         d = path.get("d")
         points_str = d.replace("C", " ").replace("M", " ")
@@ -8645,7 +8542,6 @@ def test_changelog():
 
     with open(changelog, "rt", encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
-
             ignore_h2 = False
 
             # an exception for an old heading
@@ -8657,7 +8553,6 @@ def test_changelog():
                 ignore_h2 = True
 
             if (m := re.match("##(?P<remainder>[^#].*)$", line)) and not ignore_h2:
-
                 expected_format = r" \[\d+\.\d+\.\d+\] [\-–] \d{4}-\d{2}-\d{2}$"
                 assert re.match(expected_format, m.group("remainder")), (
                     f"CHANGELOG.md:{lineno}: second-level heading did not match "
