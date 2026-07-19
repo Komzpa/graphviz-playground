@@ -166,7 +166,12 @@ bool mergeable(edge_t *first_edge, edge_t *second_edge) {
          agtail(first_edge) == agtail(second_edge) &&
          aghead(first_edge) == aghead(second_edge) &&
          ED_label(first_edge) == ED_label(second_edge) &&
+         ED_xlabel(first_edge) == ED_xlabel(second_edge) &&
          ports_eq(first_edge, second_edge);
+}
+
+static bool edge_has_no_labels(edge_t *edge) {
+  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
 }
 
 static edge_t *find_prior_concentrated_representative(graph_t *graph,
@@ -181,7 +186,7 @@ static edge_t *find_prior_concentrated_representative(graph_t *graph,
     const bool same_endpoints = aghead(prior_edge) == aghead(edge);
     const bool prior_edge_owns_chain = ED_to_virt(prior_edge) != NULL;
     const bool both_edges_are_unlabeled =
-        ED_label(prior_edge) == NULL && ED_label(edge) == NULL;
+        edge_has_no_labels(prior_edge) && edge_has_no_labels(edge);
 
     if (same_endpoints && prior_edge_owns_chain && both_edges_are_unlabeled &&
         ports_eq(prior_edge, edge) &&
@@ -201,7 +206,7 @@ static edge_t *find_prior_parallel_route(graph_t *graph, edge_t *edge) {
     const bool same_endpoints = aghead(prior_edge) == aghead(edge);
     const bool prior_edge_owns_chain = ED_to_virt(prior_edge) != NULL;
     const bool both_edges_are_unlabeled =
-        ED_label(prior_edge) == NULL && ED_label(edge) == NULL;
+        edge_has_no_labels(prior_edge) && edge_has_no_labels(edge);
 
     if (same_endpoints && prior_edge_owns_chain && both_edges_are_unlabeled &&
         ports_eq(prior_edge, edge)) {
@@ -221,7 +226,7 @@ static edge_t *find_prior_flat_concentrated_equivalent(graph_t *graph,
     const bool prior_edge_is_flat =
         ND_rank(agtail(prior_edge)) == ND_rank(aghead(prior_edge));
     const bool both_edges_are_unlabeled =
-        ED_label(prior_edge) == NULL && ED_label(edge) == NULL;
+        edge_has_no_labels(prior_edge) && edge_has_no_labels(edge);
 
     if (same_endpoints && prior_edge_is_flat &&
         ED_edge_type(prior_edge) == NORMAL && ED_edge_type(edge) == NORMAL &&
@@ -303,9 +308,10 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
     const bool is_available = ED_edge_type(opposite_edge) != IGNORED;
 
     if (connects_same_nodes && !is_self_edge && is_available) {
-      const bool compatible_endpoints =
-          ED_label(backward_edge) == NULL && ED_label(opposite_edge) == NULL &&
-          opposite_edge_ports_are_equal(backward_edge, opposite_edge);
+      const bool compatible_endpoints = edge_has_no_labels(backward_edge) &&
+                                        edge_has_no_labels(opposite_edge) &&
+                                        opposite_edge_ports_are_equal(
+                                            backward_edge, opposite_edge);
       if (compatible_endpoints) {
         if (Concentrate &&
             opposite_edge_attributes_are_equal(backward_edge, opposite_edge) &&
@@ -362,7 +368,7 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
 }
 
 static bool suppress_concentrated_cluster_edge_with_opposite(edge_t *edge) {
-  if (!Concentrate || ED_label(edge) != NULL) {
+  if (!Concentrate || !edge_has_no_labels(edge)) {
     return false;
   }
 
@@ -371,7 +377,7 @@ static bool suppress_concentrated_cluster_edge_with_opposite(edge_t *edge) {
     const bool connects_same_nodes = aghead(opposite_edge) == agtail(edge);
     const bool is_available = ED_edge_type(opposite_edge) != IGNORED;
     const bool owns_route = ED_to_virt(opposite_edge) != NULL;
-    const bool both_edges_are_unlabeled = ED_label(opposite_edge) == NULL;
+    const bool both_edges_are_unlabeled = edge_has_no_labels(opposite_edge);
 
     if (connects_same_nodes && is_available && owns_route &&
         both_edges_are_unlabeled && opposite_edge_ports_are_equal(edge, opposite_edge) &&
@@ -469,7 +475,7 @@ void class2(graph_t *graph) {
           other_edge(edge);
           continue;
         }
-        if (ED_label(edge) == NULL && ED_label(previous_edge) == NULL &&
+        if (edge_has_no_labels(edge) && edge_has_no_labels(previous_edge) &&
             ports_eq(edge, previous_edge)) {
           if (Concentrate) {
             if (route_concentrated_parallel_edge(graph, edge)) {

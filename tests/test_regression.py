@@ -5746,6 +5746,25 @@ def test_concentrate_same_rank_reverse_edges_across_rank_spans():
     ]
 
 
+def test_concentrate_rank_spanning_reverse_edges_keep_xlabels():
+    """emit_end_edge() emits xlabels per edge, so neither edge may disappear."""
+
+    labeled_reverse_edges = """
+        strict digraph {
+          concentrate=true
+          subgraph same_rank {
+            rank=same
+            a
+            b
+          }
+          c -> a
+          a -> b [xlabel=x]
+          b -> a [xlabel=x]
+        }
+    """
+    assert len(_drawn_edges(labeled_reverse_edges)) == 3
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_same_rank_edges_compare_their_actual_direction(splines: str):
     """Same-rank peers compare endpoint attributes in their actual direction."""
