@@ -35,7 +35,7 @@ static bool samedir(edge_t * e, edge_t * f)
 	return false;
     if (ED_conc_opp_flag(f0))
 	return false;
-    return same_edge_attrs(e0, f0) &&
+    return edge_attributes_are_equal(e0, f0) &&
            ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
                 (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
             0);

@@ -59,6 +59,57 @@ typedef struct {
     uint32_t eflag;
 } arrowdir_t;
 
+/*
+ * class2() retains one edge from a concentrated opposite-direction pair, but
+ * arrow_flags() still needs the exact suppressed edge to recover its endpoint
+ * arrows. A private Cgraph record preserves that identity without extending
+ * the public Agedgeinfo_t layout.
+ *
+ * Agrec_t must be the first member of every Cgraph record. The edge pointer is
+ * borrowed: both input edges live until the graph is closed. Binding with
+ * move_to_front=false is deliberate because ED_* macros expect Agedgeinfo_t to
+ * remain the front record returned by AGDATA().
+ */
+typedef struct {
+  Agrec_t header;
+  Agedge_t *suppressed_opposite_edge;
+} concentrated_opposite_edge_record_t;
+
+#define CONCENTRATED_OPPOSITE_EDGE_RECORD "concentrated opposite edge"
+
+void remember_suppressed_opposite_edge(Agedge_t *retained_edge,
+                                       Agedge_t *suppressed_opposite_edge) {
+  concentrated_opposite_edge_record_t *const record = agbindrec(
+      retained_edge, CONCENTRATED_OPPOSITE_EDGE_RECORD, sizeof(*record), false);
+  record->suppressed_opposite_edge = suppressed_opposite_edge;
+}
+
+static Agedge_t *suppressed_opposite_edge(Agedge_t *retained_edge) {
+  concentrated_opposite_edge_record_t *const record =
+      (concentrated_opposite_edge_record_t *)aggetrec(
+          retained_edge, CONCENTRATED_OPPOSITE_EDGE_RECORD, false);
+  return record == NULL ? NULL : record->suppressed_opposite_edge;
+}
+
+static void add_suppressed_opposite_arrow_flags(Agedge_t *retained_edge,
+                                                uint32_t *start_flag,
+                                                uint32_t *end_flag) {
+  uint32_t opposite_start_flag;
+  uint32_t opposite_end_flag;
+
+  /*
+   * The retained edge supplies the shared spline. Borrow the suppressed
+   * reverse edge's arrows so both original directions remain visible.
+   * Reversing direction maps its start to our end, and its end to our start.
+   */
+  Agedge_t *const opposite_edge = suppressed_opposite_edge(retained_edge);
+  if (opposite_edge != NULL) {
+    arrow_flags(opposite_edge, &opposite_start_flag, &opposite_end_flag);
+    *end_flag |= opposite_start_flag;
+    *start_flag |= opposite_end_flag;
+  }
+}
+
 static const arrowdir_t Arrowdirs[] = {
     {"forward", ARR_TYPE_NONE, ARR_TYPE_NORM},
     {"back", ARR_TYPE_NORM, ARR_TYPE_NONE},
@@ -240,13 +291,7 @@ void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
 		arrow_match_name(attr, sflag);
     }
     if (ED_conc_opp_flag(e)) {
-	edge_t *f;
-	uint32_t s0, e0;
-	/* pick up arrowhead of opposing edge */
-	f = agfindedge(agraphof(aghead(e)), aghead(e), agtail(e));
-	arrow_flags(f, &s0, &e0);
-	*eflag |= s0;
-	*sflag |= e0;
+      add_suppressed_opposite_arrow_flags(e, sflag, eflag);
     }
 }
 

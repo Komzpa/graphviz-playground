@@ -4717,86 +4717,225 @@ def test_2559():
     ), "concentrated edge drawn as a regular straight edge"
 
 
+def _drawn_edges(source: str) -> list[dict]:
+    """Return edges with an xdot ``_draw_`` stream and thus visible geometry."""
+
+    layout = json.loads(dot("json", source=source))
+    return [edge for edge in layout["edges"] if "_draw_" in edge]
+
+
+def _drawn_edge_colors(source: str) -> list[str]:
+    """Read pen colors from xdot's ``c`` operations."""
+
+    return [
+        operation["color"]
+        for edge in _drawn_edges(source)
+        for operation in edge["_draw_"]
+        if operation["op"] == "c"
+    ]
+
+
+def _drawn_edge_styles(source: str) -> list[str]:
+    """Read line styles from xdot's ``S`` operations."""
+
+    return [
+        operation["style"]
+        for edge in _drawn_edges(source)
+        for operation in edge["_draw_"]
+        if operation["op"] == "S"
+    ]
+
+
+def _arrow_polygon_point_count(edge: dict, endpoint: str) -> int:
+    """Distinguish arrow shapes by the size of their xdot ``P`` polygon."""
+
+    endpoint_draw_operations = edge[f"_{endpoint}draw_"]
+    polygon = next(
+        operation for operation in endpoint_draw_operations if operation["op"] == "P"
+    )
+    return len(polygon["points"])
+
+
+def _route_x_coordinates(edge: dict) -> tuple[float, ...]:
+    """Return x coordinates from xdot's ``b`` Bezier operation."""
+
+    bezier = next(operation for operation in edge["_draw_"] if operation["op"] == "b")
+    return tuple(point[0] for point in bezier["points"])
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_preserves_edge_attributes(splines: str):
-    """`concentrate=true` should only merge equivalent edges."""
+def test_concentrate_preserves_distinct_edge_attributes(splines: str):
+    """Concentration must not erase visible attribute differences."""
 
-    def drawn_colors(source: str) -> list[str]:
-        layout = json.loads(dot("json", source=source))
-        return [
-            operation["color"]
-            for edge in layout["edges"]
-            for operation in edge.get("_draw_", ())
-            if operation["op"] == "c"
-        ]
-
-    def drawn_styles(source: str) -> list[str]:
-        layout = json.loads(dot("json", source=source))
-        return [
-            operation["style"]
-            for edge in layout["edges"]
-            for operation in edge.get("_draw_", ())
-            if operation["op"] == "S"
-        ]
-
-    distinct = f"""
+    distinct_colors = f"""
         digraph {{
           graph [concentrate=true {splines}]
           a -> b [color=red]
           a -> b [color=blue]
         }}
     """
-    assert set(drawn_colors(distinct)) == {"#ff0000", "#0000ff"}
+    assert set(_drawn_edge_colors(distinct_colors)) == {"#ff0000", "#0000ff"}
 
-    opposite = f"""
+    opposite_colors = f"""
         digraph {{
           graph [concentrate=true {splines}]
           a -> b [color=red]
           b -> a [color=blue]
         }}
     """
-    assert set(drawn_colors(opposite)) == {"#ff0000", "#0000ff"}
+    assert set(_drawn_edge_colors(opposite_colors)) == {"#ff0000", "#0000ff"}
 
-    styles = f"""
+    distinct_styles = f"""
         digraph {{
           graph [concentrate=true {splines}]
           a -> b [style=dashed]
           a -> b [style=dotted]
         }}
     """
-    assert set(drawn_styles(styles)) == {"dashed", "dotted"}
+    assert set(_drawn_edge_styles(distinct_styles)) == {"dashed", "dotted"}
 
-    labels = f"""
+    distinct_labels = f"""
         digraph {{
           graph [concentrate=true {splines}]
           a -> b [label=first]
           a -> b [label=second]
         }}
     """
-    label_edges = json.loads(dot("json", source=labels))["edges"]
+    label_edges = json.loads(dot("json", source=distinct_labels))["edges"]
     assert {edge["label"] for edge in label_edges} == {"first", "second"}
 
-    directions = f"""
+    distinct_directions = f"""
         digraph {{
           graph [concentrate=true {splines}]
           a -> b [dir=forward]
           a -> b [dir=both]
         }}
     """
-    direction_edges = json.loads(dot("json", source=directions))["edges"]
+    direction_edges = json.loads(dot("json", source=distinct_directions))["edges"]
     assert {
         (bool(edge.get("_tdraw_")), bool(edge.get("_hdraw_")))
         for edge in direction_edges
     } == {(False, True), (True, True)}
 
-    equivalent = f"""
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_merges_equivalent_parallel_edges(splines: str):
+    """Equivalent edges share one route even when input order separates them."""
+
+    adjacent_equivalent_edges = f"""
         digraph {{
           graph [concentrate=true {splines}]
           a -> b [color=red]
           a -> b [color=red]
         }}
     """
-    assert drawn_colors(equivalent) == ["#ff0000"]
+    assert _drawn_edge_colors(adjacent_equivalent_edges) == ["#ff0000"]
+
+    interleaved_equivalent_edges = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          a -> b [color=blue]
+          a -> b [color=red]
+        }}
+    """
+    assert sorted(_drawn_edge_colors(interleaved_equivalent_edges)) == [
+        "#0000ff",
+        "#ff0000",
+    ]
+
+    # The invisible path forces a->b to run against rank order. This exercises
+    # the backward-edge classifier, which must apply the same equivalence rule.
+    backward_interleaved_equivalent_edges = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          b -> c [style=invis]
+          c -> a [style=invis]
+          a -> b [constraint=false color=red]
+          a -> b [constraint=false color=blue]
+          a -> b [constraint=false color=red]
+        }}
+    """
+    assert sorted(_drawn_edge_colors(backward_interleaved_equivalent_edges)) == [
+        "#0000ff",
+        "#ff0000",
+    ]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_reverse_edge_arrow_shapes(splines: str):
+    """Each retained edge must borrow arrows from its exact reverse mate."""
+
+    opposite_equivalent_pairs = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red arrowhead=normal]
+          a -> b [color=blue arrowhead=vee]
+          b -> a [color=red arrowhead=normal]
+          b -> a [color=blue arrowhead=vee]
+        }}
+    """
+    drawn_concentrated_edges = _drawn_edges(opposite_equivalent_pairs)
+    # JSON names the head and tail arrow streams `_hdraw_` and `_tdraw_`.
+    head_endpoint = "h"
+    tail_endpoint = "t"
+    actual_arrow_polygon_points = {
+        edge["color"]: (
+            _arrow_polygon_point_count(edge, head_endpoint),
+            _arrow_polygon_point_count(edge, tail_endpoint),
+        )
+        for edge in drawn_concentrated_edges
+    }
+    expected_arrow_polygon_points = {"red": (3, 3), "blue": (8, 8)}
+    assert actual_arrow_polygon_points == expected_arrow_polygon_points
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_distinguishes_html_like_attribute_values(splines: str):
+    """HTML-like identity is semantic even when the string bytes are equal."""
+
+    html_and_plain_headlabels = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headlabel=<<B>x</B>>]
+          a -> b [headlabel="<B>x</B>"]
+        }}
+    """
+    assert len(_drawn_edges(html_and_plain_headlabels)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_unconcentrated_parallel_edges_keep_separate_routes(splines: str):
+    """The attribute guard must not alter ordinary multi-edge routing."""
+
+    parallel_edges_without_concentration = f"""
+        digraph {{
+          graph [concentrate=false {splines}]
+          a -> b [color=red]
+          a -> b [color=blue]
+        }}
+    """
+    parallel_edges = _drawn_edges(parallel_edges_without_concentration)
+    assert len({edge["pos"] for edge in parallel_edges}) == 2
+
+
+def test_unconcentrated_opposite_edges_share_multi_edge_routing():
+    """Opposite edges remain distinct, non-overlapping members of one group."""
+
+    opposite_edges_without_concentration = """
+        digraph {
+          graph [concentrate=false]
+          a -> b [color=red]
+          b -> a [color=blue]
+        }
+    """
+    opposite_edges = _drawn_edges(opposite_edges_without_concentration)
+
+    # A missed merge_chain() call routes both edges down the same centerline.
+    # Comparing their Bezier x coordinates catches that overlap without tying
+    # the test to exact node positions.
+    route_x_coordinates = {_route_x_coordinates(edge) for edge in opposite_edges}
+    assert len(route_x_coordinates) == 2
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")

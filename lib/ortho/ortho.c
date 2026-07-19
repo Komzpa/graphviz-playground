@@ -48,15 +48,111 @@ typedef struct {
     Agedge_t* e;
 } epair_t;
 
-static bool ortho_edge_attrs_eq(Agedge_t *e, Agedge_t *f) {
-  Agraph_t *const g = agroot(agraphof(e));
+typedef struct {
+  PointSet *endpoint_pairs;
+  PointMap *group_heads;
+  size_t *next_in_group;
+  size_t edge_capacity;
+} ortho_concentrate_state_t;
 
-  for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
-       attr = agnxtattr(g, AGEDGE, attr)) {
-    if (strcmp(agxget(e, attr), agxget(f, attr)) != 0) {
+static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
+                                            Agedge_t *second_edge) {
+  Agraph_t *const root_graph = agroot(agraphof(first_edge));
+
+  /*
+   * Attribute defaults are stored on the root graph, not repeated on every
+   * edge. Compare the effective value of each declared edge attribute so the
+   * orthogonal concentrator does not discard a visually distinct edge.
+   * HTML-like identity is part of the value because Cgraph renders an HTML
+   * string differently from plain text containing the same bytes.
+   */
+  Agsym_t *attribute = agnxtattr(root_graph, AGEDGE, NULL);
+  while (attribute != NULL) {
+    const char *const first_value = agxget(first_edge, attribute);
+    const char *const second_value = agxget(second_edge, attribute);
+
+    const bool same_representation =
+        aghtmlstr(first_value) == aghtmlstr(second_value);
+    const bool same_text = strcmp(first_value, second_value) == 0;
+    if (!same_representation || !same_text) {
       return false;
     }
+
+    attribute = agnxtattr(root_graph, AGEDGE, attribute);
   }
+  return true;
+}
+
+static bool
+edge_group_contains_equivalent(Agedge_t *edge, const epair_t *routed_edges,
+                               const ortho_concentrate_state_t *state,
+                               size_t first_edge_index) {
+  size_t edge_index = first_edge_index;
+
+  while (edge_index != state->edge_capacity) {
+    Agedge_t *const routed_edge = routed_edges[edge_index].e;
+    if (ortho_edge_attributes_are_equal(edge, routed_edge)) {
+      return true;
+    }
+    edge_index = state->next_in_group[edge_index];
+  }
+  return false;
+}
+
+static void ortho_concentrate_state_init(ortho_concentrate_state_t *state,
+                                         size_t edge_capacity) {
+  *state = (ortho_concentrate_state_t){
+      .endpoint_pairs = newPS(),
+      .group_heads = newPM(),
+      .next_in_group = gv_calloc(edge_capacity, sizeof(size_t)),
+      .edge_capacity = edge_capacity,
+  };
+
+  /* edge_capacity is outside the valid routed-edge index range. */
+  for (size_t edge_index = 0; edge_index < edge_capacity; edge_index++) {
+    state->next_in_group[edge_index] = edge_capacity;
+  }
+}
+
+static void ortho_concentrate_state_free(ortho_concentrate_state_t *state) {
+  freePS(state->endpoint_pairs);
+  freePM(state->group_heads);
+  free(state->next_in_group);
+}
+
+static bool register_ortho_edge(ortho_concentrate_state_t *state,
+                                Agedge_t *edge, const epair_t *routed_edges,
+                                size_t routed_edge_count) {
+  /*
+   * AGSEQ(node) is Cgraph's stable node identity. Sorting the endpoint IDs
+   * intentionally puts both directions of the same node pair in one group.
+   * Edges in that group are suppressed only when their effective attributes
+   * are equal; non-equivalent edges remain linked as separate routed members.
+   */
+  const int tail_sequence = AGSEQ(agtail(edge));
+  const int head_sequence = AGSEQ(aghead(edge));
+  const int first_endpoint = MIN(tail_sequence, head_sequence);
+  const int second_endpoint = MAX(tail_sequence, head_sequence);
+
+  if (!isInPS(state->endpoint_pairs, first_endpoint, second_endpoint)) {
+    addPS(state->endpoint_pairs, first_endpoint, second_endpoint);
+    assert(routed_edge_count <= INT_MAX);
+    insertPM(state->group_heads, first_endpoint, second_endpoint,
+             (int)routed_edge_count);
+    return true;
+  }
+
+  const int stored_group_head =
+      insertPM(state->group_heads, first_endpoint, second_endpoint, 0);
+  assert(stored_group_head >= 0);
+  const size_t group_head = (size_t)stored_group_head;
+
+  if (edge_group_contains_equivalent(edge, routed_edges, state, group_head)) {
+    return false;
+  }
+
+  state->next_in_group[routed_edge_count] = state->next_in_group[group_head];
+  state->next_in_group[group_head] = routed_edge_count;
   return true;
 }
 
@@ -1174,17 +1270,11 @@ static bool swap_ends_p(edge_t * e)
  */
 int orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
-    PointSet* ps = NULL;
-    PointMap *edge_groups = NULL;
     const size_t edge_capacity = agnedges(g);
-    size_t *next_in_group = NULL;
+    ortho_concentrate_state_t concentrate_state = {0};
 
     if (Concentrate) {
-	ps = newPS();
-	edge_groups = newPM();
-	next_in_group = gv_calloc(edge_capacity, sizeof(size_t));
-	for (size_t i = 0; i < edge_capacity; i++)
-	    next_in_group[i] = edge_capacity;
+	ortho_concentrate_state_init(&concentrate_state, edge_capacity);
     }
 
 #ifdef DEBUG
@@ -1224,7 +1314,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     maze *const mp = mkMaze(g);
     if (mp == NULL) {
 	if (Concentrate) {
-	    freePS(ps);
+	    ortho_concentrate_state_free(&concentrate_state);
 	}
 	free(es);
 	return -1;
@@ -1237,34 +1327,13 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     /* store edges to be routed in es, along with their lengths */
     size_t n_edges = 0;
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
-        for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
+	for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
 	    if (Concentrate) {
-		int ti = AGSEQ(agtail(e));
-		int hi = AGSEQ(aghead(e));
-		int lo = MIN(ti, hi);
-		int high = MAX(ti, hi);
-		if (isInPS(ps, lo, high)) {
-		    bool equivalent = false;
-		    size_t group = insertPM(edge_groups, lo, high, 0);
-		    for (size_t i = group; i != edge_capacity;
-			 i = next_in_group[i]) {
-			Agedge_t *const routed = es[i].e;
-			if (ortho_edge_attrs_eq(e, routed)) {
-			    equivalent = true;
-			    break;
-			}
-		    }
-		    if (equivalent)
-			continue;
-		    next_in_group[n_edges] = next_in_group[group];
-		    next_in_group[group] = n_edges;
-		}
-		else {
-		    addPS(ps, lo, high);
-		    assert(n_edges <= INT_MAX);
-		    insertPM(edge_groups, lo, high, (int)n_edges);
-		}
+		const bool is_distinct =
+		    register_ortho_edge(&concentrate_state, e, es, n_edges);
+		if (!is_distinct)
+		    continue;
 	    }
 	    es[n_edges].e = e;
 	    es[n_edges].d = edgeLen (e);
@@ -1317,9 +1386,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
 
 orthofinish:
     if (Concentrate) {
-	freePS (ps);
-	freePM(edge_groups);
-	free(next_in_group);
+	ortho_concentrate_state_free(&concentrate_state);
     }
 
     for (size_t i=0; i < n_edges; i++)
