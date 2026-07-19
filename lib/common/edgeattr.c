@@ -8,6 +8,26 @@
  * Contributors: Details at https://graphviz.org
  *************************************************************************/
 
+/*
+ * Concentration may replace several input edges with one rendered spline, so
+ * this file compares rendered edge identity rather than Cgraph object identity.
+ * The comparison uses effective values after graph defaults, documented
+ * aliases, color normalization, and string substitutions such as \H and \T have
+ * been applied.
+ *
+ * Attribute symbols and their default refstrings are owned by the root graph;
+ * the helpers below read them in root-registry order and never retain pointers
+ * beyond the active graph. Same-direction edges compare grammar endpoints
+ * directly. Opposite-direction edges compare physical endpoints, so head-owned
+ * attributes on one edge pair with tail-owned attributes on the other.
+ *
+ * The classification and hyperlink tables are intentionally explicit. A shorter
+ * collection of strcmp() predicates is tempting, but it hides which attributes
+ * are ignored after layout, which are aliases, and which endpoint attributes
+ * must be swapped to avoid reintroducing concentrate's historical semantic
+ * merges.
+ */
+
 #include "config.h"
 
 #include <common/colorprocs.h>
@@ -24,19 +44,164 @@ typedef struct {
   bool is_html;
 } comparable_attribute_value_t;
 
-#define ATTRIBUTE_COUNT(attributes) \
+#define ATTRIBUTE_COUNT(attributes)                                            \
   (sizeof(attributes) / sizeof((attributes)[0]))
 
+typedef unsigned int edge_attribute_flags_t;
+
+enum {
+  EDGE_ATTRIBUTE_STROKE_OR_FILL_COLOR = 1u << 0,
+  EDGE_ATTRIBUTE_LABEL_COLOR = 1u << 1,
+  EDGE_ATTRIBUTE_COLOR = 1u << 2,
+  EDGE_ATTRIBUTE_LABEL_ONLY = 1u << 3,
+  EDGE_ATTRIBUTE_CLIPPING = 1u << 4,
+  EDGE_ATTRIBUTE_LAYOUT_ONLY = 1u << 5,
+  EDGE_ATTRIBUTE_ARROW = 1u << 6,
+  EDGE_ATTRIBUTE_URL_ALIAS = 1u << 7,
+  EDGE_ATTRIBUTE_TOOLTIP_ALIAS = 1u << 8,
+  EDGE_ATTRIBUTE_TARGET_ALIAS = 1u << 9,
+  EDGE_ATTRIBUTE_ENDPOINT_LABEL = 1u << 10,
+  EDGE_ATTRIBUTE_SUBSTITUTED = 1u << 11,
+  EDGE_ATTRIBUTE_FONTNAME = 1u << 12,
+  EDGE_ATTRIBUTE_PORT = 1u << 13,
+  EDGE_ATTRIBUTE_ENDPOINT = 1u << 14,
+  EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE = 1u << 15,
+  EDGE_ATTRIBUTE_NUMERIC_DEFAULT_FONT_SIZE = 1u << 16,
+  EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_FONT_SIZE = 1u << 17,
+  EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_ANGLE = 1u << 18,
+  EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE = 1u << 19,
+  EDGE_ATTRIBUTE_STYLE = 1u << 20,
+  EDGE_ATTRIBUTE_DIRECTION = 1u << 21,
+  EDGE_ATTRIBUTE_FILL_COLOR = 1u << 22,
+  EDGE_ATTRIBUTE_ARROW_SIZE = 1u << 23,
+  EDGE_ATTRIBUTE_FONT_COLOR = 1u << 24,
+  EDGE_ATTRIBUTE_LABEL_FONT_COLOR = 1u << 25,
+  EDGE_ATTRIBUTE_LABEL_FONTNAME = 1u << 26,
+};
+
 typedef struct {
-  const char *const *target_names;
-  size_t target_names_size;
-  const char *const *label_names;
-  size_t label_names_size;
-  const char *const *anchor_names;
-  size_t anchor_names_size;
-  const char *const *default_anchor_names;
-  size_t default_anchor_names_size;
-} target_alias_group_t;
+  const char *name;
+  edge_attribute_flags_t flags;
+} edge_attribute_classification_t;
+
+#define EDGE_COLOR_FLAGS                                                       \
+  (EDGE_ATTRIBUTE_COLOR | EDGE_ATTRIBUTE_STROKE_OR_FILL_COLOR)
+#define EDGE_LABEL_COLOR_FLAGS                                                 \
+  (EDGE_ATTRIBUTE_COLOR | EDGE_ATTRIBUTE_LABEL_COLOR |                         \
+   EDGE_ATTRIBUTE_LABEL_ONLY)
+
+/*
+ * This table is the local contract for concentration-specific edge attributes:
+ * each row states how a declared attribute participates in rendered identity.
+ * Attributes absent from the table are ordinary rendered attributes and compare
+ * by their effective text/HTML value.
+ */
+static const edge_attribute_classification_t edge_attribute_classifications[] =
+    {
+        {"URL", EDGE_ATTRIBUTE_URL_ALIAS},
+        {"arrowhead", EDGE_ATTRIBUTE_ARROW},
+        {"arrowsize",
+         EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE | EDGE_ATTRIBUTE_ARROW_SIZE},
+        {"arrowtail", EDGE_ATTRIBUTE_ARROW},
+        {"color", EDGE_COLOR_FLAGS},
+        {"constraint", EDGE_ATTRIBUTE_LAYOUT_ONLY},
+        {"decorate",
+         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE},
+        {"dir", EDGE_ATTRIBUTE_ARROW | EDGE_ATTRIBUTE_DIRECTION},
+        {"edgeURL", EDGE_ATTRIBUTE_URL_ALIAS},
+        {"edgehref", EDGE_ATTRIBUTE_URL_ALIAS},
+        {"edgetarget", EDGE_ATTRIBUTE_TARGET_ALIAS},
+        {"edgetooltip", EDGE_ATTRIBUTE_TOOLTIP_ALIAS},
+        {"fillcolor", EDGE_COLOR_FLAGS | EDGE_ATTRIBUTE_FILL_COLOR},
+        {"fontcolor", EDGE_LABEL_COLOR_FLAGS | EDGE_ATTRIBUTE_FONT_COLOR},
+        {"fontname", EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_FONTNAME},
+        {"fontsize",
+         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_NUMERIC_DEFAULT_FONT_SIZE},
+        {"headURL", EDGE_ATTRIBUTE_URL_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
+        {"headclip", EDGE_ATTRIBUTE_CLIPPING | EDGE_ATTRIBUTE_ENDPOINT},
+        {"headhref", EDGE_ATTRIBUTE_URL_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
+        {"headlabel", EDGE_ATTRIBUTE_ENDPOINT_LABEL | EDGE_ATTRIBUTE_ENDPOINT},
+        {"headport", EDGE_ATTRIBUTE_PORT | EDGE_ATTRIBUTE_ENDPOINT},
+        {"headtarget", EDGE_ATTRIBUTE_TARGET_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
+        {"headtooltip", EDGE_ATTRIBUTE_TOOLTIP_ALIAS |
+                            EDGE_ATTRIBUTE_SUBSTITUTED |
+                            EDGE_ATTRIBUTE_ENDPOINT},
+        {"href", EDGE_ATTRIBUTE_URL_ALIAS},
+        {"id", EDGE_ATTRIBUTE_SUBSTITUTED},
+        {"labelURL", EDGE_ATTRIBUTE_URL_ALIAS},
+        {"labelangle", EDGE_ATTRIBUTE_LABEL_ONLY |
+                           EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_ANGLE},
+        {"labeldistance",
+         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE},
+        {"labelfloat",
+         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE},
+        {"labelfontcolor",
+         EDGE_LABEL_COLOR_FLAGS | EDGE_ATTRIBUTE_LABEL_FONT_COLOR},
+        {"labelfontname", EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_FONTNAME |
+                              EDGE_ATTRIBUTE_LABEL_FONTNAME},
+        {"labelfontsize", EDGE_ATTRIBUTE_LABEL_ONLY |
+                              EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_FONT_SIZE},
+        {"labelhref", EDGE_ATTRIBUTE_URL_ALIAS},
+        {"labeltarget", EDGE_ATTRIBUTE_TARGET_ALIAS},
+        {"labeltooltip",
+         EDGE_ATTRIBUTE_TOOLTIP_ALIAS | EDGE_ATTRIBUTE_SUBSTITUTED},
+        {"lhead", EDGE_ATTRIBUTE_ENDPOINT},
+        {"ltail", EDGE_ATTRIBUTE_ENDPOINT},
+        {"minlen", EDGE_ATTRIBUTE_LAYOUT_ONLY},
+        {"penwidth", EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE},
+        {"samehead", EDGE_ATTRIBUTE_ENDPOINT},
+        {"sametail", EDGE_ATTRIBUTE_ENDPOINT},
+        {"style", EDGE_ATTRIBUTE_STYLE},
+        {"tailURL", EDGE_ATTRIBUTE_URL_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
+        {"tailclip", EDGE_ATTRIBUTE_CLIPPING | EDGE_ATTRIBUTE_ENDPOINT},
+        {"tailhref", EDGE_ATTRIBUTE_URL_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
+        {"taillabel", EDGE_ATTRIBUTE_ENDPOINT_LABEL | EDGE_ATTRIBUTE_ENDPOINT},
+        {"tailport", EDGE_ATTRIBUTE_PORT | EDGE_ATTRIBUTE_ENDPOINT},
+        {"tailtarget", EDGE_ATTRIBUTE_TARGET_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
+        {"tailtooltip", EDGE_ATTRIBUTE_TOOLTIP_ALIAS |
+                            EDGE_ATTRIBUTE_SUBSTITUTED |
+                            EDGE_ATTRIBUTE_ENDPOINT},
+        {"target", EDGE_ATTRIBUTE_TARGET_ALIAS},
+        {"tooltip", EDGE_ATTRIBUTE_TOOLTIP_ALIAS},
+        {"weight", EDGE_ATTRIBUTE_LAYOUT_ONLY},
+};
+
+#undef EDGE_COLOR_FLAGS
+#undef EDGE_LABEL_COLOR_FLAGS
+
+typedef struct {
+  const char *names[2];
+} endpoint_attribute_names_t;
+
+typedef enum {
+  EDGE_TAIL_ENDPOINT,
+  EDGE_HEAD_ENDPOINT,
+  EDGE_ENDPOINT_COUNT,
+} edge_endpoint_t;
+
+static edge_attribute_flags_t edge_attribute_flags(const char *name) {
+  for (size_t attribute_index = 0;
+       attribute_index < ATTRIBUTE_COUNT(edge_attribute_classifications);
+       attribute_index++) {
+    const edge_attribute_classification_t *const classification =
+        &edge_attribute_classifications[attribute_index];
+    if (strcmp(name, classification->name) == 0) {
+      return classification->flags;
+    }
+  }
+  return 0;
+}
+
+static bool edge_attribute_has_flag(const char *name,
+                                    edge_attribute_flags_t flag) {
+  return (edge_attribute_flags(name) & flag) != 0;
+}
+
+static bool edge_attribute_has_any_alias_flag(const char *name) {
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_URL_ALIAS |
+                                           EDGE_ATTRIBUTE_TOOLTIP_ALIAS |
+                                           EDGE_ATTRIBUTE_TARGET_ALIAS);
+}
 
 static comparable_attribute_value_t plain_attribute_value(const char *text) {
   return (comparable_attribute_value_t){.text = text, .is_html = false};
@@ -66,9 +231,10 @@ named_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
   return declared_attribute_value(edge, attribute);
 }
 
-static comparable_attribute_value_t named_first_nonempty_attribute_value(
-    Agraph_t *root_graph, Agedge_t *edge, const char *const *attribute_names,
-    size_t attribute_names_size) {
+static comparable_attribute_value_t
+named_first_nonempty_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
+                                     const char *const *attribute_names,
+                                     size_t attribute_names_size) {
   comparable_attribute_value_t empty_value = {.text = "", .is_html = false};
 
   for (size_t i = 0; i < attribute_names_size; i++) {
@@ -89,29 +255,16 @@ static bool comparable_attribute_values_are_equal(
          strcmp(first_value.text, second_value.text) == 0;
 }
 
-static bool is_stroke_or_fill_color_attribute(const char *name) {
-  return strcmp(name, "color") == 0 || strcmp(name, "fillcolor") == 0;
-}
-
 static bool is_label_color_attribute(const char *name) {
-  return strcmp(name, "fontcolor") == 0 ||
-         strcmp(name, "labelfontcolor") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_LABEL_COLOR);
 }
 
 static bool is_color_attribute(const char *name) {
-  return is_stroke_or_fill_color_attribute(name) ||
-         is_label_color_attribute(name);
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_COLOR);
 }
 
 static bool is_label_only_attribute(const char *name) {
-  return strcmp(name, "fontname") == 0 || strcmp(name, "fontsize") == 0 ||
-         strcmp(name, "fontcolor") == 0 ||
-         strcmp(name, "labelfontname") == 0 ||
-         strcmp(name, "labelfontsize") == 0 ||
-         strcmp(name, "labelfontcolor") == 0 ||
-         strcmp(name, "labelangle") == 0 ||
-         strcmp(name, "labeldistance") == 0 ||
-         strcmp(name, "decorate") == 0 || strcmp(name, "labelfloat") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_LABEL_ONLY);
 }
 
 static bool edge_has_any_of_attributes(Agraph_t *root_graph, Agedge_t *edge,
@@ -145,13 +298,14 @@ static bool edge_has_any_label(Agraph_t *root_graph, Agedge_t *edge) {
 
 static bool edge_uses_label_color(Agraph_t *root_graph, Agedge_t *edge,
                                   const char *attribute_name) {
-  if (strcmp(attribute_name, "fontcolor") == 0) {
+  if (edge_attribute_has_flag(attribute_name, EDGE_ATTRIBUTE_FONT_COLOR)) {
     return edge_has_main_label(root_graph, edge) ||
            (edge_has_endpoint_label(root_graph, edge) &&
-            named_attribute_value(root_graph, edge, "labelfontcolor")
-                    .text[0] == '\0');
+            named_attribute_value(root_graph, edge, "labelfontcolor").text[0] ==
+                '\0');
   }
-  if (strcmp(attribute_name, "labelfontcolor") == 0) {
+  if (edge_attribute_has_flag(attribute_name,
+                              EDGE_ATTRIBUTE_LABEL_FONT_COLOR)) {
     return edge_has_endpoint_label(root_graph, edge);
   }
   return true;
@@ -166,14 +320,16 @@ static bool label_color_attribute_is_rendered(Agraph_t *root_graph,
          edge_uses_label_color(root_graph, second_edge, attribute_name);
 }
 
-static comparable_attribute_value_t edge_color_default_value(
-    Agraph_t *root_graph, Agedge_t *edge, const char *attribute_name) {
-  if (strcmp(attribute_name, "fillcolor") == 0) {
+static comparable_attribute_value_t
+edge_color_default_value(Agraph_t *root_graph, Agedge_t *edge,
+                         const char *attribute_name) {
+  if (edge_attribute_has_flag(attribute_name, EDGE_ATTRIBUTE_FILL_COLOR)) {
     comparable_attribute_value_t color =
         named_attribute_value(root_graph, edge, "color");
     return color.text[0] == '\0' ? plain_attribute_value(DEFAULT_COLOR) : color;
   }
-  if (strcmp(attribute_name, "labelfontcolor") == 0) {
+  if (edge_attribute_has_flag(attribute_name,
+                              EDGE_ATTRIBUTE_LABEL_FONT_COLOR)) {
     comparable_attribute_value_t fontcolor =
         named_attribute_value(root_graph, edge, "fontcolor");
     return fontcolor.text[0] == '\0' ? plain_attribute_value(DEFAULT_COLOR)
@@ -182,9 +338,10 @@ static comparable_attribute_value_t edge_color_default_value(
   return plain_attribute_value(DEFAULT_COLOR);
 }
 
-static comparable_attribute_value_t edge_effective_color_value(
-    Agraph_t *root_graph, Agedge_t *edge, const char *attribute_name,
-    comparable_attribute_value_t value) {
+static comparable_attribute_value_t
+edge_effective_color_value(Agraph_t *root_graph, Agedge_t *edge,
+                           const char *attribute_name,
+                           comparable_attribute_value_t value) {
   if (is_color_attribute(attribute_name) && value.text[0] == '\0') {
     return edge_color_default_value(root_graph, edge, attribute_name);
   }
@@ -198,7 +355,8 @@ static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
     return false;
   }
 
-  char *const previous_color_scheme = setColorScheme(agget(edge, "colorscheme"));
+  char *const previous_color_scheme =
+      setColorScheme(agget(edge, "colorscheme"));
   const int result = colorxlate(value.text, color, RGBA_BYTE);
   char *const restored_color_scheme = setColorScheme(previous_color_scheme);
   free(previous_color_scheme);
@@ -206,10 +364,9 @@ static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
   return result == COLOR_OK;
 }
 
-static bool edge_color_values_are_equal(Agedge_t *first_edge,
-                                        comparable_attribute_value_t first_value,
-                                        Agedge_t *second_edge,
-                                        comparable_attribute_value_t second_value) {
+static bool edge_color_values_are_equal(
+    Agedge_t *first_edge, comparable_attribute_value_t first_value,
+    Agedge_t *second_edge, comparable_attribute_value_t second_value) {
   gvcolor_t first_color;
   gvcolor_t second_color;
 
@@ -222,40 +379,19 @@ static bool edge_color_values_are_equal(Agedge_t *first_edge,
 }
 
 static bool is_clipping_attribute(const char *name) {
-  return strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_CLIPPING);
 }
 
 static bool is_layout_only_edge_attribute(const char *name) {
-  return strcmp(name, "constraint") == 0 || strcmp(name, "weight") == 0 ||
-         strcmp(name, "minlen") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_LAYOUT_ONLY);
 }
 
 static bool is_arrow_attribute(const char *name) {
-  return strcmp(name, "arrowhead") == 0 || strcmp(name, "arrowtail") == 0 ||
-         strcmp(name, "dir") == 0;
-}
-
-static bool is_url_alias_attribute(const char *name) {
-  return strcmp(name, "URL") == 0 || strcmp(name, "href") == 0 ||
-         strcmp(name, "edgeURL") == 0 || strcmp(name, "edgehref") == 0 ||
-         strcmp(name, "labelURL") == 0 || strcmp(name, "labelhref") == 0 ||
-         strcmp(name, "headURL") == 0 || strcmp(name, "headhref") == 0 ||
-         strcmp(name, "tailURL") == 0 || strcmp(name, "tailhref") == 0;
-}
-
-static bool is_tooltip_alias_attribute(const char *name) {
-  return strcmp(name, "tooltip") == 0 || strcmp(name, "edgetooltip") == 0;
-}
-
-static bool is_target_alias_attribute(const char *name) {
-  return strcmp(name, "target") == 0 || strcmp(name, "edgetarget") == 0 ||
-         strcmp(name, "labeltarget") == 0 ||
-         strcmp(name, "headtarget") == 0 || strcmp(name, "tailtarget") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_ARROW);
 }
 
 static bool is_alias_attribute(const char *name) {
-  return is_url_alias_attribute(name) || is_tooltip_alias_attribute(name) ||
-         is_target_alias_attribute(name);
+  return edge_attribute_has_any_alias_flag(name);
 }
 
 static bool edge_clip_value(comparable_attribute_value_t value) {
@@ -293,20 +429,19 @@ static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
 static bool edge_numeric_default_values_are_equal(
     const char *attribute_name, comparable_attribute_value_t first_value,
     comparable_attribute_value_t second_value) {
+  const edge_attribute_flags_t flags = edge_attribute_flags(attribute_name);
   double default_value;
   double minimum = 0.0;
 
-  if (strcmp(attribute_name, "arrowsize") == 0 ||
-      strcmp(attribute_name, "penwidth") == 0 ||
-      strcmp(attribute_name, "labeldistance") == 0) {
+  if ((flags & EDGE_ATTRIBUTE_NUMERIC_DEFAULT_ONE) != 0) {
     default_value = 1.0;
-  } else if (strcmp(attribute_name, "fontsize") == 0) {
+  } else if ((flags & EDGE_ATTRIBUTE_NUMERIC_DEFAULT_FONT_SIZE) != 0) {
     default_value = DEFAULT_FONTSIZE;
     minimum = MIN_FONTSIZE;
-  } else if (strcmp(attribute_name, "labelfontsize") == 0) {
+  } else if ((flags & EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_FONT_SIZE) != 0) {
     default_value = DEFAULT_LABEL_FONTSIZE;
     minimum = MIN_FONTSIZE;
-  } else if (strcmp(attribute_name, "labelangle") == 0) {
+  } else if ((flags & EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_ANGLE) != 0) {
     default_value = PORT_LABEL_ANGLE;
     minimum = -180.0;
   } else {
@@ -347,9 +482,10 @@ static bool edge_labelfontsize_values_are_equal(
          first_number == second_number;
 }
 
-static comparable_attribute_value_t edge_fontname_default_value(
-    Agraph_t *root_graph, Agedge_t *edge, const char *attribute_name) {
-  if (strcmp(attribute_name, "labelfontname") == 0) {
+static comparable_attribute_value_t
+edge_fontname_default_value(Agraph_t *root_graph, Agedge_t *edge,
+                            const char *attribute_name) {
+  if (edge_attribute_has_flag(attribute_name, EDGE_ATTRIBUTE_LABEL_FONTNAME)) {
     const comparable_attribute_value_t fontname =
         named_attribute_value(root_graph, edge, "fontname");
     return fontname.text[0] == '\0' ? plain_attribute_value(DEFAULT_FONTNAME)
@@ -367,17 +503,18 @@ static bool edge_fontname_values_are_equal(
 
   if (first_value.text[0] == '\0') {
     first_value = edge_fontname_default_value(root_graph, first_edge,
-                                             first_attribute_name);
+                                              first_attribute_name);
   }
   if (second_value.text[0] == '\0') {
     second_value = edge_fontname_default_value(root_graph, second_edge,
-                                              second_attribute_name);
+                                               second_attribute_name);
   }
   return comparable_attribute_values_are_equal(first_value, second_value);
 }
 
-static bool edge_style_values_are_equal(comparable_attribute_value_t first_value,
-                                        comparable_attribute_value_t second_value) {
+static bool
+edge_style_values_are_equal(comparable_attribute_value_t first_value,
+                            comparable_attribute_value_t second_value) {
   if (first_value.is_html || second_value.is_html) {
     return false;
   }
@@ -388,38 +525,32 @@ static bool edge_style_values_are_equal(comparable_attribute_value_t first_value
   return strcmp(first_style, second_style) == 0;
 }
 
-static bool edge_bool_default_values_are_equal(
-    const char *attribute_name, comparable_attribute_value_t first_value,
-    comparable_attribute_value_t second_value) {
-  bool default_value;
-
-  if (strcmp(attribute_name, "decorate") == 0 ||
-      strcmp(attribute_name, "labelfloat") == 0) {
-    default_value = false;
-  } else {
+static bool
+edge_bool_default_values_are_equal(const char *attribute_name,
+                                   comparable_attribute_value_t first_value,
+                                   comparable_attribute_value_t second_value) {
+  if (!edge_attribute_has_flag(attribute_name,
+                               EDGE_ATTRIBUTE_BOOL_DEFAULT_FALSE)) {
     return false;
   }
 
   const bool first_bool =
-      first_value.text[0] == '\0' ? default_value : mapbool(first_value.text);
+      first_value.text[0] == '\0' ? false : mapbool(first_value.text);
   const bool second_bool =
-      second_value.text[0] == '\0' ? default_value : mapbool(second_value.text);
+      second_value.text[0] == '\0' ? false : mapbool(second_value.text);
   return first_bool == second_bool;
 }
 
 static bool is_endpoint_label_attribute(const char *name) {
-  return strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_ENDPOINT_LABEL);
 }
 
 static bool is_substituted_attribute(const char *name) {
-  return strcmp(name, "id") == 0 || strcmp(name, "labeltooltip") == 0 ||
-         strcmp(name, "headtooltip") == 0 ||
-         strcmp(name, "tailtooltip") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_SUBSTITUTED);
 }
 
 static bool is_fontname_attribute(const char *name) {
-  return strcmp(name, "fontname") == 0 ||
-         strcmp(name, "labelfontname") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_FONTNAME);
 }
 
 static bool edge_substituted_values_are_equal(
@@ -429,20 +560,19 @@ static bool edge_substituted_values_are_equal(
     return comparable_attribute_values_are_equal(first_value, second_value);
   }
 
-  char *const first_text = strdup_and_subst_obj((char *)first_value.text,
-                                                first_edge);
-  char *const second_text = strdup_and_subst_obj((char *)second_value.text,
-                                                 second_edge);
+  char *const first_text =
+      strdup_and_subst_obj((char *)first_value.text, first_edge);
+  char *const second_text =
+      strdup_and_subst_obj((char *)second_value.text, second_edge);
   const bool equal = strcmp(first_text, second_text) == 0;
   free(first_text);
   free(second_text);
   return equal;
 }
 
-static bool edge_label_values_are_equal(Agedge_t *first_edge,
-                                        comparable_attribute_value_t first_value,
-                                        Agedge_t *second_edge,
-                                        comparable_attribute_value_t second_value) {
+static bool edge_label_values_are_equal(
+    Agedge_t *first_edge, comparable_attribute_value_t first_value,
+    Agedge_t *second_edge, comparable_attribute_value_t second_value) {
   return edge_substituted_values_are_equal(first_edge, first_value, second_edge,
                                            second_value);
 }
@@ -469,8 +599,9 @@ static bool edge_attribute_values_are_equal(
     return edge_clip_value(first_value) == edge_clip_value(second_value);
   }
 
-  if (strcmp(first_attribute_name, "dir") == 0 &&
-      strcmp(second_attribute_name, "dir") == 0) {
+  if (edge_attribute_has_flag(first_attribute_name, EDGE_ATTRIBUTE_DIRECTION) &&
+      edge_attribute_has_flag(second_attribute_name,
+                              EDGE_ATTRIBUTE_DIRECTION)) {
     return strcmp(edge_direction_value(first_edge, first_value),
                   edge_direction_value(second_edge, second_value)) == 0;
   }
@@ -495,7 +626,9 @@ static bool edge_attribute_values_are_equal(
   }
 
   if (strcmp(first_attribute_name, second_attribute_name) == 0 &&
-      ((strcmp(first_attribute_name, "labelfontsize") == 0 &&
+      ((edge_attribute_has_flag(
+            first_attribute_name,
+            EDGE_ATTRIBUTE_NUMERIC_DEFAULT_LABEL_FONT_SIZE) &&
         edge_labelfontsize_values_are_equal(first_edge, first_value,
                                             second_edge, second_value)) ||
        edge_numeric_default_values_are_equal(first_attribute_name, first_value,
@@ -504,7 +637,7 @@ static bool edge_attribute_values_are_equal(
         edge_fontname_values_are_equal(first_edge, first_attribute_name,
                                        first_value, second_edge,
                                        second_attribute_name, second_value)) ||
-       (strcmp(first_attribute_name, "style") == 0 &&
+       (edge_attribute_has_flag(first_attribute_name, EDGE_ATTRIBUTE_STYLE) &&
         edge_style_values_are_equal(first_value, second_value)) ||
        edge_bool_default_values_are_equal(first_attribute_name, first_value,
                                           second_value))) {
@@ -534,15 +667,15 @@ static bool opposite_edge_arrows_are_compatible(Agedge_t *first_edge,
    * first edge's end, and the second edge's end is at the first edge's start.
    * A shared spline can represent one arrow flag set per physical endpoint.
    */
-  return arrow_flags_can_merge_at_endpoint(first_start_flags, second_end_flags) &&
+  return arrow_flags_can_merge_at_endpoint(first_start_flags,
+                                           second_end_flags) &&
          arrow_flags_can_merge_at_endpoint(first_end_flags, second_start_flags);
 }
 
 static bool named_substituted_attribute_values_are_equal(
-    Agraph_t *root_graph, Agedge_t *first_edge,
-    const char *const *first_names, size_t first_names_size,
-    Agedge_t *second_edge, const char *const *second_names,
-    size_t second_names_size) {
+    Agraph_t *root_graph, Agedge_t *first_edge, const char *const *first_names,
+    size_t first_names_size, Agedge_t *second_edge,
+    const char *const *second_names, size_t second_names_size) {
   const comparable_attribute_value_t first_value =
       named_first_nonempty_attribute_value(root_graph, first_edge, first_names,
                                            first_names_size);
@@ -554,241 +687,264 @@ static bool named_substituted_attribute_values_are_equal(
                                            second_value);
 }
 
-static bool paired_alias_attribute_values_are_equal(
-    Agraph_t *root_graph, Agedge_t *first_edge,
-    const char *const *first_names, Agedge_t *second_edge,
-    const char *const *second_names) {
-  static const size_t alias_group_size = 2;
-  return named_substituted_attribute_values_are_equal(
-      root_graph, first_edge, first_names, alias_group_size, second_edge,
-      second_names, alias_group_size);
+typedef enum {
+  HYPERLINK_VALUE_URL,
+  HYPERLINK_VALUE_TOOLTIP,
+  HYPERLINK_VALUE_TARGET,
+  HYPERLINK_VALUE_COUNT,
+} hyperlink_value_kind_t;
+
+typedef enum {
+  HYPERLINK_LAYER_EDGE,
+  HYPERLINK_LAYER_LABEL,
+  HYPERLINK_LAYER_HEAD,
+  HYPERLINK_LAYER_TAIL,
+  HYPERLINK_LAYER_COUNT,
+} hyperlink_layer_id_t;
+
+typedef struct {
+  const char *name;
+  const char *const *url_names;
+  size_t url_names_size;
+  const char *const *tooltip_names;
+  size_t tooltip_names_size;
+  const char *const *target_names;
+  size_t target_names_size;
+  const char *const *label_gate_names;
+  size_t label_gate_names_size;
+  bool url_uses_label_gate;
+  const char *const *target_anchor_names;
+  size_t target_anchor_names_size;
+  hyperlink_layer_id_t opposite_layer;
+} hyperlink_layer_t;
+
+static const char *const edge_url_names[] = {"edgehref", "edgeURL", "href",
+                                             "URL"};
+static const char *const label_url_names[] = {"labelhref", "labelURL", "href",
+                                              "URL"};
+static const char *const head_url_names[] = {"headhref", "headURL", "edgehref",
+                                             "edgeURL",  "href",    "URL"};
+static const char *const tail_url_names[] = {"tailhref", "tailURL", "edgehref",
+                                             "edgeURL",  "href",    "URL"};
+
+static const char *const edge_tooltip_names[] = {"tooltip", "edgetooltip"};
+static const char *const label_tooltip_names[] = {"labeltooltip"};
+static const char *const head_tooltip_names[] = {"headtooltip"};
+static const char *const tail_tooltip_names[] = {"tailtooltip"};
+
+static const char *const edge_target_names[] = {"edgetarget", "target"};
+static const char *const label_target_names[] = {"labeltarget", "target"};
+static const char *const head_target_names[] = {"headtarget", "target"};
+static const char *const tail_target_names[] = {"tailtarget", "target"};
+
+static const char *const label_gate_names[] = {"label", "xlabel"};
+static const char *const head_label_gate_names[] = {"headlabel"};
+static const char *const tail_label_gate_names[] = {"taillabel"};
+
+static const char *const edge_target_anchor_names[] = {
+    "href", "URL", "edgehref", "edgeURL", "tooltip", "edgetooltip"};
+static const char *const label_target_anchor_names[] = {
+    "labelhref", "labelURL", "labeltooltip", "href", "URL"};
+static const char *const head_target_anchor_names[] = {
+    "headhref", "headURL", "headtooltip", "href", "URL"};
+static const char *const tail_target_anchor_names[] = {
+    "tailhref", "tailURL", "tailtooltip", "href", "URL"};
+
+/*
+ * Hyperlink attributes form four rendered layers. Each layer resolves aliases
+ * in first-nonempty order, and reverse concentration compares the second edge's
+ * mate layer for endpoint-owned values. Target anchors intentionally stay
+ * separate from URL chains because endpoint targets inherit href/URL but not
+ * edgeURL/edgehref; merging the lists would make headtarget/tailtarget visible
+ * in cases Graphviz currently ignores.
+ */
+static const hyperlink_layer_t hyperlink_layers[] = {
+    [HYPERLINK_LAYER_EDGE] =
+        {
+            .name = "edge",
+            .url_names = edge_url_names,
+            .url_names_size = ATTRIBUTE_COUNT(edge_url_names),
+            .tooltip_names = edge_tooltip_names,
+            .tooltip_names_size = ATTRIBUTE_COUNT(edge_tooltip_names),
+            .target_names = edge_target_names,
+            .target_names_size = ATTRIBUTE_COUNT(edge_target_names),
+            .target_anchor_names = edge_target_anchor_names,
+            .target_anchor_names_size =
+                ATTRIBUTE_COUNT(edge_target_anchor_names),
+            .opposite_layer = HYPERLINK_LAYER_EDGE,
+        },
+    [HYPERLINK_LAYER_LABEL] =
+        {
+            .name = "label",
+            .url_names = label_url_names,
+            .url_names_size = ATTRIBUTE_COUNT(label_url_names),
+            .tooltip_names = label_tooltip_names,
+            .tooltip_names_size = ATTRIBUTE_COUNT(label_tooltip_names),
+            .target_names = label_target_names,
+            .target_names_size = ATTRIBUTE_COUNT(label_target_names),
+            .label_gate_names = label_gate_names,
+            .label_gate_names_size = ATTRIBUTE_COUNT(label_gate_names),
+            .url_uses_label_gate = true,
+            .target_anchor_names = label_target_anchor_names,
+            .target_anchor_names_size =
+                ATTRIBUTE_COUNT(label_target_anchor_names),
+            .opposite_layer = HYPERLINK_LAYER_LABEL,
+        },
+    [HYPERLINK_LAYER_HEAD] =
+        {
+            .name = "head",
+            .url_names = head_url_names,
+            .url_names_size = ATTRIBUTE_COUNT(head_url_names),
+            .tooltip_names = head_tooltip_names,
+            .tooltip_names_size = ATTRIBUTE_COUNT(head_tooltip_names),
+            .target_names = head_target_names,
+            .target_names_size = ATTRIBUTE_COUNT(head_target_names),
+            .label_gate_names = head_label_gate_names,
+            .label_gate_names_size = ATTRIBUTE_COUNT(head_label_gate_names),
+            .target_anchor_names = head_target_anchor_names,
+            .target_anchor_names_size =
+                ATTRIBUTE_COUNT(head_target_anchor_names),
+            .opposite_layer = HYPERLINK_LAYER_TAIL,
+        },
+    [HYPERLINK_LAYER_TAIL] =
+        {
+            .name = "tail",
+            .url_names = tail_url_names,
+            .url_names_size = ATTRIBUTE_COUNT(tail_url_names),
+            .tooltip_names = tail_tooltip_names,
+            .tooltip_names_size = ATTRIBUTE_COUNT(tail_tooltip_names),
+            .target_names = tail_target_names,
+            .target_names_size = ATTRIBUTE_COUNT(tail_target_names),
+            .label_gate_names = tail_label_gate_names,
+            .label_gate_names_size = ATTRIBUTE_COUNT(tail_label_gate_names),
+            .target_anchor_names = tail_target_anchor_names,
+            .target_anchor_names_size =
+                ATTRIBUTE_COUNT(tail_target_anchor_names),
+            .opposite_layer = HYPERLINK_LAYER_HEAD,
+        },
+};
+
+static bool hyperlink_layer_gate_is_open(Agraph_t *root_graph, Agedge_t *edge,
+                                         const hyperlink_layer_t *layer) {
+  return layer->label_gate_names_size == 0 ||
+         edge_has_any_of_attributes(root_graph, edge, layer->label_gate_names,
+                                    layer->label_gate_names_size);
 }
 
-static bool url_alias_group_is_rendered(
-    Agraph_t *root_graph, Agedge_t *edge, const char *const *url_names,
-    size_t url_names_size, const char *const *label_names,
-    size_t label_names_size, const char *const *tooltip_names,
-    size_t tooltip_names_size) {
-  const bool has_url =
-      named_first_nonempty_attribute_value(root_graph, edge, url_names,
-                                           url_names_size)
-          .text[0] != '\0';
+static bool hyperlink_layer_url_is_rendered(Agraph_t *root_graph,
+                                            Agedge_t *edge,
+                                            const hyperlink_layer_t *layer) {
+  if (layer->url_uses_label_gate &&
+      !hyperlink_layer_gate_is_open(root_graph, edge, layer)) {
+    return false;
+  }
+
+  const comparable_attribute_value_t url_value =
+      named_first_nonempty_attribute_value(root_graph, edge, layer->url_names,
+                                           layer->url_names_size);
   const bool has_explicit_tooltip = edge_has_any_of_attributes(
-      root_graph, edge, tooltip_names, tooltip_names_size);
-
-  if (label_names_size == 0) {
-    return has_url || has_explicit_tooltip;
-  }
-  return edge_has_any_of_attributes(root_graph, edge, label_names,
-                                    label_names_size) &&
-         (has_url || has_explicit_tooltip);
+      root_graph, edge, layer->tooltip_names, layer->tooltip_names_size);
+  return url_value.text[0] != '\0' || has_explicit_tooltip;
 }
 
-static bool url_alias_groups_are_equal(
-    Agraph_t *root_graph, Agedge_t *first_edge,
-    const char *const *first_url_names, size_t first_url_names_size,
-    const char *const *first_label_names, size_t first_label_names_size,
-    const char *const *first_tooltip_names, size_t first_tooltip_names_size,
-    Agedge_t *second_edge, const char *const *second_url_names,
-    size_t second_url_names_size, const char *const *second_label_names,
-    size_t second_label_names_size, const char *const *second_tooltip_names,
-    size_t second_tooltip_names_size) {
-  if (!url_alias_group_is_rendered(
-          root_graph, first_edge, first_url_names, first_url_names_size,
-          first_label_names, first_label_names_size, first_tooltip_names,
-          first_tooltip_names_size) &&
-      !url_alias_group_is_rendered(
-          root_graph, second_edge, second_url_names, second_url_names_size,
-          second_label_names, second_label_names_size, second_tooltip_names,
-          second_tooltip_names_size)) {
-    return true;
-  }
-
-  return named_substituted_attribute_values_are_equal(
-      root_graph, first_edge, first_url_names, first_url_names_size, second_edge,
-      second_url_names, second_url_names_size);
-}
-
-static bool url_alias_attribute_groups_are_equal(
-    Agraph_t *root_graph, Agedge_t *first_edge, Agedge_t *second_edge,
-    bool compare_opposite_endpoints) {
-  static const char *const edge_url_names[] = {"edgehref", "edgeURL", "href",
-                                               "URL"};
-  static const char *const label_url_names[] = {"labelhref", "labelURL", "href",
-                                                "URL"};
-  static const char *const head_url_names[] = {
-      "headhref", "headURL", "edgehref", "edgeURL", "href", "URL"};
-  static const char *const tail_url_names[] = {
-      "tailhref", "tailURL", "edgehref", "edgeURL", "href", "URL"};
-  static const char *const label_names[] = {"label", "xlabel"};
-  static const char *const edge_tooltip_names[] = {"tooltip", "edgetooltip"};
-  static const char *const label_tooltip_names[] = {"labeltooltip"};
-  static const char *const head_tooltip_names[] = {"headtooltip"};
-  static const char *const tail_tooltip_names[] = {"tailtooltip"};
-
-  if (!url_alias_groups_are_equal(
-          root_graph, first_edge, edge_url_names, ATTRIBUTE_COUNT(edge_url_names),
-          NULL, 0, edge_tooltip_names, ATTRIBUTE_COUNT(edge_tooltip_names),
-          second_edge, edge_url_names, ATTRIBUTE_COUNT(edge_url_names), NULL, 0,
-          edge_tooltip_names, ATTRIBUTE_COUNT(edge_tooltip_names)) ||
-      !url_alias_groups_are_equal(
-          root_graph, first_edge, label_url_names,
-          ATTRIBUTE_COUNT(label_url_names), label_names,
-          ATTRIBUTE_COUNT(label_names), label_tooltip_names,
-          ATTRIBUTE_COUNT(label_tooltip_names), second_edge, label_url_names,
-          ATTRIBUTE_COUNT(label_url_names), label_names,
-          ATTRIBUTE_COUNT(label_names), label_tooltip_names,
-          ATTRIBUTE_COUNT(label_tooltip_names))) {
-    return false;
-  }
-
-  if (compare_opposite_endpoints) {
-    return url_alias_groups_are_equal(
-               root_graph, first_edge, head_url_names,
-               ATTRIBUTE_COUNT(head_url_names), NULL, 0, head_tooltip_names,
-               ATTRIBUTE_COUNT(head_tooltip_names), second_edge, tail_url_names,
-               ATTRIBUTE_COUNT(tail_url_names), NULL, 0, tail_tooltip_names,
-               ATTRIBUTE_COUNT(tail_tooltip_names)) &&
-           url_alias_groups_are_equal(
-               root_graph, first_edge, tail_url_names,
-               ATTRIBUTE_COUNT(tail_url_names), NULL, 0, tail_tooltip_names,
-               ATTRIBUTE_COUNT(tail_tooltip_names), second_edge, head_url_names,
-               ATTRIBUTE_COUNT(head_url_names), NULL, 0, head_tooltip_names,
-               ATTRIBUTE_COUNT(head_tooltip_names));
-  }
-
-  return url_alias_groups_are_equal(
-             root_graph, first_edge, head_url_names,
-             ATTRIBUTE_COUNT(head_url_names), NULL, 0, head_tooltip_names,
-             ATTRIBUTE_COUNT(head_tooltip_names), second_edge, head_url_names,
-             ATTRIBUTE_COUNT(head_url_names), NULL, 0, head_tooltip_names,
-             ATTRIBUTE_COUNT(head_tooltip_names)) &&
-         url_alias_groups_are_equal(
-             root_graph, first_edge, tail_url_names,
-             ATTRIBUTE_COUNT(tail_url_names), NULL, 0, tail_tooltip_names,
-             ATTRIBUTE_COUNT(tail_tooltip_names), second_edge, tail_url_names,
-             ATTRIBUTE_COUNT(tail_url_names), NULL, 0, tail_tooltip_names,
-             ATTRIBUTE_COUNT(tail_tooltip_names));
-}
-
-static bool tooltip_alias_attributes_are_equal(Agraph_t *root_graph,
-                                               Agedge_t *first_edge,
-                                               Agedge_t *second_edge) {
-  static const char *const tooltip_names[] = {"tooltip", "edgetooltip"};
-  return paired_alias_attribute_values_are_equal(
-      root_graph, first_edge, tooltip_names, second_edge, tooltip_names);
-}
-
-static bool target_alias_group_is_rendered(
-    Agraph_t *root_graph, Agedge_t *edge, const target_alias_group_t *group) {
-  const bool has_specific_anchor = edge_has_any_of_attributes(
-      root_graph, edge, group->anchor_names, group->anchor_names_size);
-  if (group->label_names_size == 0) {
-    return has_specific_anchor;
-  }
-  if (!edge_has_any_of_attributes(root_graph, edge, group->label_names,
-                                  group->label_names_size)) {
-    return false;
-  }
-  return has_specific_anchor ||
+static bool hyperlink_layer_target_is_rendered(Agraph_t *root_graph,
+                                               Agedge_t *edge,
+                                               const hyperlink_layer_t *layer) {
+  return hyperlink_layer_gate_is_open(root_graph, edge, layer) &&
          edge_has_any_of_attributes(root_graph, edge,
-                                    group->default_anchor_names,
-                                    group->default_anchor_names_size);
+                                    layer->target_anchor_names,
+                                    layer->target_anchor_names_size);
 }
 
-static bool target_alias_groups_are_equal(
+static const char *const *
+hyperlink_layer_names_for_kind(const hyperlink_layer_t *layer,
+                               hyperlink_value_kind_t kind,
+                               size_t *names_size) {
+  switch (kind) {
+  case HYPERLINK_VALUE_URL:
+    *names_size = layer->url_names_size;
+    return layer->url_names;
+  case HYPERLINK_VALUE_TOOLTIP:
+    *names_size = layer->tooltip_names_size;
+    return layer->tooltip_names;
+  case HYPERLINK_VALUE_TARGET:
+    *names_size = layer->target_names_size;
+    return layer->target_names;
+  case HYPERLINK_VALUE_COUNT:
+    break;
+  }
+  *names_size = 0;
+  return NULL;
+}
+
+static bool hyperlink_layer_value_is_rendered(Agraph_t *root_graph,
+                                              Agedge_t *edge,
+                                              const hyperlink_layer_t *layer,
+                                              hyperlink_value_kind_t kind) {
+  switch (kind) {
+  case HYPERLINK_VALUE_URL:
+    return hyperlink_layer_url_is_rendered(root_graph, edge, layer);
+  case HYPERLINK_VALUE_TOOLTIP:
+    /*
+     * tooltip/edgetooltip aliases and the label/head/tail tooltip attributes
+     * were already part of the semantic comparison. Keep them ungated here so
+     * the alias table owns the old behavior instead of leaking it back into the
+     * root attribute walk.
+     */
+    return true;
+  case HYPERLINK_VALUE_TARGET:
+    return hyperlink_layer_target_is_rendered(root_graph, edge, layer);
+  case HYPERLINK_VALUE_COUNT:
+    break;
+  }
+  return false;
+}
+
+static bool hyperlink_layer_values_are_equal(
     Agraph_t *root_graph, Agedge_t *first_edge,
-    const target_alias_group_t *first_group, Agedge_t *second_edge,
-    const target_alias_group_t *second_group) {
-  if (!target_alias_group_is_rendered(root_graph, first_edge, first_group) &&
-      !target_alias_group_is_rendered(root_graph, second_edge, second_group)) {
+    const hyperlink_layer_t *first_layer, Agedge_t *second_edge,
+    const hyperlink_layer_t *second_layer, hyperlink_value_kind_t kind) {
+  const bool first_value_is_rendered = hyperlink_layer_value_is_rendered(
+      root_graph, first_edge, first_layer, kind);
+  const bool second_value_is_rendered = hyperlink_layer_value_is_rendered(
+      root_graph, second_edge, second_layer, kind);
+  if (!first_value_is_rendered && !second_value_is_rendered) {
     return true;
   }
 
+  size_t first_names_size;
+  const char *const *const first_names =
+      hyperlink_layer_names_for_kind(first_layer, kind, &first_names_size);
+  size_t second_names_size;
+  const char *const *const second_names =
+      hyperlink_layer_names_for_kind(second_layer, kind, &second_names_size);
+
   return named_substituted_attribute_values_are_equal(
-      root_graph, first_edge, first_group->target_names,
-      first_group->target_names_size, second_edge, second_group->target_names,
-      second_group->target_names_size);
+      root_graph, first_edge, first_names, first_names_size, second_edge,
+      second_names, second_names_size);
 }
 
-static bool target_alias_attribute_groups_are_equal(
+static bool hyperlink_layer_attribute_groups_are_equal(
     Agraph_t *root_graph, Agedge_t *first_edge, Agedge_t *second_edge,
     bool compare_opposite_endpoints) {
-  static const char *const default_anchor_names[] = {"href", "URL"};
-  static const char *const edge_target_anchor_names[] = {
-      "href", "URL", "edgehref", "edgeURL", "tooltip", "edgetooltip"};
-  static const char *const label_names[] = {"label", "xlabel"};
-  static const char *const head_label_names[] = {"headlabel"};
-  static const char *const tail_label_names[] = {"taillabel"};
-  static const char *const edge_target_names[] = {"edgetarget", "target"};
-  static const char *const label_target_names[] = {"labeltarget", "target"};
-  static const char *const head_target_names[] = {"headtarget", "target"};
-  static const char *const tail_target_names[] = {"tailtarget", "target"};
-  static const char *const label_target_anchor_names[] = {
-      "labelhref", "labelURL", "labeltooltip"};
-  static const char *const head_target_anchor_names[] = {
-      "headhref", "headURL", "headtooltip"};
-  static const char *const tail_target_anchor_names[] = {
-      "tailhref", "tailURL", "tailtooltip"};
-  static const target_alias_group_t edge_target_group = {
-      .target_names = edge_target_names,
-      .target_names_size = ATTRIBUTE_COUNT(edge_target_names),
-      .anchor_names = edge_target_anchor_names,
-      .anchor_names_size = ATTRIBUTE_COUNT(edge_target_anchor_names),
-  };
-  static const target_alias_group_t label_target_group = {
-      .target_names = label_target_names,
-      .target_names_size = ATTRIBUTE_COUNT(label_target_names),
-      .label_names = label_names,
-      .label_names_size = ATTRIBUTE_COUNT(label_names),
-      .anchor_names = label_target_anchor_names,
-      .anchor_names_size = ATTRIBUTE_COUNT(label_target_anchor_names),
-      .default_anchor_names = default_anchor_names,
-      .default_anchor_names_size = ATTRIBUTE_COUNT(default_anchor_names),
-  };
-  static const target_alias_group_t head_target_group = {
-      .target_names = head_target_names,
-      .target_names_size = ATTRIBUTE_COUNT(head_target_names),
-      .label_names = head_label_names,
-      .label_names_size = ATTRIBUTE_COUNT(head_label_names),
-      .anchor_names = head_target_anchor_names,
-      .anchor_names_size = ATTRIBUTE_COUNT(head_target_anchor_names),
-      .default_anchor_names = default_anchor_names,
-      .default_anchor_names_size = ATTRIBUTE_COUNT(default_anchor_names),
-  };
-  static const target_alias_group_t tail_target_group = {
-      .target_names = tail_target_names,
-      .target_names_size = ATTRIBUTE_COUNT(tail_target_names),
-      .label_names = tail_label_names,
-      .label_names_size = ATTRIBUTE_COUNT(tail_label_names),
-      .anchor_names = tail_target_anchor_names,
-      .anchor_names_size = ATTRIBUTE_COUNT(tail_target_anchor_names),
-      .default_anchor_names = default_anchor_names,
-      .default_anchor_names_size = ATTRIBUTE_COUNT(default_anchor_names),
-  };
+  for (size_t layer_index = 0; layer_index < ATTRIBUTE_COUNT(hyperlink_layers);
+       layer_index++) {
+    const hyperlink_layer_t *const first_layer = &hyperlink_layers[layer_index];
+    const hyperlink_layer_id_t second_layer_index =
+        compare_opposite_endpoints ? first_layer->opposite_layer
+                                   : (hyperlink_layer_id_t)layer_index;
+    const hyperlink_layer_t *const second_layer =
+        &hyperlink_layers[second_layer_index];
 
-  if (!target_alias_groups_are_equal(root_graph, first_edge, &edge_target_group,
-                                     second_edge, &edge_target_group) ||
-      !target_alias_groups_are_equal(root_graph, first_edge, &label_target_group,
-                                     second_edge, &label_target_group)) {
-    return false;
+    for (hyperlink_value_kind_t kind = 0; kind < HYPERLINK_VALUE_COUNT;
+         kind++) {
+      if (!hyperlink_layer_values_are_equal(root_graph, first_edge, first_layer,
+                                            second_edge, second_layer, kind)) {
+        return false;
+      }
+    }
   }
-
-  if (compare_opposite_endpoints) {
-    return target_alias_groups_are_equal(root_graph, first_edge,
-                                         &head_target_group, second_edge,
-                                         &tail_target_group) &&
-           target_alias_groups_are_equal(root_graph, first_edge,
-                                         &tail_target_group, second_edge,
-                                         &head_target_group);
-  }
-
-  return target_alias_groups_are_equal(root_graph, first_edge,
-                                       &head_target_group, second_edge,
-                                       &head_target_group) &&
-         target_alias_groups_are_equal(root_graph, first_edge,
-                                       &tail_target_group, second_edge,
-                                       &tail_target_group);
+  return true;
 }
 
 static bool same_direction_edge_arrows_are_equal(Agedge_t *first_edge,
@@ -825,11 +981,8 @@ static bool attribute_affects_rendered_edge(Agraph_t *root_graph,
                                          attribute_name)) {
     return false;
   }
-  if (strcmp(attribute_name, "fillcolor") == 0 &&
-      !edge_has_any_arrows(first_edge) && !edge_has_any_arrows(second_edge)) {
-    return false;
-  }
-  if (strcmp(attribute_name, "arrowsize") == 0 &&
+  if ((edge_attribute_has_flag(attribute_name, EDGE_ATTRIBUTE_FILL_COLOR) ||
+       edge_attribute_has_flag(attribute_name, EDGE_ATTRIBUTE_ARROW_SIZE)) &&
       !edge_has_any_arrows(first_edge) && !edge_has_any_arrows(second_edge)) {
     return false;
   }
@@ -837,19 +990,42 @@ static bool attribute_affects_rendered_edge(Agraph_t *root_graph,
 }
 
 static bool is_port_attribute(const char *name) {
-  return strcmp(name, "headport") == 0 || strcmp(name, "tailport") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_PORT);
+}
+
+static const endpoint_attribute_names_t endpoint_attribute_names[] = {
+    {.names = {"tailport", "headport"}},
+    {.names = {"tailclip", "headclip"}},
+    {.names = {"taillabel", "headlabel"}},
+    {.names = {"ltail", "lhead"}},
+    {.names = {"sametail", "samehead"}},
+    {.names = {"tailtarget", "headtarget"}},
+    {.names = {"tailtooltip", "headtooltip"}},
+};
+
+static edge_endpoint_t opposite_endpoint(edge_endpoint_t endpoint) {
+  return endpoint == EDGE_HEAD_ENDPOINT ? EDGE_TAIL_ENDPOINT
+                                        : EDGE_HEAD_ENDPOINT;
+}
+
+static port edge_endpoint_port(Agedge_t *edge, edge_endpoint_t endpoint) {
+  return endpoint == EDGE_HEAD_ENDPOINT ? ED_head_port(edge)
+                                        : ED_tail_port(edge);
+}
+
+static edge_endpoint_t endpoint_for_port_attribute(const char *attribute_name) {
+  return strcmp(attribute_name, "headport") == 0 ? EDGE_HEAD_ENDPOINT
+                                                 : EDGE_TAIL_ENDPOINT;
 }
 
 static port port_for_attribute(Agedge_t *edge, const char *attribute_name) {
-  return strcmp(attribute_name, "headport") == 0 ? ED_head_port(edge)
-                                                 : ED_tail_port(edge);
+  return edge_endpoint_port(edge, endpoint_for_port_attribute(attribute_name));
 }
 
 static bool port_values_are_equal(port first_port, port second_port) {
   return first_port.defined == second_port.defined &&
-         (!first_port.defined ||
-          (first_port.p.x == second_port.p.x &&
-           first_port.p.y == second_port.p.y));
+         (!first_port.defined || (first_port.p.x == second_port.p.x &&
+                                  first_port.p.y == second_port.p.y));
 }
 
 static bool resolved_port_values_are_equal(port first_port, port second_port) {
@@ -868,80 +1044,77 @@ static bool resolved_port_attributes_are_equal(
 }
 
 bool gv_edge_ports_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
-  return port_values_are_equal(ED_head_port(first_edge),
-                               ED_head_port(second_edge)) &&
-         port_values_are_equal(ED_tail_port(first_edge),
-                               ED_tail_port(second_edge));
-}
-
-bool gv_opposite_edge_ports_are_equal(Agedge_t *first_edge,
-                                      Agedge_t *second_edge) {
-  return port_values_are_equal(ED_head_port(first_edge),
-                               ED_tail_port(second_edge)) &&
-         port_values_are_equal(ED_tail_port(first_edge),
-                               ED_head_port(second_edge));
-}
-
-static bool opposite_endpoint_attributes_are_equal(Agraph_t *root_graph,
-                                                   Agedge_t *first_edge,
-                                                   Agedge_t *second_edge) {
-  static const char *const endpoint_attribute_pairs[][2] = {
-      {"headport", "tailport"},
-      {"tailport", "headport"},
-      {"headclip", "tailclip"},
-      {"tailclip", "headclip"},
-      {"headlabel", "taillabel"},
-      {"taillabel", "headlabel"},
-      {"lhead", "ltail"},
-      {"ltail", "lhead"},
-      {"samehead", "sametail"},
-      {"sametail", "samehead"},
-      {"headtarget", "tailtarget"},
-      {"tailtarget", "headtarget"},
-      {"headtooltip", "tailtooltip"},
-      {"tailtooltip", "headtooltip"},
-  };
-
-  /*
-   * Check both sides of each pair explicitly. The root registry may contain
-   * only headclip, for example, so merely swapping names while walking that
-   * registry would never compare the declared headclip against the other
-   * edge's undeclared tailclip.
-   */
-  for (size_t pair_index = 0;
-       pair_index <
-       sizeof(endpoint_attribute_pairs) / sizeof(endpoint_attribute_pairs[0]);
-       pair_index++) {
-    const comparable_attribute_value_t first_value = named_attribute_value(
-        root_graph, first_edge, endpoint_attribute_pairs[pair_index][0]);
-    const comparable_attribute_value_t second_value = named_attribute_value(
-        root_graph, second_edge, endpoint_attribute_pairs[pair_index][1]);
-    if (resolved_port_attributes_are_equal(
-            first_edge, endpoint_attribute_pairs[pair_index][0], second_edge,
-            endpoint_attribute_pairs[pair_index][1])) {
-      continue;
-    }
-    if (!edge_attribute_values_are_equal(
-            first_edge, endpoint_attribute_pairs[pair_index][0], first_value,
-            second_edge, endpoint_attribute_pairs[pair_index][1],
-            second_value)) {
+  for (size_t endpoint_index = 0; endpoint_index < EDGE_ENDPOINT_COUNT;
+       endpoint_index++) {
+    const edge_endpoint_t endpoint = (edge_endpoint_t)endpoint_index;
+    if (!port_values_are_equal(edge_endpoint_port(first_edge, endpoint),
+                               edge_endpoint_port(second_edge, endpoint))) {
       return false;
     }
   }
   return true;
 }
 
+bool gv_opposite_edge_ports_are_equal(Agedge_t *first_edge,
+                                      Agedge_t *second_edge) {
+  for (size_t endpoint_index = 0; endpoint_index < EDGE_ENDPOINT_COUNT;
+       endpoint_index++) {
+    const edge_endpoint_t first_endpoint = (edge_endpoint_t)endpoint_index;
+    const edge_endpoint_t second_endpoint = opposite_endpoint(first_endpoint);
+    if (!port_values_are_equal(
+            edge_endpoint_port(first_edge, first_endpoint),
+            edge_endpoint_port(second_edge, second_endpoint))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool opposite_endpoint_attributes_are_equal(Agraph_t *root_graph,
+                                                   Agedge_t *first_edge,
+                                                   Agedge_t *second_edge) {
+  /*
+   * Check both sides of each pair explicitly. The root registry may contain
+   * only headclip, for example, so merely swapping names while walking that
+   * registry would never compare the declared headclip against the other
+   * edge's undeclared tailclip.
+   */
+  for (size_t attribute_index = 0;
+       attribute_index < ATTRIBUTE_COUNT(endpoint_attribute_names);
+       attribute_index++) {
+    const endpoint_attribute_names_t *const attribute_names =
+        &endpoint_attribute_names[attribute_index];
+
+    for (size_t endpoint_index = 0; endpoint_index < EDGE_ENDPOINT_COUNT;
+         endpoint_index++) {
+      const edge_endpoint_t first_endpoint = (edge_endpoint_t)endpoint_index;
+      const edge_endpoint_t second_endpoint = opposite_endpoint(first_endpoint);
+      const char *const first_attribute_name =
+          attribute_names->names[first_endpoint];
+      const char *const second_attribute_name =
+          attribute_names->names[second_endpoint];
+
+      const comparable_attribute_value_t first_value =
+          named_attribute_value(root_graph, first_edge, first_attribute_name);
+      const comparable_attribute_value_t second_value =
+          named_attribute_value(root_graph, second_edge, second_attribute_name);
+      if (resolved_port_attributes_are_equal(first_edge, first_attribute_name,
+                                             second_edge,
+                                             second_attribute_name)) {
+        continue;
+      }
+      if (!edge_attribute_values_are_equal(
+              first_edge, first_attribute_name, first_value, second_edge,
+              second_attribute_name, second_value)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 static bool is_endpoint_attribute(const char *name) {
-  return strcmp(name, "headport") == 0 || strcmp(name, "tailport") == 0 ||
-         strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0 ||
-         strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0 ||
-         strcmp(name, "headURL") == 0 || strcmp(name, "tailURL") == 0 ||
-         strcmp(name, "headhref") == 0 || strcmp(name, "tailhref") == 0 ||
-         strcmp(name, "lhead") == 0 || strcmp(name, "ltail") == 0 ||
-         strcmp(name, "samehead") == 0 || strcmp(name, "sametail") == 0 ||
-         strcmp(name, "headtarget") == 0 || strcmp(name, "tailtarget") == 0 ||
-         strcmp(name, "headtooltip") == 0 ||
-         strcmp(name, "tailtooltip") == 0;
+  return edge_attribute_has_flag(name, EDGE_ATTRIBUTE_ENDPOINT);
 }
 
 static bool edge_attributes_are_equal_with_endpoint_orientation(
@@ -979,14 +1152,8 @@ static bool edge_attributes_are_equal_with_endpoint_orientation(
       !same_direction_edge_arrows_are_equal(first_edge, second_edge)) {
     return false;
   }
-  if (!url_alias_attribute_groups_are_equal(root_graph, first_edge,
-                                            second_edge,
-                                            compare_opposite_endpoints) ||
-      !tooltip_alias_attributes_are_equal(root_graph, first_edge,
-                                          second_edge) ||
-      !target_alias_attribute_groups_are_equal(root_graph, first_edge,
-                                               second_edge,
-                                               compare_opposite_endpoints)) {
+  if (!hyperlink_layer_attribute_groups_are_equal(
+          root_graph, first_edge, second_edge, compare_opposite_endpoints)) {
     return false;
   }
 
@@ -1005,9 +1172,9 @@ static bool edge_attributes_are_equal_with_endpoint_orientation(
           declared_attribute_value(first_edge, attribute);
       const comparable_attribute_value_t second_value =
           declared_attribute_value(second_edge, attribute);
-      if (!edge_attribute_values_are_equal(
-              first_edge, attribute->name, first_value, second_edge,
-              attribute->name, second_value)) {
+      if (!edge_attribute_values_are_equal(first_edge, attribute->name,
+                                           first_value, second_edge,
+                                           attribute->name, second_value)) {
         return false;
       }
     }
@@ -1017,8 +1184,7 @@ static bool edge_attributes_are_equal_with_endpoint_orientation(
   return true;
 }
 
-bool gv_edge_attributes_are_equal(Agedge_t *first_edge,
-                                  Agedge_t *second_edge) {
+bool gv_edge_attributes_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
   return edge_attributes_are_equal_with_endpoint_orientation(
       first_edge, second_edge, false);
 }
