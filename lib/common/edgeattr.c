@@ -91,6 +91,7 @@ enum {
   EDGE_ATTRIBUTE_MAIN_LABEL_ONLY = 1u << 25,
   EDGE_ATTRIBUTE_PRIMARY_LABEL_ONLY = 1u << 26,
   EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY = 1u << 27,
+  EDGE_ATTRIBUTE_COLOR_SCHEME = 1u << 28,
 };
 
 typedef struct {
@@ -114,6 +115,7 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {"arrowsize", EDGE_ATTRIBUTE_ARROW_DECORATION},
         {"arrowtail", EDGE_ATTRIBUTE_ARROW_DECORATION},
         {"color", EDGE_ATTRIBUTE_COLOR},
+        {"colorscheme", EDGE_ATTRIBUTE_COLOR_SCHEME},
         {"constraint", EDGE_ATTRIBUTE_LAYOUT_ONLY},
         /* emit_end_edge() attaches decorate splines only to label/xlabel. */
         {"decorate",
@@ -344,8 +346,8 @@ static bool edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
                                        const char *attribute_name) {
   const edge_attribute_flags_t flags = edge_attribute_flags(attribute_name);
 
-  if ((flags &
-       (EDGE_ATTRIBUTE_LAYOUT_ONLY | EDGE_ATTRIBUTE_ARROW_DECORATION)) != 0 ||
+  if ((flags & (EDGE_ATTRIBUTE_LAYOUT_ONLY | EDGE_ATTRIBUTE_ARROW_DECORATION |
+                EDGE_ATTRIBUTE_COLOR_SCHEME)) != 0 ||
       edge_attribute_is_alias(attribute_name)) {
     return false;
   }

@@ -4939,6 +4939,19 @@ def test_concentrate_matches_equivalent_color_spellings(splines: str):
     assert _drawn_edge_colors(fillcolor_defaults_to_color) == ["#ff0000"]
 
 
+def test_concentrate_compares_colors_after_colorscheme_resolution():
+    """colorxlate() consumes colorscheme; the scheme is not rendered itself."""
+
+    resolved_colors = _concentrated_graph(
+        "",
+        "a -> b [colorscheme=X11]",
+        "a -> b",
+        "b -> c [colorscheme=X11 color=green]",
+        "b -> c [colorscheme=svg color=green]",
+    )
+    assert len(_drawn_edges(resolved_colors)) == 3
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_ignores_unused_label_colors(splines: str):
     """Label-only colors do not split unlabeled edge routes."""
