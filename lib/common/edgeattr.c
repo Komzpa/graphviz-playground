@@ -627,6 +627,8 @@ typedef struct {
   const char *name;
   const char *const *url_names;
   size_t url_names_size;
+  const char *const *label_url_names;
+  size_t label_url_names_size;
   const char *const *tooltip_names;
   size_t tooltip_names_size;
   const char *const *target_names;
@@ -643,10 +645,16 @@ static const char *const edge_url_names[] = {"edgehref", "edgeURL", "href",
                                              "URL"};
 static const char *const label_url_names[] = {"labelhref", "labelURL", "href",
                                               "URL"};
+/* nodeIntersect() falls back from explicit endpoint URLs to obj->url. */
 static const char *const head_url_names[] = {"headhref", "headURL", "edgehref",
                                              "edgeURL",  "href",    "URL"};
 static const char *const tail_url_names[] = {"tailhref", "tailURL", "edgehref",
                                              "edgeURL",  "href",    "URL"};
+/* emit_begin_edge() gives endpoint labels only the href/URL default. */
+static const char *const head_label_url_names[] = {"headhref", "headURL",
+                                                   "href", "URL"};
+static const char *const tail_label_url_names[] = {"tailhref", "tailURL",
+                                                   "href", "URL"};
 
 static const char *const edge_tooltip_names[] = {"tooltip", "edgetooltip"};
 static const char *const label_tooltip_names[] = {"labeltooltip"};
@@ -713,6 +721,8 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
             .name = "head",
             .url_names = head_url_names,
             .url_names_size = ATTRIBUTE_COUNT(head_url_names),
+            .label_url_names = head_label_url_names,
+            .label_url_names_size = ATTRIBUTE_COUNT(head_label_url_names),
             .tooltip_names = head_tooltip_names,
             .tooltip_names_size = ATTRIBUTE_COUNT(head_tooltip_names),
             .target_names = head_target_names,
@@ -729,6 +739,8 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
             .name = "tail",
             .url_names = tail_url_names,
             .url_names_size = ATTRIBUTE_COUNT(tail_url_names),
+            .label_url_names = tail_label_url_names,
+            .label_url_names_size = ATTRIBUTE_COUNT(tail_label_url_names),
             .tooltip_names = tail_tooltip_names,
             .tooltip_names_size = ATTRIBUTE_COUNT(tail_tooltip_names),
             .target_names = tail_target_names,
@@ -844,6 +856,25 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
       agxbuf slot_name = {0};
       agxbprint(&slot_name, "hyperlink:%s:%s", canonical_layer->name,
                 hyperlink_value_kind_name(kind));
+      if (value.is_html) {
+        append_signature_slot(signature, agxbuse(&slot_name), value);
+      } else {
+        char *const substituted =
+            strdup_and_subst_obj((char *)value.text, edge);
+        append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                    substituted);
+        free(substituted);
+      }
+      agxbfree(&slot_name);
+    }
+
+    if (source_layer->label_url_names_size != 0 &&
+        hyperlink_layer_gate_is_open(root_graph, edge, source_layer)) {
+      comparable_attribute_value_t value = named_first_nonempty_attribute_value(
+          root_graph, edge, source_layer->label_url_names,
+          source_layer->label_url_names_size);
+      agxbuf slot_name = {0};
+      agxbprint(&slot_name, "hyperlink:%s:label-URL", canonical_layer->name);
       if (value.is_html) {
         append_signature_slot(signature, agxbuse(&slot_name), value);
       } else {

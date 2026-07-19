@@ -5085,6 +5085,32 @@ def test_concentrate_matches_url_href_aliases(splines: str):
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_distinguishes_endpoint_url_from_edge_only_url(splines: str):
+    """``emit_begin_edge`` does not inherit edgeURL into endpoint-label URLs."""
+
+    endpoint_and_edge_urls = _concentrated_graph(
+        splines,
+        'a -> b [headlabel=x URL="u"]',
+        'a -> b [headlabel=x edgeURL="u"]',
+    )
+    assert len(_drawn_edges(endpoint_and_edge_urls)) == 2
+
+    endpoint_and_edge_urls_with_tooltip = _concentrated_graph(
+        splines,
+        'a -> b [headlabel=x URL="u" headtooltip="tip"]',
+        'a -> b [headlabel=x edgeURL="u" headtooltip="tip"]',
+    )
+    assert len(_drawn_edges(endpoint_and_edge_urls_with_tooltip)) == 2
+
+    equivalent_endpoint_fallbacks = _concentrated_graph(
+        splines,
+        'a -> b [headlabel=x URL="u"]',
+        'a -> b [headlabel=x href="u"]',
+    )
+    assert len(_drawn_edges(equivalent_endpoint_fallbacks)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_target_fallbacks(splines: str):
     """Map target defaults compare by their rendered anchor target."""
 
