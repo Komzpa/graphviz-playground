@@ -4818,6 +4818,17 @@ def test_concentrate_preserves_distinct_edge_attributes(splines: str):
     label_edges = json.loads(dot("json", source=distinct_labels))["edges"]
     assert {edge["label"] for edge in label_edges} == {"first", "second"}
 
+    distinct_label_colors = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [label=x fontcolor=red]
+          a -> b [label=x fontcolor=blue]
+          b -> c [headlabel=x labelfontcolor=red]
+          b -> c [headlabel=x labelfontcolor=blue]
+        }}
+    """
+    assert len(_drawn_edges(distinct_label_colors)) == 4
+
     distinct_directions = f"""
         digraph {{
           graph [concentrate=true {splines}]
@@ -4899,6 +4910,37 @@ def test_concentrate_matches_equivalent_color_spellings(splines: str):
     """
     assert _drawn_edge_colors(equivalent_color_spellings) == ["#ff0000"]
 
+    fillcolor_defaults_to_color = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          a -> b [color=red fillcolor=red]
+        }}
+    """
+    assert _drawn_edge_colors(fillcolor_defaults_to_color) == ["#ff0000"]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_ignores_unused_label_colors(splines: str):
+    """Label-only colors should not split unlabeled edge routes."""
+
+    unused_label_colors = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [fontcolor=red]
+          a -> b [fontcolor=blue]
+          b -> c [labelfontcolor=red]
+          b -> c [labelfontcolor=blue]
+          c -> d [headlabel=x fontcolor=red labelfontcolor=black]
+          c -> d [headlabel=x fontcolor=blue labelfontcolor=black]
+          d -> e [fontsize=20 fontname=Courier labelfontsize=20
+                  labelfontname=Courier labeldistance=2 labelangle=30
+                  decorate=true]
+          d -> e
+        }}
+    """
+    assert len(_drawn_edges(unused_label_colors)) == 4
+
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_resolved_port_spellings(splines: str):
@@ -4925,9 +4967,15 @@ def test_concentrate_matches_explicit_rendering_defaults(splines: str):
           graph [concentrate=true {splines}]
           a -> b [style=solid penwidth=1 arrowsize=1]
           a -> b
+          b -> c [labelfloat=false]
+          b -> c
+          c -> d [dir=none arrowsize=2]
+          c -> d [dir=none]
+          d -> e [dir=none fillcolor=red]
+          d -> e [dir=none fillcolor=blue]
         }}
     """
-    assert len(_drawn_edges(explicit_edge_defaults)) == 1
+    assert len(_drawn_edges(explicit_edge_defaults)) == 4
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -4942,6 +4990,24 @@ def test_concentrate_matches_tooltip_aliases(splines: str):
         }}
     """
     assert len(_drawn_edges(equivalent_tooltip_aliases)) == 1
+
+    substituted_reverse_tooltips = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [tooltip="\\T"]
+          b -> a [edgetooltip="\\T"]
+        }}
+    """
+    assert len(_drawn_edges(substituted_reverse_tooltips)) == 2
+
+    substituted_endpoint_tooltips = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headtooltip="\\T"]
+          b -> a [tailtooltip="\\T"]
+        }}
+    """
+    assert len(_drawn_edges(substituted_endpoint_tooltips)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -4981,9 +5047,11 @@ def test_concentrate_matches_url_href_aliases(splines: str):
           b -> c [edgehref="u"]
           c -> d [labelURL="u"]
           c -> d [labelhref="u"]
+          d -> e [URL="u"]
+          d -> e [edgeURL="u"]
         }}
     """
-    assert len(_drawn_edges(same_direction_aliases)) == 3
+    assert len(_drawn_edges(same_direction_aliases)) == 4
 
     reverse_endpoint_aliases = f"""
         digraph {{
@@ -4994,6 +5062,15 @@ def test_concentrate_matches_url_href_aliases(splines: str):
     """
     assert len(_drawn_edges(reverse_endpoint_aliases)) == 1
 
+    substituted_reverse_endpoint_aliases = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headURL="\\T"]
+          b -> a [tailhref="\\T"]
+        }}
+    """
+    assert len(_drawn_edges(substituted_reverse_endpoint_aliases)) == 2
+
     same_grammar_endpoint_aliases = f"""
         digraph {{
           graph [concentrate=true {splines}]
@@ -5002,6 +5079,75 @@ def test_concentrate_matches_url_href_aliases(splines: str):
         }}
     """
     assert len(_drawn_edges(same_grammar_endpoint_aliases)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_target_fallbacks(splines: str):
+    """Map target defaults should compare by their rendered anchor target."""
+
+    edge_target_fallback = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [URL=u target=t]
+          a -> b [URL=u edgetarget=t]
+        }}
+    """
+    assert len(_drawn_edges(edge_target_fallback)) == 1
+
+    head_target_fallback = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headlabel=x headURL=u target=t]
+          a -> b [headlabel=x headURL=u headtarget=t]
+        }}
+    """
+    assert len(_drawn_edges(head_target_fallback)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_substituted_ids(splines: str):
+    """Explicit IDs are substituted before they reach renderers."""
+
+    same_direction_id = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [id="\\T"]
+          a -> b [id="a"]
+        }}
+    """
+    assert len(_drawn_edges(same_direction_id)) == 1
+
+    reverse_id = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [id="\\T"]
+          b -> a [id="\\T"]
+        }}
+    """
+    assert len(_drawn_edges(reverse_id)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_label_font_fallbacks(splines: str):
+    """Endpoint label font attributes inherit edge font attributes."""
+
+    endpoint_label_fontsize = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headlabel=x fontsize=20]
+          a -> b [headlabel=x fontsize=20 labelfontsize=20]
+        }}
+    """
+    assert len(_drawn_edges(endpoint_label_fontsize)) == 1
+
+    endpoint_label_fontname = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headlabel=x fontname=Courier]
+          a -> b [headlabel=x fontname=Courier labelfontname=Courier]
+        }}
+    """
+    assert len(_drawn_edges(endpoint_label_fontname)) == 1
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -5345,6 +5491,11 @@ def test_concentrate_same_rank_reverse_edges():
         "a -> b", "a -> b [headlabel=x]"
     ).replace("b -> a", "b -> a [taillabel=x]")
     assert len(_drawn_edges(same_physical_endpoint_labels)) == 1
+
+    same_rank_xlabels = same_rank_edges.replace(
+        "a -> b", "a -> b [xlabel=x]"
+    ).replace("b -> a", "b -> a [xlabel=x]")
+    assert len(_drawn_edges(same_rank_xlabels)) == 2
 
     compatible_reverse_arrows = same_rank_edges.replace(
         "a -> b", "a -> b [arrowhead=normal]"

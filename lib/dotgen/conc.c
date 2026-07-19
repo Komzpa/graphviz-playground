@@ -234,7 +234,8 @@ static bool flat_edges_are_equivalent(edge_t *edge,
    * tooltips remain in the attribute comparison below so reverse edges can
    * concentrate only when they match at the same physical endpoint.
    */
-  if (ED_label(edge) != NULL || ED_label(representative_edge) != NULL) {
+  if (ED_label(edge) != NULL || ED_label(representative_edge) != NULL ||
+      ED_xlabel(edge) != NULL || ED_xlabel(representative_edge) != NULL) {
     return false;
   }
 
