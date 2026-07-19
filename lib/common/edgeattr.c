@@ -662,6 +662,8 @@ typedef struct {
   size_t label_url_names_size;
   const char *const *tooltip_names;
   size_t tooltip_names_size;
+  const char *const *tooltip_fallback_names;
+  size_t tooltip_fallback_names_size;
   const char *const *target_names;
   size_t target_names_size;
   const char *const *label_gate_names;
@@ -691,6 +693,9 @@ static const char *const edge_tooltip_names[] = {"tooltip", "edgetooltip"};
 static const char *const label_tooltip_names[] = {"labeltooltip"};
 static const char *const head_tooltip_names[] = {"headtooltip"};
 static const char *const tail_tooltip_names[] = {"tailtooltip"};
+static const char *const edge_tooltip_fallback_names[] = {"label"};
+static const char *const head_tooltip_fallback_names[] = {"headlabel"};
+static const char *const tail_tooltip_fallback_names[] = {"taillabel"};
 
 static const char *const edge_target_names[] = {"edgetarget", "target"};
 static const char *const label_target_names[] = {"labeltarget", "target"};
@@ -723,6 +728,9 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
             .url_names_size = ATTRIBUTE_COUNT(edge_url_names),
             .tooltip_names = edge_tooltip_names,
             .tooltip_names_size = ATTRIBUTE_COUNT(edge_tooltip_names),
+            .tooltip_fallback_names = edge_tooltip_fallback_names,
+            .tooltip_fallback_names_size =
+                ATTRIBUTE_COUNT(edge_tooltip_fallback_names),
             .target_names = edge_target_names,
             .target_names_size = ATTRIBUTE_COUNT(edge_target_names),
             .target_anchor_names = edge_target_anchor_names,
@@ -737,6 +745,9 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
             .url_names_size = ATTRIBUTE_COUNT(label_url_names),
             .tooltip_names = label_tooltip_names,
             .tooltip_names_size = ATTRIBUTE_COUNT(label_tooltip_names),
+            .tooltip_fallback_names = edge_tooltip_fallback_names,
+            .tooltip_fallback_names_size =
+                ATTRIBUTE_COUNT(edge_tooltip_fallback_names),
             .target_names = label_target_names,
             .target_names_size = ATTRIBUTE_COUNT(label_target_names),
             .label_gate_names = label_gate_names,
@@ -756,6 +767,9 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
             .label_url_names_size = ATTRIBUTE_COUNT(head_label_url_names),
             .tooltip_names = head_tooltip_names,
             .tooltip_names_size = ATTRIBUTE_COUNT(head_tooltip_names),
+            .tooltip_fallback_names = head_tooltip_fallback_names,
+            .tooltip_fallback_names_size =
+                ATTRIBUTE_COUNT(head_tooltip_fallback_names),
             .target_names = head_target_names,
             .target_names_size = ATTRIBUTE_COUNT(head_target_names),
             .label_gate_names = head_label_gate_names,
@@ -774,6 +788,9 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
             .label_url_names_size = ATTRIBUTE_COUNT(tail_label_url_names),
             .tooltip_names = tail_tooltip_names,
             .tooltip_names_size = ATTRIBUTE_COUNT(tail_tooltip_names),
+            .tooltip_fallback_names = tail_tooltip_fallback_names,
+            .tooltip_fallback_names_size =
+                ATTRIBUTE_COUNT(tail_tooltip_fallback_names),
             .target_names = tail_target_names,
             .target_names_size = ATTRIBUTE_COUNT(tail_target_names),
             .label_gate_names = tail_label_gate_names,
@@ -883,6 +900,17 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
           hyperlink_layer_names_for_kind(source_layer, kind, &names_size);
       comparable_attribute_value_t value = named_first_nonempty_attribute_value(
           root_graph, edge, names, names_size);
+      if (kind == HYPERLINK_VALUE_TOOLTIP && value.text[0] == '\0') {
+        const comparable_attribute_value_t url =
+            named_first_nonempty_attribute_value(
+                root_graph, edge, source_layer->url_names,
+                source_layer->url_names_size);
+        if (url.text[0] != '\0') {
+          value = named_first_nonempty_attribute_value(
+              root_graph, edge, source_layer->tooltip_fallback_names,
+              source_layer->tooltip_fallback_names_size);
+        }
+      }
 
       agxbuf slot_name = {0};
       agxbprint(&slot_name, "hyperlink:%s:%s", canonical_layer->name,

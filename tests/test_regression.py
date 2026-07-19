@@ -5130,6 +5130,19 @@ def test_concentrate_gates_label_tooltips_on_rendered_labels():
     assert len(_drawn_edges(label_tooltips)) == 3
 
 
+def test_concentrate_matches_implicit_endpoint_label_tooltips():
+    """emit_begin_edge() defaults an anchored endpoint tooltip to its label."""
+
+    endpoint_tooltips = _concentrated_graph(
+        "",
+        "a -> b [headlabel=x headURL=u]",
+        "a -> b [headlabel=x headURL=u headtooltip=x]",
+        "b -> c [headlabel=x headURL=u]",
+        "b -> c [headlabel=x headURL=u headtooltip=y]",
+    )
+    assert len(_drawn_edges(endpoint_tooltips)) == 3
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_same_rank_parallel_edges_find_prior_equivalent(splines: str):
     """Same-rank duplicates still concentrate when separated by distinct edges."""
