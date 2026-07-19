@@ -1,3 +1,6 @@
+/// @file
+/// @brief Rendered edge identity comparison
+
 #pragma once
 
 #include <stdbool.h>

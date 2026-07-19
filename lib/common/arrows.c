@@ -71,6 +71,10 @@ typedef struct {
   unsigned char fillcolor_rgba[4];
 } arrow_decoration_t;
 
+static bool arrow_decoration_is_empty(const arrow_decoration_t *decoration) {
+  return decoration->shape_flags == 0;
+}
+
 /*
  * This private record is the accumulated arrow-decoration fold for a retained
  * edge. Each endpoint is either absent or one complete rendered record
@@ -203,7 +207,7 @@ static bool arrow_decorations_are_equal(const arrow_decoration_t *first,
   if (first->shape_flags != second->shape_flags) {
     return false;
   }
-  if (first->shape_flags == 0) {
+  if (arrow_decoration_is_empty(first)) {
     return true;
   }
   if (first->arrowsize != second->arrowsize) {
@@ -222,7 +226,8 @@ static bool arrow_decorations_are_equal(const arrow_decoration_t *first,
 
 static bool arrow_decorations_can_fold(const arrow_decoration_t *retained,
                                        const arrow_decoration_t *candidate) {
-  return retained->shape_flags == 0 || candidate->shape_flags == 0 ||
+  return arrow_decoration_is_empty(retained) ||
+         arrow_decoration_is_empty(candidate) ||
          arrow_decorations_are_equal(retained, candidate);
 }
 
@@ -292,7 +297,7 @@ void fold_concentrated_edge_arrow_decorations(
                                     candidate_runs_in_opposite_direction);
     assert(arrow_decorations_can_fold(&retained[retained_endpoint],
                                       &candidate[candidate_endpoint]));
-    if (retained[retained_endpoint].shape_flags == 0) {
+    if (arrow_decoration_is_empty(&retained[retained_endpoint])) {
       retained[retained_endpoint] = candidate[candidate_endpoint];
     }
   }
@@ -306,7 +311,7 @@ void fold_concentrated_edge_arrow_decorations(
 double edge_arrow_arrowsize(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
   arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT];
   accumulated_edge_arrow_decorations(edge, decorations);
-  if (decorations[endpoint].shape_flags != 0) {
+  if (!arrow_decoration_is_empty(&decorations[endpoint])) {
     return decorations[endpoint].arrowsize;
   }
   return late_double(edge, E_arrowsz, 1.0, 0.0);
@@ -315,7 +320,7 @@ double edge_arrow_arrowsize(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
 char *edge_arrow_fillcolor(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
   arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT];
   accumulated_edge_arrow_decorations(edge, decorations);
-  if (decorations[endpoint].shape_flags != 0) {
+  if (!arrow_decoration_is_empty(&decorations[endpoint])) {
     return decorations[endpoint].fillcolor;
   }
   bool is_html;

@@ -1,12 +1,5 @@
-/*************************************************************************
- * Copyright (c) 2011 AT&T Intellectual Property
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v2.0
- * which accompanies this distribution, and is available at
- * https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.html
- *
- * Contributors: Details at https://graphviz.org
- *************************************************************************/
+/// @file
+/// @brief Rendered edge identity projection for concentration
 
 /*
  * Concentration projects each edge into two parts: the core rendered identity
@@ -827,75 +820,6 @@ static bool hyperlink_layer_gate_is_open(Agraph_t *root_graph, Agedge_t *edge,
                                     layer->label_gate_names_size);
 }
 
-static bool hyperlink_layer_url_is_rendered(Agraph_t *root_graph,
-                                            Agedge_t *edge,
-                                            const hyperlink_layer_t *layer) {
-  if (layer->url_uses_label_gate &&
-      !hyperlink_layer_gate_is_open(root_graph, edge, layer)) {
-    return false;
-  }
-
-  const comparable_attribute_value_t url_value =
-      named_first_nonempty_attribute_value(root_graph, edge, layer->url_names,
-                                           layer->url_names_size);
-  return url_value.text[0] != '\0' ||
-         edge_has_any_of_attributes(root_graph, edge, layer->tooltip_names,
-                                    layer->tooltip_names_size);
-}
-
-static bool hyperlink_layer_target_is_rendered(Agraph_t *root_graph,
-                                               Agedge_t *edge,
-                                               const hyperlink_layer_t *layer) {
-  return hyperlink_layer_gate_is_open(root_graph, edge, layer) &&
-         edge_has_any_of_attributes(root_graph, edge,
-                                    layer->target_anchor_names,
-                                    layer->target_anchor_names_size);
-}
-
-static bool hyperlink_layer_value_is_rendered(Agraph_t *root_graph,
-                                              Agedge_t *edge,
-                                              const hyperlink_layer_t *layer,
-                                              hyperlink_value_kind_t kind) {
-  switch (kind) {
-  case HYPERLINK_VALUE_URL:
-    return hyperlink_layer_url_is_rendered(root_graph, edge, layer);
-  case HYPERLINK_VALUE_TOOLTIP:
-    return hyperlink_layer_gate_is_open(root_graph, edge, layer);
-  case HYPERLINK_VALUE_TARGET:
-    return hyperlink_layer_target_is_rendered(root_graph, edge, layer);
-  case HYPERLINK_VALUE_COUNT:
-    break;
-  }
-  return false;
-}
-
-static const char *const *
-hyperlink_layer_names_for_kind(const hyperlink_layer_t *layer,
-                               hyperlink_value_kind_t kind,
-                               size_t *names_size) {
-  switch (kind) {
-  case HYPERLINK_VALUE_URL:
-    *names_size = layer->url_names_size;
-    return layer->url_names;
-  case HYPERLINK_VALUE_TOOLTIP:
-    *names_size = layer->tooltip_names_size;
-    return layer->tooltip_names;
-  case HYPERLINK_VALUE_TARGET:
-    *names_size = layer->target_names_size;
-    return layer->target_names;
-  case HYPERLINK_VALUE_COUNT:
-    break;
-  }
-  *names_size = 0;
-  return NULL;
-}
-
-static const char *hyperlink_value_kind_name(hyperlink_value_kind_t kind) {
-  static const char *const names[HYPERLINK_VALUE_COUNT] = {"URL", "tooltip",
-                                                           "target"};
-  return kind < HYPERLINK_VALUE_COUNT ? names[kind] : "";
-}
-
 static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
                                    Agedge_t *edge, bool reverse_orientation) {
   for (size_t layer_index = 0; layer_index < HYPERLINK_LAYER_COUNT;
@@ -908,14 +832,50 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
 
     for (hyperlink_value_kind_t kind = HYPERLINK_VALUE_URL;
          kind < HYPERLINK_VALUE_COUNT; kind++) {
-      if (!hyperlink_layer_value_is_rendered(root_graph, edge, source_layer,
-                                             kind)) {
+      const char *const *names = NULL;
+      size_t names_size = 0;
+      const char *kind_name = NULL;
+      bool rendered = false;
+      switch (kind) {
+      case HYPERLINK_VALUE_URL: {
+        names = source_layer->url_names;
+        names_size = source_layer->url_names_size;
+        kind_name = "URL";
+        const comparable_attribute_value_t url =
+            named_first_nonempty_attribute_value(root_graph, edge, names,
+                                                 names_size);
+        rendered =
+            (!source_layer->url_uses_label_gate ||
+             hyperlink_layer_gate_is_open(root_graph, edge, source_layer)) &&
+            (url.text[0] != '\0' ||
+             edge_has_any_of_attributes(root_graph, edge,
+                                        source_layer->tooltip_names,
+                                        source_layer->tooltip_names_size));
+        break;
+      }
+      case HYPERLINK_VALUE_TOOLTIP:
+        names = source_layer->tooltip_names;
+        names_size = source_layer->tooltip_names_size;
+        kind_name = "tooltip";
+        rendered = hyperlink_layer_gate_is_open(root_graph, edge, source_layer);
+        break;
+      case HYPERLINK_VALUE_TARGET:
+        names = source_layer->target_names;
+        names_size = source_layer->target_names_size;
+        kind_name = "target";
+        rendered =
+            hyperlink_layer_gate_is_open(root_graph, edge, source_layer) &&
+            edge_has_any_of_attributes(root_graph, edge,
+                                       source_layer->target_anchor_names,
+                                       source_layer->target_anchor_names_size);
+        break;
+      case HYPERLINK_VALUE_COUNT:
+        break;
+      }
+      if (!rendered) {
         continue;
       }
 
-      size_t names_size;
-      const char *const *const names =
-          hyperlink_layer_names_for_kind(source_layer, kind, &names_size);
       comparable_attribute_value_t value = named_first_nonempty_attribute_value(
           root_graph, edge, names, names_size);
       bool tooltip_uses_fallback = false;
@@ -934,7 +894,7 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
 
       agxbuf slot_name = {0};
       agxbprint(&slot_name, "hyperlink:%s:%s", canonical_layer->name,
-                hyperlink_value_kind_name(kind));
+                kind_name);
       if (kind == HYPERLINK_VALUE_TOOLTIP && !tooltip_uses_fallback) {
         char *const preprocessed = preprocessTooltip((char *)value.text, edge);
         char *const substituted = strdup_and_subst_obj(preprocessed, edge);
