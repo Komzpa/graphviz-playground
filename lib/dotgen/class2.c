@@ -16,8 +16,21 @@
 #include <dotgen/dot.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <util/alloc.h>
 #include <util/gv_math.h>
+
+bool same_edge_attrs(edge_t *e, edge_t *f) {
+  graph_t *const g = agroot(agraphof(e));
+
+  for (Agsym_t *attr = agnxtattr(g, AGEDGE, NULL); attr != NULL;
+       attr = agnxtattr(g, AGEDGE, attr)) {
+    if (strcmp(agxget(e, attr), agxget(f, attr)) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
 
 static node_t*
 label_vnode(graph_t * g, edge_t * orig)
@@ -210,7 +223,7 @@ void class2(graph_t * g)
 		    continue;
 		}
 		if (ED_label(e) == NULL && ED_label(prev) == NULL
-		    && ports_eq(e, prev)) {
+		    && ports_eq(e, prev) && same_edge_attrs(e, prev)) {
 		    if (Concentrate)
 			ED_edge_type(e) = IGNORED;
 		    else {
@@ -265,7 +278,7 @@ void class2(graph_t * g)
 		    if (ED_to_virt(opp) == NULL)
 			make_chain(g, agtail(opp), aghead(opp), opp);
 		    if (ED_label(e) == NULL && ED_label(opp) == NULL
-			&& ports_eq(e, opp)) {
+			&& ports_eq(e, opp) && same_edge_attrs(e, opp)) {
 			if (Concentrate) {
 			    ED_edge_type(e) = IGNORED;
 			    ED_conc_opp_flag(opp) = true;
@@ -291,4 +304,3 @@ void class2(graph_t * g)
 	GD_comp(g).list[0] = GD_nlist(g);
     }
 }
-

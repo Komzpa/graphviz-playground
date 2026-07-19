@@ -4717,6 +4717,88 @@ def test_2559():
     ), "concentrated edge drawn as a regular straight edge"
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_edge_attributes(splines: str):
+    """`concentrate=true` should only merge equivalent edges."""
+
+    def drawn_colors(source: str) -> list[str]:
+        layout = json.loads(dot("json", source=source))
+        return [
+            operation["color"]
+            for edge in layout["edges"]
+            for operation in edge.get("_draw_", ())
+            if operation["op"] == "c"
+        ]
+
+    def drawn_styles(source: str) -> list[str]:
+        layout = json.loads(dot("json", source=source))
+        return [
+            operation["style"]
+            for edge in layout["edges"]
+            for operation in edge.get("_draw_", ())
+            if operation["op"] == "S"
+        ]
+
+    distinct = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          a -> b [color=blue]
+        }}
+    """
+    assert set(drawn_colors(distinct)) == {"#ff0000", "#0000ff"}
+
+    opposite = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          b -> a [color=blue]
+        }}
+    """
+    assert set(drawn_colors(opposite)) == {"#ff0000", "#0000ff"}
+
+    styles = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [style=dashed]
+          a -> b [style=dotted]
+        }}
+    """
+    assert set(drawn_styles(styles)) == {"dashed", "dotted"}
+
+    labels = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [label=first]
+          a -> b [label=second]
+        }}
+    """
+    label_edges = json.loads(dot("json", source=labels))["edges"]
+    assert {edge["label"] for edge in label_edges} == {"first", "second"}
+
+    directions = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [dir=forward]
+          a -> b [dir=both]
+        }}
+    """
+    direction_edges = json.loads(dot("json", source=directions))["edges"]
+    assert {
+        (bool(edge.get("_tdraw_")), bool(edge.get("_hdraw_")))
+        for edge in direction_edges
+    } == {(False, True), (True, True)}
+
+    equivalent = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          a -> b [color=red]
+        }}
+    """
+    assert drawn_colors(equivalent) == ["#ff0000"]
+
+
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
 def test_2563():
     """
