@@ -24,6 +24,7 @@
 #define DEBUG
 #include <assert.h>
 #include <common/colorprocs.h>
+#include <common/const.h>
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -171,6 +172,15 @@ static bool ortho_is_url_alias_attribute(const char *name) {
          strcmp(name, "tailURL") == 0 || strcmp(name, "tailhref") == 0;
 }
 
+static bool ortho_is_tooltip_alias_attribute(const char *name) {
+  return strcmp(name, "tooltip") == 0 || strcmp(name, "edgetooltip") == 0;
+}
+
+static bool ortho_is_alias_attribute(const char *name) {
+  return ortho_is_url_alias_attribute(name) ||
+         ortho_is_tooltip_alias_attribute(name);
+}
+
 static bool
 ortho_edge_clip_value(ortho_comparable_attribute_value_t value) {
   return value.text[0] == '\0' || mapbool(value.text);
@@ -185,11 +195,122 @@ ortho_edge_direction_value(Agedge_t *edge,
   return value.text;
 }
 
+static bool ortho_edge_numeric_attribute_value(
+    ortho_comparable_attribute_value_t value, double default_value,
+    double minimum, double *number) {
+  if (value.is_html) {
+    return false;
+  }
+  if (value.text[0] == '\0') {
+    *number = default_value;
+    return true;
+  }
+
+  char *end = NULL;
+  const double parsed_value = strtod(value.text, &end);
+  if (end == value.text || *end != '\0') {
+    return false;
+  }
+  *number = parsed_value < minimum ? minimum : parsed_value;
+  return true;
+}
+
+static bool ortho_edge_numeric_default_values_are_equal(
+    const char *attribute_name, ortho_comparable_attribute_value_t first_value,
+    ortho_comparable_attribute_value_t second_value) {
+  double default_value;
+  double minimum = 0.0;
+
+  if (strcmp(attribute_name, "arrowsize") == 0 ||
+      strcmp(attribute_name, "penwidth") == 0 ||
+      strcmp(attribute_name, "labeldistance") == 0) {
+    default_value = 1.0;
+  } else if (strcmp(attribute_name, "fontsize") == 0) {
+    default_value = DEFAULT_FONTSIZE;
+    minimum = MIN_FONTSIZE;
+  } else if (strcmp(attribute_name, "labelfontsize") == 0) {
+    default_value = DEFAULT_LABEL_FONTSIZE;
+    minimum = MIN_FONTSIZE;
+  } else if (strcmp(attribute_name, "labelangle") == 0) {
+    default_value = PORT_LABEL_ANGLE;
+    minimum = -180.0;
+  } else {
+    return false;
+  }
+
+  double first_number;
+  double second_number;
+  return ortho_edge_numeric_attribute_value(first_value, default_value, minimum,
+                                            &first_number) &&
+         ortho_edge_numeric_attribute_value(second_value, default_value, minimum,
+                                            &second_number) &&
+         first_number == second_number;
+}
+
+static bool ortho_edge_style_values_are_equal(
+    ortho_comparable_attribute_value_t first_value,
+    ortho_comparable_attribute_value_t second_value) {
+  if (first_value.is_html || second_value.is_html) {
+    return false;
+  }
+  const char *const first_style =
+      first_value.text[0] == '\0' ? "solid" : first_value.text;
+  const char *const second_style =
+      second_value.text[0] == '\0' ? "solid" : second_value.text;
+  return strcmp(first_style, second_style) == 0;
+}
+
+static bool ortho_edge_bool_default_values_are_equal(
+    const char *attribute_name, ortho_comparable_attribute_value_t first_value,
+    ortho_comparable_attribute_value_t second_value) {
+  bool default_value;
+
+  if (strcmp(attribute_name, "decorate") == 0 ||
+      strcmp(attribute_name, "label_float") == 0) {
+    default_value = false;
+  } else {
+    return false;
+  }
+
+  const bool first_bool =
+      first_value.text[0] == '\0' ? default_value : mapbool(first_value.text);
+  const bool second_bool =
+      second_value.text[0] == '\0' ? default_value : mapbool(second_value.text);
+  return first_bool == second_bool;
+}
+
+static bool ortho_is_endpoint_label_attribute(const char *name) {
+  return strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0;
+}
+
+static bool ortho_edge_label_values_are_equal(
+    Agedge_t *first_edge, ortho_comparable_attribute_value_t first_value,
+    Agedge_t *second_edge, ortho_comparable_attribute_value_t second_value) {
+  if (first_value.is_html || second_value.is_html) {
+    return ortho_attribute_values_are_equal(first_value, second_value);
+  }
+
+  char *const first_text =
+      strdup_and_subst_obj((char *)first_value.text, first_edge);
+  char *const second_text =
+      strdup_and_subst_obj((char *)second_value.text, second_edge);
+  const bool equal = strcmp(first_text, second_text) == 0;
+  free(first_text);
+  free(second_text);
+  return equal;
+}
+
 static bool ortho_edge_attribute_values_are_equal(
     Agedge_t *first_edge, const char *first_attribute_name,
     ortho_comparable_attribute_value_t first_value, Agedge_t *second_edge,
     const char *second_attribute_name,
     ortho_comparable_attribute_value_t second_value) {
+  if (ortho_is_endpoint_label_attribute(first_attribute_name) &&
+      ortho_is_endpoint_label_attribute(second_attribute_name)) {
+    return ortho_edge_label_values_are_equal(first_edge, first_value,
+                                             second_edge, second_value);
+  }
+
   if (ortho_is_clipping_attribute(first_attribute_name) &&
       ortho_is_clipping_attribute(second_attribute_name)) {
     return ortho_edge_clip_value(first_value) ==
@@ -206,6 +327,16 @@ static bool ortho_edge_attribute_values_are_equal(
       ortho_is_color_attribute(second_attribute_name) &&
       ortho_edge_color_values_are_equal(first_edge, first_value, second_edge,
                                         second_value)) {
+    return true;
+  }
+
+  if (strcmp(first_attribute_name, second_attribute_name) == 0 &&
+      (ortho_edge_numeric_default_values_are_equal(
+           first_attribute_name, first_value, second_value) ||
+       (strcmp(first_attribute_name, "style") == 0 &&
+        ortho_edge_style_values_are_equal(first_value, second_value)) ||
+       ortho_edge_bool_default_values_are_equal(first_attribute_name,
+                                                first_value, second_value))) {
     return true;
   }
 
@@ -286,6 +417,15 @@ static bool ortho_url_alias_attribute_groups_are_equal(
              tail_url_names);
 }
 
+static bool ortho_tooltip_alias_attributes_are_equal(Agraph_t *root_graph,
+                                                     Agedge_t *first_edge,
+                                                     Agedge_t *second_edge) {
+  static const char *const tooltip_names[] = {"tooltip", "edgetooltip"};
+  return ortho_url_alias_attributes_are_equal(root_graph, first_edge,
+                                              tooltip_names, second_edge,
+                                              tooltip_names);
+}
+
 static bool ortho_same_direction_edge_arrows_are_equal(Agedge_t *first_edge,
                                                        Agedge_t *second_edge) {
   uint32_t first_start_flags;
@@ -358,6 +498,8 @@ static bool ortho_opposite_endpoint_attributes_are_equal(
       {"tailclip", "headclip"},
       {"headlabel", "taillabel"},
       {"taillabel", "headlabel"},
+      {"lhead", "ltail"},
+      {"ltail", "lhead"},
       {"samehead", "sametail"},
       {"sametail", "samehead"},
       {"headtarget", "tailtarget"},
@@ -397,6 +539,7 @@ static bool ortho_is_endpoint_attribute(const char *name) {
          strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0 ||
          strcmp(name, "headURL") == 0 || strcmp(name, "tailURL") == 0 ||
          strcmp(name, "headhref") == 0 || strcmp(name, "tailhref") == 0 ||
+         strcmp(name, "lhead") == 0 || strcmp(name, "ltail") == 0 ||
          strcmp(name, "samehead") == 0 || strcmp(name, "sametail") == 0 ||
          strcmp(name, "headtarget") == 0 || strcmp(name, "tailtarget") == 0 ||
          strcmp(name, "headtooltip") == 0 ||
@@ -446,7 +589,9 @@ static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
     return false;
   }
   if (!ortho_url_alias_attribute_groups_are_equal(
-          root_graph, first_edge, second_edge, compare_opposite_endpoints)) {
+          root_graph, first_edge, second_edge, compare_opposite_endpoints) ||
+      !ortho_tooltip_alias_attributes_are_equal(root_graph, first_edge,
+                                                second_edge)) {
     return false;
   }
 
@@ -454,7 +599,7 @@ static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
   while (attribute != NULL) {
     if (!ortho_is_layout_only_edge_attribute(attribute->name) &&
         !ortho_is_arrow_attribute(attribute->name) &&
-        !ortho_is_url_alias_attribute(attribute->name) &&
+        !ortho_is_alias_attribute(attribute->name) &&
         !ortho_resolved_port_attributes_are_equal(
             first_edge, attribute->name, second_edge, attribute->name) &&
         (!compare_opposite_endpoints ||

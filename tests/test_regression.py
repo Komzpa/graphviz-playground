@@ -4917,6 +4917,34 @@ def test_concentrate_matches_resolved_port_spellings(splines: str):
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_explicit_rendering_defaults(splines: str):
+    """Explicit rendered defaults should not split equivalent routes."""
+
+    explicit_edge_defaults = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [style=solid penwidth=1 arrowsize=1]
+          a -> b
+        }}
+    """
+    assert len(_drawn_edges(explicit_edge_defaults)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_tooltip_aliases(splines: str):
+    """tooltip and edgetooltip describe the same rendered edge tooltip."""
+
+    equivalent_tooltip_aliases = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [tooltip="tip"]
+          a -> b [edgetooltip="tip"]
+        }}
+    """
+    assert len(_drawn_edges(equivalent_tooltip_aliases)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_same_rank_parallel_edges_find_prior_equivalent(splines: str):
     """Same-rank duplicates still concentrate when separated by distinct edges."""
 
@@ -4997,6 +5025,45 @@ def test_concentrate_matches_samehead_sametail_by_physical_endpoint(splines: str
         }}
     """
     assert len(_drawn_edges(same_grammar_endpoint)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_lhead_ltail_by_physical_endpoint(splines: str):
+    """Compound cluster endpoints are owned by physical edge endpoints."""
+
+    same_physical_clusters = f"""
+        digraph {{
+          graph [compound=true concentrate=true {splines}]
+          subgraph cluster_a {{ a }}
+          subgraph cluster_b {{ b }}
+          a -> b [ltail=cluster_a lhead=cluster_b]
+          b -> a [ltail=cluster_b lhead=cluster_a]
+        }}
+    """
+    assert len(_drawn_edges(same_physical_clusters)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_compares_endpoint_label_substitutions(splines: str):
+    """Endpoint labels should compare after edge-name substitution."""
+
+    same_rendered_endpoint_label = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headlabel="\\H"]
+          b -> a [taillabel="\\T"]
+        }}
+    """
+    assert len(_drawn_edges(same_rendered_endpoint_label)) == 1
+
+    different_rendered_endpoint_label = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headlabel="\\T"]
+          b -> a [taillabel="\\T"]
+        }}
+    """
+    assert len(_drawn_edges(different_rendered_endpoint_label)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
