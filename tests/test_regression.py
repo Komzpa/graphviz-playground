@@ -4938,6 +4938,305 @@ def test_unconcentrated_opposite_edges_share_multi_edge_routing():
     assert len(route_x_coordinates) == 2
 
 
+def test_unconcentrated_opposite_port_edges_share_multi_edge_routing():
+    """
+    Reverse edges compare ports at the same physical endpoint.
+    https://gitlab.com/graphviz/graphviz/-/work_items/1039
+    """
+
+    opposite_edges_with_a_shared_port = """
+        digraph {
+          node [shape=box]
+          bonn:s -> berlin
+          berlin -> bonn:s
+        }
+    """
+    opposite_edges = _drawn_edges(opposite_edges_with_a_shared_port)
+
+    # Sharing one virtual chain lets the regular multi-edge router separate the
+    # two visible splines. Two independent chains collapse onto the centerline.
+    route_x_coordinates = {_route_x_coordinates(edge) for edge in opposite_edges}
+    assert len(route_x_coordinates) == 2
+
+    nonmatching_physical_ports = """
+        digraph {
+          graph [concentrate=true]
+          node [shape=box]
+          bonn:n -> berlin
+          berlin -> bonn:s
+        }
+    """
+    assert len(_drawn_edges(nonmatching_physical_ports)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_reverse_ports_by_physical_endpoint(splines: str):
+    """Reverse port attributes exchange head/tail roles at each endpoint."""
+
+    equivalent_reverse_ports = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          node [shape=box]
+          bonn:s -> berlin
+          berlin -> bonn:s
+        }}
+    """
+    assert len(_drawn_edges(equivalent_reverse_ports)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_reverse_clipping_by_physical_endpoint(splines: str):
+    """
+    Reverse clipping attributes exchange head/tail roles at each endpoint.
+    https://gitlab.com/graphviz/graphviz/-/work_items/448
+    """
+
+    same_grammar_role = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [tailclip=true, headclip=false]
+          b -> a [tailclip=true, headclip=false]
+        }}
+    """
+    assert len(_drawn_edges(same_grammar_role)) == 2
+
+    same_physical_endpoint = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [tailclip=true, headclip=false]
+          b -> a [tailclip=false, headclip=true]
+        }}
+    """
+    assert len(_drawn_edges(same_physical_endpoint)) == 1
+
+
+def test_concentrate_does_not_materialize_unmatched_opposite_chains():
+    """An unmatched backward edge must not pre-classify later parallel edges."""
+
+    separated_equivalent_edges = """
+        digraph {
+          graph [concentrate=true]
+
+          // Creating b first makes this backward edge run before a's outgoing
+          // edges. constraint=false leaves a -> b to determine their ranks.
+          b -> a [color=green constraint=false]
+          a -> b [color=red]
+          a -> b [color=blue]
+          a -> b [color=red]
+        }
+    """
+    drawn_colors = [
+        edge["color"] for edge in _drawn_edges(separated_equivalent_edges)
+    ]
+    assert sorted(drawn_colors) == ["blue", "green", "red"]
+
+
+def test_concentrate_same_rank_reverse_edges():
+    """
+    Same-rank reverse edges concentrate only when they are equivalent.
+    https://gitlab.com/graphviz/graphviz/-/work_items/150
+    """
+
+    same_rank_edges = """
+        strict digraph {
+          concentrate=true
+          subgraph same_rank {
+            rank=same
+            a
+            b
+          }
+          a -> b
+          b -> a
+        }
+    """
+    concentrated_reverse_edges = _drawn_edges(same_rank_edges)
+    assert len(concentrated_reverse_edges) == 1
+    assert "_hdraw_" in concentrated_reverse_edges[0]
+    assert "_tdraw_" in concentrated_reverse_edges[0]
+
+    concentration_disabled = same_rank_edges.replace(
+        "concentrate=true", "concentrate=false"
+    )
+    assert len(_drawn_edges(concentration_disabled)) == 2
+
+    distinct_reverse_edges = same_rank_edges.replace(
+        "a -> b", "a -> b [color=red]"
+    ).replace("b -> a", "b -> a [color=blue]")
+    assert {edge["color"] for edge in _drawn_edges(distinct_reverse_edges)} == {
+        "red",
+        "blue",
+    }
+
+    equivalent_reverse_ports = same_rank_edges.replace(
+        "a -> b", "a:s -> b"
+    ).replace("b -> a", "b -> a:s")
+    assert len(_drawn_edges(equivalent_reverse_ports)) == 1
+
+    nonmatching_reverse_ports = same_rank_edges.replace(
+        "a -> b", "a:n -> b"
+    ).replace("b -> a", "b -> a:s")
+    assert len(_drawn_edges(nonmatching_reverse_ports)) == 2
+
+    same_grammar_endpoint_labels = same_rank_edges.replace(
+        "a -> b", "a -> b [headlabel=x]"
+    ).replace("b -> a", "b -> a [headlabel=x]")
+    assert len(_drawn_edges(same_grammar_endpoint_labels)) == 2
+
+    same_physical_endpoint_labels = same_rank_edges.replace(
+        "a -> b", "a -> b [headlabel=x]"
+    ).replace("b -> a", "b -> a [taillabel=x]")
+    assert len(_drawn_edges(same_physical_endpoint_labels)) == 1
+
+    rank_span_one = """
+        strict digraph {
+          concentrate=true
+          subgraph same_rank {
+            rank=same
+            a
+            b
+          }
+          c -> a [color=green]
+          a -> b [color=red]
+          b -> a [color=red]
+        }
+    """
+    assert sorted(edge["color"] for edge in _drawn_edges(rank_span_one)) == [
+        "green",
+        "red",
+    ]
+
+    rank_span_two = """
+        strict digraph {
+          concentrate=true
+          subgraph same_rank {
+            rank=same
+            a
+            b
+          }
+          z -> y [color=green]
+          y -> a [color=green]
+          a -> b [color=red]
+          b -> a [color=red]
+        }
+    """
+    assert sorted(edge["color"] for edge in _drawn_edges(rank_span_two)) == [
+        "green",
+        "green",
+        "red",
+    ]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_same_rank_edges_compare_their_actual_direction(splines: str):
+    """ND_other contains same-direction edges as well as reversed edges."""
+
+    same_direction_distinct_ports = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          subgraph same_rank {{
+            rank=same
+            a
+            b
+          }}
+          a:n -> b:s [color=red]
+          a:s -> b:n [color=red]
+        }}
+    """
+    assert len(_drawn_edges(same_direction_distinct_ports)) == 2
+
+    one_sided_clipping = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          subgraph same_rank {{
+            rank=same
+            a
+            b
+          }}
+          a -> b [headclip=false]
+          b -> a
+        }}
+    """
+    assert len(_drawn_edges(one_sided_clipping)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_explicit_default_edge_attributes(splines: str):
+    """Explicit default attributes should not block concentration."""
+
+    explicit_defaults = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [dir=forward]
+          a -> b
+          b -> c [headclip=true]
+          b -> c
+          c -> d [tailclip=true]
+          c -> d
+        }}
+    """
+    assert len(_drawn_edges(explicit_defaults)) == 3
+
+
+def test_concentrate_flat_cycle_keeps_virtual_representatives_private():
+    """Flat cycle reversal can create a non-Cgraph representative edge."""
+
+    flat_cycle = """
+        digraph {
+          graph [concentrate=true]
+          subgraph same_rank {
+            rank=same
+            a
+            b
+            c
+          }
+          a -> b
+          b -> c
+          c -> a
+          a -> c
+        }
+    """
+    assert len(_drawn_edges(flat_cycle)) == 3
+
+
+@pytest.mark.parametrize("direction", ("down", "up"))
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_distinct_record_port_continuations(
+    direction: str, splines: str
+):
+    """
+    Concentration must retain continuations ending at different record ports.
+    https://gitlab.com/graphviz/graphviz/-/work_items/449
+    """
+
+    if direction == "down":
+        rank_constraint = "subgraph { rank=source; source }"
+        distinct_edges = """
+          some -> problem:p1
+          source -> problem:p2
+          source -> problem:p3
+        """
+    else:
+        rank_constraint = "subgraph { rank=sink; sink }"
+        distinct_edges = """
+          problem:p1 -> some
+          problem:p2 -> sink
+          problem:p3 -> sink
+        """
+
+    distinct_ports = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          problem [shape=record, label="<p1>p1|<p2>p2|<p3>p3"]
+          {rank_constraint}
+          {distinct_edges}
+        }}
+    """
+    assert len(_drawn_edges(distinct_ports)) == 3
+
+    same_port_duplicates = distinct_ports.replace("problem:p3", "problem:p2")
+    assert len(_drawn_edges(same_port_duplicates)) == 2
+
+
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
 def test_2563():
     """

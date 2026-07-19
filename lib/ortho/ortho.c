@@ -35,6 +35,7 @@
 #include <common/geomprocs.h>
 #include <common/globals.h>
 #include <common/render.h>
+#include <common/utils.h>
 #include <common/pointset.h>
 #include <util/alloc.h>
 #include <util/exit.h>
@@ -55,27 +56,166 @@ typedef struct {
   size_t edge_capacity;
 } ortho_concentrate_state_t;
 
+typedef struct {
+  const char *text;
+  bool is_html;
+} ortho_comparable_attribute_value_t;
+
+static ortho_comparable_attribute_value_t
+ortho_declared_attribute_value(Agedge_t *edge, Agsym_t *attribute) {
+  const char *const text = agxget(edge, attribute);
+  return (ortho_comparable_attribute_value_t){
+      .text = text,
+      .is_html = aghtmlstr(text),
+  };
+}
+
+static ortho_comparable_attribute_value_t
+ortho_named_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
+                            const char *attribute_name) {
+  Agsym_t *const attribute = agfindedgeattr(root_graph, (char *)attribute_name);
+  if (attribute == NULL) {
+    /*
+     * aghtmlstr() accepts only Cgraph refstrings. If the opposite endpoint
+     * attribute is undeclared, keep the empty default as an explicit plain
+     * value instead of passing this string literal through aghtmlstr().
+     */
+    return (ortho_comparable_attribute_value_t){.text = "", .is_html = false};
+  }
+  return ortho_declared_attribute_value(edge, attribute);
+}
+
+static bool ortho_attribute_values_are_equal(
+    ortho_comparable_attribute_value_t first_value,
+    ortho_comparable_attribute_value_t second_value) {
+  return first_value.is_html == second_value.is_html &&
+         strcmp(first_value.text, second_value.text) == 0;
+}
+
+static bool ortho_is_clipping_attribute(const char *name) {
+  return strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0;
+}
+
+static bool
+ortho_edge_clip_value(ortho_comparable_attribute_value_t value) {
+  return value.text[0] == '\0' || mapbool(value.text);
+}
+
+static const char *
+ortho_edge_direction_value(Agedge_t *edge,
+                           ortho_comparable_attribute_value_t value) {
+  if (value.text[0] == '\0') {
+    return agisdirected(agraphof(edge)) ? "forward" : "none";
+  }
+  return value.text;
+}
+
+static bool ortho_edge_attribute_values_are_equal(
+    Agedge_t *first_edge, const char *first_attribute_name,
+    ortho_comparable_attribute_value_t first_value, Agedge_t *second_edge,
+    const char *second_attribute_name,
+    ortho_comparable_attribute_value_t second_value) {
+  if (ortho_is_clipping_attribute(first_attribute_name) &&
+      ortho_is_clipping_attribute(second_attribute_name)) {
+    return ortho_edge_clip_value(first_value) ==
+           ortho_edge_clip_value(second_value);
+  }
+
+  if (strcmp(first_attribute_name, "dir") == 0 &&
+      strcmp(second_attribute_name, "dir") == 0) {
+    return strcmp(ortho_edge_direction_value(first_edge, first_value),
+                  ortho_edge_direction_value(second_edge, second_value)) == 0;
+  }
+
+  return ortho_attribute_values_are_equal(first_value, second_value);
+}
+
+static bool ortho_opposite_endpoint_attributes_are_equal(
+    Agraph_t *root_graph, Agedge_t *first_edge, Agedge_t *second_edge) {
+  static const char *const endpoint_attribute_pairs[][2] = {
+      {"headport", "tailport"},
+      {"tailport", "headport"},
+      {"headclip", "tailclip"},
+      {"tailclip", "headclip"},
+      {"headlabel", "taillabel"},
+      {"taillabel", "headlabel"},
+      {"headURL", "tailURL"},
+      {"tailURL", "headURL"},
+      {"headhref", "tailhref"},
+      {"tailhref", "headhref"},
+      {"headtarget", "tailtarget"},
+      {"tailtarget", "headtarget"},
+      {"headtooltip", "tailtooltip"},
+      {"tailtooltip", "headtooltip"},
+  };
+
+  for (size_t pair_index = 0;
+       pair_index <
+       sizeof(endpoint_attribute_pairs) / sizeof(endpoint_attribute_pairs[0]);
+       pair_index++) {
+    const ortho_comparable_attribute_value_t first_value =
+        ortho_named_attribute_value(
+            root_graph, first_edge, endpoint_attribute_pairs[pair_index][0]);
+    const ortho_comparable_attribute_value_t second_value =
+        ortho_named_attribute_value(
+            root_graph, second_edge, endpoint_attribute_pairs[pair_index][1]);
+    if (!ortho_edge_attribute_values_are_equal(
+            first_edge, endpoint_attribute_pairs[pair_index][0], first_value,
+            second_edge, endpoint_attribute_pairs[pair_index][1],
+            second_value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool ortho_is_endpoint_attribute(const char *name) {
+  return strcmp(name, "headport") == 0 || strcmp(name, "tailport") == 0 ||
+         strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0 ||
+         strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0 ||
+         strcmp(name, "headURL") == 0 || strcmp(name, "tailURL") == 0 ||
+         strcmp(name, "headhref") == 0 || strcmp(name, "tailhref") == 0 ||
+         strcmp(name, "headtarget") == 0 || strcmp(name, "tailtarget") == 0 ||
+         strcmp(name, "headtooltip") == 0 ||
+         strcmp(name, "tailtooltip") == 0;
+}
+
 static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
                                             Agedge_t *second_edge) {
   Agraph_t *const root_graph = agroot(agraphof(first_edge));
+  const bool compare_opposite_endpoints =
+      agtail(first_edge) != agtail(second_edge) &&
+      agtail(first_edge) == aghead(second_edge) &&
+      aghead(first_edge) == agtail(second_edge);
 
   /*
    * Attribute defaults are stored on the root graph, not repeated on every
    * edge. Compare the effective value of each declared edge attribute so the
    * orthogonal concentrator does not discard a visually distinct edge.
    * HTML-like identity is part of the value because Cgraph renders an HTML
-   * string differently from plain text containing the same bytes.
+   * string differently from plain text containing the same bytes. Reverse
+   * edges compare ports and clipping crosswise because head and tail exchange
+   * grammatical roles at the same physical endpoint.
    */
+  if (compare_opposite_endpoints &&
+      !ortho_opposite_endpoint_attributes_are_equal(root_graph, first_edge,
+                                                    second_edge)) {
+    return false;
+  }
+
   Agsym_t *attribute = agnxtattr(root_graph, AGEDGE, NULL);
   while (attribute != NULL) {
-    const char *const first_value = agxget(first_edge, attribute);
-    const char *const second_value = agxget(second_edge, attribute);
-
-    const bool same_representation =
-        aghtmlstr(first_value) == aghtmlstr(second_value);
-    const bool same_text = strcmp(first_value, second_value) == 0;
-    if (!same_representation || !same_text) {
-      return false;
+    if (!compare_opposite_endpoints ||
+        !ortho_is_endpoint_attribute(attribute->name)) {
+      const ortho_comparable_attribute_value_t first_value =
+          ortho_declared_attribute_value(first_edge, attribute);
+      const ortho_comparable_attribute_value_t second_value =
+          ortho_declared_attribute_value(second_edge, attribute);
+      if (!ortho_edge_attribute_values_are_equal(
+              first_edge, attribute->name, first_value, second_edge,
+              attribute->name, second_value)) {
+        return false;
+      }
     }
 
     attribute = agnxtattr(root_graph, AGEDGE, attribute);

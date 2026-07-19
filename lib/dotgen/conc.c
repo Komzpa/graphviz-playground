@@ -201,12 +201,100 @@ static int rebuild_vlists(graph_t * g)
     return 0;
 }
 
+static bool edges_run_in_opposite_directions(edge_t *first_edge,
+                                             edge_t *second_edge) {
+  return agtail(first_edge) == aghead(second_edge) &&
+         aghead(first_edge) == agtail(second_edge) &&
+         agtail(first_edge) != aghead(first_edge);
+}
+
+static bool flat_edges_are_equivalent(edge_t *edge,
+                                      edge_t *representative_edge) {
+  if (representative_edge == NULL) {
+    return false;
+  }
+  if (ED_edge_type(edge) != NORMAL ||
+      ED_edge_type(representative_edge) != NORMAL) {
+    /*
+     * flat_breakcycles() can represent a same-rank cycle by a manually
+     * allocated REVERSED edge. That route artifact is not a Cgraph edge, so it
+     * must not be used for agxget()/agbindrec()-based semantic comparison or
+     * as the retained original edge for arrow recovery.
+     */
+    return false;
+  }
+
+  const bool edge_is_flat = ND_rank(agtail(edge)) == ND_rank(aghead(edge));
+  if (!edge_is_flat) {
+    return false;
+  }
+
+  /*
+   * Main edge labels are routed separately. Endpoint labels, URLs, targets, and
+   * tooltips remain in the attribute comparison below so reverse edges can
+   * concentrate only when they match at the same physical endpoint.
+   */
+  if (ED_label(edge) != NULL || ED_label(representative_edge) != NULL) {
+    return false;
+  }
+
+  const bool same_direction = agtail(edge) == agtail(representative_edge) &&
+                              aghead(edge) == aghead(representative_edge);
+  if (same_direction) {
+    return ports_eq(edge, representative_edge) &&
+           edge_attributes_are_equal(edge, representative_edge);
+  }
+
+  return edges_run_in_opposite_directions(edge, representative_edge) &&
+         opposite_edge_ports_are_equal(edge, representative_edge) &&
+         opposite_edge_attributes_are_equal(edge, representative_edge);
+}
+
+static void concentrate_flat_edges(graph_t *graph) {
+  /*
+   * The virtual-node passes below require an intermediate rank, so they never
+   * visit same-rank edges. flat_breakcycles() and class2() have already placed
+   * flat duplicates in ND_other(); ED_to_virt() points from each duplicate to
+   * its representative. ND_other() contains both same-direction and reversed
+   * edges, so select the matching comparison before suppressing anything.
+   */
+  for (node_t *node = GD_nlist(graph); node != NULL; node = ND_next(node)) {
+    if (ND_other(node).list == NULL) {
+      continue;
+    }
+
+    size_t edge_index = 0;
+    while (ND_other(node).list[edge_index] != NULL) {
+      edge_t *const edge = ND_other(node).list[edge_index];
+      edge_t *const representative_edge = ED_to_virt(edge);
+
+      if (flat_edges_are_equivalent(edge, representative_edge)) {
+        if (edges_run_in_opposite_directions(edge, representative_edge)) {
+          /*
+           * The representative owns the shared spline. Retain the exact
+           * reverse edge so arrow rendering can put both original endpoint
+           * arrows on that spline.
+           */
+          ED_conc_opp_flag(representative_edge) = true;
+          remember_suppressed_opposite_edge(representative_edge, edge);
+        }
+        zapinlist(&ND_other(node), edge);
+        ED_edge_type(edge) = IGNORED;
+        continue;
+      }
+      edge_index++;
+    }
+  }
+}
+
 int dot_concentrate(graph_t *g) {
     int c, r, leftpos, rightpos;
     node_t *left, *right;
 
-    if (GD_maxrank(g) - GD_minrank(g) <= 1)
-	return 0;
+    concentrate_flat_edges(g);
+    if (GD_maxrank(g) - GD_minrank(g) <= 1) {
+      return 0;
+    }
     /* this is the downward looking pass. r is a candidate rank. */
     for (r = 1; GD_rank(g)[r + 1].n; r++) {
 	for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {

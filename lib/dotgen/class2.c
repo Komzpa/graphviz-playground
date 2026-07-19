@@ -8,10 +8,20 @@
  * Contributors: Details at https://graphviz.org
  *************************************************************************/
 
-/* classify edges for mincross/nodepos/splines, using given ranks */
+/*
+ * dot classifies edges in two different representations. class1() builds the
+ * temporary constraint edges used to assign ranks. After those ranks are
+ * fixed, class2() materializes the virtual nodes and edge chains consumed by
+ * crossing minimization, node positioning, and spline routing.
+ *
+ * The numbered name is historical: both passes already had these names in the
+ * oldest imported Graphviz sources. Keep the name at the external boundary,
+ * but describe the post-rank representation explicitly inside this file.
+ */
 
 #include "config.h"
 
+#include <common/utils.h>
 #include <dotgen/dot.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -19,7 +29,134 @@
 #include <util/alloc.h>
 #include <util/gv_math.h>
 
-bool edge_attributes_are_equal(edge_t *first_edge, edge_t *second_edge) {
+typedef struct {
+  const char *text;
+  bool is_html;
+} comparable_attribute_value_t;
+
+static comparable_attribute_value_t
+declared_attribute_value(edge_t *edge, Agsym_t *attribute) {
+  const char *const text = agxget(edge, attribute);
+  return (comparable_attribute_value_t){
+      .text = text,
+      .is_html = aghtmlstr(text),
+  };
+}
+
+static comparable_attribute_value_t
+named_attribute_value(graph_t *root_graph, edge_t *edge,
+                      const char *attribute_name) {
+  Agsym_t *const attribute = agfindedgeattr(root_graph, (char *)attribute_name);
+  if (attribute == NULL) {
+    /*
+     * An undeclared attribute has the plain, empty effective value. Keep its
+     * representation explicit: aghtmlstr() accepts only Cgraph refstrings, so
+     * passing this string literal to it would be undefined.
+     */
+    return (comparable_attribute_value_t){.text = "", .is_html = false};
+  }
+  return declared_attribute_value(edge, attribute);
+}
+
+static bool comparable_attribute_values_are_equal(
+    comparable_attribute_value_t first_value,
+    comparable_attribute_value_t second_value) {
+  return first_value.is_html == second_value.is_html &&
+         strcmp(first_value.text, second_value.text) == 0;
+}
+
+static bool is_clipping_attribute(const char *name) {
+  return strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0;
+}
+
+static bool edge_clip_value(comparable_attribute_value_t value) {
+  return value.text[0] == '\0' || mapbool(value.text);
+}
+
+static const char *edge_direction_value(edge_t *edge,
+                                        comparable_attribute_value_t value) {
+  if (value.text[0] == '\0') {
+    return agisdirected(agraphof(edge)) ? "forward" : "none";
+  }
+  return value.text;
+}
+
+static bool edge_attribute_values_are_equal(
+    edge_t *first_edge, const char *first_attribute_name,
+    comparable_attribute_value_t first_value, edge_t *second_edge,
+    const char *second_attribute_name,
+    comparable_attribute_value_t second_value) {
+  if (is_clipping_attribute(first_attribute_name) &&
+      is_clipping_attribute(second_attribute_name)) {
+    return edge_clip_value(first_value) == edge_clip_value(second_value);
+  }
+
+  if (strcmp(first_attribute_name, "dir") == 0 &&
+      strcmp(second_attribute_name, "dir") == 0) {
+    return strcmp(edge_direction_value(first_edge, first_value),
+                  edge_direction_value(second_edge, second_value)) == 0;
+  }
+
+  return comparable_attribute_values_are_equal(first_value, second_value);
+}
+
+static bool opposite_endpoint_attributes_are_equal(graph_t *root_graph,
+                                                   edge_t *first_edge,
+                                                   edge_t *second_edge) {
+  static const char *const endpoint_attribute_pairs[][2] = {
+      {"headport", "tailport"},
+      {"tailport", "headport"},
+      {"headclip", "tailclip"},
+      {"tailclip", "headclip"},
+      {"headlabel", "taillabel"},
+      {"taillabel", "headlabel"},
+      {"headURL", "tailURL"},
+      {"tailURL", "headURL"},
+      {"headhref", "tailhref"},
+      {"tailhref", "headhref"},
+      {"headtarget", "tailtarget"},
+      {"tailtarget", "headtarget"},
+      {"headtooltip", "tailtooltip"},
+      {"tailtooltip", "headtooltip"},
+  };
+
+  /*
+   * Check both sides of each pair explicitly. The root registry may contain
+   * only headclip, for example, so merely swapping names while walking that
+   * registry would never compare the declared headclip against the other
+   * edge's undeclared tailclip.
+   */
+  for (size_t pair_index = 0;
+       pair_index <
+       sizeof(endpoint_attribute_pairs) / sizeof(endpoint_attribute_pairs[0]);
+       pair_index++) {
+    const comparable_attribute_value_t first_value = named_attribute_value(
+        root_graph, first_edge, endpoint_attribute_pairs[pair_index][0]);
+    const comparable_attribute_value_t second_value = named_attribute_value(
+        root_graph, second_edge, endpoint_attribute_pairs[pair_index][1]);
+    if (!edge_attribute_values_are_equal(
+            first_edge, endpoint_attribute_pairs[pair_index][0], first_value,
+            second_edge, endpoint_attribute_pairs[pair_index][1],
+            second_value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool is_endpoint_attribute(const char *name) {
+  return strcmp(name, "headport") == 0 || strcmp(name, "tailport") == 0 ||
+         strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0 ||
+         strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0 ||
+         strcmp(name, "headURL") == 0 || strcmp(name, "tailURL") == 0 ||
+         strcmp(name, "headhref") == 0 || strcmp(name, "tailhref") == 0 ||
+         strcmp(name, "headtarget") == 0 || strcmp(name, "tailtarget") == 0 ||
+         strcmp(name, "headtooltip") == 0 ||
+         strcmp(name, "tailtooltip") == 0;
+}
+
+static bool edge_attributes_are_equal_with_endpoint_orientation(
+    edge_t *first_edge, edge_t *second_edge, bool compare_opposite_endpoints) {
   graph_t *const root_graph = agroot(agraphof(first_edge));
 
   /*
@@ -30,17 +167,31 @@ bool edge_attributes_are_equal(edge_t *first_edge, edge_t *second_edge) {
    * Cgraph also records whether a string is HTML-like separately from its
    * bytes. Plain text "<B>x</B>" and HTML <<B>x</B>> therefore have different
    * rendering semantics even though strcmp() sees the same characters.
+   *
+   * For edges running in opposite directions, head and tail exchange their
+   * grammatical roles while still naming the same physical endpoints. Compare
+   * ports and clipping crosswise. Other attributes remain edge-relative:
+   * retaining a conservative distinction is safer than suppressing an edge
+   * whose label, URL, or arrow semantics may differ.
    */
+  if (compare_opposite_endpoints && !opposite_endpoint_attributes_are_equal(
+                                        root_graph, first_edge, second_edge)) {
+    return false;
+  }
+
   Agsym_t *attribute = agnxtattr(root_graph, AGEDGE, NULL);
   while (attribute != NULL) {
-    const char *const first_value = agxget(first_edge, attribute);
-    const char *const second_value = agxget(second_edge, attribute);
-
-    const bool same_representation =
-        aghtmlstr(first_value) == aghtmlstr(second_value);
-    const bool same_text = strcmp(first_value, second_value) == 0;
-    if (!same_representation || !same_text) {
-      return false;
+    if (!compare_opposite_endpoints ||
+        !is_endpoint_attribute(attribute->name)) {
+      const comparable_attribute_value_t first_value =
+          declared_attribute_value(first_edge, attribute);
+      const comparable_attribute_value_t second_value =
+          declared_attribute_value(second_edge, attribute);
+      if (!edge_attribute_values_are_equal(
+              first_edge, attribute->name, first_value, second_edge,
+              attribute->name, second_value)) {
+        return false;
+      }
     }
 
     attribute = agnxtattr(root_graph, AGEDGE, attribute);
@@ -48,129 +199,145 @@ bool edge_attributes_are_equal(edge_t *first_edge, edge_t *second_edge) {
   return true;
 }
 
-static node_t *label_vnode(graph_t *g, edge_t *orig) {
-  const pointf dimen = ED_label(orig)->dimen;
-  node_t *const v = virtual_node(g);
-  ND_label(v) = ED_label(orig);
-  ND_lw(v) = GD_nodesep(agroot(v));
-  if (!ED_label_ontop(orig)) {
-    if (GD_flip(agroot(g))) {
-      ND_ht(v) = dimen.x;
-      ND_rw(v) = dimen.y;
+bool edge_attributes_are_equal(edge_t *first_edge, edge_t *second_edge) {
+  return edge_attributes_are_equal_with_endpoint_orientation(
+      first_edge, second_edge, false);
+}
+
+bool opposite_edge_attributes_are_equal(edge_t *first_edge,
+                                        edge_t *second_edge) {
+  return edge_attributes_are_equal_with_endpoint_orientation(first_edge,
+                                                             second_edge, true);
+}
+
+static node_t *make_label_virtual_node(graph_t *graph, edge_t *original_edge) {
+  const pointf label_dimensions = ED_label(original_edge)->dimen;
+  node_t *const label_node = virtual_node(graph);
+  ND_label(label_node) = ED_label(original_edge);
+  ND_lw(label_node) = GD_nodesep(agroot(label_node));
+  if (!ED_label_ontop(original_edge)) {
+    if (GD_flip(agroot(graph))) {
+      ND_ht(label_node) = label_dimensions.x;
+      ND_rw(label_node) = label_dimensions.y;
     } else {
-      ND_ht(v) = dimen.y;
-      ND_rw(v) = dimen.x;
+      ND_ht(label_node) = label_dimensions.y;
+      ND_rw(label_node) = label_dimensions.x;
     }
   }
-  return v;
+  return label_node;
 }
 
-static void incr_width(graph_t *g, node_t *v) {
-  int width = GD_nodesep(g) / 2;
-  ND_lw(v) += width;
-  ND_rw(v) += width;
+static void widen_virtual_node(graph_t *graph, node_t *virtual_node) {
+  const int half_node_separation = GD_nodesep(graph) / 2;
+  ND_lw(virtual_node) += half_node_separation;
+  ND_rw(virtual_node) += half_node_separation;
 }
 
-static node_t *plain_vnode(graph_t *g) {
-  node_t *const v = virtual_node(g);
-  incr_width(g, v);
-  return v;
+static node_t *make_plain_virtual_node(graph_t *graph) {
+  node_t *const plain_node = virtual_node(graph);
+  widen_virtual_node(graph, plain_node);
+  return plain_node;
 }
 
-static node_t *leader_of(node_t *v) {
-  graph_t *clust;
-  node_t *rv;
-
-  if (ND_ranktype(v) != CLUSTER) {
-    rv = UF_find(v);
-  } else {
-    clust = ND_clust(v);
-    rv = GD_rankleader(clust)[ND_rank(v)];
+static node_t *rank_leader(node_t *node) {
+  if (ND_ranktype(node) != CLUSTER) {
+    return UF_find(node);
   }
-  return rv;
+
+  graph_t *const cluster = ND_clust(node);
+  return GD_rankleader(cluster)[ND_rank(node)];
 }
 
-/// create chain of dummy nodes for edge orig
-static void make_chain(graph_t *g, node_t *from, node_t *to, edge_t *orig) {
-  int r, label_rank;
-  node_t *u, *v;
-  edge_t *e;
+/// Create a rank-by-rank chain of virtual edges for an original edge.
+static void make_virtual_edge_chain(graph_t *graph, node_t *first_node,
+                                    node_t *last_node, edge_t *original_edge) {
+  const int label_rank = ED_label(original_edge)
+                             ? (ND_rank(first_node) + ND_rank(last_node)) / 2
+                             : -1;
+  node_t *chain_tail = first_node;
 
-  u = from;
-  if (ED_label(orig))
-    label_rank = (ND_rank(from) + ND_rank(to)) / 2;
-  else
-    label_rank = -1;
-  assert(ED_to_virt(orig) == NULL);
-  for (r = ND_rank(from) + 1; r <= ND_rank(to); r++) {
-    if (r < ND_rank(to)) {
-      if (r == label_rank)
-        v = label_vnode(g, orig);
-      else
-        v = plain_vnode(g);
-      ND_rank(v) = r;
-    } else
-      v = to;
-    e = virtual_edge(u, v, orig);
-    virtual_weight(e);
-    u = v;
+  assert(ED_to_virt(original_edge) == NULL);
+  for (int rank = ND_rank(first_node) + 1; rank <= ND_rank(last_node); rank++) {
+    node_t *chain_head;
+    if (rank < ND_rank(last_node)) {
+      chain_head = rank == label_rank
+                       ? make_label_virtual_node(graph, original_edge)
+                       : make_plain_virtual_node(graph);
+      ND_rank(chain_head) = rank;
+    } else {
+      chain_head = last_node;
+    }
+
+    edge_t *const virtual_segment =
+        virtual_edge(chain_tail, chain_head, original_edge);
+    virtual_weight(virtual_segment);
+    chain_tail = chain_head;
   }
-  assert(ED_to_virt(orig) != NULL);
+  assert(ED_to_virt(original_edge) != NULL);
 }
 
-static void interclrep(graph_t *g, edge_t *e) {
-  node_t *t, *h;
-  edge_t *ve;
-
-  t = leader_of(agtail(e));
-  h = leader_of(aghead(e));
-  if (ND_rank(t) > ND_rank(h)) {
-    SWAP(&t, &h);
+static void represent_intercluster_edge(graph_t *graph, edge_t *original_edge) {
+  node_t *tail_leader = rank_leader(agtail(original_edge));
+  node_t *head_leader = rank_leader(aghead(original_edge));
+  if (ND_rank(tail_leader) > ND_rank(head_leader)) {
+    SWAP(&tail_leader, &head_leader);
   }
-  if (ND_clust(t) != ND_clust(h)) {
-    if ((ve = find_fast_edge(t, h))) {
-      merge_chain(g, e, ve, true);
+  if (ND_clust(tail_leader) != ND_clust(head_leader)) {
+    edge_t *virtual_edge = find_fast_edge(tail_leader, head_leader);
+    if (virtual_edge != NULL) {
+      merge_chain(graph, original_edge, virtual_edge, true);
       return;
     }
-    if (ND_rank(t) == ND_rank(h))
+    if (ND_rank(tail_leader) == ND_rank(head_leader)) {
       return;
-    make_chain(g, t, h, e);
+    }
+    make_virtual_edge_chain(graph, tail_leader, head_leader, original_edge);
 
-    /* mark as cluster edge */
-    for (ve = ED_to_virt(e); ve && ND_rank(aghead(ve)) <= ND_rank(h);
-         ve = ND_out(aghead(ve)).list[0])
-      ED_edge_type(ve) = CLUSTER_EDGE;
+    /* The chain remains distinguishable while cluster expansion rewrites it. */
+    virtual_edge = ED_to_virt(original_edge);
+    while (virtual_edge != NULL &&
+           ND_rank(aghead(virtual_edge)) <= ND_rank(head_leader)) {
+      ED_edge_type(virtual_edge) = CLUSTER_EDGE;
+      virtual_edge = ND_out(aghead(virtual_edge)).list[0];
+    }
   }
   /* else ignore intra-cluster edges at this point */
 }
 
-static bool is_cluster_edge(edge_t *e) {
-  return ND_ranktype(agtail(e)) == CLUSTER || ND_ranktype(aghead(e)) == CLUSTER;
+static bool is_cluster_edge(edge_t *edge) {
+  return ND_ranktype(agtail(edge)) == CLUSTER ||
+         ND_ranktype(aghead(edge)) == CLUSTER;
 }
 
-void merge_chain(graph_t *g, edge_t *e, edge_t *f, bool update_count) {
-  edge_t *rep;
-  int lastrank = MAX(ND_rank(agtail(e)), ND_rank(aghead(e)));
+void merge_chain(graph_t *graph, edge_t *original_edge,
+                 edge_t *first_virtual_edge, bool update_count) {
+  const int last_rank =
+      MAX(ND_rank(agtail(original_edge)), ND_rank(aghead(original_edge)));
 
-  assert(ED_to_virt(e) == NULL);
-  ED_to_virt(e) = f;
-  rep = f;
+  assert(ED_to_virt(original_edge) == NULL);
+  ED_to_virt(original_edge) = first_virtual_edge;
+  edge_t *representative_edge = first_virtual_edge;
   do {
     /* interclust multi-edges are not counted now */
-    if (update_count)
-      ED_count(rep) += ED_count(e);
-    ED_xpenalty(rep) += ED_xpenalty(e);
-    ED_weight(rep) += ED_weight(e);
-    if (ND_rank(aghead(rep)) == lastrank)
+    if (update_count) {
+      ED_count(representative_edge) += ED_count(original_edge);
+    }
+    ED_xpenalty(representative_edge) += ED_xpenalty(original_edge);
+    ED_weight(representative_edge) += ED_weight(original_edge);
+    if (ND_rank(aghead(representative_edge)) == last_rank) {
       break;
-    incr_width(g, aghead(rep));
-    rep = ND_out(aghead(rep)).list[0];
-  } while (rep);
+    }
+    widen_virtual_node(graph, aghead(representative_edge));
+    representative_edge = ND_out(aghead(representative_edge)).list[0];
+  } while (representative_edge != NULL);
 }
 
-bool mergeable(edge_t *e, edge_t *f) {
-  return e && f && agtail(e) == agtail(f) && aghead(e) == aghead(f) &&
-         ED_label(e) == ED_label(f) && ports_eq(e, f);
+bool mergeable(edge_t *first_edge, edge_t *second_edge) {
+  return first_edge != NULL && second_edge != NULL &&
+         agtail(first_edge) == agtail(second_edge) &&
+         aghead(first_edge) == aghead(second_edge) &&
+         ED_label(first_edge) == ED_label(second_edge) &&
+         ports_eq(first_edge, second_edge);
 }
 
 static bool has_prior_concentrated_equivalent(graph_t *graph, edge_t *edge) {
@@ -211,6 +378,17 @@ static bool ignore_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
   return true;
 }
 
+bool opposite_edge_ports_are_equal(edge_t *edge, edge_t *opposite_edge) {
+  /*
+   * These edges connect the same physical endpoints in reverse directions.
+   * A head port on one edge is therefore comparable to the tail port on the
+   * other edge, not to its head port. portcmp() also distinguishes an omitted
+   * port from an explicitly defined port before comparing coordinates.
+   */
+  return portcmp(ED_head_port(edge), ED_tail_port(opposite_edge)) == 0 &&
+         portcmp(ED_tail_port(edge), ED_head_port(opposite_edge)) == 0;
+}
+
 /*
  * A backward edge can share the chain of a previously classified edge running
  * in the other direction. When concentration is enabled, the opposite edge
@@ -228,20 +406,23 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
     const bool is_available = ED_edge_type(opposite_edge) != IGNORED;
 
     if (connects_same_nodes && !is_self_edge && is_available) {
-      /* The retained opposite edge must own a chain we can share. */
-      if (ED_to_virt(opposite_edge) == NULL) {
-        make_chain(graph, agtail(opposite_edge), aghead(opposite_edge),
-                   opposite_edge);
-      }
-
-      const bool compatible_endpoints = ED_label(backward_edge) == NULL &&
-                                        ED_label(opposite_edge) == NULL &&
-                                        ports_eq(backward_edge, opposite_edge);
+      const bool compatible_endpoints =
+          ED_label(backward_edge) == NULL && ED_label(opposite_edge) == NULL &&
+          opposite_edge_ports_are_equal(backward_edge, opposite_edge);
       const bool compatible_attributes =
           !Concentrate ||
-          edge_attributes_are_equal(backward_edge, opposite_edge);
+          opposite_edge_attributes_are_equal(backward_edge, opposite_edge);
 
       if (compatible_endpoints && compatible_attributes) {
+        /*
+         * Materialize only the selected representative ahead of its normal
+         * turn.
+         */
+        if (ED_to_virt(opposite_edge) == NULL) {
+          make_virtual_edge_chain(graph, agtail(opposite_edge),
+                                  aghead(opposite_edge), opposite_edge);
+        }
+
         if (Concentrate) {
           /*
            * Preserve the suppressed edge's identity so arrow rendering can
@@ -263,124 +444,139 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
   return false;
 }
 
-void class2(graph_t *g) {
-  int c;
-  node_t *n, *t, *h;
-  edge_t *e, *prev;
+void class2(graph_t *graph) {
+  GD_nlist(graph) = NULL;
 
-  GD_nlist(g) = NULL;
+  /* Cluster skeletons stand in for collapsed cluster contents in this pass. */
+  mark_clusters(graph);
+  for (int cluster_index = 1; cluster_index <= GD_n_cluster(graph);
+       cluster_index++) {
+    build_skeleton(graph, GD_clust(graph)[cluster_index]);
+  }
 
-  mark_clusters(g);
-  for (c = 1; c <= GD_n_cluster(g); c++)
-    build_skeleton(g, GD_clust(g)[c]);
-  for (n = agfstnode(g); n; n = agnxtnode(g, n))
-    for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (ND_weight_class(aghead(e)) <= 2)
-        ND_weight_class(aghead(e))++;
-      if (ND_weight_class(agtail(e)) <= 2)
-        ND_weight_class(agtail(e))++;
+  /*
+   * The weight class is a saturated incident-edge count. Exact high degrees
+   * are not useful to the later low-degree heuristic, so stop incrementing
+   * after the value has reached its three-or-more bucket.
+   */
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    for (edge_t *edge = agfstout(graph, node); edge != NULL;
+         edge = agnxtout(graph, edge)) {
+      if (ND_weight_class(aghead(edge)) <= 2) {
+        ND_weight_class(aghead(edge))++;
+      }
+      if (ND_weight_class(agtail(edge)) <= 2) {
+        ND_weight_class(agtail(edge))++;
+      }
     }
+  }
 
-  for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    if (ND_clust(n) == NULL && n == UF_find(n)) {
-      fast_node(g, n);
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    if (ND_clust(node) == NULL && node == UF_find(node)) {
+      fast_node(graph, node);
     }
-    prev = NULL;
-    for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
+    edge_t *previous_edge = NULL;
+    for (edge_t *edge = agfstout(graph, node); edge != NULL;
+         edge = agnxtout(graph, edge)) {
 
-      /* already processed */
-      if (ED_to_virt(e)) {
-        prev = e;
+      /* A prior cluster operation has already attached this representation. */
+      if (ED_to_virt(edge) != NULL) {
+        previous_edge = edge;
         continue;
       }
 
-      /* edges involving sub-clusters of g */
-      if (is_cluster_edge(e)) {
-        /* following is new cluster multi-edge code */
-        if (mergeable(prev, e)) {
-          if (ED_to_virt(prev)) {
-            merge_chain(g, e, ED_to_virt(prev), false);
-            other_edge(e);
-          } else if (ND_rank(agtail(e)) == ND_rank(aghead(e))) {
-            merge_oneway(e, prev);
-            other_edge(e);
+      /* Edges incident to a collapsed sub-cluster use its rank skeleton. */
+      if (is_cluster_edge(edge)) {
+        if (mergeable(previous_edge, edge)) {
+          if (ED_to_virt(previous_edge) != NULL) {
+            merge_chain(graph, edge, ED_to_virt(previous_edge), false);
+            other_edge(edge);
+          } else if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
+            merge_oneway(edge, previous_edge);
+            other_edge(edge);
           }
-          /* else is an intra-cluster edge */
+          /* An intra-cluster edge needs no representation at this level. */
           continue;
         }
-        interclrep(g, e);
-        prev = e;
+        represent_intercluster_edge(graph, edge);
+        previous_edge = edge;
         continue;
       }
-      /* merge multi-edges */
-      if (prev && agtail(e) == agtail(prev) && aghead(e) == aghead(prev)) {
-        if (ND_rank(agtail(e)) == ND_rank(aghead(e))) {
-          merge_oneway(e, prev);
-          other_edge(e);
+
+      /* Parallel input edges may share one virtual routing representation. */
+      if (previous_edge != NULL && agtail(edge) == agtail(previous_edge) &&
+          aghead(edge) == aghead(previous_edge)) {
+        if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
+          merge_oneway(edge, previous_edge);
+          other_edge(edge);
           continue;
         }
-        if (ED_label(e) == NULL && ED_label(prev) == NULL &&
-            ports_eq(e, prev)) {
+        if (ED_label(edge) == NULL && ED_label(previous_edge) == NULL &&
+            ports_eq(edge, previous_edge)) {
           if (Concentrate) {
-            if (edge_attributes_are_equal(e, prev)) {
-              ED_edge_type(e) = IGNORED;
+            if (edge_attributes_are_equal(edge, previous_edge)) {
+              ED_edge_type(edge) = IGNORED;
               continue;
             }
           } else {
-            merge_chain(g, e, ED_to_virt(prev), true);
-            other_edge(e);
+            merge_chain(graph, edge, ED_to_virt(previous_edge), true);
+            other_edge(edge);
             continue;
           }
         }
-        /* parallel edges with different labels fall through here */
+        /* A semantically distinct parallel edge gets its own chain below. */
       }
 
-      /* self edges */
-      if (agtail(e) == aghead(e)) {
-        other_edge(e);
-        prev = e;
+      /* Self edges bypass rank-spanning chains and are routed from ND_other. */
+      if (agtail(edge) == aghead(edge)) {
+        other_edge(edge);
+        previous_edge = edge;
         continue;
       }
 
-      t = UF_find(agtail(e));
-      h = UF_find(aghead(e));
+      node_t *const tail_leader = UF_find(agtail(edge));
+      node_t *const head_leader = UF_find(aghead(edge));
 
-      /* non-leader leaf nodes */
-      if (agtail(e) != t || aghead(e) != h) {
+      /* Leaf-set members are represented through their union-find leaders. */
+      if (agtail(edge) != tail_leader || aghead(edge) != head_leader) {
         /* FIX need to merge stuff */
         continue;
       }
 
-      /* flat edges */
-      if (ND_rank(agtail(e)) == ND_rank(aghead(e))) {
-        flat_edge(g, e);
-        prev = e;
+      /* A flat edge stays within one rank and uses the flat-edge lists. */
+      if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
+        flat_edge(graph, edge);
+        previous_edge = edge;
         continue;
       }
 
-      /* forward edges */
-      if (ND_rank(aghead(e)) > ND_rank(agtail(e))) {
-        if (ignore_concentrated_parallel_edge(g, e))
+      if (ND_rank(aghead(edge)) > ND_rank(agtail(edge))) {
+        if (ignore_concentrated_parallel_edge(graph, edge)) {
           continue;
-        make_chain(g, agtail(e), aghead(e), e);
-        prev = e;
+        }
+        make_virtual_edge_chain(graph, agtail(edge), aghead(edge), edge);
+        previous_edge = edge;
         continue;
       }
 
-      /* backward edges */
-      if (merge_backward_edge_with_opposite(g, e)) {
+      /* Store every rank-spanning chain from lower rank to higher rank. */
+      if (merge_backward_edge_with_opposite(graph, edge)) {
         continue;
       }
-      if (ignore_concentrated_parallel_edge(g, e))
+      if (ignore_concentrated_parallel_edge(graph, edge)) {
         continue;
-      make_chain(g, aghead(e), agtail(e), e);
-      prev = e;
+      }
+      make_virtual_edge_chain(graph, aghead(edge), agtail(edge), edge);
+      previous_edge = edge;
     }
   }
-  /* since decompose() is not called on subgraphs */
-  if (g != dot_root(g)) {
-    free(GD_comp(g).list);
-    GD_comp(g).list = gv_alloc(sizeof(node_t *));
-    GD_comp(g).list[0] = GD_nlist(g);
+
+  /* decompose() is not called on subgraphs, so publish their sole component. */
+  if (graph != dot_root(graph)) {
+    free(GD_comp(graph).list);
+    GD_comp(graph).list = gv_alloc(sizeof(node_t *));
+    GD_comp(graph).list[0] = GD_nlist(graph);
   }
 }
