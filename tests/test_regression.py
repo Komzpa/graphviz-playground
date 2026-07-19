@@ -4778,6 +4778,30 @@ def _arrow_polygon_point_count(edge: dict, endpoint: str) -> int:
     return len(polygon["points"])
 
 
+def _drawn_edge_spline_point_count(edge: dict) -> int:
+    """Count points across every xdot Bezier segment drawn for one edge."""
+
+    return sum(
+        len(operation["points"])
+        for operation in edge["_draw_"]
+        if operation["op"] == "b"
+    )
+
+
+def _drawn_edges_between(source: str, tails: set[str], head: str) -> list[dict]:
+    """Return visible edges from named tails into one named head node."""
+
+    layout = json.loads(dot("json", source=source))
+    node_ids = {node["name"]: node["_gvid"] for node in layout["objects"]}
+    tail_ids = {node_ids[tail] for tail in tails}
+    head_id = node_ids[head]
+    return [
+        edge
+        for edge in layout["edges"]
+        if edge["tail"] in tail_ids and edge["head"] == head_id and "_draw_" in edge
+    ]
+
+
 def _route_x_coordinates(edge: dict) -> tuple[float, ...]:
     """Return x coordinates from xdot's ``b`` Bezier operation."""
 
@@ -5199,6 +5223,64 @@ def test_concentrate_preserves_distinct_edge_colors(splines: str):
         "#0000ff",
     }
     _assert_distinct_drawn_edge_routes(distinct_opposite_colors, 2)
+
+
+_SHARED_TRUNK_FIXTURE = """
+    digraph {
+      graph [concentrate=true]
+      { rank=min; a; b }
+      a -> c
+      c -> e
+      e -> d
+      %s
+    }
+"""
+
+
+def test_concentrate_shared_trunk_keeps_distinct_colored_routes():
+    """dot_concentrate() keeps each distinct tail-to-head route complete."""
+
+    source = _SHARED_TRUNK_FIXTURE % """
+        a -> d [color=blue]
+        b -> d [color=red]
+    """
+    edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    assert {_drawn_edge_color(edge) for edge in edges} == {"#0000ff", "#ff0000"}
+    assert {_drawn_edge_spline_point_count(edge) for edge in edges} == {7}
+    assert all("_hdraw_" in edge for edge in edges)
+
+
+def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
+    """dot_concentrate() merges equal trunks beside distinct colored siblings."""
+
+    source = _SHARED_TRUNK_FIXTURE % """
+        a -> d [color=blue]
+        b -> d [color=red]
+        a -> d
+        b -> d
+    """
+    edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    edges_by_color = {
+        color: [edge for edge in edges if _drawn_edge_color(edge) == color]
+        for color in {"#000000", "#0000ff", "#ff0000"}
+    }
+    assert {
+        color: sorted(_drawn_edge_spline_point_count(edge) for edge in color_edges)
+        for color, color_edges in edges_by_color.items()
+    } == {"#000000": [4, 8], "#0000ff": [7], "#ff0000": [7]}
+    assert sum("_hdraw_" in edge for edge in edges) == 3
+
+
+def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
+    """dot_concentrate() retains the ordinary asymmetric shared-trunk route."""
+
+    source = _SHARED_TRUNK_FIXTURE % """
+        a -> d
+        b -> d
+    """
+    edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    assert sorted(_drawn_edge_spline_point_count(edge) for edge in edges) == [4, 8]
+    assert sum("_hdraw_" in edge for edge in edges) == 1
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

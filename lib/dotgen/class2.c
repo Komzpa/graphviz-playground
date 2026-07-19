@@ -206,6 +206,42 @@ static edge_t *find_prior_parallel_route(graph_t *graph, edge_t *edge) {
   return NULL;
 }
 
+static bool has_cross_bundle_concentration_peer(graph_t *graph, edge_t *edge) {
+  const int edge_rank_delta =
+      ND_rank(agtail(edge)) - ND_rank(aghead(edge));
+
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    for (edge_t *candidate = agfstout(graph, node); candidate != NULL;
+         candidate = agnxtout(graph, candidate)) {
+      if (candidate == edge ||
+          (agtail(candidate) == agtail(edge) &&
+           aghead(candidate) == aghead(edge)) ||
+          !edge_has_no_labels(candidate)) {
+        continue;
+      }
+
+      const int candidate_rank_delta =
+          ND_rank(agtail(candidate)) - ND_rank(aghead(candidate));
+      if (edge_rank_delta * candidate_rank_delta <= 0 ||
+          !gv_edge_attributes_are_equal(edge, candidate) ||
+          !same_direction_edge_arrow_decorations_are_equal(edge, candidate)) {
+        continue;
+      }
+
+      const bool shares_tail = agtail(candidate) == agtail(edge);
+      const bool shares_head = aghead(candidate) == aghead(edge);
+      if ((shares_tail && portcmp(ED_tail_port(candidate),
+                                  ED_tail_port(edge)) == 0) ||
+          (shares_head && portcmp(ED_head_port(candidate),
+                                  ED_head_port(edge)) == 0)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 static edge_t *find_prior_flat_concentrated_equivalent(graph_t *graph,
                                                        edge_t *edge) {
   edge_t *prior_edge = agfstout(graph, agtail(edge));
@@ -250,6 +286,16 @@ static bool route_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
 
   edge_t *const representative_edge = find_prior_parallel_route(graph, edge);
   if (representative_edge == NULL) {
+    return false;
+  }
+
+  /*
+   * Keep a per-edge chain when this member can concentrate with an equivalent
+   * edge from another parallel bundle. Folding it into this bundle's ordinary
+   * multi-edge route would leave conc.c seeing only the distinct bundle
+   * representative and make the equivalent cross-bundle member ineligible.
+   */
+  if (has_cross_bundle_concentration_peer(graph, edge)) {
     return false;
   }
 
