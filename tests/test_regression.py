@@ -5161,6 +5161,19 @@ def test_concentrate_fixed_spline_drawn_edge_counts(
     _assert_concentrated_edge_counts(splines, cases)
 
 
+def test_tapered_multicolor_arrow_fillcolor_is_renderable():
+    """emit_edge_graphics() can render a tapered color-list arrow fill."""
+
+    tapered_multicolor = """
+        digraph {
+          a -> b [style=tapered color="red:blue" fillcolor=green]
+        }
+    """
+    drawn_edges = _drawn_edges(tapered_multicolor)
+    assert len(drawn_edges) == 1
+    assert "_hdraw_" in drawn_edges[0]
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_preserves_distinct_edge_colors(splines: str):
     """Concentration preserves the colors and routes of visibly distinct edges."""

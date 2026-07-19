@@ -66,6 +66,7 @@ typedef struct {
   uint32_t shape_flags;
   double arrowsize;
   char *fillcolor;
+  bool fillcolor_affects_identity;
   bool fillcolor_is_html;
   bool fillcolor_is_rgba;
   unsigned char fillcolor_rgba[4];
@@ -151,14 +152,26 @@ static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
   arrow_decoration_t decoration = {
       .shape_flags = shape_flags,
       .arrowsize = late_double(edge, E_arrowsz, 1.0, 0.0),
+      .fillcolor_affects_identity = true,
   };
+  decoration.fillcolor = effective_edge_arrow_fillcolor(
+      edge, &decoration.fillcolor_is_html);
+
   const char *const spline_color = agget(edge, "color");
   if (spline_color != NULL && !aghtmlstr(spline_color) &&
       strchr(spline_color, ':') != NULL) {
-    return decoration;
+    const char *const style = agget(edge, "style");
+    bool tapered = false;
+    if (style != NULL) {
+      for (char **item = parse_style((char *)style); *item != NULL; item++) {
+        if (streq(*item, "tapered")) {
+          tapered = true;
+          break;
+        }
+      }
+    }
+    decoration.fillcolor_affects_identity = tapered;
   }
-  decoration.fillcolor = effective_edge_arrow_fillcolor(
-      edge, &decoration.fillcolor_is_html);
 
   if (!decoration.fillcolor_is_html && decoration.fillcolor[0] != '\0' &&
       strchr(decoration.fillcolor, ':') == NULL) {
@@ -212,6 +225,10 @@ static bool arrow_decorations_are_equal(const arrow_decoration_t *first,
   }
   if (first->arrowsize != second->arrowsize) {
     return false;
+  }
+  if (!first->fillcolor_affects_identity &&
+      !second->fillcolor_affects_identity) {
+    return true;
   }
   if (first->fillcolor == NULL || second->fillcolor == NULL) {
     return first->fillcolor == second->fillcolor;
