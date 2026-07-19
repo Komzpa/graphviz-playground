@@ -431,6 +431,46 @@ static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
   return result == COLOR_OK;
 }
 
+static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
+                                         const char *slot_name,
+                                         const char *color_list) {
+  agxbuf rendered_list = {0};
+  char *const previous_color_scheme =
+      setColorScheme(agget(edge, "colorscheme"));
+
+  for (const char *segment = color_list; segment != NULL;) {
+    const char *const separator = strchr(segment, ':');
+    const char *const segment_end =
+        separator == NULL ? segment + strlen(segment) : separator;
+    const char *const fraction = memchr(segment, ';', segment_end - segment);
+    const char *const color_end = fraction == NULL ? segment_end : fraction;
+
+    agxbuf color_name = {0};
+    agxbput_n(&color_name, segment, color_end - segment);
+    gvcolor_t color;
+    if (colorxlate(agxbuse(&color_name), &color, RGBA_BYTE) == COLOR_OK) {
+      agxbprint(&rendered_list, "#%02x%02x%02x%02x", color.u.rgba[0],
+                color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
+    } else {
+      agxbput_n(&rendered_list, segment, color_end - segment);
+    }
+    agxbfree(&color_name);
+    agxbput_n(&rendered_list, color_end, segment_end - color_end);
+
+    if (separator == NULL) {
+      break;
+    }
+    agxbputc(&rendered_list, ':');
+    segment = separator + 1;
+  }
+
+  char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+  free(previous_color_scheme);
+  free(restored_color_scheme);
+  append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_list));
+  agxbfree(&rendered_list);
+}
+
 static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
                                          double default_value, double minimum,
                                          double *number) {
@@ -545,6 +585,10 @@ static void append_projected_attribute_value(agxbuf *signature,
   if (classification != NULL && classification->color) {
     if (value.text[0] == '\0') {
       value = edge_color_default_value(root_graph, edge, classification);
+    }
+    if (!value.is_html && strchr(value.text, ':') != NULL) {
+      append_edge_color_list_value(signature, edge, slot_name, value.text);
+      return;
     }
     gvcolor_t color;
     if (edge_color_value(edge, value, &color)) {

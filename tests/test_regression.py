@@ -5084,6 +5084,17 @@ def test_concentrate_drawn_edge_counts(
             ),
         ),
         _fixed_edge_count_cases(
+            "colorscheme-color-list-resolution",
+            "",
+            _edge_count_case(
+                3,
+                'a -> b [colorscheme=accent3 color="1:2"]',
+                'a -> b [colorscheme=accent3 color="1:2"]',
+                'b -> c [colorscheme=accent3 color="1:2"]',
+                'b -> c [colorscheme=paired3 color="1:2"]',
+            ),
+        ),
+        _fixed_edge_count_cases(
             "main-label-decorate",
             "splines=ortho",
             _edge_count_case(
