@@ -5302,6 +5302,23 @@ def test_concentrate_matches_label_font_fallbacks(splines: str):
     assert len(_drawn_edges(endpoint_label_fontname)) == 1
 
 
+def test_concentrate_ignores_overridden_endpoint_label_fonts():
+    """common_init_edge() lets labelfont attributes replace base font inputs."""
+
+    endpoint_fonts = _concentrated_graph(
+        "",
+        "a -> b [headlabel=x fontname=Courier labelfontname=Helvetica]",
+        "a -> b [headlabel=x fontname=Times labelfontname=Helvetica]",
+        "b -> c [headlabel=x fontsize=10 labelfontsize=20]",
+        "b -> c [headlabel=x fontsize=30 labelfontsize=20]",
+        "c -> d [headlabel=x fontname=Courier]",
+        "c -> d [headlabel=x fontname=Times]",
+        "d -> e [headlabel=x fontsize=10]",
+        "d -> e [headlabel=x fontsize=30]",
+    )
+    assert len(_drawn_edges(endpoint_fonts)) == 6
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_samehead_sametail_by_physical_endpoint(splines: str):
     """samehead/sametail tags are owned by physical edge endpoints."""

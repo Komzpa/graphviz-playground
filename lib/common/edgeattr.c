@@ -92,6 +92,8 @@ enum {
   EDGE_ATTRIBUTE_PRIMARY_LABEL_ONLY = 1u << 26,
   EDGE_ATTRIBUTE_ENDPOINT_LABEL_ONLY = 1u << 27,
   EDGE_ATTRIBUTE_COLOR_SCHEME = 1u << 28,
+  EDGE_ATTRIBUTE_BASE_FONTNAME = 1u << 29,
+  EDGE_ATTRIBUTE_BASE_FONTSIZE = 1u << 30,
 };
 
 typedef struct {
@@ -128,9 +130,11 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {"fillcolor", EDGE_ATTRIBUTE_ARROW_DECORATION | EDGE_ATTRIBUTE_COLOR |
                           EDGE_ATTRIBUTE_FILL_COLOR},
         {"fontcolor", EDGE_LABEL_COLOR_FLAGS | EDGE_ATTRIBUTE_FONT_COLOR},
-        {"fontname", EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_FONTNAME},
+        {"fontname", EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_FONTNAME |
+                         EDGE_ATTRIBUTE_BASE_FONTNAME},
         {"fontsize",
-         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_NUMERIC_DEFAULT_FONT_SIZE},
+         EDGE_ATTRIBUTE_LABEL_ONLY | EDGE_ATTRIBUTE_NUMERIC_DEFAULT_FONT_SIZE |
+             EDGE_ATTRIBUTE_BASE_FONTSIZE},
         {"headURL", EDGE_ATTRIBUTE_URL_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
         {"headclip", EDGE_ATTRIBUTE_CLIPPING | EDGE_ATTRIBUTE_ENDPOINT},
         {"headhref", EDGE_ATTRIBUTE_URL_ALIAS | EDGE_ATTRIBUTE_ENDPOINT},
@@ -369,6 +373,11 @@ static bool edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
   }
   if ((flags & EDGE_ATTRIBUTE_LABEL_COLOR) != 0 &&
       !edge_uses_label_color(root_graph, edge, attribute_name)) {
+    return false;
+  }
+  if ((flags &
+       (EDGE_ATTRIBUTE_BASE_FONTNAME | EDGE_ATTRIBUTE_BASE_FONTSIZE)) != 0 &&
+      !edge_has_main_label(root_graph, edge)) {
     return false;
   }
   /* dotLayout() calls dot_compoundEdges() only for a truthy compound graph. */
