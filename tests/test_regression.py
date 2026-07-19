@@ -5110,11 +5110,24 @@ def test_concentrate_matches_tooltip_aliases(splines: str):
     substituted_endpoint_tooltips = _concentrated_graph(
         splines,
         """
-          a -> b [headtooltip="\\T"]
-          b -> a [tailtooltip="\\T"]
+          a -> b [headlabel=x headtooltip="\\T"]
+          b -> a [taillabel=x tailtooltip="\\T"]
         """,
     )
     assert len(_drawn_edges(substituted_endpoint_tooltips)) == 2
+
+
+def test_concentrate_gates_label_tooltips_on_rendered_labels():
+    """emit_edge_label() ignores tooltip layers without a label or xlabel."""
+
+    label_tooltips = _concentrated_graph(
+        "",
+        "a -> b [labeltooltip=left]",
+        "a -> b [labeltooltip=right]",
+        "b -> c [label=x labeltooltip=left]",
+        "b -> c [label=x labeltooltip=right]",
+    )
+    assert len(_drawn_edges(label_tooltips)) == 3
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

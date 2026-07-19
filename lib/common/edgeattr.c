@@ -825,7 +825,7 @@ static bool hyperlink_layer_value_is_rendered(Agraph_t *root_graph,
   case HYPERLINK_VALUE_URL:
     return hyperlink_layer_url_is_rendered(root_graph, edge, layer);
   case HYPERLINK_VALUE_TOOLTIP:
-    return true;
+    return hyperlink_layer_gate_is_open(root_graph, edge, layer);
   case HYPERLINK_VALUE_TARGET:
     return hyperlink_layer_target_is_rendered(root_graph, edge, layer);
   case HYPERLINK_VALUE_COUNT:
