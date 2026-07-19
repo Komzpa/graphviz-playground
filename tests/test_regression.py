@@ -4774,7 +4774,14 @@ def test_concentrate_preserves_distinct_edge_attributes(splines: str):
           a -> b [color=blue]
         }}
     """
-    assert set(_drawn_edge_colors(distinct_colors)) == {"#ff0000", "#0000ff"}
+    distinct_color_edges = _drawn_edges(distinct_colors)
+    assert {
+        operation["color"]
+        for edge in distinct_color_edges
+        for operation in edge["_draw_"]
+        if operation["op"] == "c"
+    } == {"#ff0000", "#0000ff"}
+    assert len({_route_x_coordinates(edge) for edge in distinct_color_edges}) == 2
 
     opposite_colors = f"""
         digraph {{
@@ -4783,7 +4790,14 @@ def test_concentrate_preserves_distinct_edge_attributes(splines: str):
           b -> a [color=blue]
         }}
     """
-    assert set(_drawn_edge_colors(opposite_colors)) == {"#ff0000", "#0000ff"}
+    opposite_color_edges = _drawn_edges(opposite_colors)
+    assert {
+        operation["color"]
+        for edge in opposite_color_edges
+        for operation in edge["_draw_"]
+        if operation["op"] == "c"
+    } == {"#ff0000", "#0000ff"}
+    assert len({_route_x_coordinates(edge) for edge in opposite_color_edges}) == 2
 
     distinct_styles = f"""
         digraph {{
@@ -4861,6 +4875,148 @@ def test_concentrate_merges_equivalent_parallel_edges(splines: str):
         "#ff0000",
     ]
 
+    explicit_default_arrows = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [arrowhead=normal]
+          a -> b
+          a -> b [arrowtail=vee]
+        }}
+    """
+    assert len(_drawn_edges(explicit_default_arrows)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_equivalent_color_spellings(splines: str):
+    """Color values should compare by rendered color when both parse cleanly."""
+
+    equivalent_color_spellings = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red]
+          a -> b [color="#ff0000"]
+        }}
+    """
+    assert _drawn_edge_colors(equivalent_color_spellings) == ["#ff0000"]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_resolved_port_spellings(splines: str):
+    """Raw headport/tailport spelling must not override resolved ports."""
+
+    equivalent_port_spellings = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          node [shape=record]
+          a [label="<p>p"]
+          a:p -> b [color=red]
+          a:p:c -> b [color=red]
+        }}
+    """
+    assert len(_drawn_edges(equivalent_port_spellings)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_same_rank_parallel_edges_find_prior_equivalent(splines: str):
+    """Same-rank duplicates still concentrate when separated by distinct edges."""
+
+    separated_flat_duplicates = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          subgraph same_rank {{
+            rank=same
+            a
+            b
+          }}
+          a -> b [color=red]
+          a -> b [color=blue]
+          a -> b [color=red]
+          a -> b [color=blue]
+        }}
+    """
+    assert sorted(edge["color"] for edge in _drawn_edges(separated_flat_duplicates)) == [
+        "blue",
+        "red",
+    ]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_url_href_aliases(splines: str):
+    """Documented URL/href aliases should not split equivalent routes."""
+
+    same_direction_aliases = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [URL="u"]
+          a -> b [href="u"]
+          b -> c [edgeURL="u"]
+          b -> c [edgehref="u"]
+          c -> d [labelURL="u"]
+          c -> d [labelhref="u"]
+        }}
+    """
+    assert len(_drawn_edges(same_direction_aliases)) == 3
+
+    reverse_endpoint_aliases = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headURL="u"]
+          b -> a [tailhref="u"]
+        }}
+    """
+    assert len(_drawn_edges(reverse_endpoint_aliases)) == 1
+
+    same_grammar_endpoint_aliases = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [headURL="u"]
+          b -> a [headhref="u"]
+        }}
+    """
+    assert len(_drawn_edges(same_grammar_endpoint_aliases)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_samehead_sametail_by_physical_endpoint(splines: str):
+    """samehead/sametail tags are owned by physical edge endpoints."""
+
+    same_physical_endpoint = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [samehead=x]
+          b -> a [sametail=x]
+        }}
+    """
+    assert len(_drawn_edges(same_physical_endpoint)) == 1
+
+    same_grammar_endpoint = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [samehead=x]
+          b -> a [samehead=x]
+        }}
+    """
+    assert len(_drawn_edges(same_grammar_endpoint)) == 2
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_backward_edges_find_prior_equivalent(splines: str):
+    """Backward edges should still suppress earlier same-direction duplicates."""
+
+    separated_backward_duplicates = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          b
+          a -> b [color=blue]
+          b -> a [constraint=false color=red]
+          b -> a [constraint=false color=red]
+        }}
+    """
+    assert sorted(edge["color"] for edge in _drawn_edges(separated_backward_duplicates)) == [
+        "blue",
+        "red",
+    ]
+
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_reverse_edge_arrow_shapes(splines: str):
@@ -4888,6 +5044,42 @@ def test_concentrate_matches_reverse_edge_arrow_shapes(splines: str):
     }
     expected_arrow_polygon_points = {"red": (3, 3), "blue": (8, 8)}
     assert actual_arrow_polygon_points == expected_arrow_polygon_points
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_preserves_reverse_arrow_after_no_arrow_duplicate(splines: str):
+    """A later reverse duplicate without arrows must not erase saved arrows."""
+
+    reverse_arrow_then_no_arrow = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [dir=none]
+          b -> a [arrowhead=normal]
+          b -> a [dir=none]
+        }}
+    """
+    drawn_edges = _drawn_edges(reverse_arrow_then_no_arrow)
+    assert len(drawn_edges) == 1
+    assert "_tdraw_" in drawn_edges[0]
+    assert "_hdraw_" not in drawn_edges[0]
+    assert _arrow_polygon_point_count(drawn_edges[0], "t") == 3
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_same_direction_arrows_ignore_borrowed_reverse_arrows(
+    splines: str,
+):
+    """Borrowed reverse arrows are render state, not same-direction identity."""
+
+    borrowed_reverse_arrow = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [color=red arrowhead=normal]
+          b -> a [color=red arrowhead=vee]
+          a -> b [color=red dir=both arrowhead=normal arrowtail=vee]
+        }}
+    """
+    assert len(_drawn_edges(borrowed_reverse_arrow)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -5087,6 +5279,19 @@ def test_concentrate_same_rank_reverse_edges():
     ).replace("b -> a", "b -> a [taillabel=x]")
     assert len(_drawn_edges(same_physical_endpoint_labels)) == 1
 
+    compatible_reverse_arrows = same_rank_edges.replace(
+        "a -> b", "a -> b [arrowhead=normal]"
+    ).replace("b -> a", "b -> a [arrowhead=vee]")
+    drawn_compatible_reverse_arrows = _drawn_edges(compatible_reverse_arrows)
+    assert len(drawn_compatible_reverse_arrows) == 1
+    assert _arrow_polygon_point_count(drawn_compatible_reverse_arrows[0], "h") == 3
+    assert _arrow_polygon_point_count(drawn_compatible_reverse_arrows[0], "t") == 8
+
+    conflicting_physical_endpoint_arrows = same_rank_edges.replace(
+        "a -> b", "a -> b [dir=both arrowhead=normal arrowtail=dot]"
+    ).replace("b -> a", "b -> a [dir=both arrowhead=vee arrowtail=box]")
+    assert len(_drawn_edges(conflicting_physical_endpoint_arrows)) == 2
+
     rank_span_one = """
         strict digraph {
           concentrate=true
@@ -5160,6 +5365,24 @@ def test_concentrate_same_rank_edges_compare_their_actual_direction(splines: str
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_ignores_layout_only_edge_attributes(splines: str):
+    """Ranking inputs should not block concentration after layout is fixed."""
+
+    layout_only_differences = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [constraint=false]
+          a -> b
+          b -> c [weight=8]
+          b -> c
+          c -> d [minlen=2]
+          c -> d
+        }}
+    """
+    assert len(_drawn_edges(layout_only_differences)) == 3
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_explicit_default_edge_attributes(splines: str):
     """Explicit default attributes should not block concentration."""
 
@@ -5175,6 +5398,39 @@ def test_concentrate_matches_explicit_default_edge_attributes(splines: str):
         }}
     """
     assert len(_drawn_edges(explicit_defaults)) == 3
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_matches_reverse_arrowheads_by_physical_endpoint(
+    splines: str,
+):
+    """Opposite arrowheads render at opposite physical endpoints."""
+
+    compatible_reverse_arrows = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [arrowhead=normal]
+          b -> a [arrowhead=vee]
+        }}
+    """
+    drawn_edges = _drawn_edges(compatible_reverse_arrows)
+    assert len(drawn_edges) == 1
+    assert _arrow_polygon_point_count(drawn_edges[0], "h") == 3
+    assert _arrow_polygon_point_count(drawn_edges[0], "t") == 8
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_rejects_conflicting_physical_endpoint_arrows(splines: str):
+    """Packed arrow flags cannot hold two different shapes at one endpoint."""
+
+    conflicting_reverse_arrows = f"""
+        digraph {{
+          graph [concentrate=true {splines}]
+          a -> b [dir=both arrowhead=normal arrowtail=dot]
+          b -> a [dir=both arrowhead=vee arrowtail=box]
+        }}
+    """
+    assert len(_drawn_edges(conflicting_reverse_arrows)) == 2
 
 
 def test_concentrate_flat_cycle_keeps_virtual_representatives_private():
@@ -5196,6 +5452,24 @@ def test_concentrate_flat_cycle_keeps_virtual_representatives_private():
         }
     """
     assert len(_drawn_edges(flat_cycle)) == 3
+
+
+def test_concentrate_ortho_ignores_suppressed_representatives():
+    """Suppressed edges must not become ortho concentration group heads."""
+
+    ignored_reverse_first = """
+        digraph {
+          graph [concentrate=true splines=ortho]
+          b
+          a -> b [color=red]
+          b -> a [constraint=false color=red]
+          a -> b [color=blue]
+        }
+    """
+    assert sorted(edge["color"] for edge in _drawn_edges(ignored_reverse_first)) == [
+        "blue",
+        "red",
+    ]
 
 
 @pytest.mark.parametrize("direction", ("down", "up"))

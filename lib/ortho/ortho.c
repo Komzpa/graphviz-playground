@@ -23,11 +23,14 @@
 
 #define DEBUG
 #include <assert.h>
+#include <common/colorprocs.h>
 #include <float.h>
 #include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ortho/maze.h>
 #include <ortho/fPQ.h>
@@ -85,6 +88,24 @@ ortho_named_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
   return ortho_declared_attribute_value(edge, attribute);
 }
 
+static ortho_comparable_attribute_value_t
+ortho_named_first_nonempty_attribute_value(
+    Agraph_t *root_graph, Agedge_t *edge, const char *const *attribute_names,
+    size_t attribute_names_size) {
+  ortho_comparable_attribute_value_t empty_value = {.text = "",
+                                                   .is_html = false};
+
+  for (size_t i = 0; i < attribute_names_size; i++) {
+    const ortho_comparable_attribute_value_t value =
+        ortho_named_attribute_value(root_graph, edge, attribute_names[i]);
+    if (value.text[0] != '\0') {
+      return value;
+    }
+    empty_value = value;
+  }
+  return empty_value;
+}
+
 static bool ortho_attribute_values_are_equal(
     ortho_comparable_attribute_value_t first_value,
     ortho_comparable_attribute_value_t second_value) {
@@ -92,8 +113,62 @@ static bool ortho_attribute_values_are_equal(
          strcmp(first_value.text, second_value.text) == 0;
 }
 
+static bool ortho_is_color_attribute(const char *name) {
+  return strcmp(name, "color") == 0 || strcmp(name, "fillcolor") == 0 ||
+         strcmp(name, "fontcolor") == 0 ||
+         strcmp(name, "labelfontcolor") == 0;
+}
+
+static bool ortho_edge_color_value(Agedge_t *edge,
+                                   ortho_comparable_attribute_value_t value,
+                                   gvcolor_t *color) {
+  if (value.is_html || value.text[0] == '\0' ||
+      strchr(value.text, ':') != NULL) {
+    return false;
+  }
+
+  char *const previous_color_scheme = setColorScheme(agget(edge, "colorscheme"));
+  const int result = colorxlate(value.text, color, RGBA_BYTE);
+  char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+  free(previous_color_scheme);
+  free(restored_color_scheme);
+  return result == COLOR_OK;
+}
+
+static bool ortho_edge_color_values_are_equal(
+    Agedge_t *first_edge, ortho_comparable_attribute_value_t first_value,
+    Agedge_t *second_edge, ortho_comparable_attribute_value_t second_value) {
+  gvcolor_t first_color;
+  gvcolor_t second_color;
+
+  if (!ortho_edge_color_value(first_edge, first_value, &first_color) ||
+      !ortho_edge_color_value(second_edge, second_value, &second_color)) {
+    return false;
+  }
+  return memcmp(first_color.u.rgba, second_color.u.rgba,
+                sizeof(first_color.u.rgba)) == 0;
+}
+
 static bool ortho_is_clipping_attribute(const char *name) {
   return strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0;
+}
+
+static bool ortho_is_layout_only_edge_attribute(const char *name) {
+  return strcmp(name, "constraint") == 0 || strcmp(name, "weight") == 0 ||
+         strcmp(name, "minlen") == 0;
+}
+
+static bool ortho_is_arrow_attribute(const char *name) {
+  return strcmp(name, "arrowhead") == 0 || strcmp(name, "arrowtail") == 0 ||
+         strcmp(name, "dir") == 0;
+}
+
+static bool ortho_is_url_alias_attribute(const char *name) {
+  return strcmp(name, "URL") == 0 || strcmp(name, "href") == 0 ||
+         strcmp(name, "edgeURL") == 0 || strcmp(name, "edgehref") == 0 ||
+         strcmp(name, "labelURL") == 0 || strcmp(name, "labelhref") == 0 ||
+         strcmp(name, "headURL") == 0 || strcmp(name, "headhref") == 0 ||
+         strcmp(name, "tailURL") == 0 || strcmp(name, "tailhref") == 0;
 }
 
 static bool
@@ -127,7 +202,151 @@ static bool ortho_edge_attribute_values_are_equal(
                   ortho_edge_direction_value(second_edge, second_value)) == 0;
   }
 
+  if (ortho_is_color_attribute(first_attribute_name) &&
+      ortho_is_color_attribute(second_attribute_name) &&
+      ortho_edge_color_values_are_equal(first_edge, first_value, second_edge,
+                                        second_value)) {
+    return true;
+  }
+
   return ortho_attribute_values_are_equal(first_value, second_value);
+}
+
+static bool ortho_arrow_flags_can_merge_at_endpoint(uint32_t first_flags,
+                                                    uint32_t second_flags) {
+  return first_flags == 0 || second_flags == 0 || first_flags == second_flags;
+}
+
+static bool ortho_opposite_edge_arrows_are_compatible(Agedge_t *first_edge,
+                                                      Agedge_t *second_edge) {
+  uint32_t first_start_flags;
+  uint32_t first_end_flags;
+  uint32_t second_start_flags;
+  uint32_t second_end_flags;
+
+  arrow_flags(first_edge, &first_start_flags, &first_end_flags);
+  arrow_flags(second_edge, &second_start_flags, &second_end_flags);
+
+  return ortho_arrow_flags_can_merge_at_endpoint(first_start_flags,
+                                                 second_end_flags) &&
+         ortho_arrow_flags_can_merge_at_endpoint(first_end_flags,
+                                                 second_start_flags);
+}
+
+static bool ortho_url_alias_attributes_are_equal(
+    Agraph_t *root_graph, Agedge_t *first_edge,
+    const char *const *first_names, Agedge_t *second_edge,
+    const char *const *second_names) {
+  static const size_t url_alias_group_size = 2;
+  const ortho_comparable_attribute_value_t first_value =
+      ortho_named_first_nonempty_attribute_value(
+          root_graph, first_edge, first_names, url_alias_group_size);
+  const ortho_comparable_attribute_value_t second_value =
+      ortho_named_first_nonempty_attribute_value(
+          root_graph, second_edge, second_names, url_alias_group_size);
+
+  return ortho_attribute_values_are_equal(first_value, second_value);
+}
+
+static bool ortho_url_alias_attribute_groups_are_equal(
+    Agraph_t *root_graph, Agedge_t *first_edge, Agedge_t *second_edge,
+    bool compare_opposite_endpoints) {
+  static const char *const default_url_names[] = {"href", "URL"};
+  static const char *const edge_url_names[] = {"edgehref", "edgeURL"};
+  static const char *const label_url_names[] = {"labelhref", "labelURL"};
+  static const char *const head_url_names[] = {"headhref", "headURL"};
+  static const char *const tail_url_names[] = {"tailhref", "tailURL"};
+
+  if (!ortho_url_alias_attributes_are_equal(
+          root_graph, first_edge, default_url_names, second_edge,
+          default_url_names) ||
+      !ortho_url_alias_attributes_are_equal(root_graph, first_edge,
+                                            edge_url_names, second_edge,
+                                            edge_url_names) ||
+      !ortho_url_alias_attributes_are_equal(root_graph, first_edge,
+                                            label_url_names, second_edge,
+                                            label_url_names)) {
+    return false;
+  }
+
+  if (compare_opposite_endpoints) {
+    return ortho_url_alias_attributes_are_equal(
+               root_graph, first_edge, head_url_names, second_edge,
+               tail_url_names) &&
+           ortho_url_alias_attributes_are_equal(
+               root_graph, first_edge, tail_url_names, second_edge,
+               head_url_names);
+  }
+
+  return ortho_url_alias_attributes_are_equal(
+             root_graph, first_edge, head_url_names, second_edge,
+             head_url_names) &&
+         ortho_url_alias_attributes_are_equal(
+             root_graph, first_edge, tail_url_names, second_edge,
+             tail_url_names);
+}
+
+static bool ortho_same_direction_edge_arrows_are_equal(Agedge_t *first_edge,
+                                                       Agedge_t *second_edge) {
+  uint32_t first_start_flags;
+  uint32_t first_end_flags;
+  uint32_t second_start_flags;
+  uint32_t second_end_flags;
+
+  edge_arrow_flags(first_edge, &first_start_flags, &first_end_flags);
+  edge_arrow_flags(second_edge, &second_start_flags, &second_end_flags);
+
+  return first_start_flags == second_start_flags &&
+         first_end_flags == second_end_flags;
+}
+
+static bool ortho_is_port_attribute(const char *name) {
+  return strcmp(name, "headport") == 0 || strcmp(name, "tailport") == 0;
+}
+
+static bool ortho_port_values_are_equal(port first_port, port second_port) {
+  return first_port.defined == second_port.defined &&
+         (!first_port.defined ||
+          (first_port.p.x == second_port.p.x &&
+           first_port.p.y == second_port.p.y));
+}
+
+static bool ortho_resolved_port_values_are_equal(port first_port,
+                                                 port second_port) {
+  return first_port.defined && second_port.defined &&
+         first_port.p.x == second_port.p.x && first_port.p.y == second_port.p.y;
+}
+
+static port ortho_port_for_attribute(Agedge_t *edge,
+                                     const char *attribute_name) {
+  return strcmp(attribute_name, "headport") == 0 ? ED_head_port(edge)
+                                                 : ED_tail_port(edge);
+}
+
+static bool ortho_resolved_port_attributes_are_equal(
+    Agedge_t *first_edge, const char *first_attribute_name,
+    Agedge_t *second_edge, const char *second_attribute_name) {
+  return ortho_is_port_attribute(first_attribute_name) &&
+         ortho_is_port_attribute(second_attribute_name) &&
+         ortho_resolved_port_values_are_equal(
+             ortho_port_for_attribute(first_edge, first_attribute_name),
+             ortho_port_for_attribute(second_edge, second_attribute_name));
+}
+
+static bool ortho_same_direction_ports_are_equal(Agedge_t *first_edge,
+                                                 Agedge_t *second_edge) {
+  return ortho_port_values_are_equal(ED_head_port(first_edge),
+                                     ED_head_port(second_edge)) &&
+         ortho_port_values_are_equal(ED_tail_port(first_edge),
+                                     ED_tail_port(second_edge));
+}
+
+static bool ortho_opposite_direction_ports_are_equal(Agedge_t *first_edge,
+                                                     Agedge_t *second_edge) {
+  return ortho_port_values_are_equal(ED_head_port(first_edge),
+                                     ED_tail_port(second_edge)) &&
+         ortho_port_values_are_equal(ED_tail_port(first_edge),
+                                     ED_head_port(second_edge));
 }
 
 static bool ortho_opposite_endpoint_attributes_are_equal(
@@ -139,10 +358,8 @@ static bool ortho_opposite_endpoint_attributes_are_equal(
       {"tailclip", "headclip"},
       {"headlabel", "taillabel"},
       {"taillabel", "headlabel"},
-      {"headURL", "tailURL"},
-      {"tailURL", "headURL"},
-      {"headhref", "tailhref"},
-      {"tailhref", "headhref"},
+      {"samehead", "sametail"},
+      {"sametail", "samehead"},
       {"headtarget", "tailtarget"},
       {"tailtarget", "headtarget"},
       {"headtooltip", "tailtooltip"},
@@ -159,6 +376,11 @@ static bool ortho_opposite_endpoint_attributes_are_equal(
     const ortho_comparable_attribute_value_t second_value =
         ortho_named_attribute_value(
             root_graph, second_edge, endpoint_attribute_pairs[pair_index][1]);
+    if (ortho_resolved_port_attributes_are_equal(
+            first_edge, endpoint_attribute_pairs[pair_index][0], second_edge,
+            endpoint_attribute_pairs[pair_index][1])) {
+      continue;
+    }
     if (!ortho_edge_attribute_values_are_equal(
             first_edge, endpoint_attribute_pairs[pair_index][0], first_value,
             second_edge, endpoint_attribute_pairs[pair_index][1],
@@ -175,6 +397,7 @@ static bool ortho_is_endpoint_attribute(const char *name) {
          strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0 ||
          strcmp(name, "headURL") == 0 || strcmp(name, "tailURL") == 0 ||
          strcmp(name, "headhref") == 0 || strcmp(name, "tailhref") == 0 ||
+         strcmp(name, "samehead") == 0 || strcmp(name, "sametail") == 0 ||
          strcmp(name, "headtarget") == 0 || strcmp(name, "tailtarget") == 0 ||
          strcmp(name, "headtooltip") == 0 ||
          strcmp(name, "tailtooltip") == 0;
@@ -194,19 +417,48 @@ static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
    * orthogonal concentrator does not discard a visually distinct edge.
    * HTML-like identity is part of the value because Cgraph renders an HTML
    * string differently from plain text containing the same bytes. Reverse
-   * edges compare ports and clipping crosswise because head and tail exchange
-   * grammatical roles at the same physical endpoint.
+   * edges compare endpoint-owned attributes crosswise because head and tail
+   * exchange grammatical roles at the same physical endpoint. Arrow flags are
+   * checked by physical endpoint so incompatible packed arrow types are not
+   * merged onto one route. Same-direction arrow attributes are compared as
+   * computed flags instead of raw strings so explicit defaults and inactive
+   * arrow endpoint attributes do not block concentration.
    */
+  if (compare_opposite_endpoints &&
+      !ortho_opposite_direction_ports_are_equal(first_edge, second_edge)) {
+    return false;
+  }
+  if (!compare_opposite_endpoints &&
+      !ortho_same_direction_ports_are_equal(first_edge, second_edge)) {
+    return false;
+  }
   if (compare_opposite_endpoints &&
       !ortho_opposite_endpoint_attributes_are_equal(root_graph, first_edge,
                                                     second_edge)) {
     return false;
   }
+  if (compare_opposite_endpoints &&
+      !ortho_opposite_edge_arrows_are_compatible(first_edge, second_edge)) {
+    return false;
+  }
+  if (!compare_opposite_endpoints &&
+      !ortho_same_direction_edge_arrows_are_equal(first_edge, second_edge)) {
+    return false;
+  }
+  if (!ortho_url_alias_attribute_groups_are_equal(
+          root_graph, first_edge, second_edge, compare_opposite_endpoints)) {
+    return false;
+  }
 
   Agsym_t *attribute = agnxtattr(root_graph, AGEDGE, NULL);
   while (attribute != NULL) {
-    if (!compare_opposite_endpoints ||
-        !ortho_is_endpoint_attribute(attribute->name)) {
+    if (!ortho_is_layout_only_edge_attribute(attribute->name) &&
+        !ortho_is_arrow_attribute(attribute->name) &&
+        !ortho_is_url_alias_attribute(attribute->name) &&
+        !ortho_resolved_port_attributes_are_equal(
+            first_edge, attribute->name, second_edge, attribute->name) &&
+        (!compare_opposite_endpoints ||
+         !ortho_is_endpoint_attribute(attribute->name))) {
       const ortho_comparable_attribute_value_t first_value =
           ortho_declared_attribute_value(first_edge, attribute);
       const ortho_comparable_attribute_value_t second_value =
@@ -231,7 +483,8 @@ edge_group_contains_equivalent(Agedge_t *edge, const epair_t *routed_edges,
 
   while (edge_index != state->edge_capacity) {
     Agedge_t *const routed_edge = routed_edges[edge_index].e;
-    if (ortho_edge_attributes_are_equal(edge, routed_edge)) {
+    if (routed_edge != NULL && ED_edge_type(routed_edge) != IGNORED &&
+        ortho_edge_attributes_are_equal(edge, routed_edge)) {
       return true;
     }
     edge_index = state->next_in_group[edge_index];
@@ -1469,6 +1722,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
 	for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
+	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
 		const bool is_distinct =
 		    register_ortho_edge(&concentrate_state, e, es, n_edges);

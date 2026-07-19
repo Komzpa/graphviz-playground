@@ -21,8 +21,10 @@
 
 #include "config.h"
 
+#include <common/colorprocs.h>
 #include <common/utils.h>
 #include <dotgen/dot.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +60,22 @@ named_attribute_value(graph_t *root_graph, edge_t *edge,
   return declared_attribute_value(edge, attribute);
 }
 
+static comparable_attribute_value_t named_first_nonempty_attribute_value(
+    graph_t *root_graph, edge_t *edge, const char *const *attribute_names,
+    size_t attribute_names_size) {
+  comparable_attribute_value_t empty_value = {.text = "", .is_html = false};
+
+  for (size_t i = 0; i < attribute_names_size; i++) {
+    const comparable_attribute_value_t value =
+        named_attribute_value(root_graph, edge, attribute_names[i]);
+    if (value.text[0] != '\0') {
+      return value;
+    }
+    empty_value = value;
+  }
+  return empty_value;
+}
+
 static bool comparable_attribute_values_are_equal(
     comparable_attribute_value_t first_value,
     comparable_attribute_value_t second_value) {
@@ -65,8 +83,62 @@ static bool comparable_attribute_values_are_equal(
          strcmp(first_value.text, second_value.text) == 0;
 }
 
+static bool is_color_attribute(const char *name) {
+  return strcmp(name, "color") == 0 || strcmp(name, "fillcolor") == 0 ||
+         strcmp(name, "fontcolor") == 0 ||
+         strcmp(name, "labelfontcolor") == 0;
+}
+
+static bool edge_color_value(edge_t *edge, comparable_attribute_value_t value,
+                             gvcolor_t *color) {
+  if (value.is_html || value.text[0] == '\0' ||
+      strchr(value.text, ':') != NULL) {
+    return false;
+  }
+
+  char *const previous_color_scheme = setColorScheme(agget(edge, "colorscheme"));
+  const int result = colorxlate(value.text, color, RGBA_BYTE);
+  char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+  free(previous_color_scheme);
+  free(restored_color_scheme);
+  return result == COLOR_OK;
+}
+
+static bool edge_color_values_are_equal(edge_t *first_edge,
+                                        comparable_attribute_value_t first_value,
+                                        edge_t *second_edge,
+                                        comparable_attribute_value_t second_value) {
+  gvcolor_t first_color;
+  gvcolor_t second_color;
+
+  if (!edge_color_value(first_edge, first_value, &first_color) ||
+      !edge_color_value(second_edge, second_value, &second_color)) {
+    return false;
+  }
+  return memcmp(first_color.u.rgba, second_color.u.rgba,
+                sizeof(first_color.u.rgba)) == 0;
+}
+
 static bool is_clipping_attribute(const char *name) {
   return strcmp(name, "headclip") == 0 || strcmp(name, "tailclip") == 0;
+}
+
+static bool is_layout_only_edge_attribute(const char *name) {
+  return strcmp(name, "constraint") == 0 || strcmp(name, "weight") == 0 ||
+         strcmp(name, "minlen") == 0;
+}
+
+static bool is_arrow_attribute(const char *name) {
+  return strcmp(name, "arrowhead") == 0 || strcmp(name, "arrowtail") == 0 ||
+         strcmp(name, "dir") == 0;
+}
+
+static bool is_url_alias_attribute(const char *name) {
+  return strcmp(name, "URL") == 0 || strcmp(name, "href") == 0 ||
+         strcmp(name, "edgeURL") == 0 || strcmp(name, "edgehref") == 0 ||
+         strcmp(name, "labelURL") == 0 || strcmp(name, "labelhref") == 0 ||
+         strcmp(name, "headURL") == 0 || strcmp(name, "headhref") == 0 ||
+         strcmp(name, "tailURL") == 0 || strcmp(name, "tailhref") == 0;
 }
 
 static bool edge_clip_value(comparable_attribute_value_t value) {
@@ -97,7 +169,126 @@ static bool edge_attribute_values_are_equal(
                   edge_direction_value(second_edge, second_value)) == 0;
   }
 
+  if (is_color_attribute(first_attribute_name) &&
+      is_color_attribute(second_attribute_name) &&
+      edge_color_values_are_equal(first_edge, first_value, second_edge,
+                                  second_value)) {
+    return true;
+  }
+
   return comparable_attribute_values_are_equal(first_value, second_value);
+}
+
+static bool arrow_flags_can_merge_at_endpoint(uint32_t first_flags,
+                                              uint32_t second_flags) {
+  return first_flags == 0 || second_flags == 0 || first_flags == second_flags;
+}
+
+static bool opposite_edge_arrows_are_compatible(edge_t *first_edge,
+                                                edge_t *second_edge) {
+  uint32_t first_start_flags;
+  uint32_t first_end_flags;
+  uint32_t second_start_flags;
+  uint32_t second_end_flags;
+
+  arrow_flags(first_edge, &first_start_flags, &first_end_flags);
+  arrow_flags(second_edge, &second_start_flags, &second_end_flags);
+
+  /*
+   * Opposite edges swap physical endpoints. The second edge's start is at the
+   * first edge's end, and the second edge's end is at the first edge's start.
+   * A shared spline can represent one arrow flag set per physical endpoint.
+   */
+  return arrow_flags_can_merge_at_endpoint(first_start_flags, second_end_flags) &&
+         arrow_flags_can_merge_at_endpoint(first_end_flags, second_start_flags);
+}
+
+static bool url_alias_attributes_are_equal(graph_t *root_graph,
+                                           edge_t *first_edge,
+                                           const char *const *first_names,
+                                           edge_t *second_edge,
+                                           const char *const *second_names) {
+  static const size_t url_alias_group_size = 2;
+  const comparable_attribute_value_t first_value =
+      named_first_nonempty_attribute_value(root_graph, first_edge, first_names,
+                                           url_alias_group_size);
+  const comparable_attribute_value_t second_value =
+      named_first_nonempty_attribute_value(root_graph, second_edge,
+                                           second_names, url_alias_group_size);
+
+  return comparable_attribute_values_are_equal(first_value, second_value);
+}
+
+static bool url_alias_attribute_groups_are_equal(
+    graph_t *root_graph, edge_t *first_edge, edge_t *second_edge,
+    bool compare_opposite_endpoints) {
+  static const char *const default_url_names[] = {"href", "URL"};
+  static const char *const edge_url_names[] = {"edgehref", "edgeURL"};
+  static const char *const label_url_names[] = {"labelhref", "labelURL"};
+  static const char *const head_url_names[] = {"headhref", "headURL"};
+  static const char *const tail_url_names[] = {"tailhref", "tailURL"};
+
+  if (!url_alias_attributes_are_equal(root_graph, first_edge, default_url_names,
+                                      second_edge, default_url_names) ||
+      !url_alias_attributes_are_equal(root_graph, first_edge, edge_url_names,
+                                      second_edge, edge_url_names) ||
+      !url_alias_attributes_are_equal(root_graph, first_edge, label_url_names,
+                                      second_edge, label_url_names)) {
+    return false;
+  }
+
+  if (compare_opposite_endpoints) {
+    return url_alias_attributes_are_equal(root_graph, first_edge,
+                                          head_url_names, second_edge,
+                                          tail_url_names) &&
+           url_alias_attributes_are_equal(root_graph, first_edge,
+                                          tail_url_names, second_edge,
+                                          head_url_names);
+  }
+
+  return url_alias_attributes_are_equal(root_graph, first_edge, head_url_names,
+                                        second_edge, head_url_names) &&
+         url_alias_attributes_are_equal(root_graph, first_edge, tail_url_names,
+                                        second_edge, tail_url_names);
+}
+
+static bool same_direction_edge_arrows_are_equal(edge_t *first_edge,
+                                                 edge_t *second_edge) {
+  uint32_t first_start_flags;
+  uint32_t first_end_flags;
+  uint32_t second_start_flags;
+  uint32_t second_end_flags;
+
+  edge_arrow_flags(first_edge, &first_start_flags, &first_end_flags);
+  edge_arrow_flags(second_edge, &second_start_flags, &second_end_flags);
+
+  return first_start_flags == second_start_flags &&
+         first_end_flags == second_end_flags;
+}
+
+static bool is_port_attribute(const char *name) {
+  return strcmp(name, "headport") == 0 || strcmp(name, "tailport") == 0;
+}
+
+static port port_for_attribute(edge_t *edge, const char *attribute_name) {
+  return strcmp(attribute_name, "headport") == 0 ? ED_head_port(edge)
+                                                 : ED_tail_port(edge);
+}
+
+static bool resolved_port_values_are_equal(port first_port, port second_port) {
+  return first_port.defined && second_port.defined &&
+         first_port.p.x == second_port.p.x && first_port.p.y == second_port.p.y;
+}
+
+static bool resolved_port_attributes_are_equal(edge_t *first_edge,
+                                               const char *first_attribute_name,
+                                               edge_t *second_edge,
+                                               const char *second_attribute_name) {
+  return is_port_attribute(first_attribute_name) &&
+         is_port_attribute(second_attribute_name) &&
+         resolved_port_values_are_equal(
+             port_for_attribute(first_edge, first_attribute_name),
+             port_for_attribute(second_edge, second_attribute_name));
 }
 
 static bool opposite_endpoint_attributes_are_equal(graph_t *root_graph,
@@ -110,10 +301,8 @@ static bool opposite_endpoint_attributes_are_equal(graph_t *root_graph,
       {"tailclip", "headclip"},
       {"headlabel", "taillabel"},
       {"taillabel", "headlabel"},
-      {"headURL", "tailURL"},
-      {"tailURL", "headURL"},
-      {"headhref", "tailhref"},
-      {"tailhref", "headhref"},
+      {"samehead", "sametail"},
+      {"sametail", "samehead"},
       {"headtarget", "tailtarget"},
       {"tailtarget", "headtarget"},
       {"headtooltip", "tailtooltip"},
@@ -134,6 +323,11 @@ static bool opposite_endpoint_attributes_are_equal(graph_t *root_graph,
         root_graph, first_edge, endpoint_attribute_pairs[pair_index][0]);
     const comparable_attribute_value_t second_value = named_attribute_value(
         root_graph, second_edge, endpoint_attribute_pairs[pair_index][1]);
+    if (resolved_port_attributes_are_equal(
+            first_edge, endpoint_attribute_pairs[pair_index][0], second_edge,
+            endpoint_attribute_pairs[pair_index][1])) {
+      continue;
+    }
     if (!edge_attribute_values_are_equal(
             first_edge, endpoint_attribute_pairs[pair_index][0], first_value,
             second_edge, endpoint_attribute_pairs[pair_index][1],
@@ -150,6 +344,7 @@ static bool is_endpoint_attribute(const char *name) {
          strcmp(name, "headlabel") == 0 || strcmp(name, "taillabel") == 0 ||
          strcmp(name, "headURL") == 0 || strcmp(name, "tailURL") == 0 ||
          strcmp(name, "headhref") == 0 || strcmp(name, "tailhref") == 0 ||
+         strcmp(name, "samehead") == 0 || strcmp(name, "sametail") == 0 ||
          strcmp(name, "headtarget") == 0 || strcmp(name, "tailtarget") == 0 ||
          strcmp(name, "headtooltip") == 0 ||
          strcmp(name, "tailtooltip") == 0;
@@ -168,21 +363,42 @@ static bool edge_attributes_are_equal_with_endpoint_orientation(
    * bytes. Plain text "<B>x</B>" and HTML <<B>x</B>> therefore have different
    * rendering semantics even though strcmp() sees the same characters.
    *
-   * For edges running in opposite directions, head and tail exchange their
+   * For edges running in opposite directions, head and tail exchange
    * grammatical roles while still naming the same physical endpoints. Compare
-   * ports and clipping crosswise. Other attributes remain edge-relative:
-   * retaining a conservative distinction is safer than suppressing an edge
-   * whose label, URL, or arrow semantics may differ.
+   * endpoint-owned attributes crosswise and compare arrow flags by physical
+   * endpoint so the retained edge can borrow the suppressed edge's compatible
+   * arrows without OR-ing incompatible packed arrow types. Same-direction
+   * arrow attributes are also compared as computed flags, not as raw strings,
+   * so explicit defaults and inactive arrowtail/arrowhead attributes do not
+   * block concentration.
    */
   if (compare_opposite_endpoints && !opposite_endpoint_attributes_are_equal(
                                         root_graph, first_edge, second_edge)) {
     return false;
   }
+  if (compare_opposite_endpoints &&
+      !opposite_edge_arrows_are_compatible(first_edge, second_edge)) {
+    return false;
+  }
+  if (!compare_opposite_endpoints &&
+      !same_direction_edge_arrows_are_equal(first_edge, second_edge)) {
+    return false;
+  }
+  if (!url_alias_attribute_groups_are_equal(root_graph, first_edge,
+                                            second_edge,
+                                            compare_opposite_endpoints)) {
+    return false;
+  }
 
   Agsym_t *attribute = agnxtattr(root_graph, AGEDGE, NULL);
   while (attribute != NULL) {
-    if (!compare_opposite_endpoints ||
-        !is_endpoint_attribute(attribute->name)) {
+    if (!is_layout_only_edge_attribute(attribute->name) &&
+        !is_arrow_attribute(attribute->name) &&
+        !is_url_alias_attribute(attribute->name) &&
+        !resolved_port_attributes_are_equal(first_edge, attribute->name,
+                                            second_edge, attribute->name) &&
+        (!compare_opposite_endpoints ||
+         !is_endpoint_attribute(attribute->name))) {
       const comparable_attribute_value_t first_value =
           declared_attribute_value(first_edge, attribute);
       const comparable_attribute_value_t second_value =
@@ -364,17 +580,73 @@ static bool has_prior_concentrated_equivalent(graph_t *graph, edge_t *edge) {
   return false;
 }
 
+static edge_t *find_prior_parallel_route(graph_t *graph, edge_t *edge) {
+  edge_t *prior_edge = agfstout(graph, agtail(edge));
+  while (prior_edge != NULL && prior_edge != edge) {
+    const bool same_endpoints = aghead(prior_edge) == aghead(edge);
+    const bool prior_edge_owns_chain = ED_to_virt(prior_edge) != NULL;
+    const bool both_edges_are_unlabeled =
+        ED_label(prior_edge) == NULL && ED_label(edge) == NULL;
+
+    if (same_endpoints && prior_edge_owns_chain && both_edges_are_unlabeled &&
+        ports_eq(prior_edge, edge)) {
+      return prior_edge;
+    }
+
+    prior_edge = agnxtout(graph, prior_edge);
+  }
+  return NULL;
+}
+
+static edge_t *find_prior_flat_concentrated_equivalent(graph_t *graph,
+                                                       edge_t *edge) {
+  edge_t *prior_edge = agfstout(graph, agtail(edge));
+  while (prior_edge != NULL && prior_edge != edge) {
+    const bool same_endpoints = aghead(prior_edge) == aghead(edge);
+    const bool prior_edge_is_flat =
+        ND_rank(agtail(prior_edge)) == ND_rank(aghead(prior_edge));
+    const bool both_edges_are_unlabeled =
+        ED_label(prior_edge) == NULL && ED_label(edge) == NULL;
+
+    if (same_endpoints && prior_edge_is_flat &&
+        ED_edge_type(prior_edge) == NORMAL && ED_edge_type(edge) == NORMAL &&
+        both_edges_are_unlabeled && ports_eq(prior_edge, edge) &&
+        edge_attributes_are_equal(prior_edge, edge)) {
+      return prior_edge;
+    }
+
+    prior_edge = agnxtout(graph, prior_edge);
+  }
+  return NULL;
+}
+
 /*
  * Suppression is a state transition, not merely an equivalence query. Keep the
  * decision and the IGNORED assignment together so callers cannot accidentally
  * recognize a duplicate without removing its redundant virtual chain.
  */
-static bool ignore_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
-  if (!Concentrate || !has_prior_concentrated_equivalent(graph, edge)) {
+static bool route_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
+  if (!Concentrate) {
     return false;
   }
 
-  ED_edge_type(edge) = IGNORED;
+  if (has_prior_concentrated_equivalent(graph, edge)) {
+    ED_edge_type(edge) = IGNORED;
+    return true;
+  }
+
+  edge_t *const representative_edge = find_prior_parallel_route(graph, edge);
+  if (representative_edge == NULL) {
+    return false;
+  }
+
+  /*
+   * A distinct edge still needs the ordinary multi-edge route. Giving it a
+   * separate main virtual chain makes the spline router treat it as a separate
+   * concentrated path and the rendered edges collapse onto the same centerline.
+   */
+  merge_chain(graph, edge, ED_to_virt(representative_edge), true);
+  other_edge(edge);
   return true;
 }
 
@@ -397,7 +669,13 @@ bool opposite_edge_ports_are_equal(edge_t *edge, edge_t *opposite_edge) {
  */
 static bool merge_backward_edge_with_opposite(graph_t *graph,
                                               edge_t *backward_edge) {
+  if (Concentrate && has_prior_concentrated_equivalent(graph, backward_edge)) {
+    ED_edge_type(backward_edge) = IGNORED;
+    return true;
+  }
+
   edge_t *opposite_edge = agfstout(graph, aghead(backward_edge));
+  edge_t *route_candidate = NULL;
 
   while (opposite_edge != NULL) {
     const bool connects_same_nodes =
@@ -409,21 +687,19 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
       const bool compatible_endpoints =
           ED_label(backward_edge) == NULL && ED_label(opposite_edge) == NULL &&
           opposite_edge_ports_are_equal(backward_edge, opposite_edge);
-      const bool compatible_attributes =
-          !Concentrate ||
-          opposite_edge_attributes_are_equal(backward_edge, opposite_edge);
-
-      if (compatible_endpoints && compatible_attributes) {
-        /*
-         * Materialize only the selected representative ahead of its normal
-         * turn.
-         */
-        if (ED_to_virt(opposite_edge) == NULL) {
-          make_virtual_edge_chain(graph, agtail(opposite_edge),
-                                  aghead(opposite_edge), opposite_edge);
-        }
-
-        if (Concentrate) {
+      if (compatible_endpoints) {
+        if (Concentrate &&
+            opposite_edge_attributes_are_equal(backward_edge, opposite_edge)) {
+          /*
+           * Materialize only the selected representative ahead of its normal
+           * turn. Creating chains for every candidate while scanning would
+           * pre-classify later parallel edges before duplicate suppression can
+           * compare them.
+           */
+          if (ED_to_virt(opposite_edge) == NULL) {
+            make_virtual_edge_chain(graph, agtail(opposite_edge),
+                                    aghead(opposite_edge), opposite_edge);
+          }
           /*
            * Preserve the suppressed edge's identity so arrow rendering can
            * recover the endpoint arrows for this exact pair.
@@ -431,15 +707,38 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
           ED_edge_type(backward_edge) = IGNORED;
           ED_conc_opp_flag(opposite_edge) = true;
           remember_suppressed_opposite_edge(opposite_edge, backward_edge);
-        } else {
+          return true;
+        }
+        if (!Concentrate) {
+          if (ED_to_virt(opposite_edge) == NULL) {
+            make_virtual_edge_chain(graph, agtail(opposite_edge),
+                                    aghead(opposite_edge), opposite_edge);
+          }
           other_edge(backward_edge);
           merge_chain(graph, backward_edge, ED_to_virt(opposite_edge), true);
+          return true;
         }
-        return true;
+        if (route_candidate == NULL) {
+          route_candidate = opposite_edge;
+        } else {
+          /*
+           * Keep scanning in concentrate mode. A later opposite edge may be
+           * the semantic mate that should be suppressed rather than drawn.
+           */
+        }
       }
     }
 
     opposite_edge = agnxtout(graph, opposite_edge);
+  }
+  if (route_candidate != NULL) {
+    if (ED_to_virt(route_candidate) == NULL) {
+      make_virtual_edge_chain(graph, agtail(route_candidate),
+                              aghead(route_candidate), route_candidate);
+    }
+    other_edge(backward_edge);
+    merge_chain(graph, backward_edge, ED_to_virt(route_candidate), true);
+    return true;
   }
   return false;
 }
@@ -509,15 +808,22 @@ void class2(graph_t *graph) {
       if (previous_edge != NULL && agtail(edge) == agtail(previous_edge) &&
           aghead(edge) == aghead(previous_edge)) {
         if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
-          merge_oneway(edge, previous_edge);
+          edge_t *representative_edge = previous_edge;
+          if (Concentrate) {
+            edge_t *const equivalent_edge =
+                find_prior_flat_concentrated_equivalent(graph, edge);
+            if (equivalent_edge != NULL) {
+              representative_edge = equivalent_edge;
+            }
+          }
+          merge_oneway(edge, representative_edge);
           other_edge(edge);
           continue;
         }
         if (ED_label(edge) == NULL && ED_label(previous_edge) == NULL &&
             ports_eq(edge, previous_edge)) {
           if (Concentrate) {
-            if (edge_attributes_are_equal(edge, previous_edge)) {
-              ED_edge_type(edge) = IGNORED;
+            if (route_concentrated_parallel_edge(graph, edge)) {
               continue;
             }
           } else {
@@ -553,7 +859,7 @@ void class2(graph_t *graph) {
       }
 
       if (ND_rank(aghead(edge)) > ND_rank(agtail(edge))) {
-        if (ignore_concentrated_parallel_edge(graph, edge)) {
+        if (route_concentrated_parallel_edge(graph, edge)) {
           continue;
         }
         make_virtual_edge_chain(graph, agtail(edge), aghead(edge), edge);
@@ -565,7 +871,7 @@ void class2(graph_t *graph) {
       if (merge_backward_edge_with_opposite(graph, edge)) {
         continue;
       }
-      if (ignore_concentrated_parallel_edge(graph, edge)) {
+      if (route_concentrated_parallel_edge(graph, edge)) {
         continue;
       }
       make_virtual_edge_chain(graph, aghead(edge), agtail(edge), edge);

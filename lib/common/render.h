@@ -59,6 +59,8 @@ extern "C" {
 #endif
 
 	RENDER_API void add_box(path *, boxf);
+    RENDER_API void edge_arrow_flags(Agedge_t *e, uint32_t *sflag,
+                                     uint32_t *eflag);
     RENDER_API void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag);
     RENDER_API void remember_suppressed_opposite_edge(
         Agedge_t *retained_edge, Agedge_t *suppressed_opposite_edge);
