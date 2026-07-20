@@ -9050,6 +9050,51 @@ def test_2778():
             raise
 
 
+def test_2781():
+    """
+    Graphviz should not crash when processing this graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2781
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2781.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # malformed input should be rejected without overflowing while processing
+    proc = subprocess.run(["dot", "-Tdot", "-o", os.devnull, src], stderr=subprocess.PIPE)
+
+    assert proc.returncode == 1, "invalid input was not rejected"
+    assert (
+        re.search(rb"\bAddressSanitizer: heap-buffer-overflow\b", proc.stderr) is None
+    ), "malformed input caused a buffer overflow"
+
+
+def test_2781_negative_control():
+    """
+    Well-formed adjacent flat splines should still lay out normally
+    """
+
+    src = """
+    digraph {
+      graph [rankdir=LR]
+      { rank=same; a; b }
+      a -> b [label="x"]
+      b -> a [label="y"]
+    }
+    """
+
+    proc = subprocess.run(
+        ["dot", "-Tdot", "-o", os.devnull],
+        input=textwrap.dedent(src),
+        text=True,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+    stderr = remove_asan_summary(remove_xtype_warnings(proc.stderr)).strip()
+    assert stderr == "", "legal adjacent flat splines produced warnings"
+
+
 def test_2782():
     """
     Graphviz should not crash when processing this graph
