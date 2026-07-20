@@ -299,6 +299,13 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
     for (; end > 0; end -= 3)
 	if (! APPROXEQPT(ps[end], ps[end + 3], MILLIPOINT))
 	    break;
+    /* beginpath() and endpath() offset regular-edge endpoints by one point to
+     * keep the path router away from a box boundary. Restore concentrated
+     * junctions after routing so independently drawn spline pieces meet. */
+    if (info->splineMerge(agtail(fe)))
+	ps[start] = ND_coord(agtail(fe));
+    if (info->splineMerge(hn))
+	ps[end + 3] = ND_coord(hn);
     arrow_clip(fe, hn, ps, &start, &end, newspl, info);
     for (size_t i = start; i < end + 4; ) {
 	pointf cp[4];

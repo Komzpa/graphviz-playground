@@ -5336,6 +5336,31 @@ def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
     assert sum("_hdraw_" in edge for edge in edges_by_color["#000000"]) == 1
 
 
+def test_concentrate_shared_trunk_routes_meet_at_junction():
+    """Concentrated route pieces meet at their shared virtual node."""
+
+    source = _SHARED_TRUNK_FIXTURE % """
+        a -> d
+        b -> d
+    """
+    edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    edges_by_size = {
+        _drawn_edge_spline_point_count(edge): edge for edge in edges
+    }
+    short_bezier = next(
+        operation
+        for operation in edges_by_size[4]["_draw_"]
+        if operation["op"] == "b"
+    )
+    long_beziers = [
+        operation
+        for operation in edges_by_size[8]["_draw_"]
+        if operation["op"] == "b"
+    ]
+
+    assert math.dist(short_bezier["points"][-1], long_beziers[1]["points"][0]) <= 0.01
+
+
 def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     """dot_concentrate() retains the ordinary asymmetric shared-trunk route."""
 
