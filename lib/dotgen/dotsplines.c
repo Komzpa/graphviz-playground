@@ -1068,6 +1068,72 @@ static void restore_flat_edge_ports(edge_t **edges, unsigned count,
   }
 }
 
+static double endpoint_node_clearance(node_t *node, pointf pt) {
+  const double rx = MAX(ND_lw(node), ND_rw(node)) + MULTIEDGE_NODE_MARGIN;
+  const double ry = ND_ht(node) / 2 + MULTIEDGE_NODE_MARGIN;
+  const pointf delta = sub_pointf(pt, ND_coord(node));
+  return (delta.x / rx) * (delta.x / rx) + (delta.y / ry) * (delta.y / ry);
+}
+
+static pointf cubic_point(const pointf control[4], double t) {
+  const double u = 1.0 - t;
+  pointf pt = {0};
+  pt.x = u * u * u * control[0].x + 3.0 * u * u * t * control[1].x +
+         3.0 * u * t * t * control[2].x + t * t * t * control[3].x;
+  pt.y = u * u * u * control[0].y + 3.0 * u * u * t * control[1].y +
+         3.0 * u * t * t * control[2].y + t * t * t * control[3].y;
+  return pt;
+}
+
+static bool terminal_reenters_node(node_t *node, const pointf control[4]) {
+  size_t clear = 0;
+  bool found_clearance = false;
+  double distances[NSUB + 2];
+  for (size_t i = 0; i < ARRAY_SIZE(distances); ++i) {
+    distances[i] =
+        endpoint_node_clearance(node, cubic_point(control, (double)i / NSUB));
+    if (!found_clearance && distances[i] >= 1.0) {
+      clear = i;
+      found_clearance = true;
+    }
+  }
+  for (size_t i = clear; i < ARRAY_SIZE(distances); ++i) {
+    if (distances[i] < 0.98)
+      return true;
+  }
+  return false;
+}
+
+static void keep_terminal_cubic_outside_node(node_t *node, bezier *spline,
+                                             bool physical_start) {
+  if (spline->size < 4)
+    return;
+
+  const size_t endpoint = physical_start ? 0 : spline->size - 1;
+  const size_t near_control = physical_start ? 1 : spline->size - 2;
+  const size_t far_control = physical_start ? 2 : spline->size - 3;
+  const size_t far_endpoint = physical_start ? 3 : spline->size - 4;
+  pointf terminal[4] = {
+      spline->list[endpoint],
+      spline->list[near_control],
+      spline->list[far_control],
+      spline->list[far_endpoint],
+  };
+  if (!terminal_reenters_node(node, terminal))
+    return;
+
+  const pointf normal = sub_pointf(spline->list[endpoint], ND_coord(node));
+  const double normal_length = hypot(normal.x, normal.y);
+  if (normal_length <= MILLIPOINT)
+    return;
+
+  const double control_length =
+      MAX(DIST(spline->list[endpoint], spline->list[far_control]),
+          FLAT_PORT_NORMAL_ARM);
+  spline->list[far_control] = add_pointf(
+      spline->list[endpoint], scale(control_length / normal_length, normal));
+}
+
 static void restore_flat_endpoint(bezier *spline, bool physical_start,
                                   pointf anchor, port resolved_port,
                                   double min_control_length) {
@@ -2087,6 +2153,16 @@ static void align_installed_flat_arrow_tangents(graph_t *g, edge_t *edge) {
     align_arrow_arm(spline, spline->ep,
                     NOMINAL_ARROW_LENGTH *
                         edge_arrow_arrowsize(arrow_edge, EDGE_ARROW_END));
+
+  const bool grouped_tail =
+      E_sametail != NULL && agxget(arrow_edge, E_sametail)[0] != '\0';
+  const port tail_port = ED_tail_port(arrow_edge);
+  if (grouped_tail && tail_port.defined && !tail_port.clip) {
+    const bool tail_at_start =
+        DIST(spline->list[0], ND_coord(agtail(arrow_edge))) <=
+        DIST(spline->list[spline->size - 1], ND_coord(agtail(arrow_edge)));
+    keep_terminal_cubic_outside_node(agtail(arrow_edge), spline, tail_at_start);
+  }
 
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);

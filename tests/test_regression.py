@@ -5189,6 +5189,21 @@ def _drawn_edges_between(source: str, tails: set[str], head: str) -> list[dict]:
     ]
 
 
+def _drawn_edge_between(layout: dict, tail: str, head: str) -> dict:
+    """Return one visible edge between two named nodes."""
+
+    node_ids = {node["name"]: node["_gvid"] for node in layout["objects"]}
+    edges = [
+        edge
+        for edge in layout["edges"]
+        if edge["tail"] == node_ids[tail]
+        and edge["head"] == node_ids[head]
+        and "_draw_" in edge
+    ]
+    assert len(edges) == 1
+    return edges[0]
+
+
 def _route_x_coordinates(edge: dict) -> tuple[float, ...]:
     """Return x coordinates from xdot's ``b`` Bezier operation."""
 
@@ -7286,6 +7301,17 @@ def test_flat_grouped_routes_depart_outward(concentrate: bool):
     layout = json.loads(dot("json", source=source))
     for edge in (edge for edge in layout["edges"] if "_draw_" in edge):
         _assert_endpoint_departure(layout, edge, "tail")
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_flat_mixed_sametail_route_does_not_reenter_tail(
+    concentrate: bool,
+):
+    """A restored flat member of a mixed sametail group clears the tail node."""
+
+    layout = json.loads(dot("json", source=_sametail_mixed_route_fixture(concentrate)))
+    edge = _drawn_edge_between(layout, "A", "flat")
+    _assert_endpoint_departure(layout, edge, "tail")
 
 
 @pytest.mark.parametrize("concentrate", (False, True))
