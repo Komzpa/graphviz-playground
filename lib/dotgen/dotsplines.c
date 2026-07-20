@@ -16,6 +16,11 @@
 
 #include <assert.h>
 #include <common/boxes.h>
+#include <common/edgeattr.h>
+#include <common/geomprocs.h>
+#include <common/globals.h>
+#include <common/render.h>
+#include <common/utils.h>
 #include <dotgen/dot.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -37,6 +42,9 @@
 
 #define MINW 16 /* minimum width of a box in the edge path */
 #define HALFMINW 8
+
+#define MULTIEDGE_NODE_MARGIN 0.5
+#define MULTIEDGE_BEZIER_FLATNESS 0.01
 
 #define FWDEDGE 16
 #define BWDEDGE 32
@@ -95,6 +103,8 @@ static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
 static Agedge_t *straight_path(Agedge_t *, int, points_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
+static void align_concentrated_route_tangents(graph_t *, edge_t *);
+static void align_arrow_tangents(graph_t *, edge_t *);
 
 static edge_t *getmainedge(edge_t *e) {
   edge_t *le = e;
@@ -103,6 +113,63 @@ static edge_t *getmainedge(edge_t *e) {
   while (ED_to_orig(le))
     le = ED_to_orig(le);
   return le;
+}
+
+static bool edge_has_no_labels(edge_t *edge) {
+  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
+}
+
+static bool
+same_direction_edges_are_concentrated_duplicates(edge_t *retained,
+                                                 edge_t *candidate) {
+  return retained != candidate && agtail(retained) == agtail(candidate) &&
+         aghead(retained) == aghead(candidate) &&
+         edge_has_no_labels(retained) && edge_has_no_labels(candidate) &&
+         portcmp(ED_tail_port(retained), ED_tail_port(candidate)) == 0 &&
+         portcmp(ED_head_port(retained), ED_head_port(candidate)) == 0 &&
+         gv_edge_attributes_are_equal(retained, candidate) &&
+         same_direction_edge_arrow_decorations_are_mergeable(retained,
+                                                             candidate);
+}
+
+static unsigned fold_concentrated_duplicate_routes(edge_t **edges,
+                                                   unsigned cnt) {
+  if (!Concentrate) {
+    return cnt;
+  }
+
+  for (unsigned i = 0; i < cnt; i++) {
+    edge_t *const retained_route = edges[i];
+    edge_t *const retained = getmainedge(retained_route);
+    if (ED_edge_type(retained) == IGNORED) {
+      ED_edge_type(retained_route) = IGNORED;
+      continue;
+    }
+
+    for (unsigned j = i + 1; j < cnt; j++) {
+      edge_t *const candidate_route = edges[j];
+      edge_t *const candidate = getmainedge(candidate_route);
+      if (ED_edge_type(candidate) == IGNORED) {
+        ED_edge_type(candidate_route) = IGNORED;
+        continue;
+      }
+
+      if (same_direction_edges_are_concentrated_duplicates(retained,
+                                                           candidate)) {
+        fold_concentrated_edge_arrow_decorations(retained, candidate, false);
+        ED_edge_type(candidate) = IGNORED;
+        ED_edge_type(candidate_route) = IGNORED;
+      }
+    }
+  }
+
+  unsigned kept = 0;
+  for (unsigned i = 0; i < cnt; i++) {
+    if (ED_edge_type(edges[i]) != IGNORED) {
+      edges[kept++] = edges[i];
+    }
+  }
+  return kept;
 }
 
 static bool spline_merge(node_t *n) {
@@ -377,6 +444,10 @@ static int dot_splines_(graph_t *g, int normalize) {
       if (ED_tree_index(LIST_GET(&edges, l)) & MAINGRAPH) /* Aha! -C is on */
         break;
     }
+
+    cnt = fold_concentrated_duplicate_routes(LIST_AT(&edges, ind), cnt);
+    if (cnt == 0)
+      continue;
 
     if (et == EDGETYPE_CURVED) {
       edge_t **edgelist = gv_calloc(cnt, sizeof(edge_t *));
@@ -889,6 +960,97 @@ static edge_t *cloneEdge(graph_t *g, node_t *tn, node_t *hn, edge_t *orig) {
   return e;
 }
 
+static void copy_grouped_ports(edge_t *clone, const edge_t *original,
+                               bool reversed) {
+  const port tail_port =
+      reversed ? ED_head_port(original) : ED_tail_port(original);
+  const port head_port =
+      reversed ? ED_tail_port(original) : ED_head_port(original);
+  const char *const tail_group =
+      agget((edge_t *)original, reversed ? "samehead" : "sametail");
+  const char *const head_group =
+      agget((edge_t *)original, reversed ? "sametail" : "samehead");
+
+  /* Explicit clipping ports are resolved correctly from the copied edge
+   * attributes in the rotated auxiliary graph. Only carry synthetic
+   * samehead/sametail anchors, whose non-clipping coordinates are otherwise
+   * lost when the auxiliary graph resolves its own ports. */
+  if (tail_group != NULL && tail_group[0] != '\0' && tail_port.defined &&
+      !tail_port.clip)
+    ED_tail_port(clone) = tail_port;
+  if (head_group != NULL && head_group[0] != '\0' && head_port.defined &&
+      !head_port.clip)
+    ED_head_port(clone) = head_port;
+}
+
+static void restore_flat_edge_ports(edge_t **edges, unsigned count,
+                                    node_t *tail) {
+  for (unsigned i = 0; i < count; ++i) {
+    edge_t *edge = edges[i];
+    while (ED_edge_type(edge) != NORMAL)
+      edge = ED_to_orig(edge);
+
+    edge_t *const clone = ED_alg(edge);
+    if (clone != NULL)
+      copy_grouped_ports(clone, edge, agtail(edge) != tail);
+  }
+}
+
+static void restore_flat_endpoint(bezier *spline, bool physical_start,
+                                  pointf anchor, port resolved_port) {
+  const size_t endpoint = physical_start ? 0 : spline->size - 1;
+  const size_t control = physical_start ? 1 : spline->size - 2;
+  const int arrow = physical_start ? spline->sflag : spline->eflag;
+  pointf *const arrow_tip = physical_start ? &spline->sp : &spline->ep;
+  const double normal_length = hypot(resolved_port.p.x, resolved_port.p.y);
+  /* A repeated aux control point has no departure direction to preserve. */
+  const double control_length =
+      MAX(DIST(spline->list[control], spline->list[endpoint]), 6.0);
+  const double arrow_gap = DIST(*arrow_tip, spline->list[endpoint]);
+
+  if (normal_length > MILLIPOINT) {
+    const pointf outward = scale(1.0 / normal_length, resolved_port.p);
+    spline->list[endpoint] =
+        add_pointf(anchor, scale(arrow == ARR_NONE ? 0.0 : arrow_gap, outward));
+    spline->list[control] =
+        add_pointf(spline->list[endpoint], scale(control_length, outward));
+    if (arrow != ARR_NONE)
+      *arrow_tip = anchor;
+    return;
+  }
+
+  if (arrow != ARR_NONE) {
+    const pointf offset = sub_pointf(anchor, *arrow_tip);
+    spline->list[endpoint] = add_pointf(spline->list[endpoint], offset);
+    spline->list[control] = add_pointf(spline->list[control], offset);
+    *arrow_tip = anchor;
+  } else {
+    const pointf offset = sub_pointf(anchor, spline->list[endpoint]);
+    spline->list[endpoint] = anchor;
+    spline->list[control] = add_pointf(spline->list[control], offset);
+  }
+}
+
+static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
+  const pointf tail_center = ND_coord(agtail(edge));
+  const pointf head_center = ND_coord(aghead(edge));
+  const bool tail_at_start = DIST(spline->list[0], tail_center) <=
+                             DIST(spline->list[spline->size - 1], tail_center);
+  const bool head_at_start = DIST(spline->list[0], head_center) <=
+                             DIST(spline->list[spline->size - 1], head_center);
+
+  if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip) {
+    const pointf anchor =
+        add_pointf(ND_coord(agtail(edge)), ED_tail_port(edge).p);
+    restore_flat_endpoint(spline, tail_at_start, anchor, ED_tail_port(edge));
+  }
+  if (ED_head_port(edge).defined && !ED_head_port(edge).clip) {
+    const pointf anchor =
+        add_pointf(ND_coord(aghead(edge)), ED_head_port(edge).p);
+    restore_flat_endpoint(spline, head_at_start, anchor, ED_head_port(edge));
+  }
+}
+
 /// rotate, if necessary, then translate points
 static pointf transformf(pointf p, pointf del, int flip) {
   if (flip) {
@@ -973,6 +1135,7 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
   points[pointn++] = hp;
   points[pointn++] = hp;
   clip_and_install(e, aghead(e), points, pointn, &sinfo);
+  align_concentrated_route_tangents(agraphof(tn), e);
   ED_label(e)->pos.x = ctrx;
   ED_label(e)->pos.y = tp.y + (ED_label(e)->dimen.y + LBL_SPACE) / 2.0;
   ED_label(e)->set = true;
@@ -1025,6 +1188,7 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
     ED_label(e)->pos.y = ctry;
     ED_label(e)->set = true;
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -1066,6 +1230,7 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -1089,8 +1254,15 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     size_t pointn = 0;
     if (et == EDGETYPE_SPLINE || et == EDGETYPE_LINE) {
       points[pointn++] = tp;
-      points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
-      points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
+      if (et == EDGETYPE_SPLINE && cnt == 1 && ED_conc_opp_flag(e) &&
+          (ED_head_label(e) != NULL || ED_tail_label(e) != NULL)) {
+        const double lift = MAX(ND_ht(tn), ND_ht(hn));
+        points[pointn++] = (pointf){tp.x, tp.y + lift};
+        points[pointn++] = (pointf){hp.x, hp.y + lift};
+      } else {
+        points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
+        points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
+      }
       points[pointn++] = hp;
     } else { /* EDGETYPE_PLINE */
       points[pointn++] = tp;
@@ -1106,6 +1278,10 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     }
     dy += stepy;
     clip_and_install(e, aghead(e), points, pointn, &sinfo);
+    if (Concentrate) {
+      align_concentrated_route_tangents(agraphof(tn), e);
+      align_arrow_tangents(agraphof(tn), e);
+    }
   }
 }
 
@@ -1134,6 +1310,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   static atomic_flag warned;
 
   tn = agtail(e0), hn = aghead(e0);
+  node_t *const physical_tail = tn;
   if (shapeOf(tn) == SH_RECORD || shapeOf(hn) == SH_RECORD) {
     if (!atomic_flag_test_and_set(&warned)) {
       agwarningf("flat edge between adjacent nodes one of which has a record "
@@ -1199,6 +1376,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   GD_dotroot(auxg) = auxg;
   setEdgeType(auxg, et);
   dot_init_node_edge(auxg);
+  restore_flat_edge_ports(edges, cnt, physical_tail);
 
   dot_rank(auxg);
   const int r = dot_mincross(auxg);
@@ -1226,6 +1404,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       ND_coord(n).y = midx;
   }
   dot_sameports(auxg);
+  restore_flat_edge_ports(edges, cnt, physical_tail);
   const int rc = dot_splines_(auxg, 0);
   if (rc != 0) {
     return rc;
@@ -1256,19 +1435,13 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     bz->sp = transformf(auxbz->sp, del, GD_flip(g));
     bz->eflag = auxbz->eflag;
     bz->ep = transformf(auxbz->ep, del, GD_flip(g));
-    for (size_t j = 0; j < auxbz->size;) {
-      pointf cp[4];
-      cp[0] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      if (j >= auxbz->size)
-        break;
-      cp[1] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[2] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[3] = transformf(auxbz->list[j], del, GD_flip(g));
-      update_bb_bz(&GD_bb(g), cp);
-    }
+    for (size_t j = 0; j < auxbz->size; ++j)
+      bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
+    restore_flat_endpoints(e, bz);
+    if (Concentrate)
+      align_arrow_tangents(g, e);
+    for (size_t j = 0; j + 3 < bz->size; j += 3)
+      update_bb_bz(&GD_bb(g), &bz->list[j]);
     if (ED_label(e)) {
       ED_label(e)->pos = transformf(ED_label(auxe)->pos, del, GD_flip(g));
       ED_label(e)->set = true;
@@ -1411,6 +1584,7 @@ static void make_flat_labeled_edge(graph_t *g, const spline_info_t sp, path *P,
     }
   }
   clip_and_install(e, aghead(e), ps, pn, &sinfo);
+  align_concentrated_route_tangents(g, e);
   if (ps_needs_free)
     free(ps);
 }
@@ -1484,6 +1658,7 @@ static void make_flat_bottom_edges(graph_t *g, const spline_info_t sp, path *P,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -1608,6 +1783,7 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
       return 0;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -1695,6 +1871,182 @@ static int makeLineEdge(graph_t *g, edge_t *fe, points_t *points, node_t **hp) {
   }
 
   return pn;
+}
+
+static void align_control_arm(pointf *control, pointf endpoint,
+                              pointf arrow_tip) {
+  const pointf axis = sub_pointf(arrow_tip, endpoint);
+  const double axis_length = hypot(axis.x, axis.y);
+  const double control_length = DIST(*control, endpoint);
+  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control = sub_pointf(endpoint, scale(control_length / axis_length, axis));
+}
+
+static void align_start_control_arm(pointf *control, pointf endpoint,
+                                    pointf target) {
+  const pointf axis = sub_pointf(target, endpoint);
+  const double axis_length = hypot(axis.x, axis.y);
+  const double control_length = DIST(*control, endpoint);
+  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
+}
+
+static void align_end_control_arm(pointf *control, pointf endpoint,
+                                  pointf target) {
+  const pointf axis = sub_pointf(target, endpoint);
+  const double axis_length = hypot(axis.x, axis.y);
+  const double control_length = DIST(*control, endpoint);
+  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
+}
+
+static void align_arrow_arm(bezier *spline, pointf arrow_tip) {
+  const bool at_start = DIST(spline->list[0], arrow_tip) <=
+                        DIST(spline->list[spline->size - 1], arrow_tip);
+  const size_t endpoint = at_start ? 0 : spline->size - 1;
+  const size_t control = at_start ? 1 : spline->size - 2;
+  align_control_arm(&spline->list[control], spline->list[endpoint], arrow_tip);
+}
+
+static void align_arrow_tangents(graph_t *g, edge_t *edge) {
+  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+
+  assert(ED_spl(edge) != NULL && ED_spl(edge)->size > 0);
+  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
+  if (spline->size < 4)
+    return;
+
+  // Multi-edge offsets are applied before clipping. Realign the final control
+  // arms afterward, when clipping has established the visible arrow axes.
+  if (spline->sflag != ARR_NONE)
+    align_arrow_arm(spline, spline->sp);
+  if (spline->eflag != ARR_NONE)
+    align_arrow_arm(spline, spline->ep);
+
+  for (size_t i = 0; i + 3 < spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
+  const bool merged_tail = spline_merge(agtail(edge));
+  const bool merged_head = spline_merge(aghead(edge));
+  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+
+  assert(ED_spl(edge) != NULL && ED_spl(edge)->size > 0);
+  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
+  if (spline->size < 4)
+    return;
+
+  const bool bidirectional_concentration =
+      (edge_has_concentrated_arrow_decorations(edge) ||
+       ED_conc_opp_flag(edge)) &&
+      ND_rank(agtail(edge)) == ND_rank(aghead(edge));
+  if (!merged_tail && !merged_head && !bidirectional_concentration)
+    return;
+
+  const size_t first = 0;
+  const size_t last = spline->size - 1;
+  const pointf start = spline->list[first];
+  const pointf end = spline->list[last];
+  if (merged_tail || bidirectional_concentration)
+    align_start_control_arm(&spline->list[first + 1], start, end);
+  if (merged_head || bidirectional_concentration)
+    align_end_control_arm(&spline->list[last - 1], end, start);
+
+  for (size_t i = 0; i + 3 < spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+static bool bezier_intersects_box(const pointf control[4], boxf obstacle) {
+  boxf control_box = {.LL = control[0], .UR = control[0]};
+  for (size_t i = 1; i < 4; i++)
+    expandbp(&control_box, control[i]);
+  if (!boxf_overlap(control_box, obstacle))
+    return false;
+
+  const double flatness_squared =
+      MULTIEDGE_BEZIER_FLATNESS * MULTIEDGE_BEZIER_FLATNESS;
+  if (ptToLine2(control[0], control[3], control[1]) <= flatness_squared &&
+      ptToLine2(control[0], control[3], control[2]) <= flatness_squared)
+    return lineToBox(control[0], control[3], obstacle) != -1;
+
+  pointf left[4];
+  pointf right[4];
+  Bezier(control, 0.5, left, right);
+  return bezier_intersects_box(left, obstacle) ||
+         bezier_intersects_box(right, obstacle);
+}
+
+static bool shifted_route_intersects_box(const points_t *points, double offset,
+                                         boxf obstacle) {
+  assert(LIST_SIZE(points) % 3 == 1);
+  for (size_t start = 0; start + 3 < LIST_SIZE(points); start += 3) {
+    pointf control[4];
+    for (size_t i = 0; i < 4; i++) {
+      const size_t index = start + i;
+      control[i] = LIST_GET(points, index);
+      if (index > 0 && index + 1 < LIST_SIZE(points))
+        control[i].x += offset;
+    }
+    if (bezier_intersects_box(control, obstacle))
+      return true;
+  }
+  return false;
+}
+
+static bool shifted_route_clears_nodes(graph_t *g, edge_t *edge,
+                                       const points_t *points, double offset) {
+  edge = getmainedge(edge);
+  const double clearance =
+      late_double(edge, E_penwidth, 1.0, 0.0) / 2 + MULTIEDGE_NODE_MARGIN;
+  const node_t *const tail = agtail(edge);
+  const node_t *const head = aghead(edge);
+
+  for (node_t *node = agfstnode(g); node; node = agnxtnode(g, node)) {
+    if (node == tail || node == head || ND_node_type(node) != NORMAL)
+      continue;
+    const boxf obstacle = {
+        .LL = {ND_coord(node).x - ND_lw(node) - clearance,
+               ND_coord(node).y - ND_ht(node) / 2 - clearance},
+        .UR = {ND_coord(node).x + ND_rw(node) + clearance,
+               ND_coord(node).y + ND_ht(node) / 2 + clearance},
+    };
+    if (shifted_route_intersects_box(points, offset, obstacle))
+      return false;
+  }
+  return true;
+}
+
+static double constrain_multiedge_offset(graph_t *g, edge_t *edge,
+                                         const points_t *points,
+                                         double requested) {
+  if (shifted_route_clears_nodes(g, edge, points, requested))
+    return requested;
+
+  // The center route already passed through the node-aware path router. If it
+  // does not provide the requested stroke clearance, the displacement did not
+  // cause the conflict and contracting it cannot reliably solve the problem.
+  if (!shifted_route_clears_nodes(g, edge, points, 0))
+    return requested;
+
+  double safe = 0;
+  double unsafe = requested;
+  while (fabs(unsafe - safe) > MULTIEDGE_BEZIER_FLATNESS) {
+    const double candidate = (safe + unsafe) / 2;
+    if (shifted_route_clears_nodes(g, edge, points, candidate))
+      safe = candidate;
+    else
+      unsafe = candidate;
+  }
+  return safe;
 }
 
 static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
@@ -1878,32 +2230,39 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   if (cnt == 1) {
     LIST_SYNC(&pointfs);
     clip_and_install(fe, hn, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs), &sinfo);
+    align_concentrated_route_tangents(g, fe);
     LIST_FREE(&pointfs);
     LIST_FREE(&pointfs2);
     return;
   }
   const double dx = sp->Multisep * (cnt - 1) / 2;
-  for (size_t k = 1; k + 1 < LIST_SIZE(&pointfs); k++)
-    LIST_AT(&pointfs, k)->x -= dx;
-
-  for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
-    LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
-  LIST_SYNC(&pointfs2);
-  clip_and_install(fe, hn, LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2), &sinfo);
-  for (unsigned j = 1; j < cnt; j++) {
-    e = edges[j];
-    if (ED_tree_index(e) & BWDEDGE) {
-      makefwdedge(&fwdedge.out, e);
-      e = &fwdedge.out;
+  for (unsigned j = 0; j < cnt; j++) {
+    node_t *install_head;
+    if (j == 0) {
+      e = fe;
+      install_head = hn;
+    } else {
+      e = edges[j];
+      if (ED_tree_index(e) & BWDEDGE) {
+        makefwdedge(&fwdedge.out, e);
+        e = &fwdedge.out;
+      }
+      install_head = aghead(e);
     }
-    for (size_t k = 1; k + 1 < LIST_SIZE(&pointfs); k++)
-      LIST_AT(&pointfs, k)->x += sp->Multisep;
+    const double requested = -dx + j * sp->Multisep;
+    const double offset = constrain_multiedge_offset(g, e, &pointfs, requested);
     LIST_CLEAR(&pointfs2);
-    for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
-      LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
+    for (size_t k = 0; k < LIST_SIZE(&pointfs); k++) {
+      pointf route_point = LIST_GET(&pointfs, k);
+      if (k > 0 && k + 1 < LIST_SIZE(&pointfs))
+        route_point.x += offset;
+      LIST_APPEND(&pointfs2, route_point);
+    }
     LIST_SYNC(&pointfs2);
-    clip_and_install(e, aghead(e), LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2),
-                     &sinfo);
+    clip_and_install(e, install_head, LIST_FRONT(&pointfs2),
+                     LIST_SIZE(&pointfs2), &sinfo);
+    align_concentrated_route_tangents(g, e);
+    align_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);
   LIST_FREE(&pointfs2);

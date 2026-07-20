@@ -320,8 +320,11 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    agwarningf(
 			  "%s -> %s: tail is inside head cluster %s\n",
 			  agnameof(agtail(e)), agnameof(aghead(e)), agget(e, "lhead"));
-		} else if (!inBoxf(bez->sp, bb)) {
-		    assert(bez->sflag);	/* must be arrowhead on tail */
+		} else if (bez->sflag && !inBoxf(bez->sp, bb)) {
+		    /* bez->sp is only initialized when a tail arrow exists
+		     * (sflag). A concentrated representative may legally
+		     * carry no tail arrow; its drawn spline then starts at
+		     * list[0] and there is nothing to re-aim at the box. */
 		    pointf p = boxIntersectf(bez->list[0], bez->sp, bb);
 		    bez->list[3] = p;
 		    bez->list[1] = mid_pointf(p, bez->sp);
@@ -340,8 +343,12 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 			break;
 		}
 		if (endi == size - 1) {	/* no intersection */
-		    assert(bez->eflag);
-		    nbez.ep = boxIntersectf(bez->ep, bez->list[endi], bb);
+		    /* Only the head-arrow segment (ep, set iff eflag) can
+		     * cross the box here. An arrowless concentrated
+		     * representative ends at its last control point and
+		     * needs no end re-clip. */
+		    if (bez->eflag)
+			nbez.ep = boxIntersectf(bez->ep, bez->list[endi], bb);
 		} else {
 		    if (bez->eflag)
 			endi =

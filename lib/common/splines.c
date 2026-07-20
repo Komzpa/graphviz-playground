@@ -249,6 +249,8 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
     size_t start, end;
     edge_t *orig;
     boxf *tbox, *hbox;
+    pointf tailp, headp;
+    bool pinTail = false, pinHead = false;
 
     node_t *tn = agtail(fe);
     graph_t *const g = agraphof(tn);
@@ -266,13 +268,30 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
 	clipHead = ED_head_port(orig).clip;
 	tbox = ED_tail_port(orig).bp;
 	hbox = ED_head_port(orig).bp;
+	tailp = add_pointf(ND_coord(tn), ED_tail_port(orig).p);
+	headp = add_pointf(ND_coord(hn), ED_head_port(orig).p);
+	pinTail = E_sametail != NULL && agxget(orig, E_sametail)[0] != '\0' &&
+	          ED_tail_port(orig).defined && !clipTail;
+	pinHead = E_samehead != NULL && agxget(orig, E_samehead)[0] != '\0' &&
+	          ED_head_port(orig).defined && !clipHead;
     }
     else { /* fe and orig are reversed */
 	clipTail = ED_head_port(orig).clip;
 	clipHead = ED_tail_port(orig).clip;
 	hbox = ED_tail_port(orig).bp;
 	tbox = ED_head_port(orig).bp;
+	tailp = add_pointf(ND_coord(tn), ED_head_port(orig).p);
+	headp = add_pointf(ND_coord(hn), ED_tail_port(orig).p);
+	pinTail = E_samehead != NULL && agxget(orig, E_samehead)[0] != '\0' &&
+	          ED_head_port(orig).defined && !clipTail;
+	pinHead = E_sametail != NULL && agxget(orig, E_sametail)[0] != '\0' &&
+	          ED_tail_port(orig).defined && !clipHead;
     }
+
+    if (pinTail)
+	ps[0] = tailp;
+    if (pinHead)
+	ps[pn - 1] = headp;
 
     /* spline may be interior to node */
     if(clipTail && ND_shape(tn) && ND_shape(tn)->fns->insidefn) {
@@ -303,6 +322,13 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
     for (; end > 0; end -= 3)
 	if (! APPROXEQPT(ps[end], ps[end + 3], MILLIPOINT))
 	    break;
+    /* beginpath() and endpath() offset regular-edge endpoints by one point to
+     * keep the path router away from a box boundary. Restore concentrated
+     * junctions after routing so independently drawn spline pieces meet. */
+    if (info->splineMerge(agtail(fe)))
+	ps[start] = ND_coord(agtail(fe));
+    if (info->splineMerge(hn))
+	ps[end + 3] = ND_coord(hn);
     arrow_clip(fe, hn, ps, &start, &end, newspl, info);
     for (size_t i = start; i < end + 4; ) {
 	pointf cp[4];
