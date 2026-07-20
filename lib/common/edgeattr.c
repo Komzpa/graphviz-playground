@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <util/agxbuf.h>
+#include <util/strcasecmp.h>
 #include <util/tokenize.h>
 
 #define ATTRIBUTE_COUNT(attributes)                                            \
@@ -277,9 +278,12 @@ static void append_substituted_signature_slot(agxbuf *signature,
 }
 
 static bool html_label_may_use_colorscheme(const char *text) {
-  for (const char *attribute = strstr(text, "COLOR=\""); attribute != NULL;
-       attribute = strstr(attribute + 1, "COLOR=\"")) {
-    const char *const value = attribute + strlen("COLOR=\"");
+  const size_t prefix_size = strlen("COLOR=\"");
+  for (const char *attribute = text; *attribute != '\0'; attribute++) {
+    if (strncasecmp(attribute, "COLOR=\"", prefix_size) != 0) {
+      continue;
+    }
+    const char *const value = attribute + prefix_size;
     if (value[0] >= '0' && value[0] <= '9') {
       return true;
     }

@@ -6112,9 +6112,14 @@ def test_concentrate_html_label_identity_uses_colorscheme():
                 'a -> b [colorscheme=paired3 label=<<FONT COLOR="1">x</FONT>>]',
             ),
             _edge_count_case(
+                2,
+                'c -> d [colorscheme=accent3 label=<<font color="1">x</font>>]',
+                'c -> d [colorscheme=paired3 label=<<font color="1">x</font>>]',
+            ),
+            _edge_count_case(
                 1,
-                'b -> c [colorscheme=accent3 label=<<FONT COLOR="red">x</FONT>>]',
-                'b -> c [colorscheme=paired3 label=<<FONT COLOR="red">x</FONT>>]',
+                'e -> f [colorscheme=accent3 label=<<FONT COLOR="red">x</FONT>>]',
+                'e -> f [colorscheme=paired3 label=<<FONT COLOR="red">x</FONT>>]',
             ),
         ),
     )
