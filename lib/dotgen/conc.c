@@ -22,25 +22,54 @@
 #define		UP		0
 #define		DOWN	1
 
-static bool samedir(edge_t * e, edge_t * f)
+static edge_t *original_normal_edge(edge_t *edge)
 {
-    edge_t *e0, *f0;
+    while (edge != NULL && ED_edge_type(edge) != NORMAL)
+	edge = ED_to_orig(edge);
+    return edge;
+}
 
-    for (e0 = e; e0 != NULL && ED_edge_type(e0) != NORMAL; e0 = ED_to_orig(e0));
-    if (e0 == NULL)
+static bool samestructuraldir(edge_t * e, edge_t * f)
+{
+    e = original_normal_edge(e);
+    f = original_normal_edge(f);
+    if (e == NULL || f == NULL)
 	return false;
-    for (f0 = f; f0 != NULL && ED_edge_type(f0) != NORMAL; f0 = ED_to_orig(f0));
-    if (f0 == NULL)
+    if (ED_conc_opp_flag(e))
 	return false;
-    if (ED_conc_opp_flag(e0))
+    if (ED_conc_opp_flag(f))
 	return false;
-    if (ED_conc_opp_flag(f0))
-	return false;
-    return gv_edge_attributes_are_equal(e0, f0) &&
-           same_direction_edge_arrow_decorations_are_equal(e0, f0) &&
-           ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
-                (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
-            0);
+    return (ND_rank(agtail(f)) - ND_rank(aghead(f))) *
+               (ND_rank(agtail(e)) - ND_rank(aghead(e))) >
+           0;
+}
+
+static bool rendered_edges_are_equal(edge_t *edge, edge_t *representative)
+{
+    return edge != NULL && representative != NULL &&
+           gv_edge_attributes_are_equal(edge, representative) &&
+           same_direction_edge_arrow_decorations_are_equal(edge,
+                                                           representative);
+}
+
+static bool other_list_contains(edge_t *edge)
+{
+    for (size_t i = 0; ND_other(agtail(edge)).list[i] != NULL; ++i) {
+	if (ND_other(agtail(edge)).list[i] == edge)
+	    return true;
+    }
+    return false;
+}
+
+static void keep_distinct_original_drawn(edge_t *edge, edge_t *representative)
+{
+    edge_t *const original_edge = original_normal_edge(edge);
+    edge_t *const representative_edge = original_normal_edge(representative);
+
+    if (original_edge != NULL && ED_edge_type(original_edge) == NORMAL &&
+	!rendered_edges_are_equal(original_edge, representative_edge) &&
+	!other_list_contains(original_edge))
+	other_edge(original_edge);
 }
 
 static bool downcandidate(node_t * v)
@@ -55,8 +84,12 @@ static bool bothdowncandidates(node_t * u, node_t * v)
     e = ND_in(u).list[0];
     f = ND_in(v).list[0];
     if (downcandidate(v) && agtail(e) == agtail(f)) {
-	return samedir(e, f)
-	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0;
+	edge_t *e0 = original_normal_edge(e);
+	edge_t *f0 = original_normal_edge(f);
+	return samestructuraldir(e, f)
+	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0
+	    && (e0 == NULL || f0 == NULL || aghead(e0) != aghead(f0)
+		|| portcmp(ED_head_port(e0), ED_head_port(f0)) == 0);
     }
     return false;
 }
@@ -73,8 +106,12 @@ static bool bothupcandidates(node_t * u, node_t * v)
     e = ND_out(u).list[0];
     f = ND_out(v).list[0];
     if (upcandidate(v) && aghead(e) == aghead(f)) {
-	return samedir(e, f)
-	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0;
+	edge_t *e0 = original_normal_edge(e);
+	edge_t *f0 = original_normal_edge(f);
+	return samestructuraldir(e, f)
+	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0
+	    && (e0 == NULL || f0 == NULL || agtail(e0) != agtail(f0)
+		|| portcmp(ED_tail_port(e0), ED_tail_port(f0)) == 0);
     }
     return false;
 }
@@ -95,6 +132,7 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 	    if (f == NULL)
 		f = virtual_edge(left, aghead(e), e);
 	    while ((e0 = ND_in(right).list[0])) {
+		keep_distinct_original_drawn(e0, f);
 		merge_oneway(e0, f);
 		delete_fast_edge(e0);
 	    }
@@ -109,6 +147,7 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 	    if (f == NULL)
 		f = virtual_edge(agtail(e), left, e);
 	    while ((e0 = ND_out(right).list[0])) {
+		keep_distinct_original_drawn(e0, f);
 		merge_oneway(e0, f);
 		delete_fast_edge(e0);
 	    }
