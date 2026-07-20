@@ -423,7 +423,8 @@ static bool color_list_has_explicit_segments(const char *color_list) {
 
 static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
                                          const char *slot_name,
-                                         const char *color_list) {
+                                         const char *color_list,
+                                         bool reverse_orientation) {
   size_t segment_count = 0;
   normalized_color_segment_t *const segments =
       normalized_color_segments(color_list, &segment_count);
@@ -448,8 +449,9 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
       append_color_segment(&rendered_list, segments[i].color);
     }
   } else {
-    for (size_t i = 0; i < segment_count; i++) {
-      if (i > 0) {
+    for (size_t j = 0; j < segment_count; j++) {
+      const size_t i = reverse_orientation ? segment_count - j - 1 : j;
+      if (j > 0) {
         agxbputc(&rendered_list, ':');
       }
       append_color_segment(&rendered_list, segments[i].color);
@@ -468,9 +470,11 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
 static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
                                     const char *slot_name,
                                     comparable_attribute_value_t value,
-                                    bool allow_color_list) {
+                                    bool allow_color_list,
+                                    bool reverse_orientation) {
   if (allow_color_list && !value.is_html && strchr(value.text, ':') != NULL) {
-    append_edge_color_list_value(signature, edge, slot_name, value.text);
+    append_edge_color_list_value(signature, edge, slot_name, value.text,
+                                 reverse_orientation);
     return;
   }
 
@@ -515,7 +519,8 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
   agxbclear(&slot_name);
   agxbprint(&slot_name, "%s:fontcolor", slot_prefix);
   append_edge_color_value(signature, edge, agxbuse(&slot_name),
-                          plain_attribute_value(label->fontcolor), false);
+                          plain_attribute_value(label->fontcolor), false,
+                          false);
   agxbfree(&slot_name);
 }
 
@@ -681,7 +686,8 @@ static void append_projected_attribute_value(agxbuf *signature,
                                              Agraph_t *root_graph,
                                              Agedge_t *edge,
                                              const char *slot_name,
-                                             const char *attribute_name) {
+                                             const char *attribute_name,
+                                             bool reverse_orientation) {
   comparable_attribute_value_t value =
       named_attribute_value(root_graph, edge, attribute_name);
   const edge_attribute_classification_t classification =
@@ -706,7 +712,8 @@ static void append_projected_attribute_value(agxbuf *signature,
     if (value.text[0] == '\0') {
       value = plain_attribute_value(DEFAULT_COLOR);
     }
-    append_edge_color_value(signature, edge, slot_name, value, true);
+    append_edge_color_value(signature, edge, slot_name, value, true,
+                            reverse_orientation);
     return;
   }
 
@@ -757,7 +764,8 @@ static void append_projected_attribute_value(agxbuf *signature,
 
 static void append_ordinary_attribute_slots(agxbuf *signature,
                                             Agraph_t *root_graph,
-                                            Agedge_t *edge) {
+                                            Agedge_t *edge,
+                                            bool reverse_orientation) {
   for (Agsym_t *attribute = agnxtattr(root_graph, AGEDGE, NULL);
        attribute != NULL;
        attribute = agnxtattr(root_graph, AGEDGE, attribute)) {
@@ -768,7 +776,8 @@ static void append_ordinary_attribute_slots(agxbuf *signature,
       continue;
     }
     append_projected_attribute_value(signature, root_graph, edge,
-                                     attribute->name, attribute->name);
+                                     attribute->name, attribute->name,
+                                     reverse_orientation);
   }
 }
 
@@ -1309,7 +1318,8 @@ static void append_endpoint_attribute_slots(agxbuf *signature,
       continue;
     }
     append_projected_attribute_value(signature, root_graph, edge,
-                                     exception->name, source_name);
+                                     exception->name, source_name,
+                                     reverse_orientation);
   }
 
   for (attribute_owner_t canonical_owner = ATTRIBUTE_OWNER_HEAD;
@@ -1326,7 +1336,7 @@ static void append_endpoint_attribute_slots(agxbuf *signature,
                             ATTRIBUTE_NAME_PREFIXED, false, source_name,
                             sizeof(source_name));
     append_projected_attribute_value(signature, root_graph, edge, slot_name,
-                                     source_name);
+                                     source_name, reverse_orientation);
   }
 }
 
@@ -1337,7 +1347,8 @@ project_rendered_edge_identity(Agedge_t *edge, bool reverse_orientation) {
 
   append_structured_label_slots(&signature, edge, reverse_orientation);
   append_structured_port_slots(&signature, edge, reverse_orientation);
-  append_ordinary_attribute_slots(&signature, root_graph, edge);
+  append_ordinary_attribute_slots(&signature, root_graph, edge,
+                                  reverse_orientation);
   append_taper_direction_slot(&signature, edge, reverse_orientation);
   append_endpoint_attribute_slots(&signature, root_graph, edge,
                                   reverse_orientation);
