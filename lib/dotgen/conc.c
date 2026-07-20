@@ -116,52 +116,56 @@ static bool bothupcandidates(node_t * u, node_t * v)
     return false;
 }
 
-static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
+static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
 {
     node_t *left;
     edge_t *e, *f, *e0;
 
     left = GD_rank(g)[r].v[lpos];
-    node_t *const right = GD_rank(g)[r].v[rpos];
-    if (dir == DOWN) {
-	while ((e = ND_out(right).list[0])) {
-	    int k;
-	    for (k = 0; (f = ND_out(left).list[k]); k++)
-		if (aghead(f) == aghead(e))
-		    break;
-	    if (f == NULL)
-		f = virtual_edge(left, aghead(e), e);
-	    while ((e0 = ND_in(right).list[0])) {
-		keep_distinct_original_drawn(e0, f);
-		merge_oneway(e0, f);
-		delete_fast_edge(e0);
+    for (int i = lpos + 1; i <= rpos; i++) {
+	node_t *const right = GD_rank(g)[r].v[i];
+	if (dir == DOWN) {
+	    while ((e = ND_out(right).list[0])) {
+		int k;
+		for (k = 0; (f = ND_out(left).list[k]); k++)
+		    if (aghead(f) == aghead(e))
+			break;
+		if (f == NULL)
+		    f = virtual_edge(left, aghead(e), e);
+		while ((e0 = ND_in(right).list[0])) {
+		    keep_distinct_original_drawn(e0, f);
+		    merge_oneway(e0, f);
+		    delete_fast_edge(e0);
+		}
+		delete_fast_edge(e);
 	    }
-	    delete_fast_edge(e);
-	}
-    } else {
-	while ((e = ND_in(right).list[0])) {
-	    int k;
-	    for (k = 0; (f = ND_in(left).list[k]); k++)
-		if (agtail(f) == agtail(e))
-		    break;
-	    if (f == NULL)
-		f = virtual_edge(agtail(e), left, e);
-	    while ((e0 = ND_out(right).list[0])) {
-		keep_distinct_original_drawn(e0, f);
-		merge_oneway(e0, f);
-		delete_fast_edge(e0);
+	} else {
+	    while ((e = ND_in(right).list[0])) {
+		int k;
+		for (k = 0; (f = ND_in(left).list[k]); k++)
+		    if (agtail(f) == agtail(e))
+			break;
+		if (f == NULL)
+		    f = virtual_edge(agtail(e), left, e);
+		while ((e0 = ND_out(right).list[0])) {
+		    keep_distinct_original_drawn(e0, f);
+		    merge_oneway(e0, f);
+		    delete_fast_edge(e0);
+		}
+		delete_fast_edge(e);
 	    }
-	    delete_fast_edge(e);
 	}
+	assert(ND_in(right).size + ND_out(right).size == 0);
+	delete_fast_node(g, right);
     }
-    assert(ND_in(right).size + ND_out(right).size == 0);
-    delete_fast_node(g, right);
 
+    int k = lpos + 1;
     for (int i = rpos + 1; i < GD_rank(g)[r].n; ++i) {
-	node_t *const n = GD_rank(g)[r].v[i - 1] = GD_rank(g)[r].v[i];
-	ND_order(n) = i - 1;
+	node_t *const n = GD_rank(g)[r].v[k] = GD_rank(g)[r].v[i];
+	ND_order(n) = k;
+	k++;
     }
-    GD_rank(g)[r].n--;
+    GD_rank(g)[r].n = k;
     GD_rank(g)[r].v[GD_rank(g)[r].n] = NULL;
 }
 
@@ -343,14 +347,14 @@ int dot_concentrate(graph_t *g) {
 	    left = GD_rank(g)[r].v[leftpos];
 	    if (!downcandidate(left))
 		continue;
-	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;) {
+	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
+		 rightpos++) {
 		right = GD_rank(g)[r].v[rightpos];
-		if (bothdowncandidates(left, right)) {
-		    mergevirtual_pair(g, r, leftpos, rightpos, DOWN);
-		    continue;
-		}
-		rightpos++;
+		if (!bothdowncandidates(left, right))
+		    break;
 	    }
+	    if (rightpos - leftpos > 1)
+		mergevirtual(g, r, leftpos, rightpos - 1, DOWN);
 	}
     }
     /* this is the corresponding upward pass */
@@ -359,14 +363,14 @@ int dot_concentrate(graph_t *g) {
 	    left = GD_rank(g)[r].v[leftpos];
 	    if (!upcandidate(left))
 		continue;
-	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;) {
+	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
+		 rightpos++) {
 		right = GD_rank(g)[r].v[rightpos];
-		if (bothupcandidates(left, right)) {
-		    mergevirtual_pair(g, r, leftpos, rightpos, UP);
-		    continue;
-		}
-		rightpos++;
+		if (!bothupcandidates(left, right))
+		    break;
 	    }
+	    if (rightpos - leftpos > 1)
+		mergevirtual(g, r, leftpos, rightpos - 1, UP);
 	}
 	r--;
     }
