@@ -5743,6 +5743,26 @@ def test_concentrate_numeric_identity_matches_late_double_prefixes(splines: str)
     )
 
 
+def test_concentrate_color_list_identity_matches_parse_segs_fractions():
+    """multicolor() consumes parseSegs() normalized segment fractions."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                1,
+                'a -> b [dir=none color="red:blue"]',
+                'a -> b [dir=none color="red;0.5:blue;0.5"]',
+            ),
+            _edge_count_case(
+                1,
+                'b -> c [dir=none color="red;1:blue"]',
+                "b -> c [dir=none color=red]",
+            ),
+        ),
+    )
+
+
 def test_tapered_multicolor_arrow_fillcolor_is_renderable():
     """emit_edge_graphics() can render a tapered color-list arrow fill."""
 

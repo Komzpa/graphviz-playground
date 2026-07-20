@@ -43,6 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <util/agxbuf.h>
+#include <util/tokenize.h>
 
 #define ATTRIBUTE_COUNT(attributes)                                            \
   (sizeof(attributes) / sizeof((attributes)[0]))
@@ -55,6 +56,11 @@ typedef struct {
 typedef struct {
   char *text;
 } rendered_edge_identity_t;
+
+typedef struct {
+  strview_t color;
+  double fraction;
+} normalized_color_segment_t;
 
 typedef enum {
   ATTRIBUTE_DEFAULT_NONE,
@@ -312,42 +318,125 @@ static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
   return result == COLOR_OK;
 }
 
+static bool parse_color_segment_fraction(strview_t *segment,
+                                         double *fraction) {
+  const char *const separator = memchr(segment->data, ';', segment->size);
+  if (separator == NULL) {
+    *fraction = 0.0;
+    return true;
+  }
+
+  char *end = NULL;
+  const double parsed = strtod(separator + 1, &end);
+  if (end == separator + 1 || parsed < 0.0) {
+    return false;
+  }
+  segment->size = (size_t)(separator - segment->data);
+  *fraction = parsed;
+  return true;
+}
+
+static normalized_color_segment_t *
+normalized_color_segments(const char *color_list, size_t *segment_count) {
+  size_t capacity = 0;
+  for (tok_t t = tok(color_list, ":"); !tok_end(&t); tok_next(&t)) {
+    capacity++;
+  }
+  normalized_color_segment_t *segments =
+      gv_calloc(capacity, sizeof(*segments));
+  double left = 1.0;
+  size_t count = 0;
+  for (tok_t t = tok(color_list, ":"); !tok_end(&t); tok_next(&t)) {
+    strview_t color = tok_get(&t);
+    double fraction = 0.0;
+    if (!parse_color_segment_fraction(&color, &fraction)) {
+      free(segments);
+      *segment_count = 0;
+      return NULL;
+    }
+    if (fraction > left) {
+      fraction = left;
+    }
+    left -= fraction;
+    segments[count++] =
+        (normalized_color_segment_t){.color = color, .fraction = fraction};
+    if (left > -1E-5 && left < 1E-5) {
+      left = 0.0;
+      break;
+    }
+  }
+
+  if (left > 0.0) {
+    size_t empty_fraction_count = 0;
+    for (size_t i = 0; i < count; i++) {
+      if (segments[i].fraction <= 0.0) {
+        empty_fraction_count++;
+      }
+    }
+    if (empty_fraction_count > 0) {
+      const double delta = left / (double)empty_fraction_count;
+      for (size_t i = 0; i < count; i++) {
+        if (segments[i].fraction <= 0.0) {
+          segments[i].fraction = delta;
+        }
+      }
+    } else if (count > 0) {
+      segments[count - 1].fraction += left;
+    }
+  }
+
+  while (count > 0 && segments[count - 1].fraction <= 0.0) {
+    count--;
+  }
+  *segment_count = count;
+  return segments;
+}
+
+static void append_color_segment(agxbuf *rendered_list, strview_t color_name) {
+  agxbuf color_text = {0};
+  agxbput_n(&color_text, color_name.data, color_name.size);
+  gvcolor_t color;
+  if (colorxlate(agxbuse(&color_text), &color, RGBA_BYTE) == COLOR_OK) {
+    agxbprint(rendered_list, "#%02x%02x%02x%02x", color.u.rgba[0],
+              color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
+  } else {
+    agxbput_n(rendered_list, color_name.data, color_name.size);
+  }
+  agxbfree(&color_text);
+}
+
 static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
                                          const char *slot_name,
                                          const char *color_list) {
+  size_t segment_count = 0;
+  normalized_color_segment_t *const segments =
+      normalized_color_segments(color_list, &segment_count);
+  if (segments == NULL) {
+    append_plain_signature_slot(signature, slot_name, color_list);
+    return;
+  }
+
   agxbuf rendered_list = {0};
   char *const previous_color_scheme =
       setColorScheme(agget(edge, "colorscheme"));
 
-  for (const char *segment = color_list; segment != NULL;) {
-    const char *const separator = strchr(segment, ':');
-    const char *const segment_end =
-        separator == NULL ? segment + strlen(segment) : separator;
-    const char *const fraction = memchr(segment, ';', segment_end - segment);
-    const char *const color_end = fraction == NULL ? segment_end : fraction;
-
-    agxbuf color_name = {0};
-    agxbput_n(&color_name, segment, color_end - segment);
-    gvcolor_t color;
-    if (colorxlate(agxbuse(&color_name), &color, RGBA_BYTE) == COLOR_OK) {
-      agxbprint(&rendered_list, "#%02x%02x%02x%02x", color.u.rgba[0],
-                color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
-    } else {
-      agxbput_n(&rendered_list, segment, color_end - segment);
+  if (segment_count == 1 && segments[0].fraction > 1.0 - 1E-5 &&
+      segments[0].fraction < 1.0 + 1E-5) {
+    append_color_segment(&rendered_list, segments[0].color);
+  } else {
+    for (size_t i = 0; i < segment_count; i++) {
+      if (i > 0) {
+        agxbputc(&rendered_list, ':');
+      }
+      append_color_segment(&rendered_list, segments[i].color);
+      agxbprint(&rendered_list, ";%a", segments[i].fraction);
     }
-    agxbfree(&color_name);
-    agxbput_n(&rendered_list, color_end, segment_end - color_end);
-
-    if (separator == NULL) {
-      break;
-    }
-    agxbputc(&rendered_list, ':');
-    segment = separator + 1;
   }
 
   char *const restored_color_scheme = setColorScheme(previous_color_scheme);
   free(previous_color_scheme);
   free(restored_color_scheme);
+  free(segments);
   append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_list));
   agxbfree(&rendered_list);
 }
