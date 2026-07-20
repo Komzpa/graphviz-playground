@@ -172,8 +172,64 @@ static bool arrow_shape_uses_fillcolor(uint32_t shape_flags) {
   return false;
 }
 
+static bool explicit_edge_fillcolor(Agedge_t *edge) {
+  Agraph_t *const root_graph = agroot(agraphof(edge));
+  Agsym_t *const fillcolor_attribute = agfindedgeattr(root_graph, "fillcolor");
+  if (fillcolor_attribute == NULL) {
+    return false;
+  }
+  return agxget(edge, fillcolor_attribute)[0] != '\0';
+}
+
+static char *color_list_endpoint_color(char *color_list,
+                                       edge_arrow_endpoint_t endpoint) {
+  char *const colors = gv_strdup(color_list);
+  char *first = NULL;
+  char *second = NULL;
+  size_t index = 0;
+  for (char *color = strtok(colors, ":"); color != NULL;
+       color = strtok(NULL, ":"), index++) {
+    if (index == 0) {
+      first = color;
+    } else if (index == 1) {
+      second = color;
+      break;
+    }
+  }
+
+  const char *const endpoint_color =
+      endpoint == EDGE_ARROW_START && second != NULL ? second : first;
+  char *const result =
+      endpoint_color == NULL || endpoint_color[0] == '\0'
+          ? gv_strdup(DEFAULT_COLOR)
+          : gv_strdup(endpoint_color);
+  free(colors);
+  return result;
+}
+
+static void resolve_arrow_fillcolor(arrow_decoration_t *decoration,
+                                    Agedge_t *edge, const char *fillcolor) {
+  if (decoration->fillcolor_is_html || fillcolor == NULL ||
+      strchr(fillcolor, ':') != NULL) {
+    return;
+  }
+
+  gvcolor_t color;
+  char *const previous_color_scheme = setColorScheme(agget(edge, "colorscheme"));
+  const int result = colorxlate(fillcolor, &color, RGBA_BYTE);
+  char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+  free(previous_color_scheme);
+  free(restored_color_scheme);
+  if (result == COLOR_OK) {
+    decoration->fillcolor_is_rgba = true;
+    memcpy(decoration->fillcolor_rgba, color.u.rgba,
+           sizeof(decoration->fillcolor_rgba));
+  }
+}
+
 static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
-                                                uint32_t shape_flags) {
+                                                uint32_t shape_flags,
+                                                edge_arrow_endpoint_t endpoint) {
   if (shape_flags == 0) {
     return (arrow_decoration_t){0};
   }
@@ -200,22 +256,17 @@ static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
       }
     }
     decoration.fillcolor_affects_identity = tapered;
+    if (!tapered && !explicit_edge_fillcolor(edge)) {
+      char *const endpoint_color =
+          color_list_endpoint_color((char *)spline_color, endpoint);
+      resolve_arrow_fillcolor(&decoration, edge, endpoint_color);
+      free(endpoint_color);
+      return decoration;
+    }
   }
 
-  if (!decoration.fillcolor_is_html && decoration.fillcolor[0] != '\0' &&
-      strchr(decoration.fillcolor, ':') == NULL) {
-    gvcolor_t color;
-    char *const previous_color_scheme =
-        setColorScheme(agget(edge, "colorscheme"));
-    const int result = colorxlate(decoration.fillcolor, &color, RGBA_BYTE);
-    char *const restored_color_scheme = setColorScheme(previous_color_scheme);
-    free(previous_color_scheme);
-    free(restored_color_scheme);
-    if (result == COLOR_OK) {
-      decoration.fillcolor_is_rgba = true;
-      memcpy(decoration.fillcolor_rgba, color.u.rgba,
-             sizeof(decoration.fillcolor_rgba));
-    }
+  if (decoration.fillcolor[0] != '\0') {
+    resolve_arrow_fillcolor(&decoration, edge, decoration.fillcolor);
   }
   return decoration;
 }
@@ -227,8 +278,9 @@ static void own_edge_arrow_decorations(
   uint32_t end_flags;
   edge_arrow_flags(edge, &start_flags, &end_flags);
   decorations[EDGE_ARROW_START] =
-      edge_arrow_decoration(edge, start_flags);
-  decorations[EDGE_ARROW_END] = edge_arrow_decoration(edge, end_flags);
+      edge_arrow_decoration(edge, start_flags, EDGE_ARROW_START);
+  decorations[EDGE_ARROW_END] =
+      edge_arrow_decoration(edge, end_flags, EDGE_ARROW_END);
 }
 
 static void accumulated_edge_arrow_decorations(

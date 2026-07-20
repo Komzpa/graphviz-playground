@@ -6858,6 +6858,20 @@ def test_concentrate_borrowed_arrow_uses_candidate_colorscheme(
     assert _arrow_fill_color(drawn_edges[0], "t") == "#a6cee3"
 
 
+def test_concentrate_borrowed_reverse_arrow_uses_endpoint_segment_color():
+    """A borrowed color-list arrow keeps the candidate endpoint's segment color."""
+
+    borrowed_segment_arrow = _concentrated_graph(
+        "",
+        'a -> b [dir=none color="red:blue"]',
+        'b -> a [dir=forward color="blue:red"]',
+    )
+    drawn_edges = _drawn_edges(borrowed_segment_arrow)
+    assert len(drawn_edges) == 1
+    assert "_tdraw_" in drawn_edges[0]
+    assert _arrow_fill_color(drawn_edges[0], "t") == "#0000ff"
+
+
 def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Path, dict]:
     core = _find_plugin_so("core")
     dot_layout = _find_plugin_so("dot_layout")

@@ -2521,22 +2521,28 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    }
 		    gvrender_beziercurve(job, tmplist, tmpspl.list[i].size, 0);
 		}
-	    }
-	    if (bz.sflag) {
-		if (color != tailcolor) {
-		    color = tailcolor;
-	            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+		    }
+		    if (bz.sflag) {
+			if (use_edge_arrow_fillcolor &&
+			    edge_has_concentrated_arrow_decorations(e))
+			    tailcolor = edge_arrow_fillcolor(e, EDGE_ARROW_START);
+			if (color != tailcolor) {
+			    color = tailcolor;
+		            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
 		        gvrender_set_pencolor(job, color);
 		        gvrender_set_fillcolor(job, color);
 		    }
 		}
 		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
 			start_arrowsize, penwidth, bz.sflag);
-	    }
-	    if (bz.eflag) {
-		if (color != headcolor) {
-		    color = headcolor;
-	            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+		    }
+		    if (bz.eflag) {
+			if (use_edge_arrow_fillcolor &&
+			    edge_has_concentrated_arrow_decorations(e))
+			    headcolor = edge_arrow_fillcolor(e, EDGE_ARROW_END);
+			if (color != headcolor) {
+			    color = headcolor;
+		            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
 		        gvrender_set_pencolor(job, color);
 		        gvrender_set_fillcolor(job, color);
 		    }
