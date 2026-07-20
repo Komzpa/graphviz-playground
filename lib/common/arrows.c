@@ -146,6 +146,32 @@ static char *effective_edge_arrow_fillcolor(Agedge_t *edge, bool *is_html) {
   return (char *)DEFAULT_COLOR;
 }
 
+static bool arrow_shape_uses_fillcolor(uint32_t shape_flags) {
+  for (int i = 0; i < NUMB_OF_ARROW_HEADS; i++) {
+    const uint32_t arrow =
+        (shape_flags >> (i * BITS_PER_ARROW)) & ((1 << BITS_PER_ARROW) - 1);
+    const uint32_t type = arrow & ((1 << BITS_PER_ARROW_TYPE) - 1);
+    if (type == ARR_TYPE_NONE || type == ARR_TYPE_GAP ||
+        type == ARR_TYPE_CURVE) {
+      continue;
+    }
+    if (type == ARR_TYPE_TEE) {
+      return true;
+    }
+    if (type == ARR_TYPE_NORM || type == ARR_TYPE_BOX ||
+        type == ARR_TYPE_DIAMOND || type == ARR_TYPE_DOT) {
+      if ((arrow & ARR_MOD_OPEN) == 0) {
+        return true;
+      }
+      continue;
+    }
+    if (type == ARR_TYPE_CROW) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
                                                 uint32_t shape_flags) {
   if (shape_flags == 0) {
@@ -155,7 +181,7 @@ static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
   arrow_decoration_t decoration = {
       .shape_flags = shape_flags,
       .arrowsize = late_double(edge, E_arrowsz, 1.0, 0.0),
-      .fillcolor_affects_identity = true,
+      .fillcolor_affects_identity = arrow_shape_uses_fillcolor(shape_flags),
   };
   decoration.fillcolor = effective_edge_arrow_fillcolor(
       edge, &decoration.fillcolor_is_html);

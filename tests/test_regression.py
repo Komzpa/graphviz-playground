@@ -6388,6 +6388,29 @@ def test_concentrate_matches_equivalent_color_spellings(splines: str):
     assert _drawn_edge_colors(fillcolor_defaults_to_color) == ["#ff0000"]
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_arrow_fillcolor_only_gates_filled_shapes(splines: str):
+    """arrow_gen() consumes fillcolor only for shapes that render filled marks."""
+
+    unfilled_arrows = _concentrated_graph(
+        splines,
+        "a -> b [arrowhead=onormal fillcolor=red]",
+        "a -> b [arrowhead=onormal fillcolor=blue]",
+        "b -> c [arrowhead=curve fillcolor=red]",
+        "b -> c [arrowhead=curve fillcolor=blue]",
+    )
+    assert len(_drawn_edges(unfilled_arrows)) == 2
+
+    filled_arrows = _concentrated_graph(
+        splines,
+        "a -> b [arrowhead=normal fillcolor=red]",
+        "a -> b [arrowhead=normal fillcolor=blue]",
+        "b -> c [arrowhead=tee fillcolor=red]",
+        "b -> c [arrowhead=tee fillcolor=blue]",
+    )
+    assert len(_drawn_edges(filled_arrows)) == 4
+
+
 @pytest.mark.parametrize(
     ("attribute", "first_value", "second_value"),
     (
