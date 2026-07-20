@@ -108,7 +108,7 @@ typedef struct {
 
 typedef struct {
   bool found : 1;
-  bool composed : 1;
+  bool owner_prefixed : 1;
   attribute_identity_t identity;
   const edge_attribute_facts_t *facts;
   const char *name;
@@ -117,7 +117,7 @@ typedef struct {
 
 /*
  * Only residual attributes still consumed as text by layout or emission belong
- * here. Owner-prefix + kind-stem names are parsed into typed identities below.
+ * here. Owner-prefixed names are parsed into typed identities below.
  * Parsed labels, fonts, ports, and arrow decorations are projected from their
  * renderer-owned structures instead. Unknown attributes are not rendered and
  * therefore do not contribute identity.
@@ -198,7 +198,7 @@ edge_attribute_kind_facts(attribute_kind_t kind) {
 static edge_attribute_classification_t
 edge_attribute_classification(const char *name) {
   attribute_identity_t identity;
-  if (parse_composed_attribute_name(name, &identity)) {
+  if (parse_owner_prefixed_attribute_name(name, &identity)) {
     const edge_attribute_facts_t *const facts =
         edge_attribute_kind_facts(identity.kind);
     if (facts == NULL || (identity.kind == ATTRIBUTE_KIND_CLIP &&
@@ -208,7 +208,7 @@ edge_attribute_classification(const char *name) {
     }
     return (edge_attribute_classification_t){
         .found = true,
-        .composed = true,
+        .owner_prefixed = true,
         .identity = identity,
         .facts = facts,
         .name = name,

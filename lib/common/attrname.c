@@ -46,8 +46,8 @@ static bool parse_attribute_kind(const char *stem, attribute_kind_t *kind) {
   return false;
 }
 
-bool parse_composed_attribute_name(const char *name,
-                                   attribute_identity_t *identity) {
+bool parse_owner_prefixed_attribute_name(const char *name,
+                                         attribute_identity_t *identity) {
   for (size_t i = 0; i < sizeof(attribute_owner_prefixes) /
                              sizeof(attribute_owner_prefixes[0]);
        i++) {

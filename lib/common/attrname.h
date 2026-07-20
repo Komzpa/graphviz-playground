@@ -26,8 +26,8 @@ typedef struct {
   attribute_kind_t kind;
 } attribute_identity_t;
 
-bool parse_composed_attribute_name(const char *name,
-                                   attribute_identity_t *identity);
+bool parse_owner_prefixed_attribute_name(const char *name,
+                                         attribute_identity_t *identity);
 const char *attribute_owner_prefix(attribute_owner_t owner);
 const char *attribute_kind_canonical_stem(attribute_kind_t kind);
 const char *attribute_kind_url_alias_stem(attribute_kind_t kind);
