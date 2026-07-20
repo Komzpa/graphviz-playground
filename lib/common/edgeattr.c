@@ -332,8 +332,7 @@ static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
   return result == COLOR_OK;
 }
 
-static bool parse_color_segment_fraction(strview_t *segment,
-                                         double *fraction) {
+static bool parse_color_segment_fraction(strview_t *segment, double *fraction) {
   const char *const separator = memchr(segment->data, ';', segment->size);
   if (separator == NULL) {
     *fraction = 0.0;
@@ -356,8 +355,7 @@ normalized_color_segments(const char *color_list, size_t *segment_count) {
   for (tok_t t = tok(color_list, ":"); !tok_end(&t); tok_next(&t)) {
     capacity++;
   }
-  normalized_color_segment_t *segments =
-      gv_calloc(capacity, sizeof(*segments));
+  normalized_color_segment_t *segments = gv_calloc(capacity, sizeof(*segments));
   double left = 1.0;
   size_t count = 0;
   for (tok_t t = tok(color_list, ":"); !tok_end(&t); tok_next(&t)) {
@@ -600,16 +598,17 @@ static bool style_setlinewidth_value(const char *style, double *penwidth) {
   return false;
 }
 
-static bool edge_projected_penwidth(edge_attribute_classification_t classification,
-                                    comparable_attribute_value_t value,
-                                    Agedge_t *edge, double *penwidth) {
+static bool
+edge_projected_penwidth(edge_attribute_classification_t classification,
+                        comparable_attribute_value_t value, Agedge_t *edge,
+                        double *penwidth) {
   if (!classification.found ||
       classification.facts->default_kind != ATTRIBUTE_DEFAULT_ONE) {
     return false;
   }
   if (strcmp(classification.name, "penwidth") == 0 && value.text[0] == '\0' &&
-      !value.is_html && style_setlinewidth_value(agget(edge, "style"),
-                                                 penwidth)) {
+      !value.is_html &&
+      style_setlinewidth_value(agget(edge, "style"), penwidth)) {
     return true;
   }
   return edge_numeric_projected_value(classification, value, penwidth);
@@ -632,10 +631,9 @@ static void append_style_value(agxbuf *signature, const char *slot_name,
     }
     agxbput(&rendered_style, *item);
   }
-  append_plain_signature_slot(signature, slot_name,
-                              agxblen(&rendered_style) == 0
-                                  ? "solid"
-                                  : agxbuse(&rendered_style));
+  append_plain_signature_slot(
+      signature, slot_name,
+      agxblen(&rendered_style) == 0 ? "solid" : agxbuse(&rendered_style));
   agxbfree(&rendered_style);
 }
 
@@ -1158,8 +1156,7 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
                 attribute_owner_slot_name(canonical_owner),
                 hyperlink_value_kind_name(kind));
       if (kind == HYPERLINK_VALUE_TOOLTIP && tooltip_uses_fallback) {
-        append_plain_signature_slot(signature, agxbuse(&slot_name),
-                                    value.text);
+        append_plain_signature_slot(signature, agxbuse(&slot_name), value.text);
       } else if (kind == HYPERLINK_VALUE_TOOLTIP && !tooltip_uses_fallback) {
         char *const preprocessed = preprocessTooltip((char *)value.text, edge);
         char *const substituted = strdup_and_subst_obj(preprocessed, edge);
@@ -1234,8 +1231,7 @@ static node_t *sameport_node(Agedge_t *edge, const char *attribute_name) {
   return NULL;
 }
 
-static bool sameport_group_has_multiple_members(Agraph_t *graph,
-                                                Agedge_t *edge,
+static bool sameport_group_has_multiple_members(Agraph_t *graph, Agedge_t *edge,
                                                 const char *attribute_name) {
   Agsym_t *const attribute = agfindedgeattr(graph, (char *)attribute_name);
   if (attribute == NULL) {
@@ -1291,8 +1287,8 @@ static void append_endpoint_attribute_slots(agxbuf *signature,
         !sameport_group_has_multiple_members(root_graph, edge, source_name)) {
       continue;
     }
-    append_projected_attribute_value(
-        signature, root_graph, edge, exception->name, source_name);
+    append_projected_attribute_value(signature, root_graph, edge,
+                                     exception->name, source_name);
   }
 
   for (attribute_owner_t canonical_owner = ATTRIBUTE_OWNER_HEAD;

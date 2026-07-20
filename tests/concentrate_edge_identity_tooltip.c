@@ -53,21 +53,19 @@ int main(int argc, char **argv) {
   assert(argc == 2);
 
   if (strcmp(argv[1], "parsed-label-fallback") == 0) {
-    const char *source =
-        "digraph {"
-        "  a -> b [URL=\"u\" label=\"\\T\"];"
-        "  a -> b [URL=\"u\" label=\"a\" tooltip=\"a\"];"
-        "}";
+    const char *source = "digraph {"
+                         "  a -> b [URL=\"u\" label=\"\\T\"];"
+                         "  a -> b [URL=\"u\" label=\"a\" tooltip=\"a\"];"
+                         "}";
     assert(compare_edges(source));
     return 0;
   }
 
   if (strcmp(argv[1], "xlabel-no-fallback") == 0) {
-    const char *source =
-        "digraph {"
-        "  a -> b [URL=\"u\" xlabel=\"x\"];"
-        "  a -> b [URL=\"u\" xlabel=\"x\" tooltip=\"x\"];"
-        "}";
+    const char *source = "digraph {"
+                         "  a -> b [URL=\"u\" xlabel=\"x\"];"
+                         "  a -> b [URL=\"u\" xlabel=\"x\" tooltip=\"x\"];"
+                         "}";
     assert(!compare_edges(source));
     return 0;
   }
