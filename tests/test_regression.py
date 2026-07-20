@@ -5868,6 +5868,38 @@ def test_concentrate_preserves_explicit_endpoint_tooltips_without_labels():
     assert len(_drawn_edges(rendered_label_tooltips)) == 2
 
 
+def test_concentrate_preserves_taper_direction_without_arrowheads():
+    """taperfun() uses dir even when both arrow decorations are absent."""
+
+    distinct_tapers = _concentrated_graph(
+        "",
+        "a -> b [style=tapered dir=none]",
+        "a -> b [style=tapered dir=forward arrowhead=none]",
+    )
+    assert len(_drawn_edges(distinct_tapers)) == 2
+
+    equal_tapers = _concentrated_graph(
+        "",
+        "a -> b [style=tapered dir=forward arrowhead=none]",
+        "a -> b [style=tapered dir=forward arrowhead=none]",
+    )
+    assert len(_drawn_edges(equal_tapers)) == 1
+
+    default_forward_tapers = _concentrated_graph(
+        "",
+        "a -> b [style=tapered arrowhead=none]",
+        "a -> b [style=tapered dir=forward arrowhead=none]",
+    )
+    assert len(_drawn_edges(default_forward_tapers)) == 1
+
+    arrowless_lines = _concentrated_graph(
+        "",
+        "a -> b [dir=none]",
+        "a -> b [dir=forward arrowhead=none]",
+    )
+    assert len(_drawn_edges(arrowless_lines)) == 1
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_merges_equivalent_parallel_edges(splines: str):
     """Equivalent edges share one route even when input order separates them."""

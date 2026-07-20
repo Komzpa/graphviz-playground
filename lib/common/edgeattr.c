@@ -625,6 +625,47 @@ static void append_ordinary_attribute_slots(agxbuf *signature,
   }
 }
 
+static bool edge_uses_tapered_style(Agedge_t *edge) {
+  char *const style = agget(edge, "style");
+  if (style == NULL || style[0] == '\0') {
+    return false;
+  }
+  for (char **item = parse_style(style); *item != NULL; item++) {
+    if (strcmp(*item, "tapered") == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void append_taper_direction_slot(agxbuf *signature, Agedge_t *edge,
+                                        bool reverse_orientation) {
+  if (!edge_uses_tapered_style(edge)) {
+    return;
+  }
+
+  const char *direction = agget(edge, "dir");
+  if (direction == NULL ||
+      (strcmp(direction, "forward") != 0 && strcmp(direction, "back") != 0 &&
+       strcmp(direction, "both") != 0 && strcmp(direction, "none") != 0)) {
+    direction = agisdirected(agraphof(edge)) ? "forward" : "none";
+  }
+  if (reverse_orientation) {
+    if (strcmp(direction, "forward") == 0) {
+      direction = "back";
+    } else if (strcmp(direction, "back") == 0) {
+      direction = "forward";
+    }
+  }
+
+  /*
+   * An arrowless tapered edge has an empty decoration record, but taperfun()
+   * still consumes dir. Keep direction in the core identity only while the
+   * tapered renderer consumes it, so ordinary arrowless edges remain equal.
+   */
+  append_plain_signature_slot(signature, "taper:direction", direction);
+}
+
 static void append_endpoint_attribute_slots(agxbuf *signature,
                                             Agraph_t *root_graph,
                                             Agedge_t *edge,
@@ -961,6 +1002,7 @@ project_rendered_edge_identity(Agedge_t *edge, bool reverse_orientation) {
   append_structured_label_slots(&signature, edge, reverse_orientation);
   append_structured_port_slots(&signature, edge, reverse_orientation);
   append_ordinary_attribute_slots(&signature, root_graph, edge);
+  append_taper_direction_slot(&signature, edge, reverse_orientation);
   append_endpoint_attribute_slots(&signature, root_graph, edge,
                                   reverse_orientation);
   append_hyperlink_slots(&signature, root_graph, edge, reverse_orientation);
