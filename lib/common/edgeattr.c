@@ -642,7 +642,7 @@ static bool style_setlinewidth_value(const char *style, double *penwidth) {
     const char *const argument = *item + strlen(*item) + 1;
     const double parsed = strtod(argument, &end);
     if (end != argument) {
-      *penwidth = parsed < 0.0 ? 0.0 : parsed;
+      *penwidth = parsed;
       found = true;
     }
   }
