@@ -129,13 +129,15 @@ void merge_chain(graph_t *graph, edge_t *original_edge,
     /* interclust multi-edges are not counted now */
     if (update_count) {
       ED_count(representative_edge) += ED_count(original_edge);
+      ED_xpenalty(representative_edge) += ED_xpenalty(original_edge);
+      ED_weight(representative_edge) += ED_weight(original_edge);
     }
-    ED_xpenalty(representative_edge) += ED_xpenalty(original_edge);
-    ED_weight(representative_edge) += ED_weight(original_edge);
     if (ND_rank(aghead(representative_edge)) == last_rank) {
       break;
     }
-    widen_virtual_node(graph, aghead(representative_edge));
+    if (update_count) {
+      widen_virtual_node(graph, aghead(representative_edge));
+    }
     representative_edge = ND_out(aghead(representative_edge)).list[0];
   } while (representative_edge != NULL);
 }
@@ -271,7 +273,7 @@ static bool route_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
     return false;
   }
 
-  merge_chain(graph, edge, ED_to_virt(representative_edge), true);
+  merge_chain(graph, edge, ED_to_virt(representative_edge), false);
   other_edge(edge);
   return true;
 }
@@ -360,7 +362,7 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
                               aghead(fallback_route_edge), fallback_route_edge);
     }
     other_edge(backward_edge);
-    merge_chain(graph, backward_edge, ED_to_virt(fallback_route_edge), true);
+    merge_chain(graph, backward_edge, ED_to_virt(fallback_route_edge), false);
     return true;
   }
   return false;
