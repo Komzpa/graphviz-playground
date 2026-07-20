@@ -97,6 +97,8 @@ and this project adheres to
   ports. #449
 - An out-of-bounds read while routing certain flat labeled edges no longer
   causes a crash. #2757
+- Processing clustered graphs no longer dereferences freed
+  rankleaders. #2760
 
 ## [15.1.0] – 2026-06-17
 
