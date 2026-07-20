@@ -1317,6 +1317,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   static atomic_flag warned;
 
   tn = agtail(e0), hn = aghead(e0);
+  node_t *const physical_tail = tn;
   if (shapeOf(tn) == SH_RECORD || shapeOf(hn) == SH_RECORD) {
     if (!atomic_flag_test_and_set(&warned)) {
       agwarningf("flat edge between adjacent nodes one of which has a record "
@@ -1382,7 +1383,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   GD_dotroot(auxg) = auxg;
   setEdgeType(auxg, et);
   dot_init_node_edge(auxg);
-  restore_flat_edge_ports(edges, cnt, tn);
+  restore_flat_edge_ports(edges, cnt, physical_tail);
 
   dot_rank(auxg);
   const int r = dot_mincross(auxg);
@@ -1410,7 +1411,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       ND_coord(n).y = midx;
   }
   dot_sameports(auxg);
-  restore_flat_edge_ports(edges, cnt, tn);
+  restore_flat_edge_ports(edges, cnt, physical_tail);
   const int rc = dot_splines_(auxg, 0);
   if (rc != 0) {
     return rc;

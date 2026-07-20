@@ -7082,6 +7082,25 @@ def test_flat_grouped_routes_depart_outward(concentrate: bool):
         _assert_endpoint_departure(layout, edge, "tail")
 
 
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_flat_grouped_routes_preserve_head_direction_under_rankdir_flip(
+    concentrate: bool,
+):
+    """restore_flat_edge_ports() sees physical tails after rankdir=LR swapping."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()} rankdir=LR]
+          {{ rank=same; z; a; b; }}
+          z -> a [samehead=x]
+          z -> b [samehead=x]
+        }}
+    """
+    layout = json.loads(dot("json", source=source))
+    for edge in (edge for edge in layout["edges"] if "_draw_" in edge):
+        _assert_endpoint_departure(layout, edge, "head")
+
+
 def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
     """A short merged flat route arcs enough for both endpoint arrows."""
 
