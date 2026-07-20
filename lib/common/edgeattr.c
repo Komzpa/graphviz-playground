@@ -501,9 +501,24 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
 
   agxbuf slot_name = {0};
   agxbprint(&slot_name, "%s:text", slot_prefix);
-  append_signature_slot(signature, agxbuse(&slot_name),
-                        (comparable_attribute_value_t){.text = label->text,
-                                                       .is_html = label->html});
+  if (label->html) {
+    append_signature_slot(
+        signature, agxbuse(&slot_name),
+        (comparable_attribute_value_t){.text = label->text, .is_html = true});
+  } else {
+    agxbuf rendered_label = {0};
+    for (size_t i = 0; i < label->u.txt.nspans; i++) {
+      if (i > 0) {
+        agxbputc(&rendered_label, '\n');
+      }
+      agxbputc(&rendered_label, label->u.txt.span[i].just);
+      agxbputc(&rendered_label, ':');
+      agxbput(&rendered_label, label->u.txt.span[i].str);
+    }
+    append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                agxbuse(&rendered_label));
+    agxbfree(&rendered_label);
+  }
 
   agxbclear(&slot_name);
   agxbprint(&slot_name, "%s:fontname", slot_prefix);

@@ -6031,6 +6031,20 @@ def test_concentrate_setlinewidth_style_folds_into_penwidth(splines: str):
     )
 
 
+def test_concentrate_plain_label_identity_uses_compiled_text():
+    """Escaped and literal newlines render alike, but justification does not."""
+
+    same_rendered_label = _SAME_RANK_REVERSE_EDGES.replace(
+        "a -> b", 'a -> b [headlabel="a\nb"]'
+    ).replace("b -> a", 'b -> a [taillabel="a\\nb"]')
+    assert len(_drawn_edges(same_rendered_label)) == 1
+
+    different_justification = _SAME_RANK_REVERSE_EDGES.replace(
+        "a -> b", 'a -> b [headlabel="a\\lb"]'
+    ).replace("b -> a", 'b -> a [taillabel="a\\nb"]')
+    assert len(_drawn_edges(different_justification)) == 2
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_singleton_sameport_groups_do_not_affect_identity(splines: str):
     """dot_sameports() moves samehead/sametail ports only with >1 members."""
