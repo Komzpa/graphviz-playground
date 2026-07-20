@@ -145,8 +145,14 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 		f = virtual_edge(left, aghead(e), e);
 	    else
 		add_concentrated_segment_weight(e, f);
+	    ED_conc_suppressed_tail(e) = true;
+	    ED_conc_suppressed_head(e) = true;
+	    ED_conc_suppressed_tail(f) = true;
+	    ED_conc_suppressed_head(f) = true;
 	    while ((e0 = ND_in(right).list[0])) {
 		keep_distinct_original_drawn(e0, f);
+		ED_conc_suppressed_tail(e0) = true;
+		ED_conc_suppressed_head(e0) = true;
 		merge_oneway(e0, f);
 		delete_fast_edge(e0);
 	    }
@@ -162,8 +168,14 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 		f = virtual_edge(agtail(e), left, e);
 	    else
 		add_concentrated_segment_weight(e, f);
+	    ED_conc_suppressed_tail(e) = true;
+	    ED_conc_suppressed_head(e) = true;
+	    ED_conc_suppressed_tail(f) = true;
+	    ED_conc_suppressed_head(f) = true;
 	    while ((e0 = ND_out(right).list[0])) {
 		keep_distinct_original_drawn(e0, f);
+		ED_conc_suppressed_tail(e0) = true;
+		ED_conc_suppressed_head(e0) = true;
 		merge_oneway(e0, f);
 		delete_fast_edge(e0);
 	    }

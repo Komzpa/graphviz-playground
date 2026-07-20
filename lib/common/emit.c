@@ -2034,13 +2034,13 @@ static int multicolor(GVJ_t *job, edge_t *e, char **styles, const char *colors,
                  * If we have more splines to do, restore the old one.
                  * Use local copy of penwidth to work around reset.
                  */
-	if (bz.sflag) {
+	if (bz.sflag && !bz.suppress_sflag) {
     	    gvrender_set_pencolor(job, LIST_FRONT(&segs)->color);
     	    gvrender_set_fillcolor(job, LIST_FRONT(&segs)->color);
 	    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], start_arrowsize,
 	              penwidth, bz.sflag);
 	}
-	if (bz.eflag) {
+	if (bz.eflag && !bz.suppress_eflag) {
     	    gvrender_set_pencolor(job, endcolor);
     	    gvrender_set_fillcolor(job, endcolor);
 	    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], end_arrowsize,
@@ -2441,14 +2441,14 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
     	    gvrender_set_pencolor(job, color);
 	    if (fillcolor != color)
 		gvrender_set_fillcolor(job, fillcolor);
-	    if (bz.sflag) {
+	    if (bz.sflag && !bz.suppress_sflag) {
 		if (use_edge_arrow_fillcolor)
 		    gvrender_set_fillcolor(
 		        job, edge_arrow_fillcolor(e, EDGE_ARROW_START));
 		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], start_arrowsize,
 		          penwidth, bz.sflag);
 	    }
-	    if (bz.eflag) {
+	    if (bz.eflag && !bz.suppress_eflag) {
 		if (use_edge_arrow_fillcolor)
 		    gvrender_set_fillcolor(
 		        job, edge_arrow_fillcolor(e, EDGE_ARROW_END));
@@ -2522,7 +2522,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    gvrender_beziercurve(job, tmplist, tmpspl.list[i].size, 0);
 		}
 		    }
-		    if (bz.sflag) {
+		    if (bz.sflag && !bz.suppress_sflag) {
 			if (use_edge_arrow_fillcolor &&
 			    edge_has_concentrated_arrow_decorations(e))
 			    tailcolor = edge_arrow_fillcolor(e, EDGE_ARROW_START);
@@ -2536,7 +2536,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
 			start_arrowsize, penwidth, bz.sflag);
 		    }
-		    if (bz.eflag) {
+		    if (bz.eflag && !bz.suppress_eflag) {
 			if (use_edge_arrow_fillcolor &&
 			    edge_has_concentrated_arrow_decorations(e))
 			    headcolor = edge_arrow_fillcolor(e, EDGE_ARROW_END);
@@ -2688,14 +2688,14 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    gvrender_beziercurve(job, bz.list, bz.size, 0);
 		}
 
-		if (bz.sflag) {
+		if (bz.sflag && !bz.suppress_sflag) {
 		    if (use_edge_arrow_fillcolor)
 			gvrender_set_fillcolor(
 			    job, edge_arrow_fillcolor(e, EDGE_ARROW_START));
 		    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
 		              start_arrowsize, penwidth, bz.sflag);
 		}
-		if (bz.eflag) {
+		if (bz.eflag && !bz.suppress_eflag) {
 		    if (use_edge_arrow_fillcolor)
 			gvrender_set_fillcolor(
 			    job, edge_arrow_fillcolor(e, EDGE_ARROW_END));
