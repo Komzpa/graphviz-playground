@@ -171,6 +171,8 @@ static void interclexp(graph_t * subg)
 
 	    /* canonicalize edge */
 	    e = AGMKOUT(e);
+	    if (ED_edge_type(e) == IGNORED)
+		continue;
 	    /* short/flat multi edges */
 	    if (mergeable(prev, e)) {
 		if (ND_rank(agtail(e)) == ND_rank(aghead(e)))
