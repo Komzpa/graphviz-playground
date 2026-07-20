@@ -5155,6 +5155,29 @@ def _route_x_coordinates(edge: dict) -> tuple[float, ...]:
     return tuple(point[0] for point in bezier["points"])
 
 
+def _sample_bezier_points(
+    points: list[list[float]],
+) -> Iterator[tuple[float, float]]:
+    """Sample every cubic segment in one xdot Bezier operation."""
+
+    for start in range(0, len(points) - 1, 3):
+        control = points[start : start + 4]
+        assert len(control) == 4
+        for step in range(1001):
+            t = step / 1000
+            u = 1 - t
+            yield (
+                u**3 * control[0][0]
+                + 3 * u**2 * t * control[1][0]
+                + 3 * u * t**2 * control[2][0]
+                + t**3 * control[3][0],
+                u**3 * control[0][1]
+                + 3 * u**2 * t * control[1][1]
+                + 3 * u * t**2 * control[2][1]
+                + t**3 * control[3][1],
+            )
+
+
 def _assert_distinct_drawn_edge_routes(source: str, expected_count: int) -> None:
     """Assert the number of distinct visible routes in a graph."""
 
@@ -5625,6 +5648,20 @@ _SHARED_TRUNK_FIXTURE = """
 """
 
 
+_BACKWARD_PARALLEL_COLORS_FIXTURE = """
+    digraph {
+      graph [concentrate=true, ranksep=1.2]
+      node [shape=circle, width=0.45, fixedsize=true]
+      edge [arrowsize=0.8, penwidth=3]
+      b -> c [style=invis]
+      c -> a [style=invis]
+      a -> b [constraint=false, color=red]
+      a -> b [constraint=false, color=blue]
+      a -> b [constraint=false, color=red]
+    }
+"""
+
+
 def test_concentrate_shared_trunk_keeps_distinct_colored_routes():
     """dot_concentrate() keeps each distinct tail-to-head route complete."""
 
@@ -5711,21 +5748,41 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
 def test_concentrate_multiedge_arrowheads_follow_shaft_tangents():
     """Arrow axes follow the terminal control arms of concentrated multiedges."""
 
-    source = """
-        digraph {
-          graph [concentrate=true, ranksep=1.2]
-          node [shape=circle, width=0.45, fixedsize=true]
-          edge [arrowsize=0.8, penwidth=3]
-          b -> c [style=invis]
-          c -> a [style=invis]
-          a -> b [constraint=false, color=red]
-          a -> b [constraint=false, color=blue]
-          a -> b [constraint=false, color=red]
-        }
-    """
-    drawn_edges = _drawn_edges(source)
+    drawn_edges = _drawn_edges(_BACKWARD_PARALLEL_COLORS_FIXTURE)
     assert len(drawn_edges) == 2
     assert max(_arrowhead_shaft_angle(edge) for edge in drawn_edges) <= 0.1
+
+
+def test_concentrate_multiedge_routes_clear_non_endpoint_nodes():
+    """Separated route strokes remain outside every non-endpoint node."""
+
+    layout = json.loads(dot("json", source=_BACKWARD_PARALLEL_COLORS_FIXTURE))
+    nodes = {node["_gvid"]: node for node in layout["objects"]}
+    for edge in (edge for edge in layout["edges"] if "_draw_" in edge):
+        endpoints = {edge["tail"], edge["head"]}
+        penwidth = float(edge.get("penwidth", 1))
+        sampled_points = (
+            point
+            for operation in edge["_draw_"]
+            if operation["op"] == "b"
+            for point in _sample_bezier_points(operation["points"])
+        )
+        points = tuple(sampled_points)
+        for node_id, node in nodes.items():
+            if node_id in endpoints:
+                continue
+            ellipse = next(
+                operation["rect"]
+                for operation in node["_draw_"]
+                if operation["op"] == "e"
+            )
+            center_x, center_y, radius_x, radius_y = ellipse
+            assert radius_x == pytest.approx(radius_y)
+            clearance = min(
+                math.hypot(x - center_x, y - center_y) - radius_x - penwidth / 2
+                for x, y in points
+            )
+            assert clearance >= 0.5, (edge["color"], node["name"], clearance)
 
 
 def test_unconcentrated_single_edge_arrowhead_angle_is_unchanged():

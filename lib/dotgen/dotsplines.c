@@ -16,6 +16,9 @@
 
 #include <assert.h>
 #include <common/boxes.h>
+#include <common/geomprocs.h>
+#include <common/globals.h>
+#include <common/utils.h>
 #include <dotgen/dot.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -37,6 +40,9 @@
 
 #define MINW 16 /* minimum width of a box in the edge path */
 #define HALFMINW 8
+
+#define MULTIEDGE_NODE_MARGIN 0.5
+#define MULTIEDGE_BEZIER_FLATNESS 0.01
 
 #define FWDEDGE 16
 #define BWDEDGE 32
@@ -1783,6 +1789,90 @@ static void align_multiedge_arrow_tangents(graph_t *g, edge_t *edge) {
     update_bb_bz(&GD_bb(g), &spline->list[i]);
 }
 
+static bool bezier_intersects_box(const pointf control[4], boxf obstacle) {
+  boxf control_box = {.LL = control[0], .UR = control[0]};
+  for (size_t i = 1; i < 4; i++)
+    expandbp(&control_box, control[i]);
+  if (!boxf_overlap(control_box, obstacle))
+    return false;
+
+  const double flatness_squared =
+      MULTIEDGE_BEZIER_FLATNESS * MULTIEDGE_BEZIER_FLATNESS;
+  if (ptToLine2(control[0], control[3], control[1]) <= flatness_squared &&
+      ptToLine2(control[0], control[3], control[2]) <= flatness_squared)
+    return lineToBox(control[0], control[3], obstacle) != -1;
+
+  pointf left[4];
+  pointf right[4];
+  Bezier(control, 0.5, left, right);
+  return bezier_intersects_box(left, obstacle) ||
+         bezier_intersects_box(right, obstacle);
+}
+
+static bool shifted_route_intersects_box(const points_t *points, double offset,
+                                         boxf obstacle) {
+  assert(LIST_SIZE(points) % 3 == 1);
+  for (size_t start = 0; start + 3 < LIST_SIZE(points); start += 3) {
+    pointf control[4];
+    for (size_t i = 0; i < 4; i++) {
+      const size_t index = start + i;
+      control[i] = LIST_GET(points, index);
+      if (index > 0 && index + 1 < LIST_SIZE(points))
+        control[i].x += offset;
+    }
+    if (bezier_intersects_box(control, obstacle))
+      return true;
+  }
+  return false;
+}
+
+static bool shifted_route_clears_nodes(graph_t *g, edge_t *edge,
+                                       const points_t *points, double offset) {
+  edge = getmainedge(edge);
+  const double clearance =
+      late_double(edge, E_penwidth, 1.0, 0.0) / 2 + MULTIEDGE_NODE_MARGIN;
+  const node_t *const tail = agtail(edge);
+  const node_t *const head = aghead(edge);
+
+  for (node_t *node = agfstnode(g); node; node = agnxtnode(g, node)) {
+    if (node == tail || node == head || ND_node_type(node) != NORMAL)
+      continue;
+    const boxf obstacle = {
+        .LL = {ND_coord(node).x - ND_lw(node) - clearance,
+               ND_coord(node).y - ND_ht(node) / 2 - clearance},
+        .UR = {ND_coord(node).x + ND_rw(node) + clearance,
+               ND_coord(node).y + ND_ht(node) / 2 + clearance},
+    };
+    if (shifted_route_intersects_box(points, offset, obstacle))
+      return false;
+  }
+  return true;
+}
+
+static double constrain_multiedge_offset(graph_t *g, edge_t *edge,
+                                         const points_t *points,
+                                         double requested) {
+  if (shifted_route_clears_nodes(g, edge, points, requested))
+    return requested;
+
+  // The center route already passed through the node-aware path router. If it
+  // does not provide the requested stroke clearance, the displacement did not
+  // cause the conflict and contracting it cannot reliably solve the problem.
+  if (!shifted_route_clears_nodes(g, edge, points, 0))
+    return requested;
+
+  double safe = 0;
+  double unsafe = requested;
+  while (fabs(unsafe - safe) > MULTIEDGE_BEZIER_FLATNESS) {
+    const double candidate = (safe + unsafe) / 2;
+    if (shifted_route_clears_nodes(g, edge, points, candidate))
+      safe = candidate;
+    else
+      unsafe = candidate;
+  }
+  return safe;
+}
+
 static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
                               edge_t **edges, unsigned cnt, int et) {
   node_t *tn, *hn;
@@ -1969,28 +2059,31 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     return;
   }
   const double dx = sp->Multisep * (cnt - 1) / 2;
-  for (size_t k = 1; k + 1 < LIST_SIZE(&pointfs); k++)
-    LIST_AT(&pointfs, k)->x -= dx;
-
-  for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
-    LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
-  LIST_SYNC(&pointfs2);
-  clip_and_install(fe, hn, LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2), &sinfo);
-  align_multiedge_arrow_tangents(g, fe);
-  for (unsigned j = 1; j < cnt; j++) {
-    e = edges[j];
-    if (ED_tree_index(e) & BWDEDGE) {
-      makefwdedge(&fwdedge.out, e);
-      e = &fwdedge.out;
+  for (unsigned j = 0; j < cnt; j++) {
+    node_t *install_head;
+    if (j == 0) {
+      e = fe;
+      install_head = hn;
+    } else {
+      e = edges[j];
+      if (ED_tree_index(e) & BWDEDGE) {
+        makefwdedge(&fwdedge.out, e);
+        e = &fwdedge.out;
+      }
+      install_head = aghead(e);
     }
-    for (size_t k = 1; k + 1 < LIST_SIZE(&pointfs); k++)
-      LIST_AT(&pointfs, k)->x += sp->Multisep;
+    const double requested = -dx + j * sp->Multisep;
+    const double offset = constrain_multiedge_offset(g, e, &pointfs, requested);
     LIST_CLEAR(&pointfs2);
-    for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
-      LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
+    for (size_t k = 0; k < LIST_SIZE(&pointfs); k++) {
+      pointf route_point = LIST_GET(&pointfs, k);
+      if (k > 0 && k + 1 < LIST_SIZE(&pointfs))
+        route_point.x += offset;
+      LIST_APPEND(&pointfs2, route_point);
+    }
     LIST_SYNC(&pointfs2);
-    clip_and_install(e, aghead(e), LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2),
-                     &sinfo);
+    clip_and_install(e, install_head, LIST_FRONT(&pointfs2),
+                     LIST_SIZE(&pointfs2), &sinfo);
     align_multiedge_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);
