@@ -5108,6 +5108,32 @@ def _arrowhead_shaft_angle(edge: dict) -> float:
     return math.degrees(math.acos(max(-1, min(1, cosine))))
 
 
+def _polygon_self_intersections(points: list[list[float]]) -> list[tuple[int, int]]:
+    """Return pairs of non-adjacent polygon edges that cross."""
+
+    def orientation(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (
+            c[0] - a[0]
+        )
+
+    intersections = []
+    for first in range(len(points)):
+        for second in range(first + 1, len(points)):
+            if second == first + 1 or (
+                first == 0 and second == len(points) - 1
+            ):
+                continue
+            a = points[first]
+            b = points[(first + 1) % len(points)]
+            c = points[second]
+            d = points[(second + 1) % len(points)]
+            if orientation(a, b, c) * orientation(a, b, d) < 0 and orientation(
+                c, d, a
+            ) * orientation(c, d, b) < 0:
+                intersections.append((first, second))
+    return intersections
+
+
 def _drawn_edges_between(source: str, tails: set[str], head: str) -> list[dict]:
     """Return visible edges from named tails into one named head node."""
 
@@ -5707,6 +5733,21 @@ def test_unconcentrated_single_edge_arrowhead_angle_is_unchanged():
 
     edge = _drawn_edges("digraph { a -> b }")[0]
     assert _arrowhead_shaft_angle(edge) == pytest.approx(0.0, abs=0.01)
+
+
+def test_vee_arrowhead_polygon_does_not_cross_itself_at_wide_penwidth():
+    """Penwidth compensation must keep the two vee prongs disjoint."""
+
+    edge = _drawn_edges(
+        "digraph { edge [penwidth=3, arrowhead=vee]; a -> b }"
+    )[0]
+    polygon = next(
+        operation["points"]
+        for operation in edge["_hdraw_"]
+        if operation["op"] == "P"
+    )
+    assert len(polygon) == 8
+    assert _polygon_self_intersections(polygon) == []
 
 
 def test_concentrate_edge_helpers_are_exported_to_windows_plugins():

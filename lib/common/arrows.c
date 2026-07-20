@@ -1038,6 +1038,8 @@ static pointf arrow_type_crow0(pointf p, pointf u, double arrowsize,
     if (flag & ARR_MOD_INV) {  /* vee */
 	p.x -= delta_tip.x;
 	p.y -= delta_tip.y;
+	m.x -= delta_tip.x;
+	m.y -= delta_tip.y;
 	q.x -= delta_tip.x;
 	q.y -= delta_tip.y;
 	a[0] = a[8] = p;
