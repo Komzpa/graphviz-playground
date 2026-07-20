@@ -1224,6 +1224,50 @@ static const char *endpoint_exception_name(const char *canonical_name,
   return canonical_name;
 }
 
+static node_t *sameport_node(Agedge_t *edge, const char *attribute_name) {
+  if (strcmp(attribute_name, "samehead") == 0) {
+    return aghead(edge);
+  }
+  if (strcmp(attribute_name, "sametail") == 0) {
+    return agtail(edge);
+  }
+  return NULL;
+}
+
+static bool sameport_group_has_multiple_members(Agraph_t *graph,
+                                                Agedge_t *edge,
+                                                const char *attribute_name) {
+  Agsym_t *const attribute = agfindedgeattr(graph, (char *)attribute_name);
+  if (attribute == NULL) {
+    return false;
+  }
+
+  const char *const group_id = agxget(edge, attribute);
+  if (group_id[0] == '\0') {
+    return false;
+  }
+
+  node_t *const node = sameport_node(edge, attribute_name);
+  if (node == NULL || aghead(edge) == agtail(edge)) {
+    return false;
+  }
+
+  size_t members = 0;
+  for (Agedge_t *member = agfstedge(graph, node); member != NULL;
+       member = agnxtedge(graph, member, node)) {
+    if (aghead(member) == agtail(member)) {
+      continue;
+    }
+    if (sameport_node(member, attribute_name) != node) {
+      continue;
+    }
+    if (strcmp(agxget(member, attribute), group_id) == 0 && ++members > 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void append_endpoint_attribute_slots(agxbuf *signature,
                                             Agraph_t *root_graph,
                                             Agedge_t *edge,
@@ -1240,9 +1284,15 @@ static void append_endpoint_attribute_slots(agxbuf *signature,
     const attribute_owner_t source_owner =
         reverse_orientation ? opposite_attribute_owner(exception->owner)
                             : exception->owner;
+    const char *const source_name =
+        endpoint_exception_name(exception->name, source_owner);
+    if ((strcmp(source_name, "samehead") == 0 ||
+         strcmp(source_name, "sametail") == 0) &&
+        !sameport_group_has_multiple_members(root_graph, edge, source_name)) {
+      continue;
+    }
     append_projected_attribute_value(
-        signature, root_graph, edge, exception->name,
-        endpoint_exception_name(exception->name, source_owner));
+        signature, root_graph, edge, exception->name, source_name);
   }
 
   for (attribute_owner_t canonical_owner = ATTRIBUTE_OWNER_HEAD;

@@ -5486,7 +5486,7 @@ def _assert_concentrated_edge_counts(
         _named_edge_count_cases(
             "samehead-sametail-physical-endpoint",
             _edge_count_case(1, "a -> b [samehead=x]", "b -> a [sametail=x]"),
-            _edge_count_case(2, "a -> b [samehead=x]", "b -> a [samehead=x]"),
+            _edge_count_case(1, "a -> b [samehead=x]", "b -> a [samehead=x]"),
         ),
         _named_edge_count_cases(
             "lhead-ltail-physical-endpoint",
@@ -5815,6 +5815,20 @@ def test_concentrate_setlinewidth_style_folds_into_penwidth(splines: str):
                 'c -> d [style="setlinewidth(2)" penwidth=3]',
                 "c -> d [penwidth=3]",
             ),
+        ),
+    )
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_singleton_sameport_groups_do_not_affect_identity(splines: str):
+    """dot_sameports() moves samehead/sametail ports only with >1 members."""
+
+    _assert_concentrated_edge_counts(
+        splines,
+        (
+            _edge_count_case(1, "a -> b [samehead=x]", "a -> b"),
+            _edge_count_case(1, "b -> c [sametail=x]", "b -> c"),
+            _edge_count_case(1, "c -> d [samehead=x]", "d -> c [sametail=x]"),
         ),
     )
 
