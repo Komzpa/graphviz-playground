@@ -103,6 +103,7 @@ static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
 static Agedge_t *straight_path(Agedge_t *, int, points_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
+static void align_concentrated_route_tangents(graph_t *, edge_t *);
 static void align_arrow_tangents(graph_t *, edge_t *);
 
 static edge_t *getmainedge(edge_t *e) {
@@ -1141,6 +1142,7 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
   points[pointn++] = hp;
   points[pointn++] = hp;
   clip_and_install(e, aghead(e), points, pointn, &sinfo);
+  align_concentrated_route_tangents(agraphof(tn), e);
   ED_label(e)->pos.x = ctrx;
   ED_label(e)->pos.y = tp.y + (ED_label(e)->dimen.y + LBL_SPACE) / 2.0;
   ED_label(e)->set = true;
@@ -1193,6 +1195,7 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
     ED_label(e)->pos.y = ctry;
     ED_label(e)->set = true;
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -1234,6 +1237,7 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -1257,7 +1261,8 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     size_t pointn = 0;
     if (et == EDGETYPE_SPLINE || et == EDGETYPE_LINE) {
       points[pointn++] = tp;
-      if (et == EDGETYPE_SPLINE && cnt == 1 && ED_conc_opp_flag(e)) {
+      if (et == EDGETYPE_SPLINE && cnt == 1 && ED_conc_opp_flag(e) &&
+          (ED_head_label(e) != NULL || ED_tail_label(e) != NULL)) {
         const double lift = MAX(ND_ht(tn), ND_ht(hn));
         points[pointn++] = (pointf){tp.x, tp.y + lift};
         points[pointn++] = (pointf){hp.x, hp.y + lift};
@@ -1280,8 +1285,10 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     }
     dy += stepy;
     clip_and_install(e, aghead(e), points, pointn, &sinfo);
-    if (Concentrate)
+    if (Concentrate) {
+      align_concentrated_route_tangents(agraphof(tn), e);
       align_arrow_tangents(agraphof(tn), e);
+    }
   }
 }
 
@@ -1583,6 +1590,7 @@ static void make_flat_labeled_edge(graph_t *g, const spline_info_t sp, path *P,
     }
   }
   clip_and_install(e, aghead(e), ps, pn, &sinfo);
+  align_concentrated_route_tangents(g, e);
   if (ps_needs_free)
     free(ps);
 }
@@ -1656,6 +1664,7 @@ static void make_flat_bottom_edges(graph_t *g, const spline_info_t sp, path *P,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -1780,6 +1789,7 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
       return 0;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    align_concentrated_route_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -1880,6 +1890,28 @@ static void align_control_arm(pointf *control, pointf endpoint,
   *control = sub_pointf(endpoint, scale(control_length / axis_length, axis));
 }
 
+static void align_start_control_arm(pointf *control, pointf endpoint,
+                                    pointf target) {
+  const pointf axis = sub_pointf(target, endpoint);
+  const double axis_length = hypot(axis.x, axis.y);
+  const double control_length = DIST(*control, endpoint);
+  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
+}
+
+static void align_end_control_arm(pointf *control, pointf endpoint,
+                                  pointf target) {
+  const pointf axis = sub_pointf(target, endpoint);
+  const double axis_length = hypot(axis.x, axis.y);
+  const double control_length = DIST(*control, endpoint);
+  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
+}
+
 static void align_arrow_arm(bezier *spline, pointf arrow_tip) {
   const bool at_start = DIST(spline->list[0], arrow_tip) <=
                         DIST(spline->list[spline->size - 1], arrow_tip);
@@ -1903,6 +1935,37 @@ static void align_arrow_tangents(graph_t *g, edge_t *edge) {
     align_arrow_arm(spline, spline->sp);
   if (spline->eflag != ARR_NONE)
     align_arrow_arm(spline, spline->ep);
+
+  for (size_t i = 0; i + 3 < spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
+  const bool merged_tail = spline_merge(agtail(edge));
+  const bool merged_head = spline_merge(aghead(edge));
+  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+
+  assert(ED_spl(edge) != NULL && ED_spl(edge)->size > 0);
+  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
+  if (spline->size < 4)
+    return;
+
+  const bool bidirectional_concentration =
+      (edge_has_concentrated_arrow_decorations(edge) ||
+       ED_conc_opp_flag(edge)) &&
+      ND_rank(agtail(edge)) == ND_rank(aghead(edge));
+  if (!merged_tail && !merged_head && !bidirectional_concentration)
+    return;
+
+  const size_t first = 0;
+  const size_t last = spline->size - 1;
+  const pointf start = spline->list[first];
+  const pointf end = spline->list[last];
+  if (merged_tail || bidirectional_concentration)
+    align_start_control_arm(&spline->list[first + 1], start, end);
+  if (merged_head || bidirectional_concentration)
+    align_end_control_arm(&spline->list[last - 1], end, start);
 
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
@@ -2173,6 +2236,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   if (cnt == 1) {
     LIST_SYNC(&pointfs);
     clip_and_install(fe, hn, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs), &sinfo);
+    align_concentrated_route_tangents(g, fe);
     LIST_FREE(&pointfs);
     LIST_FREE(&pointfs2);
     return;
@@ -2203,6 +2267,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_SYNC(&pointfs2);
     clip_and_install(e, install_head, LIST_FRONT(&pointfs2),
                      LIST_SIZE(&pointfs2), &sinfo);
+    align_concentrated_route_tangents(g, e);
     align_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);

@@ -74,6 +74,7 @@ extern "C" {
     RENDER_API void fold_concentrated_edge_arrow_decorations(
         Agedge_t *retained_edge, Agedge_t *candidate_edge,
         bool candidate_runs_in_opposite_direction);
+    RENDER_API bool edge_has_concentrated_arrow_decorations(Agedge_t *edge);
     RENDER_API double edge_arrow_arrowsize(Agedge_t *edge,
                                            edge_arrow_endpoint_t endpoint);
     RENDER_API char *edge_arrow_fillcolor(Agedge_t *edge,

@@ -348,6 +348,10 @@ void fold_concentrated_edge_arrow_decorations(
          sizeof(*accumulated) * EDGE_ARROW_ENDPOINT_COUNT);
 }
 
+bool edge_has_concentrated_arrow_decorations(Agedge_t *edge) {
+  return concentrated_arrow_decoration_record(edge, false) != NULL;
+}
+
 double edge_arrow_arrowsize(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
   arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT];
   accumulated_edge_arrow_decorations(edge, decorations);

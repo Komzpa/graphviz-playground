@@ -5181,6 +5181,29 @@ def _sample_bezier_points(
             )
 
 
+def _point_distance_to_line(
+    point: tuple[float, float] | list[float],
+    start: tuple[float, float] | list[float],
+    end: tuple[float, float] | list[float],
+) -> float:
+    """Return a point's perpendicular distance from an infinite line."""
+
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length = math.hypot(dx, dy)
+    assert length > 0
+    return abs(dx * (start[1] - point[1]) - dy * (start[0] - point[0])) / length
+
+
+def _max_bezier_deviation_from_chord(points: list[list[float]]) -> float:
+    """Sample a Bezier and measure how far it bows from its endpoint chord."""
+
+    return max(
+        _point_distance_to_line(point, points[0], points[-1])
+        for point in _sample_bezier_points(points)
+    )
+
+
 def _edge_bezier_points(edge: dict) -> list[list[float]]:
     """Return the control points of an edge's visible route."""
 
@@ -5924,6 +5947,32 @@ def test_concentrate_shared_trunk_routes_meet_at_junction():
     assert math.dist(short_bezier["points"][-1], long_beziers[1]["points"][0]) <= 0.01
 
 
+def test_concentrate_shared_trunk_uses_balanced_junction_tangent():
+    """The shared black trunk leaves its merge junction along its own chord."""
+
+    source = _shared_trunk_source(
+        "a -> d [color=blue]",
+        "b -> d [color=red]",
+        "a -> d",
+        "b -> d",
+    )
+    black_beziers = next(
+        [
+            operation["points"]
+            for operation in edge["_draw_"]
+            if operation["op"] == "b"
+        ]
+        for edge in _drawn_edges(source)
+        if _drawn_edge_color(edge) == "#000000"
+        and "_hdraw_" in edge
+        and _drawn_edge_spline_point_count(edge) == 8
+    )
+    assert len(black_beziers) == 2
+    trunk = black_beziers[1]
+
+    assert _max_bezier_deviation_from_chord(trunk) < 3
+
+
 def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     """dot_concentrate() retains the ordinary asymmetric shared-trunk route."""
 
@@ -5931,6 +5980,28 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     assert sorted(_drawn_edge_spline_point_count(edge) for edge in edges) == [4, 8]
     assert sum("_hdraw_" in edge for edge in edges) == 1
+
+
+def test_concentrate_same_rank_reverse_route_uses_balanced_tangent():
+    """A merged bidirectional same-rank route stays visually straight."""
+
+    source = """
+        strict digraph {
+          graph [concentrate=true, nodesep=0.8]
+          node [shape=circle, width=0.45, fixedsize=true]
+          edge [arrowsize=0.9, penwidth=3]
+          { rank=same; a; b }
+          a -> b [penwidth=2]
+          b -> a [penwidth=2]
+        }
+    """
+    drawn_edges = _drawn_edges(source)
+    assert len(drawn_edges) == 1
+    edge = drawn_edges[0]
+    assert "_hdraw_" in edge
+    assert "_tdraw_" in edge
+
+    assert _max_bezier_deviation_from_chord(_edge_bezier_points(edge)) < 1
 
 
 def test_concentrate_multiedge_arrowheads_follow_shaft_tangents():
