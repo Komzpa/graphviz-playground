@@ -101,6 +101,8 @@ and this project adheres to
   rankleaders. #2760
 - Malformed ranksets inside clusters no longer crash dot when they leave empty
   rank slots during layout. #2759 #2762
+- Malformed flat edges whose auxiliary route cannot produce splines no longer
+  crash `dot`. #2758
 
 ## [15.1.0] – 2026-06-17
 

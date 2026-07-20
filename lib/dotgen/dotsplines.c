@@ -1486,7 +1486,10 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     auxe = ED_alg(e);
     if ((auxe == hvye) & !ED_alg(auxe))
       continue; /* pseudo-edge */
-    auxbz = ED_spl(auxe)->list;
+    splines *auxspl = ED_spl(auxe);
+    if (auxspl == NULL)
+      continue;
+    auxbz = auxspl->list;
     bz = new_spline(e, auxbz->size);
     bz->sflag = auxbz->sflag;
     bz->sp = transformf(auxbz->sp, del, GD_flip(g));
