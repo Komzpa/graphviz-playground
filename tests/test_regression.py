@@ -5155,6 +5155,25 @@ def test_concentrate_fanout_keeps_real_terminal_arrowheads():
     assert all("_hdraw_" in edge for edge in edges)
 
 
+def test_concentrate_backward_junction_arrows_follow_swapped_beziers():
+    """Reversed concentrated splines keep endpoint arrow state with the points."""
+
+    source = """
+        digraph {
+          graph [concentrate=true]
+          a -> c [minlen=2]
+          a -> d [minlen=2]
+          c -> a [constraint=false minlen=2]
+          d -> a [constraint=false minlen=2]
+        }
+    """
+    edges = _drawn_edges(source)
+
+    assert len(edges) == 2
+    assert all(edge["pos"].startswith("s,") for edge in edges)
+    assert all("_hdraw_" in edge and "_tdraw_" in edge for edge in edges)
+
+
 def _arrowhead_shaft_angle(edge: dict) -> float:
     """Return the angle between a normal head arrow and its shaft tangent."""
 

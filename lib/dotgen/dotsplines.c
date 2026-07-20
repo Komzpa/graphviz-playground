@@ -228,6 +228,7 @@ static void swap_bezier(bezier *b) {
   }
 
   SWAP(&b->sflag, &b->eflag);
+  SWAP(&b->suppress_sflag, &b->suppress_eflag);
   SWAP(&b->sp, &b->ep);
 }
 
