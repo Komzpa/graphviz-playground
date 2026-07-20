@@ -100,8 +100,8 @@ find_equivalent_edge_in_group(Agedge_t *edge, const epair_t *routed_edges,
         (opposite_direction
              ? opposite_direction_edge_arrow_decorations_are_mergeable(
                    routed_edge, edge)
-             : same_direction_edge_arrow_decorations_are_equal(routed_edge,
-                                                                edge))) {
+             : same_direction_edge_arrow_decorations_are_mergeable(routed_edge,
+                                                                   edge))) {
       return routed_edge;
     }
     edge_index = state->next_in_group[edge_index];

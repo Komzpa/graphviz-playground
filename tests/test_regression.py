@@ -6337,18 +6337,33 @@ def test_concentrate_repeated_layout_discards_accumulated_arrows(tmp_path: Path)
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_same_direction_arrows_ignore_borrowed_reverse_arrows(
+def test_concentrate_same_direction_arrows_merge_rendered_identical_duplicates(
     splines: str,
 ):
-    """Borrowed reverse arrows are render state, not same-direction identity."""
+    """Same-direction candidates compare against accumulated rendered arrows."""
 
-    borrowed_reverse_arrow = _concentrated_graph(
+    rendered_identical_duplicate = _concentrated_graph(
         splines,
         "a -> b [color=red arrowhead=normal]",
         "b -> a [color=red arrowhead=vee]",
         "a -> b [color=red dir=both arrowhead=normal arrowtail=vee]",
     )
-    assert len(_drawn_edges(borrowed_reverse_arrow)) == 2
+    assert len(_drawn_edges(rendered_identical_duplicate)) == 1
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_same_direction_arrows_keep_arrowless_candidate_distinct(
+    splines: str,
+):
+    """Borrowed reverse arrows still protect an arrow-less later candidate."""
+
+    arrowless_candidate = _concentrated_graph(
+        splines,
+        "a -> b [color=red arrowhead=normal]",
+        "b -> a [color=red arrowhead=vee]",
+        "a -> b [color=red dir=none]",
+    )
+    assert len(_drawn_edges(arrowless_candidate)) == 2
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

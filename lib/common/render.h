@@ -67,8 +67,8 @@ extern "C" {
     RENDER_API void edge_arrow_flags(Agedge_t *e, uint32_t *sflag,
                                      uint32_t *eflag);
     RENDER_API void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag);
-    RENDER_API bool same_direction_edge_arrow_decorations_are_equal(
-        Agedge_t *first_edge, Agedge_t *second_edge);
+    RENDER_API bool same_direction_edge_arrow_decorations_are_mergeable(
+        Agedge_t *retained_edge, Agedge_t *candidate_edge);
     RENDER_API bool opposite_direction_edge_arrow_decorations_are_mergeable(
         Agedge_t *retained_edge, Agedge_t *candidate_edge);
     RENDER_API void fold_concentrated_edge_arrow_decorations(

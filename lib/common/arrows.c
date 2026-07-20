@@ -279,16 +279,17 @@ oriented_candidate_endpoint(edge_arrow_endpoint_t retained_endpoint,
                                                 : EDGE_ARROW_START;
 }
 
-bool same_direction_edge_arrow_decorations_are_equal(Agedge_t *first_edge,
-                                                     Agedge_t *second_edge) {
-  arrow_decoration_t first[EDGE_ARROW_ENDPOINT_COUNT];
-  arrow_decoration_t second[EDGE_ARROW_ENDPOINT_COUNT];
-  own_edge_arrow_decorations(first_edge, first);
-  own_edge_arrow_decorations(second_edge, second);
+bool same_direction_edge_arrow_decorations_are_mergeable(
+    Agedge_t *retained_edge, Agedge_t *candidate_edge) {
+  arrow_decoration_t retained[EDGE_ARROW_ENDPOINT_COUNT];
+  arrow_decoration_t candidate[EDGE_ARROW_ENDPOINT_COUNT];
+  accumulated_edge_arrow_decorations(retained_edge, retained);
+  own_edge_arrow_decorations(candidate_edge, candidate);
 
   for (edge_arrow_endpoint_t endpoint = EDGE_ARROW_START;
        endpoint < EDGE_ARROW_ENDPOINT_COUNT; endpoint++) {
-    if (!arrow_decorations_are_equal(&first[endpoint], &second[endpoint])) {
+    if (!arrow_decorations_are_equal(&retained[endpoint],
+                                     &candidate[endpoint])) {
       return false;
     }
   }

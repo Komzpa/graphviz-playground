@@ -48,8 +48,8 @@ static bool rendered_edges_are_equal(edge_t *edge, edge_t *representative)
 {
     return edge != NULL && representative != NULL &&
            gv_edge_attributes_are_equal(edge, representative) &&
-           same_direction_edge_arrow_decorations_are_equal(edge,
-                                                           representative);
+           same_direction_edge_arrow_decorations_are_mergeable(representative,
+                                                               edge);
 }
 
 static bool other_list_contains(edge_t *edge)
@@ -286,7 +286,7 @@ static bool flat_edges_are_equivalent(edge_t *edge,
   if (same_direction) {
     return ports_eq(edge, representative_edge) &&
            gv_edge_attributes_are_equal(edge, representative_edge) &&
-           same_direction_edge_arrow_decorations_are_equal(
+           same_direction_edge_arrow_decorations_are_mergeable(
                representative_edge, edge);
   }
 

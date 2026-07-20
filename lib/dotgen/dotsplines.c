@@ -16,8 +16,10 @@
 
 #include <assert.h>
 #include <common/boxes.h>
+#include <common/edgeattr.h>
 #include <common/geomprocs.h>
 #include <common/globals.h>
+#include <common/render.h>
 #include <common/utils.h>
 #include <dotgen/dot.h>
 #include <math.h>
@@ -110,6 +112,63 @@ static edge_t *getmainedge(edge_t *e) {
   while (ED_to_orig(le))
     le = ED_to_orig(le);
   return le;
+}
+
+static bool edge_has_no_labels(edge_t *edge) {
+  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
+}
+
+static bool
+same_direction_edges_are_concentrated_duplicates(edge_t *retained,
+                                                 edge_t *candidate) {
+  return retained != candidate && agtail(retained) == agtail(candidate) &&
+         aghead(retained) == aghead(candidate) &&
+         edge_has_no_labels(retained) && edge_has_no_labels(candidate) &&
+         portcmp(ED_tail_port(retained), ED_tail_port(candidate)) == 0 &&
+         portcmp(ED_head_port(retained), ED_head_port(candidate)) == 0 &&
+         gv_edge_attributes_are_equal(retained, candidate) &&
+         same_direction_edge_arrow_decorations_are_mergeable(retained,
+                                                             candidate);
+}
+
+static unsigned fold_concentrated_duplicate_routes(edge_t **edges,
+                                                   unsigned cnt) {
+  if (!Concentrate) {
+    return cnt;
+  }
+
+  for (unsigned i = 0; i < cnt; i++) {
+    edge_t *const retained_route = edges[i];
+    edge_t *const retained = getmainedge(retained_route);
+    if (ED_edge_type(retained) == IGNORED) {
+      ED_edge_type(retained_route) = IGNORED;
+      continue;
+    }
+
+    for (unsigned j = i + 1; j < cnt; j++) {
+      edge_t *const candidate_route = edges[j];
+      edge_t *const candidate = getmainedge(candidate_route);
+      if (ED_edge_type(candidate) == IGNORED) {
+        ED_edge_type(candidate_route) = IGNORED;
+        continue;
+      }
+
+      if (same_direction_edges_are_concentrated_duplicates(retained,
+                                                           candidate)) {
+        fold_concentrated_edge_arrow_decorations(retained, candidate, false);
+        ED_edge_type(candidate) = IGNORED;
+        ED_edge_type(candidate_route) = IGNORED;
+      }
+    }
+  }
+
+  unsigned kept = 0;
+  for (unsigned i = 0; i < cnt; i++) {
+    if (ED_edge_type(edges[i]) != IGNORED) {
+      edges[kept++] = edges[i];
+    }
+  }
+  return kept;
 }
 
 static bool spline_merge(node_t *n) {
@@ -391,6 +450,10 @@ static int dot_splines_(graph_t *g, int normalize) {
       if (ED_tree_index(LIST_GET(&edges, l)) & MAINGRAPH) /* Aha! -C is on */
         break;
     }
+
+    cnt = fold_concentrated_duplicate_routes(LIST_AT(&edges, ind), cnt);
+    if (cnt == 0)
+      continue;
 
     if (et == EDGETYPE_CURVED) {
       edge_t **edgelist = gv_calloc(cnt, sizeof(edge_t *));

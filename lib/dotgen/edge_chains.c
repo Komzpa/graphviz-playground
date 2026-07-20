@@ -171,7 +171,7 @@ static edge_t *find_prior_concentrated_representative(graph_t *graph,
     if (same_endpoints && prior_edge_owns_chain && both_edges_are_unlabeled &&
         ports_eq(prior_edge, edge) &&
         gv_edge_attributes_are_equal(prior_edge, edge) &&
-        same_direction_edge_arrow_decorations_are_equal(prior_edge, edge)) {
+        same_direction_edge_arrow_decorations_are_mergeable(prior_edge, edge)) {
       return prior_edge;
     }
 
@@ -198,6 +198,27 @@ static edge_t *find_prior_parallel_route(graph_t *graph, edge_t *edge) {
   return NULL;
 }
 
+static void suppress_later_same_direction_duplicates(graph_t *graph,
+                                                     edge_t *representative) {
+  edge_t *edge = agnxtout(graph, representative);
+  while (edge != NULL) {
+    const bool same_endpoints = aghead(edge) == aghead(representative);
+    const bool both_edges_are_unlabeled =
+        edge_has_no_labels(representative) && edge_has_no_labels(edge);
+
+    if (same_endpoints && ED_edge_type(edge) != IGNORED &&
+        both_edges_are_unlabeled && ports_eq(representative, edge) &&
+        gv_edge_attributes_are_equal(representative, edge) &&
+        same_direction_edge_arrow_decorations_are_mergeable(representative,
+                                                            edge)) {
+      fold_concentrated_edge_arrow_decorations(representative, edge, false);
+      ED_edge_type(edge) = IGNORED;
+    }
+
+    edge = agnxtout(graph, edge);
+  }
+}
+
 static edge_t *find_prior_flat_concentrated_equivalent(graph_t *graph,
                                                        edge_t *edge) {
   edge_t *prior_edge = agfstout(graph, agtail(edge));
@@ -212,7 +233,7 @@ static edge_t *find_prior_flat_concentrated_equivalent(graph_t *graph,
         ED_edge_type(prior_edge) == NORMAL && ED_edge_type(edge) == NORMAL &&
         both_edges_are_unlabeled && ports_eq(prior_edge, edge) &&
         gv_edge_attributes_are_equal(prior_edge, edge) &&
-        same_direction_edge_arrow_decorations_are_equal(prior_edge, edge)) {
+        same_direction_edge_arrow_decorations_are_mergeable(prior_edge, edge)) {
       return prior_edge;
     }
 
@@ -308,6 +329,7 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
                                                    true);
           ED_edge_type(backward_edge) = IGNORED;
           ED_conc_opp_flag(opposite_edge) = true;
+          suppress_later_same_direction_duplicates(graph, opposite_edge);
           return true;
         }
         if (!Concentrate) {
@@ -365,6 +387,7 @@ static bool suppress_concentrated_cluster_edge_with_opposite(edge_t *edge) {
       fold_concentrated_edge_arrow_decorations(opposite_edge, edge, true);
       ED_edge_type(edge) = IGNORED;
       ED_conc_opp_flag(opposite_edge) = true;
+      suppress_later_same_direction_duplicates(agraphof(edge), opposite_edge);
       return true;
     }
 
@@ -409,6 +432,10 @@ void build_edge_chains(graph_t *graph) {
     edge_t *previous_edge = NULL;
     for (edge_t *edge = agfstout(graph, node); edge != NULL;
          edge = agnxtout(graph, edge)) {
+
+      if (ED_edge_type(edge) == IGNORED) {
+        continue;
+      }
 
       /* A prior cluster operation has already attached this representation. */
       if (ED_to_virt(edge) != NULL) {

@@ -11,14 +11,14 @@
  * and tail at extraction time.
  *
  * The arrow comparison deliberately depends on direction. Same-direction
- * parallels must LOOK identical, so their own decoration records are compared
- * strictly and an absent arrow is rendered state. Using the neutral arrow fold
- * here would merge forward and both edges, and would again let a retained
- * edge's borrowed reverse arrow hide a distinct later parallel edge.
- * Opposite-direction pairs instead must be COMBINABLE onto one bidirectional
- * route, so the candidate's own decorations are folded against the retained
- * edge's accumulated decorations after swapping physical endpoints. Requiring
- * strict equality there would break arrow-plus-no-arrow merges.
+ * parallels merge only when the candidate's own decoration record equals the
+ * retained edge's accumulated record. This allows a later edge that renders the
+ * same bidirectional arrows to fold, but still keeps an arrow-less candidate
+ * separate from a representative that borrowed a reverse arrow. Opposite-
+ * direction pairs instead must be COMBINABLE onto one bidirectional route, so
+ * the candidate's own decorations are folded against the retained edge's
+ * accumulated decorations after swapping physical endpoints. Requiring strict
+ * equality there would break arrow-plus-no-arrow merges.
  *
  * Arrow shapes, arrowsize, and fillcolor therefore do not appear in the core
  * signature. The decoration record contains the latter two values only when
