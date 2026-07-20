@@ -78,6 +78,7 @@ typedef enum {
   ATTRIBUTE_RENDER_LAYOUT_ONLY,
   ATTRIBUTE_RENDER_COLOR_TRANSLATOR,
   ATTRIBUTE_RENDER_ORTHO_EDGE,
+  ATTRIBUTE_RENDER_GRAPH_LAYERS,
 } attribute_render_scope_t;
 
 typedef struct {
@@ -151,7 +152,7 @@ static const edge_attribute_exception_t edge_attribute_exceptions[] = {
      .facts = {.default_kind = ATTRIBUTE_DEFAULT_ONE,
                .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
                .presence_affects_rendering = true}},
-    {.name = "layer"},
+    {.name = "layer", .facts = {.render_scope = ATTRIBUTE_RENDER_GRAPH_LAYERS}},
     {.name = "lhead",
      .facts = {.compound_only = true},
      .endpoint = true,
@@ -299,6 +300,12 @@ edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
   if (facts->render_scope == ATTRIBUTE_RENDER_ORTHO_EDGE) {
     const char *const splines_value = agget(root_graph, "splines");
     if (splines_value == NULL || strcmp(splines_value, "ortho") != 0) {
+      return false;
+    }
+  }
+  if (facts->render_scope == ATTRIBUTE_RENDER_GRAPH_LAYERS) {
+    const char *const layers = agget(root_graph, "layers");
+    if (layers == NULL || layers[0] == '\0') {
       return false;
     }
   }

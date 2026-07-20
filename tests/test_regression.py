@@ -5776,6 +5776,23 @@ def test_concentrate_radius_identity_is_gated_on_ortho_edges():
     )
 
 
+def test_concentrate_layer_identity_requires_declared_graph_layers():
+    """emit_edge() ignores edge layer when no graph layers are declared."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (_edge_count_case(1, "a -> b [layer=x]", "a -> b"),),
+    )
+    visible_layer = """
+        digraph {
+          graph [concentrate=true layers="x:y" layerselect=y]
+          a -> b [layer=x]
+          a -> b [layer=y]
+        }
+    """
+    assert len(_drawn_edges(visible_layer)) == 1
+
+
 def test_tapered_multicolor_arrow_fillcolor_is_renderable():
     """emit_edge_graphics() can render a tapered color-list arrow fill."""
 
