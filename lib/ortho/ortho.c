@@ -130,9 +130,10 @@ static void ortho_concentrate_state_free(ortho_concentrate_state_t *state) {
   free(state->next_in_group);
 }
 
-static bool register_ortho_edge(ortho_concentrate_state_t *state,
-                                Agedge_t *edge, const epair_t *routed_edges,
-                                size_t routed_edge_count) {
+static bool suppress_or_register_ortho_edge(ortho_concentrate_state_t *state,
+                                            Agedge_t *edge,
+                                            const epair_t *routed_edges,
+                                            size_t routed_edge_count) {
   /*
    * AGSEQ(node) is Cgraph's stable node identity. Sorting the endpoint IDs
    * intentionally puts both directions of the same node pair in one group.
@@ -1391,7 +1392,8 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
 	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
 		const bool is_distinct =
-		    register_ortho_edge(&concentrate_state, e, es, n_edges);
+		    suppress_or_register_ortho_edge(&concentrate_state, e, es,
+		                                    n_edges);
 		if (!is_distinct)
 		    continue;
 	    }
