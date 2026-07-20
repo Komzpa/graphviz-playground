@@ -296,7 +296,7 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
   }
 
   edge_t *opposite_edge = agfstout(graph, aghead(backward_edge));
-  edge_t *route_candidate = NULL;
+  edge_t *fallback_route_edge = NULL;
 
   while (opposite_edge != NULL) {
     const bool connects_same_nodes =
@@ -341,8 +341,8 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
           merge_chain(graph, backward_edge, ED_to_virt(opposite_edge), true);
           return true;
         }
-        if (route_candidate == NULL) {
-          route_candidate = opposite_edge;
+        if (fallback_route_edge == NULL) {
+          fallback_route_edge = opposite_edge;
         } else {
           /*
            * Keep scanning in concentrate mode. A later opposite edge may be
@@ -354,13 +354,13 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
 
     opposite_edge = agnxtout(graph, opposite_edge);
   }
-  if (route_candidate != NULL) {
-    if (ED_to_virt(route_candidate) == NULL) {
-      make_virtual_edge_chain(graph, agtail(route_candidate),
-                              aghead(route_candidate), route_candidate);
+  if (fallback_route_edge != NULL) {
+    if (ED_to_virt(fallback_route_edge) == NULL) {
+      make_virtual_edge_chain(graph, agtail(fallback_route_edge),
+                              aghead(fallback_route_edge), fallback_route_edge);
     }
     other_edge(backward_edge);
-    merge_chain(graph, backward_edge, ED_to_virt(route_candidate), true);
+    merge_chain(graph, backward_edge, ED_to_virt(fallback_route_edge), true);
     return true;
   }
   return false;
