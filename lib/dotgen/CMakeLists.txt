@@ -2,7 +2,7 @@ add_library(dotgen STATIC
   aspect.c
   acyclic.c
   class1.c
-  class2.c
+  edge_chains.c
   cluster.c
   compound.c
   conc.c

@@ -1022,7 +1022,7 @@ static void init_mincross(graph_t *g) {
   mincross_options(g);
   if (GD_flags(g) & NEW_RANK)
     fillRanks(g);
-  class2(g);
+  build_edge_chains(g);
   decompose(g, 1);
   allocate_ranks(g);
   ordered_edges(g);

@@ -5349,7 +5349,7 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
 
 
 def test_concentrate_edge_helpers_are_exported_to_windows_plugins():
-    """class2.c, conc.c, and ortho.c can import edge identity helpers."""
+    """edge_chains.c, conc.c, and ortho.c can import edge identity helpers."""
 
     header = (Path(__file__).parent.parent / "lib/common/edgeattr.h").read_text(
         encoding="utf-8"

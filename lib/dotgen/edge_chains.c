@@ -8,16 +8,7 @@
  * Contributors: Details at https://graphviz.org
  *************************************************************************/
 
-/*
- * dot classifies edges in two different representations. class1() builds the
- * temporary constraint edges used to assign ranks. After those ranks are
- * fixed, class2() materializes the virtual nodes and edge chains consumed by
- * crossing minimization, node positioning, and spline routing.
- *
- * The numbered name is historical: both passes already had these names in the
- * oldest imported Graphviz sources. Keep the name at the external boundary,
- * but describe the post-rank representation explicitly inside this file.
- */
+/* Build the post-rank edge chains used by later layout phases. */
 
 #include "config.h"
 
@@ -165,9 +156,10 @@ static bool edge_has_no_labels(edge_t *edge) {
 static edge_t *find_prior_concentrated_representative(graph_t *graph,
                                                       edge_t *edge) {
   /*
-   * class2() visits a node's outgoing edges in Cgraph order. Only an earlier
-   * edge can already own the virtual chain that this edge would duplicate, so
-   * stop at the current edge and never let later input affect the decision.
+   * build_edge_chains() visits a node's outgoing edges in Cgraph order. Only
+   * an earlier edge can already own the virtual chain that this edge would
+   * duplicate, so stop at the current edge and never let later input affect
+   * the decision.
    */
   edge_t *prior_edge = agfstout(graph, agtail(edge));
   while (prior_edge != NULL && prior_edge != edge) {
@@ -427,7 +419,7 @@ static bool suppress_concentrated_cluster_edge_with_opposite(edge_t *edge) {
   return false;
 }
 
-void class2(graph_t *graph) {
+void build_edge_chains(graph_t *graph) {
   GD_nlist(graph) = NULL;
 
   /* Cluster skeletons stand in for collapsed cluster contents in this pass. */

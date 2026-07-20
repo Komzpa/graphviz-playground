@@ -28,7 +28,7 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern void build_skeleton(Agraph_t *, Agraph_t *);
     extern void checkLabelOrder (graph_t* g);
     extern void class1(Agraph_t *);
-    extern void class2(Agraph_t *);
+    extern void build_edge_chains(Agraph_t *);
     extern void decompose(Agraph_t *, int);
     extern void delete_fast_edge(Agedge_t *);
     extern void delete_fast_node(Agraph_t *, Agnode_t *);

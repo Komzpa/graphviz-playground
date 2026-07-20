@@ -257,10 +257,11 @@ static bool flat_edges_are_equivalent(edge_t *edge,
 static void concentrate_flat_edges(graph_t *graph) {
   /*
    * The virtual-node passes below require an intermediate rank, so they never
-   * visit same-rank edges. flat_breakcycles() and class2() have already placed
-   * flat duplicates in ND_other(); ED_to_virt() points from each duplicate to
-   * its representative. ND_other() contains both same-direction and reversed
-   * edges, so select the matching comparison before suppressing anything.
+   * visit same-rank edges. flat_breakcycles() and build_edge_chains() have
+   * already placed flat duplicates in ND_other(); ED_to_virt() points from
+   * each duplicate to its representative. ND_other() contains both
+   * same-direction and reversed edges, so select the matching comparison
+   * before suppressing anything.
    */
   for (node_t *node = GD_nlist(graph); node != NULL; node = ND_next(node)) {
     if (ND_other(node).list == NULL) {
