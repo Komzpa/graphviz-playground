@@ -241,6 +241,7 @@ static void printData(object_t *objs, size_t n_objs, xlabel_t *lbls,
 }
 
 static pointf edgeEndpointLabelPoint(Agedge_t *e, textlabel_t *lp, bool head_p) {
+    (void)lp;
     splines *spl = getsplinepoints(e);
     if (spl == NULL) {
 	pointf p = {0};
@@ -259,20 +260,19 @@ static pointf edgeEndpointLabelPoint(Agedge_t *e, textlabel_t *lp, bool head_p) 
 	inside = bez->list[0];
     }
 
-    pointf away = {endpoint.x - inside.x, endpoint.y - inside.y};
+    pointf away = {inside.x - endpoint.x, inside.y - endpoint.y};
     double length = hypot(away.x, away.y);
     if (length < 0.01) {
 	away = (pointf){head_p ? 1 : -1, 0};
 	length = 1;
     }
 
-    const double clearance = 14.0;
+    const double clearance = 10.0;
     pointf center = {
 	endpoint.x + clearance * away.x / length,
 	endpoint.y + clearance * away.y / length,
     };
-    pointf size = Flip ? (pointf){lp->dimen.y, lp->dimen.x} : lp->dimen;
-    return (pointf){center.x - size.x / 2.0, center.y - size.y / 2.0};
+    return center;
 }
 
 /* adjustBB:

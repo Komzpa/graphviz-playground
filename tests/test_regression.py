@@ -6872,6 +6872,30 @@ def test_concentrate_borrowed_reverse_arrow_uses_endpoint_segment_color():
     assert _arrow_fill_color(drawn_edges[0], "t") == "#0000ff"
 
 
+def test_endpoint_label_default_position_uses_clearance_anchor():
+    """Endpoint labels default from the endpoint anchor, not their lower-left box."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source='digraph { a -> b [headlabel="x"] }',
+        )
+    )
+    edge = layout["edges"][0]
+    node_by_id = {node["_gvid"]: node for node in layout["objects"]}
+    node_center = tuple(
+        float(coordinate) for coordinate in node_by_id[edge["head"]]["pos"].split(",")
+    )
+    endpoint = _edge_physical_endpoint(edge, "head")
+    label_point = next(
+        tuple(operation["pt"])
+        for operation in edge["_hldraw_"]
+        if operation["op"] == "T"
+    )
+
+    assert math.dist(label_point, endpoint) <= math.dist(node_center, endpoint)
+
+
 def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Path, dict]:
     core = _find_plugin_so("core")
     dot_layout = _find_plugin_so("dot_layout")
