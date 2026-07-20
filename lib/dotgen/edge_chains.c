@@ -9,7 +9,7 @@
  *************************************************************************/
 
 
-/* classify edges for mincross/nodepos/splines, using given ranks */
+/* Build the post-rank edge chains used by later layout phases. */
 
 #include "config.h"
 
@@ -152,7 +152,7 @@ bool mergeable(edge_t *e, edge_t *f) {
          ED_label(e) == ED_label(f) && ports_eq(e, f);
 }
 
-void class2(graph_t * g)
+void build_edge_chains(graph_t * g)
 {
     int c;
     node_t *n, *t, *h;
@@ -291,4 +291,3 @@ void class2(graph_t * g)
 	GD_comp(g).list[0] = GD_nlist(g);
     }
 }
-

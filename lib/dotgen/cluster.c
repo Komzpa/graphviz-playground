@@ -153,7 +153,7 @@ static void make_interclust_chain(node_t * from, node_t * to, edge_t * orig) {
 
 /* 
  * attach and install edges between clusters.
- * essentially, class2() for interclust edges.
+ * essentially, build_edge_chains() for interclust edges.
  */
 static void interclexp(graph_t * subg)
 {
@@ -279,7 +279,7 @@ remove_rankleaders(graph_t * g)
 /* delete virtual nodes of a cluster, and install real nodes or sub-clusters */
 int expand_cluster(graph_t *subg) {
     /* build internal structure of the cluster */
-    class2(subg);
+    build_edge_chains(subg);
     GD_comp(subg).size = 1;
     GD_comp(subg).list[0] = GD_nlist(subg);
     allocate_ranks(subg);
