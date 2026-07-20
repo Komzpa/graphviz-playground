@@ -5763,6 +5763,19 @@ def test_concentrate_color_list_identity_matches_parse_segs_fractions():
     )
 
 
+def test_concentrate_radius_identity_is_gated_on_ortho_edges():
+    """emit_edge_graphics() consumes edge radius only for splines=ortho."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (_edge_count_case(1, "a -> b [radius=5]", "a -> b"),),
+    )
+    _assert_concentrated_edge_counts(
+        "splines=ortho",
+        (_edge_count_case(2, "a -> b [radius=5]", "a -> b"),),
+    )
+
+
 def test_tapered_multicolor_arrow_fillcolor_is_renderable():
     """emit_edge_graphics() can render a tapered color-list arrow fill."""
 
