@@ -5178,6 +5178,14 @@ def _sample_bezier_points(
             )
 
 
+def _ellipse(node: dict) -> tuple[float, float, float, float]:
+    """Return an ellipse node's center and radii."""
+
+    return tuple(
+        next(operation["rect"] for operation in node["_draw_"] if operation["op"] == "e")
+    )
+
+
 def _assert_distinct_drawn_edge_routes(source: str, expected_count: int) -> None:
     """Assert the number of distinct visible routes in a graph."""
 
@@ -5213,6 +5221,34 @@ def _assert_concentrated_edge_counts(
     for expected_count, body in cases:
         source = _concentrated_graph(splines, *body)
         assert len(_drawn_edges(source)) == expected_count
+
+
+def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
+    """A short merged flat route arcs enough for both endpoint arrows."""
+
+    source = _concentrated_graph(
+        "",
+        "subgraph same_rank { rank=same; a; b }",
+        "a -> b [headlabel=x]",
+        "b -> a [taillabel=x]",
+    )
+    layout = json.loads(dot("json", source=source))
+    edge = next(edge for edge in layout["edges"] if "_draw_" in edge)
+    assert len([edge for edge in layout["edges"] if "_draw_" in edge]) == 1
+
+    head_arrow = next(operation["points"] for operation in edge["_hdraw_"] if operation["op"] == "P")
+    tail_arrow = next(operation["points"] for operation in edge["_tdraw_"] if operation["op"] == "P")
+    head_box = tuple(map(min, zip(*head_arrow))) + tuple(map(max, zip(*head_arrow)))
+    tail_box = tuple(map(min, zip(*tail_arrow))) + tuple(map(max, zip(*tail_arrow)))
+    assert head_box[2] < tail_box[0] or tail_box[2] < head_box[0] or head_box[3] < tail_box[1] or tail_box[3] < head_box[1]
+
+    for endpoint in ("tail", "head"):
+        node_id = edge[endpoint]
+        node = next(node for node in layout["objects"] if node["_gvid"] == node_id)
+        center_x, center_y, radius_x, radius_y = _ellipse(node)
+        x, y = _edge_physical_endpoint(edge, endpoint)
+        boundary = ((x - center_x) / radius_x) ** 2 + ((y - center_y) / radius_y) ** 2
+        assert boundary == pytest.approx(1, abs=0.05)
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

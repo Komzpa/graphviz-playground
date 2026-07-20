@@ -1155,8 +1155,14 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     size_t pointn = 0;
     if (et == EDGETYPE_SPLINE || et == EDGETYPE_LINE) {
       points[pointn++] = tp;
-      points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
-      points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
+      if (et == EDGETYPE_SPLINE && cnt == 1 && ED_conc_opp_flag(e)) {
+        const double lift = MAX(ND_ht(tn), ND_ht(hn));
+        points[pointn++] = (pointf){tp.x, tp.y + lift};
+        points[pointn++] = (pointf){hp.x, hp.y + lift};
+      } else {
+        points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
+        points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
+      }
       points[pointn++] = hp;
     } else { /* EDGETYPE_PLINE */
       points[pointn++] = tp;
