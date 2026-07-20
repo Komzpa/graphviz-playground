@@ -118,6 +118,14 @@ static bool bothupcandidates(node_t * u, node_t * v)
     return false;
 }
 
+static void add_concentrated_segment_weight(edge_t *edge, edge_t *representative)
+{
+    while (representative != NULL) {
+	ED_weight(representative) += ED_weight(edge);
+	representative = ED_to_virt(representative);
+    }
+}
+
 static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 {
     node_t *left;
@@ -133,6 +141,8 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 		    break;
 	    if (f == NULL)
 		f = virtual_edge(left, aghead(e), e);
+	    else
+		add_concentrated_segment_weight(e, f);
 	    while ((e0 = ND_in(right).list[0])) {
 		keep_distinct_original_drawn(e0, f);
 		merge_oneway(e0, f);
@@ -148,6 +158,8 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 		    break;
 	    if (f == NULL)
 		f = virtual_edge(agtail(e), left, e);
+	    else
+		add_concentrated_segment_weight(e, f);
 	    while ((e0 = ND_out(right).list[0])) {
 		keep_distinct_original_drawn(e0, f);
 		merge_oneway(e0, f);
