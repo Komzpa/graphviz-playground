@@ -95,6 +95,8 @@ and this project adheres to
   edges run in opposite directions. #448
 - Concentration no longer merges continuations attached to different record
   ports. #449
+- An out-of-bounds read while routing certain flat labeled edges no longer
+  causes a crash. #2757
 
 ## [15.1.0] – 2026-06-17
 
