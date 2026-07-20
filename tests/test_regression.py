@@ -6018,6 +6018,11 @@ def test_concentrate_setlinewidth_style_folds_into_penwidth(splines: str):
                 'c -> d [style="setlinewidth(4)"]',
             ),
             _edge_count_case(
+                2,
+                'f -> g [style="setlinewidth(1),setlinewidth(4)"]',
+                'f -> g [style="setlinewidth(1)"]',
+            ),
+            _edge_count_case(
                 1,
                 'd -> e [style="setlinewidth(2)" penwidth=3]',
                 "d -> e [penwidth=3]",

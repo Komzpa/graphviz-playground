@@ -601,6 +601,7 @@ static bool style_setlinewidth_value(const char *style, double *penwidth) {
   if (style == NULL || style[0] == '\0') {
     return false;
   }
+  bool found = false;
   for (char **item = parse_style((char *)style); *item != NULL; item++) {
     if (strcmp(*item, "setlinewidth") != 0) {
       continue;
@@ -610,10 +611,10 @@ static bool style_setlinewidth_value(const char *style, double *penwidth) {
     const double parsed = strtod(argument, &end);
     if (end != argument) {
       *penwidth = parsed < 0.0 ? 0.0 : parsed;
-      return true;
+      found = true;
     }
   }
-  return false;
+  return found;
 }
 
 static bool
