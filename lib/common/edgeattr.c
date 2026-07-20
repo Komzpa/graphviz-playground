@@ -821,6 +821,22 @@ static bool hyperlink_layer_gate_is_open(Agedge_t *edge,
   return false;
 }
 
+static bool
+hyperlink_tooltip_gate_is_open(Agraph_t *root_graph, Agedge_t *edge,
+                               hyperlink_layer_id_t layer,
+                               const hyperlink_layer_t *layer_attributes) {
+  if (hyperlink_layer_gate_is_open(edge, layer)) {
+    return true;
+  }
+  if (layer != HYPERLINK_LAYER_HEAD && layer != HYPERLINK_LAYER_TAIL) {
+    return false;
+  }
+  /* nodeIntersect() maps explicit endpoint tooltips without label geometry. */
+  return edge_has_any_of_attributes(root_graph, edge,
+                                    layer_attributes->tooltip_names,
+                                    layer_attributes->tooltip_names_size);
+}
+
 static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
                                    Agedge_t *edge, bool reverse_orientation) {
   for (size_t layer_index = 0; layer_index < HYPERLINK_LAYER_COUNT;
@@ -859,7 +875,8 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
         names = source_layer->tooltip_names;
         names_size = source_layer->tooltip_names_size;
         kind_name = "tooltip";
-        rendered = hyperlink_layer_gate_is_open(edge, source_layer_id);
+        rendered = hyperlink_tooltip_gate_is_open(
+            root_graph, edge, source_layer_id, source_layer);
         break;
       case HYPERLINK_VALUE_TARGET:
         names = source_layer->target_names;

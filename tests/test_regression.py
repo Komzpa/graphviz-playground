@@ -5835,6 +5835,39 @@ def test_concentrate_svg_preserves_distinct_edge_class_hooks():
     assert edge_classes("", "") == ["edge"]
 
 
+def test_concentrate_preserves_explicit_endpoint_tooltips_without_labels():
+    """nodeIntersect() maps explicit endpoint tooltips without label geometry."""
+
+    distinct_head_tooltips = _concentrated_graph(
+        "",
+        "a -> b [headtooltip=one]",
+        "a -> b [headtooltip=two]",
+    )
+    assert len(_drawn_edges(distinct_head_tooltips)) == 2
+
+    equal_head_tooltips = _concentrated_graph(
+        "",
+        "a -> b [headtooltip=same]",
+        "a -> b [headtooltip=same]",
+    )
+    assert len(_drawn_edges(equal_head_tooltips)) == 1
+
+    # emit_edge_label() still needs a main label before labeltooltip renders.
+    unrendered_label_tooltips = _concentrated_graph(
+        "",
+        "a -> b [labeltooltip=one]",
+        "a -> b [labeltooltip=two]",
+    )
+    assert len(_drawn_edges(unrendered_label_tooltips)) == 1
+
+    rendered_label_tooltips = _concentrated_graph(
+        "",
+        "a -> b [label=x labeltooltip=one]",
+        "a -> b [label=x labeltooltip=two]",
+    )
+    assert len(_drawn_edges(rendered_label_tooltips)) == 2
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_merges_equivalent_parallel_edges(splines: str):
     """Equivalent edges share one route even when input order separates them."""
