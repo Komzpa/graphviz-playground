@@ -5474,6 +5474,20 @@ def _assert_concentrated_edge_counts(
             ),
         ),
         _named_edge_count_cases(
+            # A shared-trunk join can leave the joining lhead edge with no
+            # arrow of its own (the trunk accumulates the tip), and
+            # makeCompoundEdge() must clip that arrowless compound spline
+            # instead of asserting that an end arrow exists.
+            "compound-trunk-arrowless-representative",
+            _edge_count_case(
+                2,
+                "graph [compound=true]",
+                "Andrus -> cluster_BE [minlen=4 lhead=cluster_BE weight=100]",
+                "Alexei -> cluster_BE [minlen=4 lhead=cluster_BE]",
+                "subgraph cluster_BE { cluster_BE -> AndrusBE [style=invis] }",
+            ),
+        ),
+        _named_edge_count_cases(
             "endpoint-label-substitution",
             _edge_count_case(
                 1,
