@@ -347,10 +347,10 @@ static void resolve_borrowed_arrow_fillcolor(arrow_decoration_t *decoration) {
   decoration->fillcolor_is_resolved = true;
 }
 
-static edge_arrow_endpoint_t
-oriented_candidate_endpoint(edge_arrow_endpoint_t retained_endpoint,
-                            bool candidate_runs_in_opposite_direction) {
-  if (!candidate_runs_in_opposite_direction) {
+static edge_arrow_endpoint_t candidate_endpoint_matching_retained_endpoint(
+    edge_arrow_endpoint_t retained_endpoint,
+    bool candidate_is_opposite_direction) {
+  if (!candidate_is_opposite_direction) {
     return retained_endpoint;
   }
   return retained_endpoint == EDGE_ARROW_START ? EDGE_ARROW_END
@@ -384,7 +384,7 @@ bool opposite_direction_edge_arrow_decorations_are_mergeable(
   for (edge_arrow_endpoint_t retained_endpoint = EDGE_ARROW_START;
        retained_endpoint < EDGE_ARROW_ENDPOINT_COUNT; retained_endpoint++) {
     const edge_arrow_endpoint_t candidate_endpoint =
-        oriented_candidate_endpoint(retained_endpoint, true);
+        candidate_endpoint_matching_retained_endpoint(retained_endpoint, true);
     if (!arrow_decorations_can_fold(&retained[retained_endpoint],
                                     &candidate[candidate_endpoint])) {
       return false;
@@ -395,7 +395,7 @@ bool opposite_direction_edge_arrow_decorations_are_mergeable(
 
 void fold_concentrated_edge_arrow_decorations(
     Agedge_t *retained_edge, Agedge_t *candidate_edge,
-    bool candidate_runs_in_opposite_direction) {
+    bool candidate_is_opposite_direction) {
   arrow_decoration_t retained[EDGE_ARROW_ENDPOINT_COUNT];
   arrow_decoration_t candidate[EDGE_ARROW_ENDPOINT_COUNT];
   accumulated_edge_arrow_decorations(retained_edge, retained);
@@ -410,8 +410,8 @@ void fold_concentrated_edge_arrow_decorations(
   for (edge_arrow_endpoint_t retained_endpoint = EDGE_ARROW_START;
        retained_endpoint < EDGE_ARROW_ENDPOINT_COUNT; retained_endpoint++) {
     const edge_arrow_endpoint_t candidate_endpoint =
-        oriented_candidate_endpoint(retained_endpoint,
-                                    candidate_runs_in_opposite_direction);
+        candidate_endpoint_matching_retained_endpoint(
+            retained_endpoint, candidate_is_opposite_direction);
     assert(arrow_decorations_can_fold(&retained[retained_endpoint],
                                       &candidate[candidate_endpoint]));
     if (arrow_decoration_is_empty(&retained[retained_endpoint])) {
