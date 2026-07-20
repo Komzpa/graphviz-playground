@@ -5139,6 +5139,22 @@ def test_concentrate_train11_internal_junctions_have_no_head_arrows():
     assert "_hdraw_" in _drawn_edge_between(layout, "st10", "st0")
 
 
+def test_concentrate_fanout_keeps_real_terminal_arrowheads():
+    """Junction suppression does not hide arrows at real endpoint nodes."""
+
+    source = """
+        digraph {
+          graph [concentrate=true]
+          a -> c [minlen=2]
+          a -> d [minlen=2]
+        }
+    """
+    edges = _drawn_edges(source)
+
+    assert len(edges) == 2
+    assert all("_hdraw_" in edge for edge in edges)
+
+
 def _arrowhead_shaft_angle(edge: dict) -> float:
     """Return the angle between a normal head arrow and its shaft tangent."""
 

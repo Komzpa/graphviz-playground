@@ -128,6 +128,12 @@ static void add_concentrated_segment_weight(edge_t *edge, edge_t *representative
     }
 }
 
+static bool concentrated_junction(node_t *n)
+{
+    return ND_node_type(n) == VIRTUAL &&
+           (ND_in(n).size > 1 || ND_out(n).size > 1);
+}
+
 static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 {
     node_t *left;
@@ -146,12 +152,15 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 	    else
 		add_concentrated_segment_weight(e, f);
 	    ED_conc_suppressed_tail(e) = true;
-	    ED_conc_suppressed_head(e) = true;
 	    ED_conc_suppressed_tail(f) = true;
-	    ED_conc_suppressed_head(f) = true;
+	    if (concentrated_junction(aghead(e))) {
+		ED_conc_suppressed_head(e) = true;
+		ED_conc_suppressed_head(f) = true;
+	    }
 	    while ((e0 = ND_in(right).list[0])) {
 		keep_distinct_original_drawn(e0, f);
-		ED_conc_suppressed_tail(e0) = true;
+		if (concentrated_junction(agtail(e0)))
+		    ED_conc_suppressed_tail(e0) = true;
 		ED_conc_suppressed_head(e0) = true;
 		merge_oneway(e0, f);
 		delete_fast_edge(e0);
@@ -168,14 +177,17 @@ static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 		f = virtual_edge(agtail(e), left, e);
 	    else
 		add_concentrated_segment_weight(e, f);
-	    ED_conc_suppressed_tail(e) = true;
+	    if (concentrated_junction(agtail(e))) {
+		ED_conc_suppressed_tail(e) = true;
+		ED_conc_suppressed_tail(f) = true;
+	    }
 	    ED_conc_suppressed_head(e) = true;
-	    ED_conc_suppressed_tail(f) = true;
 	    ED_conc_suppressed_head(f) = true;
 	    while ((e0 = ND_out(right).list[0])) {
 		keep_distinct_original_drawn(e0, f);
 		ED_conc_suppressed_tail(e0) = true;
-		ED_conc_suppressed_head(e0) = true;
+		if (concentrated_junction(aghead(e0)))
+		    ED_conc_suppressed_head(e0) = true;
 		merge_oneway(e0, f);
 		delete_fast_edge(e0);
 	    }
