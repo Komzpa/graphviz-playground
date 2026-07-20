@@ -69,7 +69,9 @@ typedef struct {
   bool fillcolor_affects_identity;
   bool fillcolor_is_html;
   bool fillcolor_is_rgba;
+  bool fillcolor_is_resolved;
   unsigned char fillcolor_rgba[4];
+  char resolved_fillcolor[10];
 } arrow_decoration_t;
 
 static bool arrow_decoration_is_empty(const arrow_decoration_t *decoration) {
@@ -90,8 +92,9 @@ static bool arrow_decoration_is_empty(const arrow_decoration_t *decoration) {
  * had no arrow there.
  *
  * Agrec_t must remain first. move_to_front=false preserves Agedgeinfo_t as the
- * front record expected by ED_* macros. fillcolor points into Cgraph-owned
- * attribute storage (or a static default) and is valid for the graph lifetime.
+ * front record expected by ED_* macros. Unborrowed fillcolor points into
+ * Cgraph-owned attribute storage (or a static default); borrowed colors that
+ * parsed successfully use the inline, scheme-independent resolved_fillcolor.
  */
 typedef struct {
   Agrec_t header;
@@ -248,6 +251,24 @@ static bool arrow_decorations_can_fold(const arrow_decoration_t *retained,
          arrow_decorations_are_equal(retained, candidate);
 }
 
+static void resolve_borrowed_arrow_fillcolor(arrow_decoration_t *decoration) {
+  if (!decoration->fillcolor_is_rgba) {
+    return;
+  }
+
+  static const char hex[] = "0123456789abcdef";
+  decoration->resolved_fillcolor[0] = '#';
+  for (size_t i = 0; i < sizeof(decoration->fillcolor_rgba); i++) {
+    decoration->resolved_fillcolor[2 * i + 1] =
+        hex[decoration->fillcolor_rgba[i] >> 4];
+    decoration->resolved_fillcolor[2 * i + 2] =
+        hex[decoration->fillcolor_rgba[i] & 0x0f];
+  }
+  decoration->resolved_fillcolor[sizeof(decoration->resolved_fillcolor) - 1] =
+      '\0';
+  decoration->fillcolor_is_resolved = true;
+}
+
 static edge_arrow_endpoint_t
 oriented_candidate_endpoint(edge_arrow_endpoint_t retained_endpoint,
                             bool candidate_runs_in_opposite_direction) {
@@ -316,6 +337,7 @@ void fold_concentrated_edge_arrow_decorations(
                                       &candidate[candidate_endpoint]));
     if (arrow_decoration_is_empty(&retained[retained_endpoint])) {
       retained[retained_endpoint] = candidate[candidate_endpoint];
+      resolve_borrowed_arrow_fillcolor(&retained[retained_endpoint]);
     }
   }
 
@@ -335,9 +357,13 @@ double edge_arrow_arrowsize(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
 }
 
 char *edge_arrow_fillcolor(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
-  arrow_decoration_t decorations[EDGE_ARROW_ENDPOINT_COUNT];
-  accumulated_edge_arrow_decorations(edge, decorations);
-  if (!arrow_decoration_is_empty(&decorations[endpoint])) {
+  const arrow_decoration_t *const decorations =
+      concentrated_arrow_decoration_record(edge, false);
+  if (decorations != NULL &&
+      !arrow_decoration_is_empty(&decorations[endpoint])) {
+    if (decorations[endpoint].fillcolor_is_resolved) {
+      return (char *)decorations[endpoint].resolved_fillcolor;
+    }
     return decorations[endpoint].fillcolor;
   }
   bool is_html;

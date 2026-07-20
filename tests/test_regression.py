@@ -4778,6 +4778,17 @@ def _arrow_polygon_point_count(edge: dict, endpoint: str) -> int:
     return len(polygon["points"])
 
 
+def _arrow_fill_color(edge: dict, endpoint: str) -> str:
+    """Read an arrow's fill color from its xdot ``C`` operation."""
+
+    operation = next(
+        operation
+        for operation in edge[f"_{endpoint}draw_"]
+        if operation["op"] == "C"
+    )
+    return operation["color"]
+
+
 def _drawn_edge_spline_point_count(edge: dict) -> int:
     """Count points across every xdot Bezier segment drawn for one edge."""
 
@@ -5575,6 +5586,29 @@ def test_concentrate_preserves_reverse_arrow_after_no_arrow_duplicate(splines: s
     assert "_tdraw_" in drawn_edges[0]
     assert "_hdraw_" not in drawn_edges[0]
     assert _arrow_polygon_point_count(drawn_edges[0], "t") == 3
+
+
+@pytest.mark.parametrize(
+    ("retained_attributes", "candidate_attributes"),
+    (
+        ("", "fillcolor=1"),
+        ('color="#a6cee3"', "color=1"),
+    ),
+)
+def test_concentrate_borrowed_arrow_uses_candidate_colorscheme(
+    retained_attributes: str, candidate_attributes: str
+):
+    """emit_edge_graphics() receives the candidate-resolved borrowed fill."""
+
+    borrowed_scheme_relative_arrow = _concentrated_graph(
+        "",
+        f"a -> b [dir=none colorscheme=accent3 {retained_attributes}]",
+        f"b -> a [arrowhead=normal colorscheme=paired3 {candidate_attributes}]",
+    )
+    drawn_edges = _drawn_edges(borrowed_scheme_relative_arrow)
+    assert len(drawn_edges) == 1
+    assert "_tdraw_" in drawn_edges[0]
+    assert _arrow_fill_color(drawn_edges[0], "t") == "#a6cee3"
 
 
 @pytest.mark.skipif(
