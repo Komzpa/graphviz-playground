@@ -62,6 +62,16 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  if (strcmp(argv[1], "xlabel-no-fallback") == 0) {
+    const char *source =
+        "digraph {"
+        "  a -> b [URL=\"u\" xlabel=\"x\"];"
+        "  a -> b [URL=\"u\" xlabel=\"x\" tooltip=\"x\"];"
+        "}";
+    assert(!compare_edges(source));
+    return 0;
+  }
+
   fprintf(stderr, "unknown scenario: %s\n", argv[1]);
   return 1;
 }

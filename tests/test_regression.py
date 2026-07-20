@@ -6628,6 +6628,17 @@ def test_concentrate_implicit_tooltip_fallback_uses_textlabel_text(tmp_path: Pat
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
 )
+def test_concentrate_xlabel_does_not_supply_edge_tooltip_fallback(tmp_path: Path):
+    """emit_begin_edge() never assigns obj->label from ED_xlabel()."""
+
+    exe, env = _compile_concentrate_edge_identity_tooltip_test(tmp_path)
+    subprocess.run((exe, "xlabel-no-fallback"), capture_output=True, env=env, check=True)
+
+
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
 def test_concentrate_repeated_layout_discards_accumulated_arrows(tmp_path: Path):
     """``gv_cleanup_edge`` drops the private arrow fold before a second layout."""
 

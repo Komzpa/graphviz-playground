@@ -1030,10 +1030,7 @@ static const char *hyperlink_fallback_label(Agedge_t *edge,
   switch (owner) {
   case ATTRIBUTE_OWNER_EDGE:
   case ATTRIBUTE_OWNER_LABEL:
-    return edge_has_main_label(edge)
-               ? (ED_label(edge) != NULL ? ED_label(edge)->text
-                                         : ED_xlabel(edge)->text)
-               : "";
+    return ED_label(edge) != NULL ? ED_label(edge)->text : "";
   case ATTRIBUTE_OWNER_HEAD:
     return ED_head_label(edge) != NULL ? ED_head_label(edge)->text : "";
   case ATTRIBUTE_OWNER_TAIL:
