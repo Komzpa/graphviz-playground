@@ -763,8 +763,14 @@ edge_projected_penwidth(edge_attribute_classification_t classification,
   return edge_numeric_projected_value(classification, value, penwidth);
 }
 
+static bool graph_uses_ortho_edges(Agraph_t *root_graph) {
+  const char *const splines_value = agget(root_graph, "splines");
+  return splines_value != NULL && strcmp(splines_value, "ortho") == 0;
+}
+
 static void append_style_value(agxbuf *signature, const char *slot_name,
-                               comparable_attribute_value_t value) {
+                               comparable_attribute_value_t value,
+                               bool keep_rounded) {
   if (value.is_html) {
     append_signature_slot(signature, slot_name, value);
     return;
@@ -772,7 +778,8 @@ static void append_style_value(agxbuf *signature, const char *slot_name,
 
   agxbuf rendered_style = {0};
   for (char **item = parse_style((char *)value.text); *item != NULL; item++) {
-    if (strcmp(*item, "bold") == 0 || strcmp(*item, "setlinewidth") == 0) {
+    if (strcmp(*item, "bold") == 0 || strcmp(*item, "setlinewidth") == 0 ||
+        (!keep_rounded && strcmp(*item, "rounded") == 0)) {
       continue;
     }
     if (agxblen(&rendered_style) > 0) {
@@ -879,7 +886,8 @@ static void append_projected_attribute_value(agxbuf *signature,
                                   agxbuse(&rendered_number));
       agxbfree(&rendered_number);
     }
-    append_style_value(signature, slot_name, value);
+    append_style_value(signature, slot_name, value,
+                       graph_uses_ortho_edges(root_graph));
     return;
   }
 

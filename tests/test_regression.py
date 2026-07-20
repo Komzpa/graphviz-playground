@@ -6012,11 +6012,17 @@ def test_concentrate_radius_identity_is_gated_on_ortho_edges():
 
     _assert_concentrated_edge_counts(
         "",
-        (_edge_count_case(1, "a -> b [radius=5]", "a -> b"),),
+        (
+            _edge_count_case(1, "a -> b [radius=5]", "a -> b"),
+            _edge_count_case(1, "b -> c [style=rounded]", "b -> c"),
+        ),
     )
     _assert_concentrated_edge_counts(
         "splines=ortho",
-        (_edge_count_case(2, "a -> b [radius=5]", "a -> b"),),
+        (
+            _edge_count_case(2, "a -> b [radius=5]", "a -> b"),
+            _edge_count_case(2, "b -> c [style=rounded]", "b -> c"),
+        ),
     )
 
 
