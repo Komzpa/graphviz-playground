@@ -8975,8 +8975,38 @@ def test_2757():
     src = Path(__file__).parent / "2757.dot"
     assert src.exists(), "unexpectedly missing test case"
 
-    # run this through Graphviz
-    dot("dot", src)
+    # run this through Graphviz and inspect geometry to prove layout was produced
+    # (not just that process did not crash)
+    layout = dot("json", src)
+    data = json.loads(layout)
+
+    # Ensure the output contains positioned graph objects.
+    node_positions = [obj["pos"] for obj in data["objects"] if "pos" in obj]
+    assert node_positions, "layout output has no node coordinates"
+
+    for pos in node_positions:
+        x, y = (float(v) for v in pos.split(","))
+        assert math.isfinite(x), "non-finite node x coordinate"
+        assert math.isfinite(y), "non-finite node y coordinate"
+
+    # Ensure at least one edge has an actual polyline with finite points.
+    edge_points = [
+        segment["points"]
+        for edge in data["edges"]
+        for segment in edge["_draw_"]
+        if "points" in segment
+    ]
+    assert edge_points, "layout output has no routed edges"
+
+    for points in edge_points:
+        for x, y in points:
+            assert math.isfinite(float(x)), "non-finite edge x coordinate"
+            assert math.isfinite(float(y)), "non-finite edge y coordinate"
+
+    # The bounding box should be non-empty.
+    bb = [float(v) for v in data["bb"].split(",")]
+    assert bb[2] > bb[0], "invalid or collapsed bounding box (x)"
+    assert bb[3] > bb[1], "invalid or collapsed bounding box (y)"
 
 
 @pytest.mark.xfail(

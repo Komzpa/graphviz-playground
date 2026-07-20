@@ -1729,6 +1729,8 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
   node_t *tn = agtail(e);
   node_t *hn = aghead(e);
   const int r = ND_rank(tn);
+  // With edge labels, an auxiliary rank sits immediately below each node rank.
+  // There may be no preceding node rank.
   const int prev_rank = r - ((GD_has_labels(g->root) & EDGE_LABEL) ? 2 : 1);
   if (prev_rank >= 0) {
     rank_t *const prevr = GD_rank(g) + prev_rank;
