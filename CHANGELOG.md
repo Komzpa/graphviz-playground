@@ -99,6 +99,8 @@ and this project adheres to
   causes a crash. #2757
 - Processing clustered graphs no longer dereferences freed
   rankleaders. #2760
+- Malformed ranksets inside clusters no longer crash dot when they leave empty
+  rank slots during layout. #2759 #2762
 
 ## [15.1.0] – 2026-06-17
 
