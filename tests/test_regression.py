@@ -5625,6 +5625,7 @@ def _assert_concentrated_edge_counts(
             ),
             _edge_count_case(1, 'a -> b [headURL="u"]', 'b -> a [tailhref="u"]'),
             _edge_count_case(2, 'a -> b [headURL="\\T"]', 'b -> a [tailhref="\\T"]'),
+            _edge_count_case(2, "a -> b [URL=<\\T>]", "b -> a [href=<\\T>]"),
             _edge_count_case(2, 'a -> b [headURL="u"]', 'b -> a [headhref="u"]'),
         ),
         _named_edge_count_cases(
@@ -5659,6 +5660,11 @@ def _assert_concentrated_edge_counts(
                 2,
                 "a -> b [headlabel=x URL=u headtarget=one]",
                 "a -> b [headlabel=x URL=u headtarget=two]",
+            ),
+            _edge_count_case(
+                2,
+                "a -> b [URL=u target=<\\T>]",
+                "b -> a [URL=u edgetarget=<\\T>]",
             ),
         ),
         _named_edge_count_cases(

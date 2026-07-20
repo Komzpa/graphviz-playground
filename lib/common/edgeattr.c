@@ -267,6 +267,15 @@ static void append_plain_signature_slot(agxbuf *signature,
   append_signature_slot(signature, slot_name, plain_attribute_value(value));
 }
 
+static void append_substituted_signature_slot(agxbuf *signature,
+                                              const char *slot_name,
+                                              const char *value,
+                                              Agedge_t *edge) {
+  char *const substituted = strdup_and_subst_obj((char *)value, edge);
+  append_plain_signature_slot(signature, slot_name, substituted);
+  free(substituted);
+}
+
 static bool html_label_may_use_colorscheme(const char *text) {
   for (const char *attribute = strstr(text, "COLOR=\""); attribute != NULL;
        attribute = strstr(attribute + 1, "COLOR=\"")) {
@@ -1230,14 +1239,9 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
                                     substituted);
         free(substituted);
         free(preprocessed);
-      } else if (value.is_html) {
-        append_signature_slot(signature, agxbuse(&slot_name), value);
       } else {
-        char *const substituted =
-            strdup_and_subst_obj((char *)value.text, edge);
-        append_plain_signature_slot(signature, agxbuse(&slot_name),
-                                    substituted);
-        free(substituted);
+        append_substituted_signature_slot(signature, agxbuse(&slot_name),
+                                          value.text, edge);
       }
       agxbfree(&slot_name);
     }
@@ -1254,15 +1258,8 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
       agxbuf slot_name = {0};
       agxbprint(&slot_name, "hyperlink:%s:label-URL",
                 attribute_owner_slot_name(canonical_owner));
-      if (value.is_html) {
-        append_signature_slot(signature, agxbuse(&slot_name), value);
-      } else {
-        char *const substituted =
-            strdup_and_subst_obj((char *)value.text, edge);
-        append_plain_signature_slot(signature, agxbuse(&slot_name),
-                                    substituted);
-        free(substituted);
-      }
+      append_substituted_signature_slot(signature, agxbuse(&slot_name),
+                                        value.text, edge);
       agxbfree(&slot_name);
     }
   }
