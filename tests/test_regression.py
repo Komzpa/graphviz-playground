@@ -5114,6 +5114,17 @@ def test_concentrate_flat_port_pair_crosses_steeply():
     assert _crossing_angle(edges[0], edges[1]) >= 45
 
 
+def test_concentrate_p3_crossings_do_not_exceed_base():
+    """Concentration keeps p3 at the true-base sampled crossing count."""
+
+    source = (Path(__file__).parent / "graphs" / "p3.gv").read_text().replace(
+        "graph G {", "graph G {\n  graph [concentrate=true];", 1
+    )
+    edges = _drawn_edges(source)
+
+    assert _sampled_edge_crossing_count(edges) <= 1
+
+
 def _arrowhead_shaft_angle(edge: dict) -> float:
     """Return the angle between a normal head arrow and its shaft tangent."""
 
@@ -5294,6 +5305,67 @@ def _crossing_angle(first_edge: dict, second_edge: dict) -> float:
 def _drawn_edge_arc_length(edge: dict) -> float:
     samples = _sample_drawn_edge(edge)
     return sum(math.dist(first, second) for first, second in zip(samples, samples[1:]))
+
+
+def _orientation(
+    a: tuple[float, float], b: tuple[float, float], c: tuple[float, float]
+) -> float:
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _segments_cross(
+    a: tuple[float, float],
+    b: tuple[float, float],
+    c: tuple[float, float],
+    d: tuple[float, float],
+) -> bool:
+    if max(a[0], b[0]) < min(c[0], d[0]) or max(c[0], d[0]) < min(a[0], b[0]):
+        return False
+    if max(a[1], b[1]) < min(c[1], d[1]) or max(c[1], d[1]) < min(a[1], b[1]):
+        return False
+
+    first = _orientation(a, b, c)
+    second = _orientation(a, b, d)
+    third = _orientation(c, d, a)
+    fourth = _orientation(c, d, b)
+    return first * second <= 0 and third * fourth <= 0
+
+
+def _sampled_edge_crossing_count(edges: list[dict]) -> int:
+    segments = []
+    for edge in edges:
+        samples = []
+        for operation in edge["_draw_"]:
+            if operation["op"] != "b":
+                continue
+            points = operation["points"]
+            for segment_start in range(0, len(points) - 1, 3):
+                control = points[segment_start : segment_start + 4]
+                for step in range(9):
+                    t = step / 8
+                    u = 1 - t
+                    samples.append(
+                        (
+                            u**3 * control[0][0]
+                            + 3 * u**2 * t * control[1][0]
+                            + 3 * u * t**2 * control[2][0]
+                            + t**3 * control[3][0],
+                            u**3 * control[0][1]
+                            + 3 * u**2 * t * control[1][1]
+                            + 3 * u * t**2 * control[2][1]
+                            + t**3 * control[3][1],
+                        )
+                    )
+        for start, end in zip(samples, samples[1:]):
+            if math.dist(start, end) > 0.01:
+                segments.append((edge.get("_gvid"), start, end))
+
+    crossing_pairs = set()
+    for index, (first_edge, a, b) in enumerate(segments):
+        for second_edge, c, d in segments[index + 1 :]:
+            if first_edge != second_edge and _segments_cross(a, b, c, d):
+                crossing_pairs.add(tuple(sorted((first_edge, second_edge))))
+    return len(crossing_pairs)
 
 
 def _point_distance_to_line(

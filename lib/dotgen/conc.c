@@ -363,6 +363,8 @@ int dot_concentrate(graph_t *g) {
 		 ) {
 		right = GD_rank(g)[r].v[rightpos];
 		if (!bothdowncandidates(left, right)) {
+		    if (!agisdirected(g))
+			break;
 		    rightpos++;
 		    continue;
 		}
@@ -380,6 +382,8 @@ int dot_concentrate(graph_t *g) {
 		 ) {
 		right = GD_rank(g)[r].v[rightpos];
 		if (!bothupcandidates(left, right)) {
+		    if (!agisdirected(g))
+			break;
 		    rightpos++;
 		    continue;
 		}
