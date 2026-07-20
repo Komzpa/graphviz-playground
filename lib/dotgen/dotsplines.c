@@ -2075,19 +2075,8 @@ static void align_control_arm(pointf *control, pointf endpoint,
   *control = sub_pointf(endpoint, scale(control_length / axis_length, axis));
 }
 
-static void align_start_control_arm(pointf *control, pointf endpoint,
-                                    pointf target) {
-  const pointf axis = sub_pointf(target, endpoint);
-  const double axis_length = hypot(axis.x, axis.y);
-  const double control_length = DIST(*control, endpoint);
-  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
-    return;
-
-  *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
-}
-
-static void align_end_control_arm(pointf *control, pointf endpoint,
-                                  pointf target) {
+static void point_control_arm_at(pointf *control, pointf endpoint,
+                                 pointf target) {
   const pointf axis = sub_pointf(target, endpoint);
   const double axis_length = hypot(axis.x, axis.y);
   const double control_length = DIST(*control, endpoint);
@@ -2237,9 +2226,9 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
   const pointf start = spline->list[first];
   const pointf end = spline->list[last];
   if (merged_tail || bidirectional_concentration)
-    align_start_control_arm(&spline->list[first + 1], start, end);
+    point_control_arm_at(&spline->list[first + 1], start, end);
   if (merged_head || bidirectional_concentration)
-    align_end_control_arm(&spline->list[last - 1], end, start);
+    point_control_arm_at(&spline->list[last - 1], end, start);
 
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
