@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <common/const.h>
 #include <cgraph/cgraph.h>
+#include <common/const.h>
 #include <common/edgeattr.h>
 #include <common/types.h>
 #include <gvc/gvc.h>

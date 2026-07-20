@@ -721,7 +721,8 @@ static void append_structured_port_slots(agxbuf *signature, Agedge_t *edge,
     }
 
     agxbuf resolved_value = {0};
-    agxbprint(&resolved_value, "%a,%a", resolved_port.p.x, resolved_port.p.y);
+    agxbprint(&resolved_value, "%a,%a,%d,%d", resolved_port.p.x,
+              resolved_port.p.y, resolved_port.constrained, resolved_port.dyna);
     append_plain_signature_slot(
         signature, endpoint == EDGE_HEAD_ENDPOINT ? "headport" : "tailport",
         agxbuse(&resolved_value));

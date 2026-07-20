@@ -5766,6 +5766,17 @@ def _assert_concentrated_edge_counts(
             ),
         ),
         _named_edge_count_cases(
+            "dynamic-record-ports",
+            _edge_count_case(
+                2,
+                "node [shape=record]",
+                'a [label="<p> p"]',
+                "b",
+                "a:p -> b",
+                "a:p:c -> b",
+            ),
+        ),
+        _named_edge_count_cases(
             "ignore-layout-only-attributes",
             _edge_count_case(
                 3,
@@ -6815,8 +6826,8 @@ def test_concentrate_matches_resolved_port_spellings(splines: str):
         splines,
         "node [shape=record]",
         'a [label="<p>p"]',
-        "a:p -> b [color=red]",
         "a:p:c -> b [color=red]",
+        'a -> b [tailport="p:c" color=red]',
     )
     assert len(_drawn_edges(equivalent_port_spellings)) == 1
 
