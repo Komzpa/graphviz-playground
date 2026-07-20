@@ -5187,6 +5187,27 @@ def _edge_bezier_points(edge: dict) -> list[list[float]]:
     return next(operation["points"] for operation in edge["_draw_"] if operation["op"] == "b")
 
 
+def _sample_drawn_edge(edge: dict) -> tuple[tuple[float, float], ...]:
+    """Sample all visible Bezier segments for one drawn edge."""
+
+    return tuple(
+        point
+        for operation in edge["_draw_"]
+        if operation["op"] == "b"
+        for point in _sample_bezier_points(operation["points"])
+    )
+
+
+def _max_pointwise_route_distance(first_edge: dict, second_edge: dict) -> float:
+    """Compare two sampled routes at equal normalized sample indexes."""
+
+    first = _sample_drawn_edge(first_edge)
+    second = _sample_drawn_edge(second_edge)
+    sample_count = min(len(first), len(second))
+    assert sample_count > 1
+    return max(math.dist(first[index], second[index]) for index in range(sample_count))
+
+
 def _ellipse(node: dict) -> tuple[float, float, float, float]:
     """Return an ellipse node's center and radii."""
 
@@ -5787,6 +5808,38 @@ def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
         for color, color_edges in edges_by_color.items()
     } == {"#000000": [4, 4], "#0000ff": [8], "#ff0000": [4]}
     assert sum("_hdraw_" in edge for edge in edges) == 3
+
+
+def test_concentrate_shared_trunk_keeps_visible_lanes_for_distinct_edges():
+    """Rendered-distinct members on a shared corridor separate visibly."""
+
+    source = _SHARED_TRUNK_FIXTURE % """
+        a -> d [color=blue]
+        b -> d [color=red]
+        a -> d
+        b -> d
+    """
+    edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    by_color = {
+        color: [edge for edge in edges if _drawn_edge_color(edge) == color]
+        for color in {"#000000", "#0000ff", "#ff0000"}
+    }
+    assert {color: len(color_edges) for color, color_edges in by_color.items()} == {
+        "#000000": 2,
+        "#0000ff": 1,
+        "#ff0000": 1,
+    }
+
+    distinct_pairs = [
+        (by_color["#0000ff"][0], by_color["#ff0000"][0]),
+        (by_color["#0000ff"][0], by_color["#000000"][0]),
+        (by_color["#ff0000"][0], by_color["#000000"][1]),
+    ]
+    for first, second in distinct_pairs:
+        stroke_width = max(
+            float(first.get("penwidth", 1)), float(second.get("penwidth", 1))
+        )
+        assert _max_pointwise_route_distance(first, second) > stroke_width
 
 
 def test_concentrate_shared_trunk_routes_meet_at_junction():

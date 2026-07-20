@@ -12,6 +12,7 @@
 
 #include "config.h"
 #include <assert.h>
+#include <common/edgeattr.h>
 #include <common/geomprocs.h>
 #include <common/render.h>
 #include <float.h>
@@ -978,12 +979,38 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
     bool curved = et == EDGETYPE_CURVED;
     pointf del;
 
+    if (Concentrate) {
+	for (size_t i = 0; i < e_cnt; i++) {
+	    edge_t *const retained = edge_list[i];
+	    if (ED_edge_type(retained) == IGNORED)
+		continue;
+	    for (size_t j = i + 1; j < e_cnt; j++) {
+		edge_t *const candidate = edge_list[j];
+		if (ED_edge_type(candidate) == IGNORED)
+		    continue;
+		if (gv_edge_attributes_are_equal(retained, candidate) &&
+		    same_direction_edge_arrow_decorations_are_mergeable(retained,
+		                                                        candidate)) {
+		    fold_concentrated_edge_arrow_decorations(retained, candidate,
+		                                             false);
+		    ED_edge_type(candidate) = IGNORED;
+		}
+	    }
+	}
+	size_t kept = 0;
+	for (size_t i = 0; i < e_cnt; i++) {
+	    if (ED_edge_type(edge_list[i]) != IGNORED)
+		edge_list[kept++] = edge_list[i];
+	}
+	e_cnt = kept;
+    }
+
     edge_t *e = edge_list[0];
     node_t *n = agtail(e);
     node_t *head = aghead(e);
     dumb[1] = dumb[0] = add_pointf(ND_coord(n), ED_tail_port(e).p);
     dumb[2] = dumb[3] = add_pointf(ND_coord(head), ED_head_port(e).p);
-    if (e_cnt == 1 || Concentrate) {
+    if (e_cnt == 1) {
 	if (curved) bend(dumb,get_cycle_centroid(g, edge_list[0]));
 	clip_and_install(e, aghead(e), dumb, 4, sinfo);
 	addEdgeLabels(e);
