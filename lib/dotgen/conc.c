@@ -29,7 +29,7 @@ static edge_t *original_normal_edge(edge_t *edge)
     return edge;
 }
 
-static bool samestructuraldir(edge_t * e, edge_t * f)
+static bool original_edges_have_same_rank_direction(edge_t * e, edge_t * f)
 {
     e = original_normal_edge(e);
     f = original_normal_edge(f);
@@ -88,7 +88,7 @@ static bool bothdowncandidates(node_t * u, node_t * v)
     if (downcandidate(v) && agtail(e) == agtail(f)) {
 	edge_t *e0 = original_normal_edge(e);
 	edge_t *f0 = original_normal_edge(f);
-	return samestructuraldir(e, f)
+	return original_edges_have_same_rank_direction(e, f)
 	    && rendered_edges_are_equal(f0, e0)
 	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0
 	    && (e0 == NULL || f0 == NULL || aghead(e0) != aghead(f0)
@@ -111,7 +111,7 @@ static bool bothupcandidates(node_t * u, node_t * v)
     if (upcandidate(v) && aghead(e) == aghead(f)) {
 	edge_t *e0 = original_normal_edge(e);
 	edge_t *f0 = original_normal_edge(f);
-	return samestructuraldir(e, f)
+	return original_edges_have_same_rank_direction(e, f)
 	    && rendered_edges_are_equal(f0, e0)
 	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0
 	    && (e0 == NULL || f0 == NULL || agtail(e0) != agtail(f0)
