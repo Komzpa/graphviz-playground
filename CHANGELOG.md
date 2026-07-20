@@ -103,6 +103,8 @@ and this project adheres to
   rank slots during layout. #2759 #2762
 - Malformed flat edges whose auxiliary route cannot produce splines no longer
   crash `dot`. #2758
+- Dot now keeps routing through incomplete pathplan triangulation instead of
+  dropping affected edges. #2470 #2814
 
 ## [15.1.0] – 2026-06-17
 
