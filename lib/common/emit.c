@@ -1973,7 +1973,8 @@ static void splitBSpline(bezier *bz, double t, bezier *left, bezier *right) {
  * Return non-zero if color spec is incorrect
  */
 static int multicolor(GVJ_t *job, edge_t *e, char **styles, const char *colors,
-                      double arrowsize, double penwidth) {
+                      double start_arrowsize, double end_arrowsize,
+                      double penwidth) {
     bezier bz;
     bezier bz0, bz_l, bz_r;
     int rv;
@@ -2036,12 +2037,14 @@ static int multicolor(GVJ_t *job, edge_t *e, char **styles, const char *colors,
 	if (bz.sflag) {
     	    gvrender_set_pencolor(job, LIST_FRONT(&segs)->color);
     	    gvrender_set_fillcolor(job, LIST_FRONT(&segs)->color);
-	    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], arrowsize, penwidth, bz.sflag);
+	    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], start_arrowsize,
+	              penwidth, bz.sflag);
 	}
 	if (bz.eflag) {
     	    gvrender_set_pencolor(job, endcolor);
     	    gvrender_set_fillcolor(job, endcolor);
-	    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize, penwidth, bz.eflag);
+	    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], end_arrowsize,
+	              penwidth, bz.eflag);
 	}
 	if (ED_spl(e)->size > 1 && (bz.sflag || bz.eflag) && styles)
 	    gvrender_set_style(job, styles);
@@ -2356,7 +2359,8 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
     bezier bz;
     splines offspl, tmpspl;
     pointf pf0, pf1, pf2 = { 0, 0 }, pf3, *offlist, *tmplist;
-    double arrowsize, numc2, penwidth=job->obj->penwidth;
+    double start_arrowsize, end_arrowsize, numc2,
+        penwidth=job->obj->penwidth;
     char* p;
     bool tapered = false;
     agxbuf buf = {0};
@@ -2364,7 +2368,8 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 #define SEP 2.0
 
     if (ED_spl(e)) {
-	arrowsize = late_double(e, E_arrowsz, 1.0, 0.0);
+	start_arrowsize = edge_arrow_arrowsize(e, EDGE_ARROW_START);
+	end_arrowsize = edge_arrow_arrowsize(e, EDGE_ARROW_END);
 	color = late_string(e, E_color, "");
 
 	if (styles) {
@@ -2387,7 +2392,8 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 	}
 
 	if (numsemi && numc) {
-	    if (multicolor(job, e, styles, color, arrowsize, penwidth)) {
+	    if (multicolor(job, e, styles, color, start_arrowsize,
+	                   end_arrowsize, penwidth)) {
 		color = DEFAULT_COLOR;
 	    }
 	    else
@@ -2418,6 +2424,9 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 	if (fillcolor != color)
 	    gvrender_set_fillcolor(job, fillcolor);
 	color = pencolor;
+	const bool use_edge_arrow_fillcolor =
+	    (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED |
+	                        GUI_STATE_DELETED | GUI_STATE_VISITED)) == 0;
 
 	if (tapered) {
 	    if (*color == '\0') color = DEFAULT_COLOR;
@@ -2433,10 +2442,18 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 	    if (fillcolor != color)
 		gvrender_set_fillcolor(job, fillcolor);
 	    if (bz.sflag) {
-		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], arrowsize, penwidth, bz.sflag);
+		if (use_edge_arrow_fillcolor)
+		    gvrender_set_fillcolor(
+		        job, edge_arrow_fillcolor(e, EDGE_ARROW_START));
+		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], start_arrowsize,
+		          penwidth, bz.sflag);
 	    }
 	    if (bz.eflag) {
-		arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize, penwidth, bz.eflag);
+		if (use_edge_arrow_fillcolor)
+		    gvrender_set_fillcolor(
+		        job, edge_arrow_fillcolor(e, EDGE_ARROW_END));
+		arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1],
+		          end_arrowsize, penwidth, bz.eflag);
 	    }
 	}
 	/* if more than one color - then generate parallel Béziers, one per color */
@@ -2514,7 +2531,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    }
 		}
 		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
-			arrowsize, penwidth, bz.sflag);
+			start_arrowsize, penwidth, bz.sflag);
 	    }
 	    if (bz.eflag) {
 		if (color != headcolor) {
@@ -2525,7 +2542,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    }
 		}
 		arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1],
-			arrowsize, penwidth, bz.eflag);
+			end_arrowsize, penwidth, bz.eflag);
 	    }
 	    free(colors);
 	    for (size_t i = 0; i < offspl.size; i++) {
@@ -2666,12 +2683,18 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		}
 
 		if (bz.sflag) {
+		    if (use_edge_arrow_fillcolor)
+			gvrender_set_fillcolor(
+			    job, edge_arrow_fillcolor(e, EDGE_ARROW_START));
 		    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
-		              arrowsize, penwidth, bz.sflag);
+		              start_arrowsize, penwidth, bz.sflag);
 		}
 		if (bz.eflag) {
+		    if (use_edge_arrow_fillcolor)
+			gvrender_set_fillcolor(
+			    job, edge_arrow_fillcolor(e, EDGE_ARROW_END));
 		    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1],
-		              arrowsize, penwidth, bz.eflag);
+		              end_arrowsize, penwidth, bz.eflag);
 		}
 		if (ED_spl(e)->size > 1 && (bz.sflag || bz.eflag) && styles)
 		    gvrender_set_style(job, styles);

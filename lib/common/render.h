@@ -59,16 +59,38 @@ extern "C" {
 #endif
 
 	RENDER_API void add_box(path *, boxf);
+    typedef enum {
+      EDGE_ARROW_START,
+      EDGE_ARROW_END,
+      EDGE_ARROW_ENDPOINT_COUNT,
+    } edge_arrow_endpoint_t;
+    RENDER_API void edge_arrow_flags(Agedge_t *e, uint32_t *sflag,
+                                     uint32_t *eflag);
     RENDER_API void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag);
+    RENDER_API bool same_direction_edge_arrow_decorations_are_mergeable(
+        Agedge_t *retained_edge, Agedge_t *candidate_edge);
+    RENDER_API bool opposite_direction_edge_arrow_decorations_are_mergeable(
+        Agedge_t *retained_edge, Agedge_t *candidate_edge);
+    RENDER_API void fold_concentrated_edge_arrow_decorations(
+        Agedge_t *retained_edge, Agedge_t *candidate_edge,
+        bool candidate_runs_in_opposite_direction);
+    RENDER_API bool edge_has_concentrated_arrow_decorations(Agedge_t *edge);
+    RENDER_API double edge_arrow_arrowsize(Agedge_t *edge,
+                                           edge_arrow_endpoint_t endpoint);
+    RENDER_API char *edge_arrow_fillcolor(Agedge_t *edge,
+                                          edge_arrow_endpoint_t endpoint);
     RENDER_API boxf arrow_bb(pointf p, pointf u, double arrowsize);
     RENDER_API void arrow_gen(GVJ_t * job, emit_state_t emit_state, pointf p, pointf u,
                               double arrowsize, double penwidth, uint32_t flag);
     RENDER_API size_t arrowEndClip(edge_t*, pointf*, size_t, size_t, bezier*,
-                                   uint32_t eflag);
+                                   uint32_t eflag, double arrowsize);
     RENDER_API size_t arrowStartClip(edge_t*, pointf *ps, size_t, size_t,
-                                     bezier*, uint32_t sflag);
+                                     bezier*, uint32_t sflag,
+                                     double arrowsize);
     RENDER_API void arrowOrthoClip(edge_t*, pointf *ps, size_t, size_t, bezier*,
-                                   uint32_t sflag, uint32_t eflag);
+                                   uint32_t sflag, uint32_t eflag,
+                                   double start_arrowsize,
+                                   double end_arrowsize);
     RENDER_API void beginpath(path *, Agedge_t *, int, pathend_t *, bool);
     RENDER_API void bezier_clip(inside_t * inside_context,
 			    bool(*insidefn) (inside_t * inside_context,
@@ -107,6 +129,7 @@ extern "C" {
     RENDER_API splines *getsplinepoints(edge_t * e);
     RENDER_API void gv_fixLocale (int set);
     RENDER_API void gv_free_splines(edge_t * e);
+    RENDER_API void gv_cleanup_concentrated_edge_arrows(Agedge_t *e);
     RENDER_API void gv_cleanup_edge(Agedge_t * e);
     RENDER_API void gv_cleanup_node(Agnode_t * n);
     RENDER_API void* init_xdot (Agraph_t* g);

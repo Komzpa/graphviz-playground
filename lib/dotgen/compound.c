@@ -329,7 +329,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    bez->list[2] = mid_pointf(bez->list[1], p);
 		    if (bez->eflag)
 			endi = arrowEndClip(e, bez->list,
-					 starti, 0, &nbez, bez->eflag);
+					 starti, 0, &nbez, bez->eflag,
+					 edge_arrow_arrowsize(e, EDGE_ARROW_END));
 		    endi += 3;
 		    fixed = true;
 		}
@@ -345,7 +346,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    if (bez->eflag)
 			endi =
 			    arrowEndClip(e, bez->list,
-					 starti, endi, &nbez, bez->eflag);
+					 starti, endi, &nbez, bez->eflag,
+					 edge_arrow_arrowsize(e, EDGE_ARROW_END));
 		    endi += 3;
 		}
 		fixed = true;
@@ -389,7 +391,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    bez->list[starti + 1] = mid_pointf(bez->list[starti + 2], p);
 		    if (bez->sflag)
 			starti = arrowStartClip(e, bez->list, starti,
-				endi - 3, &nbez, bez->sflag);
+				endi - 3, &nbez, bez->sflag,
+				edge_arrow_arrowsize(e, EDGE_ARROW_START));
 		    fixed = true;
 		}
 	    } else {
@@ -409,7 +412,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    starti -= 3;
 		    if (bez->sflag)
 			starti = arrowStartClip(e, bez->list, starti,
-				endi - 3, &nbez, bez->sflag);
+				endi - 3, &nbez, bez->sflag,
+				edge_arrow_arrowsize(e, EDGE_ARROW_START));
 		}
 		fixed = true;
 	    }
