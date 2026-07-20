@@ -4768,6 +4768,26 @@ def _drawn_edge_styles(source: str) -> list[str]:
     ]
 
 
+def _drawn_label_texts(edge: dict) -> list[str]:
+    """Read text emitted in an edge's xdot label stream."""
+
+    return [
+        operation["text"]
+        for operation in edge.get("_ldraw_", [])
+        if operation["op"] == "T"
+    ]
+
+
+def _edge_label_texts(source: str) -> list[str]:
+    """Read text emitted by all edge label draw streams."""
+
+    return [
+        text
+        for edge in json.loads(dot("json", source=source))["edges"]
+        for text in _drawn_label_texts(edge)
+    ]
+
+
 def _arrow_polygon_point_count(edge: dict, endpoint: str) -> int:
     """Distinguish arrow shapes by the size of their xdot ``P`` polygon."""
 
@@ -6213,6 +6233,54 @@ def test_concentrate_preserves_distinct_edge_labels(splines: str):
     )
     label_edges = json.loads(dot("json", source=distinct_labels))["edges"]
     assert {edge["label"] for edge in label_edges} == {"first", "second"}
+
+
+def test_concentrate_curved_route_reuse_merges_identical_xlabels_once():
+    """EDGETYPE_CURVED route reuse keeps one visible label for duplicates."""
+
+    identical_xlabels = _concentrated_graph(
+        "splines=curved",
+        "a -> b [minlen=3 xlabel=same]",
+        "a -> b [minlen=3 xlabel=same]",
+    )
+    assert len(_drawn_edges(identical_xlabels)) == 1
+    assert _edge_label_texts(identical_xlabels) == ["same"]
+
+
+def test_concentrate_curved_route_reuse_preserves_distinct_xlabels():
+    """EDGETYPE_CURVED route reuse splits visibly distinct labels."""
+
+    distinct_xlabels = _concentrated_graph(
+        "splines=curved",
+        "a -> b [minlen=3 xlabel=first]",
+        "a -> b [minlen=3 xlabel=second]",
+    )
+    assert len(_drawn_edges(distinct_xlabels)) == 2
+    assert sorted(_edge_label_texts(distinct_xlabels)) == ["first", "second"]
+
+
+def test_concentrate_ortho_suppression_merges_identical_labels_once():
+    """Ortho suppression keeps one route while preserving duplicate labels."""
+
+    identical_labels = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [label=same]",
+        "a -> b [label=same]",
+    )
+    assert len(_drawn_edges(identical_labels)) == 1
+    assert _edge_label_texts(identical_labels) == ["same", "same"]
+
+
+def test_concentrate_ortho_suppression_preserves_distinct_labels():
+    """Ortho suppression splits and draws visibly distinct labels."""
+
+    distinct_labels = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [label=first]",
+        "a -> b [label=second]",
+    )
+    assert len(_drawn_edges(distinct_labels)) == 2
+    assert sorted(_edge_label_texts(distinct_labels)) == ["first", "second"]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
