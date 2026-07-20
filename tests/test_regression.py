@@ -8,6 +8,7 @@ of these indicates that a past bug has been reintroduced.
 import dataclasses
 import hashlib
 import io
+import itertools
 import json
 import math
 import os
@@ -7332,6 +7333,35 @@ def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
         x, y = _edge_physical_endpoint(edge, endpoint)
         boundary = ((x - center_x) / radius_x) ** 2 + ((y - center_y) / radius_y) ** 2
         assert boundary == pytest.approx(1, abs=0.05)
+
+
+def test_concentrate_short_compound_arrows_do_not_overlap():
+    """Short cluster-clipped reverse edges must not draw overlapping arrows."""
+
+    source = """
+        digraph {
+          graph [concentrate=true compound=true]
+          subgraph cluster_a { a }
+          subgraph cluster_b { b }
+          a -> b [ltail=cluster_a lhead=cluster_b]
+          b -> a [ltail=cluster_b lhead=cluster_a]
+        }
+    """
+    edge = _drawn_edges(source)[0]
+    arrows = [
+        operation["points"]
+        for stream in ("_hdraw_", "_tdraw_")
+        for operation in edge.get(stream, [])
+        if operation["op"] == "P"
+    ]
+    boxes = [tuple(map(min, zip(*arrow))) + tuple(map(max, zip(*arrow))) for arrow in arrows]
+    for first, second in itertools.combinations(boxes, 2):
+        assert (
+            first[2] < second[0]
+            or second[2] < first[0]
+            or first[3] < second[1]
+            or second[3] < first[1]
+        )
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

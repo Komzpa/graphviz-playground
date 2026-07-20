@@ -22,6 +22,8 @@
 #include	<util/alloc.h>
 #include	<util/gv_math.h>
 
+#define NOMINAL_ARROW_LENGTH 10.0
+
 /* Return point where line segment [pp,cp] intersects
  * the box bp. Assume cp is outside the box, and pp is
  * on or in the box. 
@@ -430,6 +432,15 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 	/* Note: starti == 0 */
 	if (bez->sflag)
 	    nbez.sp = bez->sp;
+    }
+
+    if (lt && lh && nbez.sflag && nbez.eflag) {
+	const double tail_arrow =
+	    NOMINAL_ARROW_LENGTH * edge_arrow_arrowsize(e, EDGE_ARROW_START);
+	const double head_arrow =
+	    NOMINAL_ARROW_LENGTH * edge_arrow_arrowsize(e, EDGE_ARROW_END);
+	if (DIST(nbez.sp, nbez.ep) <= tail_arrow + head_arrow)
+	    nbez.sflag = ARR_NONE;
     }
 
     /* complete Bézier, free garbage and attach new Bézier to edge 
