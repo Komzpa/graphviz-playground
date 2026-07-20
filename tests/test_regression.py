@@ -5298,6 +5298,7 @@ def test_concentrate_shared_trunk_keeps_distinct_colored_routes():
         b -> d [color=red]
     """
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    assert len(edges) == 2
     assert {_drawn_edge_color(edge) for edge in edges} == {"#0000ff", "#ff0000"}
     assert {_drawn_edge_spline_point_count(edge) for edge in edges} == {7}
     assert all("_hdraw_" in edge for edge in edges)
@@ -5313,6 +5314,12 @@ def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
         b -> d
     """
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    assert len(edges) == 4
+    assert {_drawn_edge_color(edge) for edge in edges} == {
+        "#000000",
+        "#0000ff",
+        "#ff0000",
+    }
     edges_by_color = {
         color: [edge for edge in edges if _drawn_edge_color(edge) == color]
         for color in {"#000000", "#0000ff", "#ff0000"}
@@ -5321,7 +5328,12 @@ def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
         color: sorted(_drawn_edge_spline_point_count(edge) for edge in color_edges)
         for color, color_edges in edges_by_color.items()
     } == {"#000000": [4, 8], "#0000ff": [7], "#ff0000": [7]}
-    assert sum("_hdraw_" in edge for edge in edges) == 3
+    assert all(
+        "_hdraw_" in edge
+        for color in {"#0000ff", "#ff0000"}
+        for edge in edges_by_color[color]
+    )
+    assert sum("_hdraw_" in edge for edge in edges_by_color["#000000"]) == 1
 
 
 def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
