@@ -266,8 +266,10 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
 	hbox = ED_head_port(orig).bp;
 	tailp = add_pointf(ND_coord(tn), ED_tail_port(orig).p);
 	headp = add_pointf(ND_coord(hn), ED_head_port(orig).p);
-	pinTail = ED_tail_port(orig).defined && !clipTail;
-	pinHead = ED_head_port(orig).defined && !clipHead;
+	pinTail = E_sametail != NULL && agxget(orig, E_sametail)[0] != '\0' &&
+	          ED_tail_port(orig).defined && !clipTail;
+	pinHead = E_samehead != NULL && agxget(orig, E_samehead)[0] != '\0' &&
+	          ED_head_port(orig).defined && !clipHead;
     }
     else { /* fe and orig are reversed */
 	clipTail = ED_head_port(orig).clip;
@@ -276,8 +278,10 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
 	tbox = ED_head_port(orig).bp;
 	tailp = add_pointf(ND_coord(tn), ED_head_port(orig).p);
 	headp = add_pointf(ND_coord(hn), ED_tail_port(orig).p);
-	pinTail = ED_head_port(orig).defined && !clipTail;
-	pinHead = ED_tail_port(orig).defined && !clipHead;
+	pinTail = E_samehead != NULL && agxget(orig, E_samehead)[0] != '\0' &&
+	          ED_head_port(orig).defined && !clipTail;
+	pinHead = E_sametail != NULL && agxget(orig, E_sametail)[0] != '\0' &&
+	          ED_tail_port(orig).defined && !clipHead;
     }
 
     if (pinTail)

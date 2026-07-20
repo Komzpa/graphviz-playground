@@ -183,6 +183,7 @@ int odb_flags;
 #endif
 
 #define CELL(n) ((cell*)ND_alg(n))
+#define ORTHO_PORT_CLEARANCE 6.0
 
 static double MID(double a, double b) {
   return (a + b) / 2.0;
@@ -1198,6 +1199,7 @@ static double htrack(segment *seg, maze *m) {
 static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
                              splineInfo *sinfo, epair_t es[]) {
     LIST(pointf) ispline = {0};
+    LIST(pointf) vertices = {0};
 
     for (size_t irte = 0; irte < n_edges; irte++) {
 	Agedge_t *const e = es[irte].e;
@@ -1205,49 +1207,86 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 	const pointf q1 = add_pointf(ND_coord(aghead(e)), ED_head_port(e).p);
 
 	route rte = route_list[irte];
-	size_t npts = 1 + 3*rte.n;
-	LIST_RESERVE(&ispline, npts);
-	    
 	segment *seg = rte.segs;
 	if (seg == NULL) {
 		continue;
 	}
-	pointf p;
-	if (seg->isVert) {
+	const double tail_dy = p1.y - ND_coord(agtail(e)).y;
+	const double head_dy = q1.y - ND_coord(aghead(e)).y;
+	const bool opposite_vertical_ports =
+	    ND_rank(agtail(e)) == ND_rank(aghead(e)) &&
+	    ED_tail_port(e).defined && ED_head_port(e).defined &&
+	    fabs(tail_dy) > MILLIPOINT && fabs(head_dy) > MILLIPOINT &&
+	    tail_dy * head_dy < 0;
+	if (opposite_vertical_ports) {
+	    const double outside_y_tail =
+		p1.y + copysign(ORTHO_PORT_CLEARANCE, tail_dy);
+	    const double outside_y_head =
+		q1.y + copysign(ORTHO_PORT_CLEARANCE, head_dy);
+	    const double outside_x = tail_dy > 0
+		? MAX(ND_coord(agtail(e)).x + ND_rw(agtail(e)),
+		      ND_coord(aghead(e)).x + ND_rw(aghead(e))) +
+		      ORTHO_PORT_CLEARANCE
+		: MIN(ND_coord(agtail(e)).x - ND_lw(agtail(e)),
+		      ND_coord(aghead(e)).x - ND_lw(aghead(e))) -
+		      ORTHO_PORT_CLEARANCE;
+	    const pointf detour[] = {
+		p1,
+		{.x = p1.x, .y = outside_y_tail},
+		{.x = outside_x, .y = outside_y_tail},
+		{.x = outside_x, .y = outside_y_head},
+		{.x = q1.x, .y = outside_y_head},
+		q1,
+	    };
+	    for (size_t i = 0; i < sizeof(detour) / sizeof(detour[0]); i++)
+		LIST_APPEND(&vertices, detour[i]);
+	} else {
+	    LIST_APPEND(&vertices, p1);
+	    pointf p;
+	    if (seg->isVert)
 		p = (pointf){.x = vtrack(seg, mp), .y = p1.y};
-	}
-	else {
+	    else
 		p = (pointf){.x = p1.x, .y = htrack(seg, mp)};
-	}
-	LIST_APPEND(&ispline, p);
-	LIST_APPEND(&ispline, p);
+	    if (!APPROXEQPT(*LIST_BACK(&vertices), p, MILLIPOINT))
+		LIST_APPEND(&vertices, p);
 
-	for (size_t i = 1;i<rte.n;i++) {
-		seg = rte.segs+i;
+	    for (size_t i = 1; i < rte.n; i++) {
+		seg = rte.segs + i;
 		if (seg->isVert)
 		    p.x = vtrack(seg, mp);
 		else
 		    p.y = htrack(seg, mp);
-		LIST_APPEND(&ispline, p);
-		LIST_APPEND(&ispline, p);
-		LIST_APPEND(&ispline, p);
+		if (!APPROXEQPT(*LIST_BACK(&vertices), p, MILLIPOINT))
+		    LIST_APPEND(&vertices, p);
+	    }
+
+	    if (seg->isVert)
+		p = (pointf){.x = vtrack(seg, mp), .y = q1.y};
+	    else
+		p = (pointf){.x = q1.x, .y = htrack(seg, mp)};
+	    if (!APPROXEQPT(*LIST_BACK(&vertices), p, MILLIPOINT))
+		LIST_APPEND(&vertices, p);
+	    if (!APPROXEQPT(*LIST_BACK(&vertices), q1, MILLIPOINT))
+		LIST_APPEND(&vertices, q1);
 	}
 
-	if (seg->isVert) {
-		p = (pointf){.x = vtrack(seg, mp), .y = q1.y};
+	LIST_APPEND(&ispline, LIST_FRONT(&vertices)[0]);
+	for (size_t i = 1; i < LIST_SIZE(&vertices); i++) {
+	    const pointf previous = LIST_GET(&vertices, i - 1);
+	    const pointf next = LIST_GET(&vertices, i);
+	    LIST_APPEND(&ispline, previous);
+	    LIST_APPEND(&ispline, next);
+	    LIST_APPEND(&ispline, next);
 	}
-	else {
-		p = (pointf){.x = q1.x, .y = htrack(seg, mp)};
-	}
-	LIST_APPEND(&ispline, p);
-	LIST_APPEND(&ispline, p);
 	if (Verbose > 1)
 	    fprintf(stderr, "ortho %s %s\n", agnameof(agtail(e)),agnameof(aghead(e)));
 	clip_and_install(e, aghead(e), LIST_FRONT(&ispline), LIST_SIZE(&ispline),
 	                 sinfo);
 	LIST_CLEAR(&ispline);
+	LIST_CLEAR(&vertices);
     }
     LIST_FREE(&ispline);
+    LIST_FREE(&vertices);
 }
 
 static double edgeLen(Agedge_t *e) {

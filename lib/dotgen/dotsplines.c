@@ -101,6 +101,7 @@ static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
 static Agedge_t *straight_path(Agedge_t *, int, points_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
+static void align_arrow_tangents(graph_t *, edge_t *);
 
 static edge_t *getmainedge(edge_t *e) {
   edge_t *le = e;
@@ -902,15 +903,27 @@ static edge_t *cloneEdge(graph_t *g, node_t *tn, node_t *hn, edge_t *orig) {
   return e;
 }
 
-static void copy_resolved_ports(edge_t *clone, const edge_t *original,
-                                bool reversed) {
-  if (reversed) {
-    ED_tail_port(clone) = ED_head_port(original);
-    ED_head_port(clone) = ED_tail_port(original);
-  } else {
-    ED_tail_port(clone) = ED_tail_port(original);
-    ED_head_port(clone) = ED_head_port(original);
-  }
+static void copy_grouped_ports(edge_t *clone, const edge_t *original,
+                               bool reversed) {
+  const port tail_port =
+      reversed ? ED_head_port(original) : ED_tail_port(original);
+  const port head_port =
+      reversed ? ED_tail_port(original) : ED_head_port(original);
+  const char *const tail_group =
+      agget((edge_t *)original, reversed ? "samehead" : "sametail");
+  const char *const head_group =
+      agget((edge_t *)original, reversed ? "sametail" : "samehead");
+
+  /* Explicit clipping ports are resolved correctly from the copied edge
+   * attributes in the rotated auxiliary graph. Only carry synthetic
+   * samehead/sametail anchors, whose non-clipping coordinates are otherwise
+   * lost when the auxiliary graph resolves its own ports. */
+  if (tail_group != NULL && tail_group[0] != '\0' && tail_port.defined &&
+      !tail_port.clip)
+    ED_tail_port(clone) = tail_port;
+  if (head_group != NULL && head_group[0] != '\0' && head_port.defined &&
+      !head_port.clip)
+    ED_head_port(clone) = head_port;
 }
 
 static void restore_flat_edge_ports(edge_t **edges, unsigned count,
@@ -922,15 +935,32 @@ static void restore_flat_edge_ports(edge_t **edges, unsigned count,
 
     edge_t *const clone = ED_alg(edge);
     if (clone != NULL)
-      copy_resolved_ports(clone, edge, agtail(edge) != tail);
+      copy_grouped_ports(clone, edge, agtail(edge) != tail);
   }
 }
 
-static void restore_flat_endpoint(bezier *spline, bool at_tail, pointf anchor) {
-  const size_t endpoint = at_tail ? 0 : spline->size - 1;
-  const size_t control = at_tail ? 1 : spline->size - 2;
-  const int arrow = at_tail ? spline->sflag : spline->eflag;
-  pointf *const arrow_tip = at_tail ? &spline->sp : &spline->ep;
+static void restore_flat_endpoint(bezier *spline, bool physical_start,
+                                  pointf anchor, port resolved_port) {
+  const size_t endpoint = physical_start ? 0 : spline->size - 1;
+  const size_t control = physical_start ? 1 : spline->size - 2;
+  const int arrow = physical_start ? spline->sflag : spline->eflag;
+  pointf *const arrow_tip = physical_start ? &spline->sp : &spline->ep;
+  const double normal_length = hypot(resolved_port.p.x, resolved_port.p.y);
+  /* A repeated aux control point has no departure direction to preserve. */
+  const double control_length =
+      MAX(DIST(spline->list[control], spline->list[endpoint]), 6.0);
+  const double arrow_gap = DIST(*arrow_tip, spline->list[endpoint]);
+
+  if (normal_length > MILLIPOINT) {
+    const pointf outward = scale(1.0 / normal_length, resolved_port.p);
+    spline->list[endpoint] =
+        add_pointf(anchor, scale(arrow == ARR_NONE ? 0.0 : arrow_gap, outward));
+    spline->list[control] =
+        add_pointf(spline->list[endpoint], scale(control_length, outward));
+    if (arrow != ARR_NONE)
+      *arrow_tip = anchor;
+    return;
+  }
 
   if (arrow != ARR_NONE) {
     const pointf offset = sub_pointf(anchor, *arrow_tip);
@@ -938,20 +968,29 @@ static void restore_flat_endpoint(bezier *spline, bool at_tail, pointf anchor) {
     spline->list[control] = add_pointf(spline->list[control], offset);
     *arrow_tip = anchor;
   } else {
+    const pointf offset = sub_pointf(anchor, spline->list[endpoint]);
     spline->list[endpoint] = anchor;
+    spline->list[control] = add_pointf(spline->list[control], offset);
   }
 }
 
 static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
+  const pointf tail_center = ND_coord(agtail(edge));
+  const pointf head_center = ND_coord(aghead(edge));
+  const bool tail_at_start = DIST(spline->list[0], tail_center) <=
+                             DIST(spline->list[spline->size - 1], tail_center);
+  const bool head_at_start = DIST(spline->list[0], head_center) <=
+                             DIST(spline->list[spline->size - 1], head_center);
+
   if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip) {
     const pointf anchor =
         add_pointf(ND_coord(agtail(edge)), ED_tail_port(edge).p);
-    restore_flat_endpoint(spline, true, anchor);
+    restore_flat_endpoint(spline, tail_at_start, anchor, ED_tail_port(edge));
   }
   if (ED_head_port(edge).defined && !ED_head_port(edge).clip) {
     const pointf anchor =
         add_pointf(ND_coord(aghead(edge)), ED_head_port(edge).p);
-    restore_flat_endpoint(spline, false, anchor);
+    restore_flat_endpoint(spline, head_at_start, anchor, ED_head_port(edge));
   }
 }
 
@@ -1178,6 +1217,8 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     }
     dy += stepy;
     clip_and_install(e, aghead(e), points, pointn, &sinfo);
+    if (Concentrate)
+      align_arrow_tangents(agraphof(tn), e);
   }
 }
 
@@ -1333,6 +1374,8 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     for (size_t j = 0; j < auxbz->size; ++j)
       bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
     restore_flat_endpoints(e, bz);
+    if (Concentrate)
+      align_arrow_tangents(g, e);
     for (size_t j = 0; j + 3 < bz->size; j += 3)
       update_bb_bz(&GD_bb(g), &bz->list[j]);
     if (ED_label(e)) {
@@ -1774,7 +1817,15 @@ static void align_control_arm(pointf *control, pointf endpoint,
   *control = sub_pointf(endpoint, scale(control_length / axis_length, axis));
 }
 
-static void align_multiedge_arrow_tangents(graph_t *g, edge_t *edge) {
+static void align_arrow_arm(bezier *spline, pointf arrow_tip) {
+  const bool at_start = DIST(spline->list[0], arrow_tip) <=
+                        DIST(spline->list[spline->size - 1], arrow_tip);
+  const size_t endpoint = at_start ? 0 : spline->size - 1;
+  const size_t control = at_start ? 1 : spline->size - 2;
+  align_control_arm(&spline->list[control], spline->list[endpoint], arrow_tip);
+}
+
+static void align_arrow_tangents(graph_t *g, edge_t *edge) {
   while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
     edge = ED_to_orig(edge);
 
@@ -1786,10 +1837,9 @@ static void align_multiedge_arrow_tangents(graph_t *g, edge_t *edge) {
   // Multi-edge offsets are applied before clipping. Realign the final control
   // arms afterward, when clipping has established the visible arrow axes.
   if (spline->sflag != ARR_NONE)
-    align_control_arm(&spline->list[1], spline->list[0], spline->sp);
+    align_arrow_arm(spline, spline->sp);
   if (spline->eflag != ARR_NONE)
-    align_control_arm(&spline->list[spline->size - 2],
-                      spline->list[spline->size - 1], spline->ep);
+    align_arrow_arm(spline, spline->ep);
 
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
@@ -2090,7 +2140,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_SYNC(&pointfs2);
     clip_and_install(e, install_head, LIST_FRONT(&pointfs2),
                      LIST_SIZE(&pointfs2), &sinfo);
-    align_multiedge_arrow_tangents(g, e);
+    align_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);
   LIST_FREE(&pointfs2);

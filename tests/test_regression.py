@@ -5094,10 +5094,13 @@ def _arrowhead_shaft_angle(edge: dict) -> float:
         (polygon[0][0] + polygon[2][0]) / 2,
         (polygon[0][1] + polygon[2][1]) / 2,
     )
-    shaft = (
-        bezier[-1][0] - bezier[-2][0],
-        bezier[-1][1] - bezier[-2][1],
+    endpoint = bezier[-1]
+    prior = next(
+        point
+        for point in reversed(bezier[:-1])
+        if math.dist(point, endpoint) > 0.001
     )
+    shaft = (endpoint[0] - prior[0], endpoint[1] - prior[1])
     arrow_axis = (
         polygon[1][0] - base_midpoint[0],
         polygon[1][1] - base_midpoint[1],
@@ -5178,12 +5181,73 @@ def _sample_bezier_points(
             )
 
 
+def _edge_bezier_points(edge: dict) -> list[list[float]]:
+    """Return the control points of an edge's visible route."""
+
+    return next(operation["points"] for operation in edge["_draw_"] if operation["op"] == "b")
+
+
 def _ellipse(node: dict) -> tuple[float, float, float, float]:
     """Return an ellipse node's center and radii."""
 
     return tuple(
         next(operation["rect"] for operation in node["_draw_"] if operation["op"] == "e")
     )
+
+
+def _assert_endpoint_departure(layout: dict, edge: dict, endpoint: str) -> None:
+    """A route leaves an endpoint outward and does not re-enter its stroke."""
+
+    node_id = edge["tail" if endpoint == "tail" else "head"]
+    node = next(node for node in layout["objects"] if node["_gvid"] == node_id)
+    center_x, center_y, radius_x, radius_y = _ellipse(node)
+    points = _edge_bezier_points(edge)
+    # Flat auxiliary routing can preserve the Bezier in physical rather than
+    # logical edge order. Orient it by the endpoint node under test.
+    route = min(
+        (points, list(reversed(points))),
+        key=lambda candidate: math.dist(candidate[0], (center_x, center_y)),
+    )
+    anchor = route[0]
+    outward_point = next(point for point in route[1:] if math.dist(point, anchor) > 0.001)
+    outward_normal = (anchor[0] - center_x, anchor[1] - center_y)
+    departure = (outward_point[0] - anchor[0], outward_point[1] - anchor[1])
+    assert sum(a * b for a, b in zip(outward_normal, departure)) > 0
+
+    pen_radius = float(edge.get("penwidth", 1)) / 2
+    sampled = tuple(_sample_bezier_points(route))
+    normalized = tuple(
+        ((x - center_x) / (radius_x + pen_radius)) ** 2
+        + ((y - center_y) / (radius_y + pen_radius)) ** 2
+        for x, y in sampled
+    )
+    clear_index = next(index for index, distance in enumerate(normalized) if distance >= 1)
+    # Xdot rounds every control point to 0.01 pt; allow the corresponding
+    # sub-point sampling drift around the half-stroke clearance boundary.
+    assert min(normalized[clear_index:]) >= 0.98
+
+
+def _assert_compass_attachment(layout: dict, edge: dict, endpoint: str) -> None:
+    """A named compass port attaches at the requested ellipse extremum."""
+
+    port_name = edge.get(f"{endpoint}port")
+    if port_name not in {"n", "s", "e", "w"}:
+        return
+    node_id = edge["tail" if endpoint == "tail" else "head"]
+    node = next(node for node in layout["objects"] if node["_gvid"] == node_id)
+    center_x, center_y, radius_x, radius_y = _ellipse(node)
+    attachment = _edge_physical_endpoint(edge, endpoint)
+    expected = {
+        "n": (center_x, center_y + radius_y),
+        "s": (center_x, center_y - radius_y),
+        "e": (center_x + radius_x, center_y),
+        "w": (center_x - radius_x, center_y),
+    }[port_name]
+    # The route clips against the shape outline, while the `e` marker records
+    # the arrow tip one point beyond its shaft and xdot reports the stroked
+    # ellipse. Account for both representations without admitting a field- or
+    # node-center attachment.
+    assert attachment == pytest.approx(expected, abs=1.5)
 
 
 def _assert_distinct_drawn_edge_routes(source: str, expected_count: int) -> None:
@@ -5221,34 +5285,6 @@ def _assert_concentrated_edge_counts(
     for expected_count, body in cases:
         source = _concentrated_graph(splines, *body)
         assert len(_drawn_edges(source)) == expected_count
-
-
-def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
-    """A short merged flat route arcs enough for both endpoint arrows."""
-
-    source = _concentrated_graph(
-        "",
-        "subgraph same_rank { rank=same; a; b }",
-        "a -> b [headlabel=x]",
-        "b -> a [taillabel=x]",
-    )
-    layout = json.loads(dot("json", source=source))
-    edge = next(edge for edge in layout["edges"] if "_draw_" in edge)
-    assert len([edge for edge in layout["edges"] if "_draw_" in edge]) == 1
-
-    head_arrow = next(operation["points"] for operation in edge["_hdraw_"] if operation["op"] == "P")
-    tail_arrow = next(operation["points"] for operation in edge["_tdraw_"] if operation["op"] == "P")
-    head_box = tuple(map(min, zip(*head_arrow))) + tuple(map(max, zip(*head_arrow)))
-    tail_box = tuple(map(min, zip(*tail_arrow))) + tuple(map(max, zip(*tail_arrow)))
-    assert head_box[2] < tail_box[0] or tail_box[2] < head_box[0] or head_box[3] < tail_box[1] or tail_box[3] < head_box[1]
-
-    for endpoint in ("tail", "head"):
-        node_id = edge[endpoint]
-        node = next(node for node in layout["objects"] if node["_gvid"] == node_id)
-        center_x, center_y, radius_x, radius_y = _ellipse(node)
-        x, y = _edge_physical_endpoint(edge, endpoint)
-        boundary = ((x - center_x) / radius_x) ** 2 + ((y - center_y) / radius_y) ** 2
-        assert boundary == pytest.approx(1, abs=0.05)
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -6583,6 +6619,94 @@ def test_concentrate_same_rank_edges_compare_their_actual_direction(splines: str
     assert len(_drawn_edges(one_sided_clipping)) == 2
 
 
+@pytest.mark.parametrize(
+    "source",
+    (
+        _concentrated_graph(
+            "",
+            "subgraph same_rank { rank=same; a; b }",
+            "a:n -> b:s [color=red]",
+            "a:s -> b:n [color=red]",
+        ),
+        _concentrated_graph(
+            "",
+            "subgraph same_rank { rank=same; a; b }",
+            "a:s -> b",
+            "b -> a:s",
+        ),
+        _concentrated_graph(
+            "",
+            "subgraph same_rank { rank=same; a; b }",
+            "a:n -> b",
+            "b -> a:s",
+        ),
+        _concentrated_graph(
+            "splines=ortho",
+            "subgraph same_rank { rank=same; a; b }",
+            "a:n -> b:s [color=red]",
+            "a:s -> b:n [color=red]",
+        ),
+    ),
+    ids=("opposite-port-pairs", "merged-south-port", "north-south", "ortho"),
+)
+def test_concentrate_flat_port_routes_respect_endpoint_geometry(source: str):
+    """Flat port routes attach, depart outward, and never re-enter nodes."""
+
+    layout = json.loads(dot("json", source=source))
+    drawn_edges = [edge for edge in layout["edges"] if "_draw_" in edge]
+    assert drawn_edges
+    for edge in drawn_edges:
+        for endpoint in ("tail", "head"):
+            _assert_compass_attachment(layout, edge, endpoint)
+            _assert_endpoint_departure(layout, edge, endpoint)
+        assert _arrowhead_shaft_angle(edge) <= 0.1
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_flat_grouped_routes_depart_outward(concentrate: bool):
+    """Restoring a sametail anchor also translates its terminal control arm."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          {{ rank=same; z; a; b; }}
+          z -> a [sametail=x]
+          z -> b [sametail=x]
+        }}
+    """
+    layout = json.loads(dot("json", source=source))
+    for edge in (edge for edge in layout["edges"] if "_draw_" in edge):
+        _assert_endpoint_departure(layout, edge, "tail")
+
+
+def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
+    """A short merged flat route arcs enough for both endpoint arrows."""
+
+    source = _concentrated_graph(
+        "",
+        "subgraph same_rank { rank=same; a; b }",
+        "a -> b [headlabel=x]",
+        "b -> a [taillabel=x]",
+    )
+    layout = json.loads(dot("json", source=source))
+    edge = next(edge for edge in layout["edges"] if "_draw_" in edge)
+    assert len([edge for edge in layout["edges"] if "_draw_" in edge]) == 1
+
+    head_arrow = next(operation["points"] for operation in edge["_hdraw_"] if operation["op"] == "P")
+    tail_arrow = next(operation["points"] for operation in edge["_tdraw_"] if operation["op"] == "P")
+    head_box = tuple(map(min, zip(*head_arrow))) + tuple(map(max, zip(*head_arrow)))
+    tail_box = tuple(map(min, zip(*tail_arrow))) + tuple(map(max, zip(*tail_arrow)))
+    assert head_box[2] < tail_box[0] or tail_box[2] < head_box[0] or head_box[3] < tail_box[1] or tail_box[3] < head_box[1]
+
+    for endpoint in ("tail", "head"):
+        node_id = edge[endpoint]
+        node = next(node for node in layout["objects"] if node["_gvid"] == node_id)
+        center_x, center_y, radius_x, radius_y = _ellipse(node)
+        x, y = _edge_physical_endpoint(edge, endpoint)
+        boundary = ((x - center_x) / radius_x) ** 2 + ((y - center_y) / radius_y) ** 2
+        assert boundary == pytest.approx(1, abs=0.05)
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_reverse_arrowheads_by_physical_endpoint(
     splines: str,
@@ -6674,6 +6798,57 @@ def test_concentrate_preserves_distinct_record_port_continuations(
 
     same_port_duplicates = distinct_ports.replace("problem:p3", "problem:p2")
     assert len(_drawn_edges(same_port_duplicates)) == 2
+
+
+@pytest.mark.parametrize("direction", ("down", "up"))
+def test_concentrate_record_port_routes_clip_at_field_boundaries(direction: str):
+    """Distinct record continuations attach at their own field rectangles."""
+
+    if direction == "down":
+        rank_constraint = "subgraph { rank=source; source }"
+        distinct_edges = """
+          some -> problem:p1
+          source -> problem:p2
+          source -> problem:p3
+        """
+        endpoint = "head"
+    else:
+        rank_constraint = "subgraph { rank=sink; sink }"
+        distinct_edges = """
+          problem:p1 -> some
+          problem:p2 -> sink
+          problem:p3 -> sink
+        """
+        endpoint = "tail"
+
+    source = _concentrated_graph(
+        "",
+        'problem [shape=record, label="<p1>p1|<p2>p2|<p3>p3"]',
+        rank_constraint,
+        distinct_edges,
+    )
+    layout = json.loads(dot("json", source=source))
+    problem = next(node for node in layout["objects"] if node["name"] == "problem")
+    rectangles = tuple(
+        tuple(map(float, rectangle.split(","))) for rectangle in problem["rects"].split()
+    )
+    problem_id = problem["_gvid"]
+    edges = [
+        edge
+        for edge in layout["edges"]
+        if "_draw_" in edge and edge[endpoint] == problem_id
+    ]
+    assert len(edges) == 3
+    for edge in edges:
+        port = edge[f"{endpoint}port"]
+        rectangle = rectangles[int(port[1:]) - 1]
+        x, y = _edge_physical_endpoint(edge, endpoint)
+        left, bottom, right, top = rectangle
+        # `rects` describes the record-field interior; clipping happens at
+        # the outside of the half-point outline stroke.
+        assert left - 0.6 <= x <= right + 0.6
+        assert bottom - 0.6 <= y <= top + 0.6
+        assert min(abs(x - left), abs(x - right), abs(y - bottom), abs(y - top)) <= 0.6
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
