@@ -732,6 +732,15 @@ static void append_projected_attribute_value(agxbuf *signature,
     value = plain_attribute_value("solid");
   }
   if (facts->style) {
+    double penwidth;
+    if (!value.is_html && style_setlinewidth_value(value.text, &penwidth) &&
+        agfindedgeattr(root_graph, "penwidth") == NULL) {
+      agxbuf rendered_number = {0};
+      agxbprint(&rendered_number, "%a", penwidth);
+      append_plain_signature_slot(signature, "penwidth",
+                                  agxbuse(&rendered_number));
+      agxbfree(&rendered_number);
+    }
     append_style_value(signature, slot_name, value);
     return;
   }

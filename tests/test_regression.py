@@ -5831,9 +5831,14 @@ def test_concentrate_setlinewidth_style_folds_into_penwidth(splines: str):
                 "b -> c [style=dashed penwidth=2]",
             ),
             _edge_count_case(
+                2,
+                'c -> d [style="setlinewidth(1)"]',
+                'c -> d [style="setlinewidth(4)"]',
+            ),
+            _edge_count_case(
                 1,
-                'c -> d [style="setlinewidth(2)" penwidth=3]',
-                "c -> d [penwidth=3]",
+                'd -> e [style="setlinewidth(2)" penwidth=3]',
+                "d -> e [penwidth=3]",
             ),
         ),
     )
