@@ -5251,6 +5251,32 @@ def _polygon_self_intersections(points: list[list[float]]) -> list[tuple[int, in
     return intersections
 
 
+def _point_box(points: list[list[float]]) -> tuple[float, float, float, float]:
+    """Return a point-list bounding box as left, bottom, right, top."""
+
+    return tuple(map(min, zip(*points))) + tuple(map(max, zip(*points)))
+
+
+def _boxes_are_disjoint(
+    first: tuple[float, float, float, float],
+    second: tuple[float, float, float, float],
+) -> bool:
+    """Return whether two axis-aligned boxes have no area overlap."""
+
+    return (
+        first[2] < second[0]
+        or second[2] < first[0]
+        or first[3] < second[1]
+        or second[3] < first[1]
+    )
+
+
+def _edge_arrow_polygon(edge: dict, stream: str) -> list[list[float]]:
+    return next(
+        operation["points"] for operation in edge[stream] if operation["op"] == "P"
+    )
+
+
 def _drawn_edges_between(source: str, tails: set[str], head: str) -> list[dict]:
     """Return visible edges from named tails into one named head node."""
 
@@ -7703,18 +7729,18 @@ def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
     edge = next(edge for edge in layout["edges"] if "_draw_" in edge)
     assert len([edge for edge in layout["edges"] if "_draw_" in edge]) == 1
 
-    head_arrow = next(operation["points"] for operation in edge["_hdraw_"] if operation["op"] == "P")
-    tail_arrow = next(operation["points"] for operation in edge["_tdraw_"] if operation["op"] == "P")
-    head_box = tuple(map(min, zip(*head_arrow))) + tuple(map(max, zip(*head_arrow)))
-    tail_box = tuple(map(min, zip(*tail_arrow))) + tuple(map(max, zip(*tail_arrow)))
-    assert head_box[2] < tail_box[0] or tail_box[2] < head_box[0] or head_box[3] < tail_box[1] or tail_box[3] < head_box[1]
+    head_box = _point_box(_edge_arrow_polygon(edge, "_hdraw_"))
+    tail_box = _point_box(_edge_arrow_polygon(edge, "_tdraw_"))
+    assert _boxes_are_disjoint(head_box, tail_box)
 
     for endpoint in ("tail", "head"):
         node_id = edge[endpoint]
         node = next(node for node in layout["objects"] if node["_gvid"] == node_id)
         center_x, center_y, radius_x, radius_y = _ellipse(node)
         x, y = _edge_physical_endpoint(edge, endpoint)
-        boundary = ((x - center_x) / radius_x) ** 2 + ((y - center_y) / radius_y) ** 2
+        boundary = ((x - center_x) / radius_x) ** 2 + (
+            (y - center_y) / radius_y
+        ) ** 2
         assert boundary == pytest.approx(1, abs=0.05)
 
 
@@ -7737,14 +7763,9 @@ def test_concentrate_short_compound_arrows_do_not_overlap():
         for operation in edge.get(stream, [])
         if operation["op"] == "P"
     ]
-    boxes = [tuple(map(min, zip(*arrow))) + tuple(map(max, zip(*arrow))) for arrow in arrows]
+    boxes = [_point_box(arrow) for arrow in arrows]
     for first, second in itertools.combinations(boxes, 2):
-        assert (
-            first[2] < second[0]
-            or second[2] < first[0]
-            or first[3] < second[1]
-            or second[3] < first[1]
-        )
+        assert _boxes_are_disjoint(first, second)
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
