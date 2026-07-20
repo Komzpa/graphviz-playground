@@ -741,10 +741,8 @@ static void append_projected_attribute_value(agxbuf *signature,
       edge_attribute_classification(attribute_name);
   const edge_attribute_facts_t *const facts = classification.facts;
 
-  if (facts->substituted && !value.is_html) {
-    char *const substituted = strdup_and_subst_obj((char *)value.text, edge);
-    append_plain_signature_slot(signature, slot_name, substituted);
-    free(substituted);
+  if (facts->substituted) {
+    append_substituted_signature_slot(signature, slot_name, value.text, edge);
     return;
   }
 

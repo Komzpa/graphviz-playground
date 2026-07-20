@@ -5671,6 +5671,7 @@ def _assert_concentrated_edge_counts(
             "substituted-ids",
             _edge_count_case(1, 'a -> b [id="\\T"]', 'a -> b [id="a"]'),
             _edge_count_case(2, 'a -> b [id="\\T"]', 'b -> a [id="\\T"]'),
+            _edge_count_case(2, "a -> b [id=<\\T>]", "b -> a [id=<\\T>]"),
         ),
         _named_edge_count_cases(
             "endpoint-label-font-fallbacks",
