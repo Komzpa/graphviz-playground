@@ -1160,7 +1160,10 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
       agxbprint(&slot_name, "hyperlink:%s:%s",
                 attribute_owner_slot_name(canonical_owner),
                 hyperlink_value_kind_name(kind));
-      if (kind == HYPERLINK_VALUE_TOOLTIP && !tooltip_uses_fallback) {
+      if (kind == HYPERLINK_VALUE_TOOLTIP && tooltip_uses_fallback) {
+        append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                    value.text);
+      } else if (kind == HYPERLINK_VALUE_TOOLTIP && !tooltip_uses_fallback) {
         char *const preprocessed = preprocessTooltip((char *)value.text, edge);
         char *const substituted = strdup_and_subst_obj(preprocessed, edge);
         append_plain_signature_slot(signature, agxbuse(&slot_name),

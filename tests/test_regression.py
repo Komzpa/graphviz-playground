@@ -6564,6 +6564,66 @@ def test_concentrate_borrowed_arrow_uses_candidate_colorscheme(
     assert _arrow_fill_color(drawn_edges[0], "t") == "#a6cee3"
 
 
+def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Path, dict]:
+    core = _find_plugin_so("core")
+    dot_layout = _find_plugin_so("dot_layout")
+    if core is None or dot_layout is None:
+        build_root = which("dot").resolve().parents[2]
+        core = build_root / "plugin/core/libgvplugin_core.so"
+        dot_layout = build_root / "plugin/dot_layout/libgvplugin_dot_layout.so"
+        cgraph = build_root / "lib/cgraph/libcgraph.so"
+        gvc = build_root / "lib/gvc/libgvc.so"
+        for library in (core, dot_layout, cgraph, gvc):
+            assert library.exists(), f"missing build library {library}"
+        link = [cgraph, gvc, core, dot_layout]
+        library_directories = (
+            cgraph.parent,
+            gvc.parent,
+            core.parent,
+            dot_layout.parent,
+        )
+    else:
+        link = ["cgraph", "gvc", core, dot_layout]
+        library_directories = (core.parent, dot_layout.parent)
+
+    source_lib = Path(__file__).parent.parent / "lib"
+    exe = tmp_path / "concentrate-edge-identity-tooltip"
+    compile_c(
+        Path(__file__).parent / "concentrate_edge_identity_tooltip.c",
+        cflags=[
+            f"-I{source_lib}",
+            f"-I{source_lib / 'cdt'}",
+            f"-I{source_lib / 'cgraph'}",
+            f"-I{source_lib / 'common'}",
+            f"-I{source_lib / 'gvc'}",
+            f"-I{source_lib / 'pathplan'}",
+        ],
+        link=link,
+        dst=exe,
+    )
+
+    env = os.environ.copy()
+    library_paths = os.pathsep.join(str(path) for path in library_directories)
+    loader_path = "DYLD_LIBRARY_PATH" if is_macos() else "LD_LIBRARY_PATH"
+    env[loader_path] = os.pathsep.join(
+        part for part in (library_paths, env.get(loader_path, "")) if part
+    )
+    return exe, env
+
+
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
+def test_concentrate_implicit_tooltip_fallback_uses_textlabel_text(tmp_path: Path):
+    """emit_begin_edge() falls back from tooltip to parsed obj->label text."""
+
+    exe, env = _compile_concentrate_edge_identity_tooltip_test(tmp_path)
+    subprocess.run(
+        (exe, "parsed-label-fallback"), capture_output=True, env=env, check=True
+    )
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
