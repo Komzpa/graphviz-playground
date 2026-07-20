@@ -5770,7 +5770,7 @@ def test_concentrate_color_list_identity_matches_parse_segs_fractions():
         "",
         (
             _edge_count_case(
-                1,
+                2,
                 'a -> b [dir=none color="red:blue"]',
                 'a -> b [dir=none color="red;0.5:blue;0.5"]',
             ),

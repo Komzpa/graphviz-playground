@@ -417,6 +417,10 @@ static void append_color_segment(agxbuf *rendered_list, strview_t color_name) {
   agxbfree(&color_text);
 }
 
+static bool color_list_has_explicit_segments(const char *color_list) {
+  return strchr(color_list, ';') != NULL;
+}
+
 static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
                                          const char *slot_name,
                                          const char *color_list) {
@@ -435,6 +439,14 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
   if (segment_count == 1 && segments[0].fraction > 1.0 - 1E-5 &&
       segments[0].fraction < 1.0 + 1E-5) {
     append_color_segment(&rendered_list, segments[0].color);
+  } else if (!color_list_has_explicit_segments(color_list)) {
+    agxbput(&rendered_list, "parallel:");
+    for (size_t i = 0; i < segment_count; i++) {
+      if (i > 0) {
+        agxbputc(&rendered_list, ':');
+      }
+      append_color_segment(&rendered_list, segments[i].color);
+    }
   } else {
     for (size_t i = 0; i < segment_count; i++) {
       if (i > 0) {
