@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
 
+### Fixed
+
+- `concentrate=true` no longer merges edges with different attributes, such as
+  differently colored parallel or opposite-direction edges.
+- Opposite edges attached to the same physical port now share ordinary
+  multi-edge routing instead of being drawn on top of each other. #1039
+- Equivalent opposite edges inside a `rank=same` subgraph are now concentrated.
+  #150
+- Concentration now compares ports and clipping at physical endpoints when
+  edges run in opposite directions. #448
+- Concentration no longer merges continuations attached to different record
+  ports. #449
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
