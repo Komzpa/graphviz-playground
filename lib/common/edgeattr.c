@@ -581,6 +581,64 @@ edge_numeric_projected_value(edge_attribute_classification_t classification,
   return edge_numeric_attribute_value(value, default_value, minimum, number);
 }
 
+static bool style_setlinewidth_value(const char *style, double *penwidth) {
+  if (style == NULL || style[0] == '\0') {
+    return false;
+  }
+  for (char **item = parse_style((char *)style); *item != NULL; item++) {
+    if (strcmp(*item, "setlinewidth") != 0) {
+      continue;
+    }
+    char *end = NULL;
+    const char *const argument = *item + strlen(*item) + 1;
+    const double parsed = strtod(argument, &end);
+    if (end != argument) {
+      *penwidth = parsed < 0.0 ? 0.0 : parsed;
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool edge_projected_penwidth(edge_attribute_classification_t classification,
+                                    comparable_attribute_value_t value,
+                                    Agedge_t *edge, double *penwidth) {
+  if (!classification.found ||
+      classification.facts->default_kind != ATTRIBUTE_DEFAULT_ONE) {
+    return false;
+  }
+  if (strcmp(classification.name, "penwidth") == 0 && value.text[0] == '\0' &&
+      !value.is_html && style_setlinewidth_value(agget(edge, "style"),
+                                                 penwidth)) {
+    return true;
+  }
+  return edge_numeric_projected_value(classification, value, penwidth);
+}
+
+static void append_style_value(agxbuf *signature, const char *slot_name,
+                               comparable_attribute_value_t value) {
+  if (value.is_html) {
+    append_signature_slot(signature, slot_name, value);
+    return;
+  }
+
+  agxbuf rendered_style = {0};
+  for (char **item = parse_style((char *)value.text); *item != NULL; item++) {
+    if (strcmp(*item, "setlinewidth") == 0) {
+      continue;
+    }
+    if (agxblen(&rendered_style) > 0) {
+      agxbputc(&rendered_style, ',');
+    }
+    agxbput(&rendered_style, *item);
+  }
+  append_plain_signature_slot(signature, slot_name,
+                              agxblen(&rendered_style) == 0
+                                  ? "solid"
+                                  : agxbuse(&rendered_style));
+  agxbfree(&rendered_style);
+}
+
 static port edge_endpoint_port(Agedge_t *edge, edge_endpoint_t endpoint) {
   return endpoint == EDGE_HEAD_ENDPOINT ? ED_head_port(edge)
                                         : ED_tail_port(edge);
@@ -651,7 +709,7 @@ static void append_projected_attribute_value(agxbuf *signature,
   }
 
   double number;
-  if (edge_numeric_projected_value(classification, value, &number)) {
+  if (edge_projected_penwidth(classification, value, edge, &number)) {
     agxbuf rendered_number = {0};
     agxbprint(&rendered_number, "%a", number);
     append_plain_signature_slot(signature, slot_name,
@@ -662,6 +720,10 @@ static void append_projected_attribute_value(agxbuf *signature,
 
   if (facts->style && !value.is_html && value.text[0] == '\0') {
     value = plain_attribute_value("solid");
+  }
+  if (facts->style) {
+    append_style_value(signature, slot_name, value);
+    return;
   }
 
   if (facts->default_kind == ATTRIBUTE_DEFAULT_FALSE) {

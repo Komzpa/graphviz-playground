@@ -5793,6 +5793,32 @@ def test_concentrate_layer_identity_requires_declared_graph_layers():
     assert len(_drawn_edges(visible_layer)) == 1
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_setlinewidth_style_folds_into_penwidth(splines: str):
+    """emit_begin_edge() renders style=setlinewidth(N) as penwidth=N."""
+
+    _assert_concentrated_edge_counts(
+        splines,
+        (
+            _edge_count_case(
+                1,
+                'a -> b [style="setlinewidth(2)"]',
+                "a -> b [penwidth=2]",
+            ),
+            _edge_count_case(
+                1,
+                'b -> c [style="dashed,setlinewidth(2)"]',
+                "b -> c [style=dashed penwidth=2]",
+            ),
+            _edge_count_case(
+                1,
+                'c -> d [style="setlinewidth(2)" penwidth=3]',
+                "c -> d [penwidth=3]",
+            ),
+        ),
+    )
+
+
 def test_tapered_multicolor_arrow_fillcolor_is_renderable():
     """emit_edge_graphics() can render a tapered color-list arrow fill."""
 
