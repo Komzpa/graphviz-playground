@@ -54,6 +54,8 @@ static bool rendered_edges_are_equal(edge_t *edge, edge_t *representative)
 
 static bool other_list_contains(edge_t *edge)
 {
+    if (ND_other(agtail(edge)).list == NULL)
+	return false;
     for (size_t i = 0; ND_other(agtail(edge)).list[i] != NULL; ++i) {
 	if (ND_other(agtail(edge)).list[i] == edge)
 	    return true;
