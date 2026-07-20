@@ -442,8 +442,9 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
     append_color_segment(&rendered_list, segments[0].color);
   } else if (!color_list_has_explicit_segments(color_list)) {
     agxbput(&rendered_list, "parallel:");
-    for (size_t i = 0; i < segment_count; i++) {
-      if (i > 0) {
+    for (size_t j = 0; j < segment_count; j++) {
+      const size_t i = reverse_orientation ? segment_count - j - 1 : j;
+      if (j > 0) {
         agxbputc(&rendered_list, ':');
       }
       append_color_segment(&rendered_list, segments[i].color);
