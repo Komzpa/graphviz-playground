@@ -5726,6 +5726,23 @@ def test_concentrate_fixed_spline_drawn_edge_counts(
     _assert_concentrated_edge_counts(splines, cases)
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_numeric_identity_matches_late_double_prefixes(splines: str):
+    """emit_begin_edge()/place_portlabel() consume late_double() prefixes."""
+
+    _assert_concentrated_edge_counts(
+        splines,
+        (
+            _edge_count_case(1, 'a -> b [penwidth="2pt"]', "a -> b [penwidth=2]"),
+            _edge_count_case(
+                1,
+                'b -> c [headlabel=x labeldistance="1x"]',
+                "b -> c [headlabel=x labeldistance=1]",
+            ),
+        ),
+    )
+
+
 def test_tapered_multicolor_arrow_fillcolor_is_renderable():
     """emit_edge_graphics() can render a tapered color-list arrow fill."""
 

@@ -448,7 +448,7 @@ static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
 
   char *end = NULL;
   const double parsed_value = strtod(value.text, &end);
-  if (end == value.text || *end != '\0') {
+  if (end == value.text) {
     return false;
   }
   *number = parsed_value < minimum ? minimum : parsed_value;
