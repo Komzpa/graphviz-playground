@@ -5496,6 +5496,30 @@ def test_concentrate_gates_endpoint_label_attributes(
     assert len(_drawn_edges(endpoint_label)) == 2
 
 
+@pytest.mark.parametrize(
+    ("attribute", "default_value"),
+    (("labelangle", "-25"), ("labeldistance", "1")),
+)
+def test_concentrate_preserves_endpoint_label_placement_attribute_presence(
+    attribute: str, default_value: str
+):
+    """place_portlabel() distinguishes omission from an explicit default."""
+
+    placement_trigger = _concentrated_graph(
+        "splines=ortho",
+        "a -> b [headlabel=x]",
+        f"a -> b [headlabel=x {attribute}={default_value}]",
+    )
+    assert len(_drawn_edges(placement_trigger)) == 2
+
+    repeated_explicit_default = _concentrated_graph(
+        "splines=ortho",
+        f"a -> b [headlabel=x {attribute}={default_value}]",
+        f"a -> b [headlabel=x {attribute}={default_value}]",
+    )
+    assert len(_drawn_edges(repeated_explicit_default)) == 1
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_resolved_port_spellings(splines: str):
     """Raw headport/tailport spelling does not override resolved ports."""

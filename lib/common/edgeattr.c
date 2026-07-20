@@ -102,6 +102,7 @@ typedef struct {
   bool label_fontname : 1;
   bool compound_only : 1;
   bool base_font : 1;
+  bool presence_affects_rendering : 1;
 } edge_attribute_classification_t;
 
 /*
@@ -173,10 +174,12 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         /* place_portlabel() reads these only for headlabel/taillabel. */
         {.name = "labelangle",
          .default_kind = ATTRIBUTE_DEFAULT_LABEL_ANGLE,
-         .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL},
+         .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
+         .presence_affects_rendering = true},
         {.name = "labeldistance",
          .default_kind = ATTRIBUTE_DEFAULT_ONE,
-         .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL},
+         .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
+         .presence_affects_rendering = true},
         /* common_init_edge() reads labelfloat only while creating ED_label. */
         {.name = "labelfloat",
          .default_kind = ATTRIBUTE_DEFAULT_FALSE,
@@ -627,6 +630,14 @@ static void append_projected_attribute_value(agxbuf *signature,
       agxbfree(&rendered_color);
       return;
     }
+  }
+
+  if (classification != NULL && classification->presence_affects_rendering) {
+    agxbuf presence_slot = {0};
+    agxbprint(&presence_slot, "%s:present", slot_name);
+    append_plain_signature_slot(signature, agxbuse(&presence_slot),
+                                value.text[0] == '\0' ? "false" : "true");
+    agxbfree(&presence_slot);
   }
 
   double number;
