@@ -1104,6 +1104,22 @@ static bool terminal_reenters_node(node_t *node, const pointf control[4]) {
   return false;
 }
 
+static void bend_endpoint_control_outward(node_t *node, pointf endpoint,
+                                          pointf *control) {
+  const pointf normal = sub_pointf(endpoint, ND_coord(node));
+  const pointf departure = sub_pointf(*control, endpoint);
+  if (normal.x * departure.x + normal.y * departure.y > 0)
+    return;
+
+  const double normal_length = hypot(normal.x, normal.y);
+  const double control_length = DIST(*control, endpoint);
+  if (normal_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control =
+      add_pointf(endpoint, scale(control_length / normal_length, normal));
+}
+
 static void keep_terminal_cubic_outside_node(node_t *node, bezier *spline,
                                              bool physical_start) {
   if (spline->size < 4)
@@ -2130,6 +2146,18 @@ static void align_arrow_tangents(graph_t *g, edge_t *edge) {
   if (spline->eflag != ARR_NONE)
     align_arrow_arm(spline, spline->ep, 0.0);
 
+  const bool grouped_head =
+      E_samehead != NULL && agxget(edge, E_samehead)[0] != '\0';
+  const port head_port = ED_head_port(edge);
+  if (grouped_head && head_port.defined && !head_port.clip) {
+    const bool head_at_start =
+        DIST(spline->list[0], ND_coord(aghead(edge))) <=
+        DIST(spline->list[spline->size - 1], ND_coord(aghead(edge)));
+    const size_t endpoint = head_at_start ? 0 : spline->size - 1;
+    const size_t near_control = head_at_start ? 1 : spline->size - 2;
+    bend_endpoint_control_outward(aghead(edge), spline->list[endpoint],
+                                  &spline->list[near_control]);
+  }
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
 }

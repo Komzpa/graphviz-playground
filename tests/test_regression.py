@@ -7315,6 +7315,17 @@ def test_concentrate_flat_mixed_sametail_route_does_not_reenter_tail(
 
 
 @pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_mixed_samehead_backward_route_approaches_outward(
+    concentrate: bool,
+):
+    """A backward member of a mixed samehead group clears the head node."""
+
+    layout = json.loads(dot("json", source=_samehead_mixed_route_fixture(concentrate)))
+    edge = _drawn_edge_between(layout, "back_anchor", "A")
+    _assert_endpoint_departure(layout, edge, "head")
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
 def test_flat_grouped_routes_preserve_head_direction_under_rankdir_flip(
     concentrate: bool,
 ):
