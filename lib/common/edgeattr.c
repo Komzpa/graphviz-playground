@@ -267,6 +267,17 @@ static void append_plain_signature_slot(agxbuf *signature,
   append_signature_slot(signature, slot_name, plain_attribute_value(value));
 }
 
+static bool html_label_may_use_colorscheme(const char *text) {
+  for (const char *attribute = strstr(text, "COLOR=\""); attribute != NULL;
+       attribute = strstr(attribute + 1, "COLOR=\"")) {
+    const char *const value = attribute + strlen("COLOR=\"");
+    if (value[0] >= '0' && value[0] <= '9') {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool edge_has_main_label(Agedge_t *edge) {
   return ED_label(edge) != NULL || ED_xlabel(edge) != NULL;
 }
@@ -505,6 +516,12 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
     append_signature_slot(
         signature, agxbuse(&slot_name),
         (comparable_attribute_value_t){.text = label->text, .is_html = true});
+    if (html_label_may_use_colorscheme(label->text)) {
+      agxbclear(&slot_name);
+      agxbprint(&slot_name, "%s:colorscheme", slot_prefix);
+      append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                  agget(edge, "colorscheme"));
+    }
   } else {
     agxbuf rendered_label = {0};
     for (size_t i = 0; i < label->u.txt.nspans; i++) {
