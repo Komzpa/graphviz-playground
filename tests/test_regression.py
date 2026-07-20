@@ -5139,6 +5139,22 @@ def test_concentrate_train11_internal_junctions_have_no_head_arrows():
     assert "_hdraw_" in _drawn_edge_between(layout, "st10", "st0")
 
 
+@pytest.mark.skipif(which("neato") is None, reason="neato not available")
+def test_concentrate_train11_suppressed_arrows_survive_pos_roundtrip():
+    """Suppressed junction arrows do not reappear after a positioned rerender."""
+
+    source = (Path(__file__).parent / "graphs" / "train11.gv").read_text().replace(
+        "digraph G {", "digraph G {\n  graph [concentrate=true];", 1
+    )
+    positioned = dot("dot", source=source)
+    layout = json.loads(run(which("neato"), "-n2", "-Tjson", input=positioned))
+
+    for tail in ("st8", "st6", "st4"):
+        edge = _drawn_edge_between(layout, tail, "st0")
+        assert "_hdraw_" not in edge
+    assert "_hdraw_" in _drawn_edge_between(layout, "st10", "st0")
+
+
 def test_concentrate_fanout_keeps_real_terminal_arrowheads():
     """Junction suppression does not hide arrows at real endpoint nodes."""
 

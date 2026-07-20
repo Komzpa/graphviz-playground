@@ -352,24 +352,23 @@ double attach_attrs_and_arrows(graph_t *g, bool *sp, bool *ep) {
 		if (ED_spl(e) == NULL)
 		    continue;	/* reported in postproc */
 		for (size_t i = 0; i < ED_spl(e)->size; i++) {
+		    const bezier *bz = &ED_spl(e)->list[i];
 		    if (i > 0)
 			agxbputc(&xb, ';');
-		    if (ED_spl(e)->list[i].sflag) {
+		    if (bz->sflag && !bz->suppress_sflag) {
 			s_arrows = true;
 			agxbprint(&xb, "s,%.5g,%.5g ",
-				ED_spl(e)->list[i].sp.x,
-				yDir(ED_spl(e)->list[i].sp.y, offsets.Y));
+				bz->sp.x, yDir(bz->sp.y, offsets.Y));
 		    }
-		    if (ED_spl(e)->list[i].eflag) {
+		    if (bz->eflag && !bz->suppress_eflag) {
 			e_arrows = true;
 			agxbprint(&xb, "e,%.5g,%.5g ",
-				ED_spl(e)->list[i].ep.x,
-				yDir(ED_spl(e)->list[i].ep.y, offsets.Y));
+				bz->ep.x, yDir(bz->ep.y, offsets.Y));
 		    }
-		    for (size_t j = 0; j < ED_spl(e)->list[i].size; j++) {
+		    for (size_t j = 0; j < bz->size; j++) {
 			if (j > 0)
 			    agxbputc(&xb, ' ');
-			ptf = ED_spl(e)->list[i].list[j];
+			ptf = bz->list[j];
 			agxbprint(&xb, "%.5g,%.5g", ptf.x, yDir(ptf.y, offsets.Y));
 		    }
 		}
@@ -417,4 +416,3 @@ void attach_attrs(graph_t * g)
 {
   (void)attach_attrs_and_arrows(g, NULL, NULL);
 }
-
