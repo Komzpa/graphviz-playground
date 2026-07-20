@@ -45,6 +45,8 @@
 
 #define MULTIEDGE_NODE_MARGIN 0.5
 #define MULTIEDGE_BEZIER_FLATNESS 0.01
+#define FLAT_PORT_NORMAL_ARM 36.0
+#define NOMINAL_ARROW_LENGTH 10.0
 
 #define FWDEDGE 16
 #define BWDEDGE 32
@@ -105,6 +107,7 @@ static Agedge_t *straight_path(Agedge_t *, int, points_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
 static void align_concentrated_route_tangents(graph_t *, edge_t *);
 static void align_arrow_tangents(graph_t *, edge_t *);
+static void align_flat_arrow_tangents_in_graph(graph_t *);
 
 static edge_t *getmainedge(edge_t *e) {
   edge_t *le = e;
@@ -175,6 +178,16 @@ static unsigned fold_concentrated_duplicate_routes(edge_t **edges,
 static bool spline_merge(node_t *n) {
   return ND_node_type(n) == VIRTUAL &&
          (ND_in(n).size > 1 || ND_out(n).size > 1);
+}
+
+static bool has_grouped_flat_endpoint(edge_t *edge) {
+  edge = getmainedge(edge);
+  const char *const samehead =
+      E_samehead != NULL ? agxget(edge, E_samehead) : NULL;
+  const char *const sametail =
+      E_sametail != NULL ? agxget(edge, E_sametail) : NULL;
+  return (samehead != NULL && samehead[0] != '\0') ||
+         (sametail != NULL && sametail[0] != '\0');
 }
 
 static bool swap_ends_p(edge_t *e) {
@@ -563,6 +576,8 @@ static int dot_splines_(graph_t *g, int normalize) {
 #ifdef ORTHO
 finish:
 #endif
+  align_flat_arrow_tangents_in_graph(g);
+
   /* place port labels */
   /* FIX: head and tail labels are not part of cluster bbox */
   if ((E_headlabel || E_taillabel) && (E_labelangle || E_labeldistance)) {
@@ -1054,15 +1069,16 @@ static void restore_flat_edge_ports(edge_t **edges, unsigned count,
 }
 
 static void restore_flat_endpoint(bezier *spline, bool physical_start,
-                                  pointf anchor, port resolved_port) {
+                                  pointf anchor, port resolved_port,
+                                  double min_control_length) {
   const size_t endpoint = physical_start ? 0 : spline->size - 1;
   const size_t control = physical_start ? 1 : spline->size - 2;
   const int arrow = physical_start ? spline->sflag : spline->eflag;
   pointf *const arrow_tip = physical_start ? &spline->sp : &spline->ep;
   const double normal_length = hypot(resolved_port.p.x, resolved_port.p.y);
   /* A repeated aux control point has no departure direction to preserve. */
-  const double control_length =
-      MAX(DIST(spline->list[control], spline->list[endpoint]), 6.0);
+  const double control_length = MAX(
+      DIST(spline->list[control], spline->list[endpoint]), min_control_length);
   const double arrow_gap = DIST(*arrow_tip, spline->list[endpoint]);
 
   if (normal_length > MILLIPOINT) {
@@ -1088,6 +1104,18 @@ static void restore_flat_endpoint(bezier *spline, bool physical_start,
   }
 }
 
+static void straighten_flat_port_progression(bezier *spline) {
+  if (spline->size <= 4)
+    return;
+
+  const pointf start = spline->list[0];
+  const pointf end = spline->list[spline->size - 1];
+  for (size_t i = 1; i + 1 < spline->size; ++i) {
+    const double fraction = (double)i / (double)(spline->size - 1);
+    spline->list[i].x = start.x + (end.x - start.x) * fraction;
+  }
+}
+
 static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   const pointf tail_center = ND_coord(agtail(edge));
   const pointf head_center = ND_coord(aghead(edge));
@@ -1096,15 +1124,27 @@ static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   const bool head_at_start = DIST(spline->list[0], head_center) <=
                              DIST(spline->list[spline->size - 1], head_center);
 
+  const bool grouped_tail =
+      E_sametail != NULL && agxget(edge, E_sametail)[0] != '\0';
+  const bool grouped_head =
+      E_samehead != NULL && agxget(edge, E_samehead)[0] != '\0';
+
   if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip) {
     const pointf anchor =
         add_pointf(ND_coord(agtail(edge)), ED_tail_port(edge).p);
-    restore_flat_endpoint(spline, tail_at_start, anchor, ED_tail_port(edge));
+    restore_flat_endpoint(spline, tail_at_start, anchor, ED_tail_port(edge),
+                          grouped_tail ? 6.0 : FLAT_PORT_NORMAL_ARM);
   }
   if (ED_head_port(edge).defined && !ED_head_port(edge).clip) {
     const pointf anchor =
         add_pointf(ND_coord(aghead(edge)), ED_head_port(edge).p);
-    restore_flat_endpoint(spline, head_at_start, anchor, ED_head_port(edge));
+    restore_flat_endpoint(spline, head_at_start, anchor, ED_head_port(edge),
+                          grouped_head ? 6.0 : FLAT_PORT_NORMAL_ARM);
+  }
+  if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip &&
+      ED_head_port(edge).defined && !ED_head_port(edge).clip && !grouped_tail &&
+      !grouped_head) {
+    straighten_flat_port_progression(spline);
   }
 }
 
@@ -1311,11 +1351,19 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     size_t pointn = 0;
     if (et == EDGETYPE_SPLINE || et == EDGETYPE_LINE) {
       points[pointn++] = tp;
+      const double arrow_length = NOMINAL_ARROW_LENGTH;
+      const double clear_span = fabs(hp.x - tp.x) - ND_rw(tn) - ND_lw(hn);
       if (et == EDGETYPE_SPLINE && cnt == 1 && ED_conc_opp_flag(e) &&
-          (ED_head_label(e) != NULL || ED_tail_label(e) != NULL)) {
-        const double lift = MAX(ND_ht(tn), ND_ht(hn));
-        points[pointn++] = (pointf){tp.x, tp.y + lift};
-        points[pointn++] = (pointf){hp.x, hp.y + lift};
+          ((ED_head_label(e) != NULL || ED_tail_label(e) != NULL) ||
+           clear_span < 2 * arrow_length)) {
+        const double lift = MAX(2 * arrow_length, MAX(ND_ht(tn), ND_ht(hn)));
+        const double middle = (tp.x + hp.x) / 2;
+        const double arm = MAX(arrow_length, fabs(hp.x - tp.x) / 6);
+        points[pointn++] = (pointf){tp.x + arm, tp.y};
+        points[pointn++] = (pointf){middle, tp.y + lift};
+        points[pointn++] = (pointf){middle, tp.y + lift};
+        points[pointn++] = (pointf){middle, hp.y + lift};
+        points[pointn++] = (pointf){hp.x - arm, hp.y};
       } else {
         points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
         points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
@@ -1933,10 +1981,11 @@ static int makeLineEdge(graph_t *g, edge_t *fe, points_t *points, node_t **hp) {
 }
 
 static void align_control_arm(pointf *control, pointf endpoint,
-                              pointf arrow_tip) {
+                              pointf arrow_tip, double min_control_length) {
   const pointf axis = sub_pointf(arrow_tip, endpoint);
   const double axis_length = hypot(axis.x, axis.y);
-  const double control_length = DIST(*control, endpoint);
+  const double control_length =
+      MAX(DIST(*control, endpoint), min_control_length);
   if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
     return;
 
@@ -1965,12 +2014,38 @@ static void align_end_control_arm(pointf *control, pointf endpoint,
   *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
 }
 
-static void align_arrow_arm(bezier *spline, pointf arrow_tip) {
+static void align_arrow_arm(bezier *spline, pointf arrow_tip,
+                            double min_control_length) {
   const bool at_start = DIST(spline->list[0], arrow_tip) <=
                         DIST(spline->list[spline->size - 1], arrow_tip);
   const size_t endpoint = at_start ? 0 : spline->size - 1;
   const size_t control = at_start ? 1 : spline->size - 2;
-  align_control_arm(&spline->list[control], spline->list[endpoint], arrow_tip);
+  align_control_arm(&spline->list[control], spline->list[endpoint], arrow_tip,
+                    min_control_length);
+}
+
+static double arrow_arm_angle(const bezier *spline, bool at_start,
+                              pointf arrow_tip) {
+  const size_t endpoint = at_start ? 0 : spline->size - 1;
+  const int step = at_start ? 1 : -1;
+  int control = (int)endpoint + step;
+  while (control >= 0 && control < (int)spline->size &&
+         DIST(spline->list[endpoint], spline->list[control]) <= MILLIPOINT) {
+    control += step;
+  }
+  if (control < 0 || control >= (int)spline->size)
+    return 180.0;
+
+  const pointf shaft =
+      sub_pointf(spline->list[control], spline->list[endpoint]);
+  const pointf axis = sub_pointf(arrow_tip, spline->list[endpoint]);
+  const double denominator = hypot(shaft.x, shaft.y) * hypot(axis.x, axis.y);
+  if (denominator <= MILLIPOINT)
+    return 180.0;
+
+  const double cosine =
+      fabs((shaft.x * axis.x + shaft.y * axis.y) / denominator);
+  return acos(MIN(1.0, MAX(-1.0, cosine))) * 180.0 / M_PI;
 }
 
 static void align_arrow_tangents(graph_t *g, edge_t *edge) {
@@ -1985,12 +2060,53 @@ static void align_arrow_tangents(graph_t *g, edge_t *edge) {
   // Multi-edge offsets are applied before clipping. Realign the final control
   // arms afterward, when clipping has established the visible arrow axes.
   if (spline->sflag != ARR_NONE)
-    align_arrow_arm(spline, spline->sp);
+    align_arrow_arm(spline, spline->sp, 0.0);
   if (spline->eflag != ARR_NONE)
-    align_arrow_arm(spline, spline->ep);
+    align_arrow_arm(spline, spline->ep, 0.0);
 
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+static void align_installed_flat_arrow_tangents(graph_t *g, edge_t *edge) {
+  if (ED_spl(edge) == NULL || ED_spl(edge)->size == 0)
+    return;
+
+  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
+  if (spline->size < 4)
+    return;
+
+  edge_t *const arrow_edge = getmainedge(edge);
+  if (spline->sflag != ARR_NONE &&
+      arrow_arm_angle(spline, true, spline->sp) > 2.0)
+    align_arrow_arm(spline, spline->sp,
+                    NOMINAL_ARROW_LENGTH *
+                        edge_arrow_arrowsize(arrow_edge, EDGE_ARROW_START));
+  if (spline->eflag != ARR_NONE &&
+      arrow_arm_angle(spline, false, spline->ep) > 2.0)
+    align_arrow_arm(spline, spline->ep,
+                    NOMINAL_ARROW_LENGTH *
+                        edge_arrow_arrowsize(arrow_edge, EDGE_ARROW_END));
+
+  for (size_t i = 0; i + 3 < spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+static void align_flat_arrow_tangents_in_graph(graph_t *g) {
+  for (node_t *node = agfstnode(g); node != NULL; node = agnxtnode(g, node)) {
+    for (edge_t *edge = agfstout(g, node); edge != NULL;
+         edge = agnxtout(g, edge)) {
+      edge_t *const main_edge = getmainedge(edge);
+      if (ED_spl(edge) == NULL || ED_spl(edge)->size == 0)
+        continue;
+      if (ND_rank(agtail(main_edge)) != ND_rank(aghead(main_edge)))
+        continue;
+      if (!has_grouped_flat_endpoint(main_edge))
+        continue;
+
+      align_installed_flat_arrow_tangents(g, edge);
+    }
+  }
 }
 
 static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
