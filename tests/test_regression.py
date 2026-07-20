@@ -7356,6 +7356,35 @@ def test_concentrate_record_port_routes_clip_at_field_boundaries(direction: str)
         assert min(abs(x - left), abs(x - right), abs(y - bottom), abs(y - top)) <= 0.6
 
 
+def _assert_public_concentrate_crash_repro_renders(issue: int):
+    input = Path(__file__).parent / f"{issue}.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    proc = subprocess.run(
+        ["dot", "-Kdot", "-Tdot", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0
+    for token in ("AddressSanitizer", "DEADLYSIGNAL", "SEGV"):
+        assert token not in proc.stderr
+    assert any("->" in line and "pos=" in line for line in proc.stdout.splitlines())
+
+
+def test_concentrate_issue_2764_public_repro_renders_edge_splines():
+    """GitLab #2764: raw public conc_slope crash repro still renders edges."""
+
+    _assert_public_concentrate_crash_repro_renders(2764)
+
+
+def test_concentrate_issue_2765_public_repro_renders_edge_splines():
+    """GitLab #2765: raw public straight_len crash repro still renders edges."""
+
+    _assert_public_concentrate_crash_repro_renders(2765)
+
+
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
 def test_2563():
     """
