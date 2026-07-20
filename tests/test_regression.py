@@ -5808,6 +5808,33 @@ def test_concentrate_preserves_distinct_edge_directions(splines: str):
     } == {(False, True), (True, True)}
 
 
+def test_concentrate_svg_preserves_distinct_edge_class_hooks():
+    """svg_print_id_class() keeps each rendered edge CSS/DOM class hook."""
+
+    def edge_classes(*attributes: str) -> list[str]:
+        source = _concentrated_graph(
+            "",
+            *(
+                f"a -> b [{attribute}]" if attribute else "a -> b"
+                for attribute in attributes
+            ),
+        )
+        root = ET.fromstring(dot("svg", source=source))
+        return [
+            element.attrib["class"]
+            for element in root.iter()
+            if element.tag.endswith("g")
+            and "edge" in element.attrib.get("class", "").split()
+        ]
+
+    assert set(edge_classes("class=first", "class=second")) == {
+        "edge first",
+        "edge second",
+    }
+    assert edge_classes("class=shared", "class=shared") == ["edge shared"]
+    assert edge_classes("", "") == ["edge"]
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_merges_equivalent_parallel_edges(splines: str):
     """Equivalent edges share one route even when input order separates them."""

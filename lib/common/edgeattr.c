@@ -143,6 +143,7 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {.name = "tooltip", .alias_group = ATTRIBUTE_ALIAS_TOOLTIP},
 
         /* Raw visual properties read during layout or emission. */
+        {.name = "class"},
         {.name = "color", .color = true},
         {.name = "comment"},
         /* emit_end_edge() attaches decorate splines only to label/xlabel. */
