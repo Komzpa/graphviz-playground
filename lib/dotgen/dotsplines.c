@@ -1704,6 +1704,38 @@ static int makeLineEdge(graph_t *g, edge_t *fe, points_t *points, node_t **hp) {
   return pn;
 }
 
+static void align_control_arm(pointf *control, pointf endpoint,
+                              pointf arrow_tip) {
+  const pointf axis = sub_pointf(arrow_tip, endpoint);
+  const double axis_length = hypot(axis.x, axis.y);
+  const double control_length = DIST(*control, endpoint);
+  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control = sub_pointf(endpoint, scale(control_length / axis_length, axis));
+}
+
+static void align_multiedge_arrow_tangents(graph_t *g, edge_t *edge) {
+  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+
+  assert(ED_spl(edge) != NULL && ED_spl(edge)->size > 0);
+  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
+  if (spline->size < 4)
+    return;
+
+  // Multi-edge offsets are applied before clipping. Realign the final control
+  // arms afterward, when clipping has established the visible arrow axes.
+  if (spline->sflag != ARR_NONE)
+    align_control_arm(&spline->list[1], spline->list[0], spline->sp);
+  if (spline->eflag != ARR_NONE)
+    align_control_arm(&spline->list[spline->size - 2],
+                      spline->list[spline->size - 1], spline->ep);
+
+  for (size_t i = 0; i + 3 < spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
 static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
                               edge_t **edges, unsigned cnt, int et) {
   node_t *tn, *hn;
@@ -1897,6 +1929,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
   LIST_SYNC(&pointfs2);
   clip_and_install(fe, hn, LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2), &sinfo);
+  align_multiedge_arrow_tangents(g, fe);
   for (unsigned j = 1; j < cnt; j++) {
     e = edges[j];
     if (ED_tree_index(e) & BWDEDGE) {
@@ -1911,6 +1944,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_SYNC(&pointfs2);
     clip_and_install(e, aghead(e), LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2),
                      &sinfo);
+    align_multiedge_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);
   LIST_FREE(&pointfs2);

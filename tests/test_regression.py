@@ -4799,6 +4799,38 @@ def _drawn_edge_spline_point_count(edge: dict) -> int:
     )
 
 
+def _arrowhead_shaft_angle(edge: dict) -> float:
+    """Return the angle between a normal head arrow and its shaft tangent."""
+
+    bezier = next(
+        operation["points"]
+        for operation in reversed(edge["_draw_"])
+        if operation["op"] == "b"
+    )
+    polygon = next(
+        operation["points"]
+        for operation in edge["_hdraw_"]
+        if operation["op"] == "P"
+    )
+    assert len(polygon) == 3
+    base_midpoint = (
+        (polygon[0][0] + polygon[2][0]) / 2,
+        (polygon[0][1] + polygon[2][1]) / 2,
+    )
+    shaft = (
+        bezier[-1][0] - bezier[-2][0],
+        bezier[-1][1] - bezier[-2][1],
+    )
+    arrow_axis = (
+        polygon[1][0] - base_midpoint[0],
+        polygon[1][1] - base_midpoint[1],
+    )
+    cosine = sum(a * b for a, b in zip(shaft, arrow_axis)) / (
+        math.hypot(*shaft) * math.hypot(*arrow_axis)
+    )
+    return math.degrees(math.acos(max(-1, min(1, cosine))))
+
+
 def _drawn_edges_between(source: str, tails: set[str], head: str) -> list[dict]:
     """Return visible edges from named tails into one named head node."""
 
@@ -5371,6 +5403,33 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     assert sorted(_drawn_edge_spline_point_count(edge) for edge in edges) == [4, 8]
     assert sum("_hdraw_" in edge for edge in edges) == 1
+
+
+def test_concentrate_multiedge_arrowheads_follow_shaft_tangents():
+    """Arrow axes follow the terminal control arms of concentrated multiedges."""
+
+    source = """
+        digraph {
+          graph [concentrate=true, ranksep=1.2]
+          node [shape=circle, width=0.45, fixedsize=true]
+          edge [arrowsize=0.8, penwidth=3]
+          b -> c [style=invis]
+          c -> a [style=invis]
+          a -> b [constraint=false, color=red]
+          a -> b [constraint=false, color=blue]
+          a -> b [constraint=false, color=red]
+        }
+    """
+    drawn_edges = _drawn_edges(source)
+    assert len(drawn_edges) == 2
+    assert max(_arrowhead_shaft_angle(edge) for edge in drawn_edges) <= 0.1
+
+
+def test_unconcentrated_single_edge_arrowhead_angle_is_unchanged():
+    """Single-edge routing retains its straight arrowhead alignment."""
+
+    edge = _drawn_edges("digraph { a -> b }")[0]
+    assert _arrowhead_shaft_angle(edge) == pytest.approx(0.0, abs=0.01)
 
 
 def test_concentrate_edge_helpers_are_exported_to_windows_plugins():
