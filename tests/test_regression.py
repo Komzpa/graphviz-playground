@@ -5755,6 +5755,59 @@ _SHARED_TRUNK_FIXTURE = """
 """
 
 
+_SHARED_TRUNK_DISTINCT_ORDERS = (
+    pytest.param(
+        (
+            "a -> d [color=blue]",
+            "b -> d [color=red]",
+        ),
+        id="blue-a-red-b",
+    ),
+    pytest.param(
+        (
+            "b -> d [color=red]",
+            "a -> d [color=blue]",
+        ),
+        id="red-b-blue-a",
+    ),
+)
+
+
+_SHARED_TRUNK_MIXED_ORDERS = (
+    pytest.param(
+        (
+            "a -> d [color=blue]",
+            "b -> d [color=red]",
+            "a -> d",
+            "b -> d",
+        ),
+        id="distinct-before-equivalent",
+    ),
+    pytest.param(
+        (
+            "a -> d",
+            "b -> d",
+            "a -> d [color=blue]",
+            "b -> d [color=red]",
+        ),
+        id="equivalent-before-distinct",
+    ),
+    pytest.param(
+        (
+            "b -> d [color=red]",
+            "b -> d",
+            "a -> d [color=blue]",
+            "a -> d",
+        ),
+        id="interleaved-by-tail",
+    ),
+)
+
+
+def _shared_trunk_source(*edges: str) -> str:
+    return _SHARED_TRUNK_FIXTURE % "\n".join(f"        {edge}" for edge in edges)
+
+
 _BACKWARD_PARALLEL_COLORS_FIXTURE = """
     digraph {
       graph [concentrate=true, ranksep=1.2]
@@ -5769,29 +5822,27 @@ _BACKWARD_PARALLEL_COLORS_FIXTURE = """
 """
 
 
-def test_concentrate_shared_trunk_keeps_distinct_colored_routes():
+@pytest.mark.parametrize("edge_order", _SHARED_TRUNK_DISTINCT_ORDERS)
+def test_concentrate_shared_trunk_keeps_distinct_colored_routes(
+    edge_order: tuple[str, ...],
+):
     """dot_concentrate() keeps each distinct tail-to-head route complete."""
 
-    source = _SHARED_TRUNK_FIXTURE % """
-        a -> d [color=blue]
-        b -> d [color=red]
-    """
+    source = _shared_trunk_source(*edge_order)
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     assert len(edges) == 2
     assert {_drawn_edge_color(edge) for edge in edges} == {"#0000ff", "#ff0000"}
-    assert sorted(_drawn_edge_spline_point_count(edge) for edge in edges) == [4, 8]
-    assert sum("_hdraw_" in edge for edge in edges) == 1
+    assert {_drawn_edge_spline_point_count(edge) for edge in edges} == {7}
+    assert all("_hdraw_" in edge for edge in edges)
 
 
-def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
+@pytest.mark.parametrize("edge_order", _SHARED_TRUNK_MIXED_ORDERS)
+def test_concentrate_shared_trunk_merges_equivalent_black_siblings(
+    edge_order: tuple[str, ...],
+):
     """dot_concentrate() merges equal trunks beside distinct colored siblings."""
 
-    source = _SHARED_TRUNK_FIXTURE % """
-        a -> d [color=blue]
-        b -> d [color=red]
-        a -> d
-        b -> d
-    """
+    source = _shared_trunk_source(*edge_order)
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     assert len(edges) == 4
     assert {_drawn_edge_color(edge) for edge in edges} == {
@@ -5803,22 +5854,31 @@ def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
         color: [edge for edge in edges if _drawn_edge_color(edge) == color]
         for color in {"#000000", "#0000ff", "#ff0000"}
     }
-    assert {
-        color: sorted(_drawn_edge_spline_point_count(edge) for edge in color_edges)
-        for color, color_edges in edges_by_color.items()
-    } == {"#000000": [4, 4], "#0000ff": [8], "#ff0000": [4]}
-    assert sum("_hdraw_" in edge for edge in edges) == 3
+    assert sorted(
+        _drawn_edge_spline_point_count(edge) for edge in edges_by_color["#000000"]
+    ) == [4, 8]
+    for color in {"#0000ff", "#ff0000"}:
+        assert all(
+            _drawn_edge_spline_point_count(edge) >= 7
+            for edge in edges_by_color[color]
+        )
+    assert all(
+        "_hdraw_" in edge
+        for color in {"#0000ff", "#ff0000"}
+        for edge in edges_by_color[color]
+    )
+    assert sum("_hdraw_" in edge for edge in edges_by_color["#000000"]) == 1
 
 
 def test_concentrate_shared_trunk_keeps_visible_lanes_for_distinct_edges():
     """Rendered-distinct members on a shared corridor separate visibly."""
 
-    source = _SHARED_TRUNK_FIXTURE % """
-        a -> d [color=blue]
-        b -> d [color=red]
-        a -> d
-        b -> d
-    """
+    source = _shared_trunk_source(
+        "a -> d [color=blue]",
+        "b -> d [color=red]",
+        "a -> d",
+        "b -> d",
+    )
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     by_color = {
         color: [edge for edge in edges if _drawn_edge_color(edge) == color]
@@ -5845,10 +5905,7 @@ def test_concentrate_shared_trunk_keeps_visible_lanes_for_distinct_edges():
 def test_concentrate_shared_trunk_routes_meet_at_junction():
     """Concentrated route pieces meet at their shared virtual node."""
 
-    source = _SHARED_TRUNK_FIXTURE % """
-        a -> d
-        b -> d
-    """
+    source = _shared_trunk_source("a -> d", "b -> d")
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     edges_by_size = {
         _drawn_edge_spline_point_count(edge): edge for edge in edges
@@ -5870,10 +5927,7 @@ def test_concentrate_shared_trunk_routes_meet_at_junction():
 def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     """dot_concentrate() retains the ordinary asymmetric shared-trunk route."""
 
-    source = _SHARED_TRUNK_FIXTURE % """
-        a -> d
-        b -> d
-    """
+    source = _shared_trunk_source("a -> d", "b -> d")
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     assert sorted(_drawn_edge_spline_point_count(edge) for edge in edges) == [4, 8]
     assert sum("_hdraw_" in edge for edge in edges) == 1

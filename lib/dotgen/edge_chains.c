@@ -266,11 +266,11 @@ static bool route_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
     return false;
   }
 
-  /*
-   * A distinct edge still needs the ordinary multi-edge route. Giving it a
-   * separate main virtual chain makes the spline router treat it as a separate
-   * concentrated path and the rendered edges collapse onto the same centerline.
-   */
+  if (!nonconstraint_edge(edge) &&
+      abs(ND_rank(agtail(edge)) - ND_rank(aghead(edge))) > 1) {
+    return false;
+  }
+
   merge_chain(graph, edge, ED_to_virt(representative_edge), true);
   other_edge(edge);
   return true;

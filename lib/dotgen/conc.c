@@ -87,6 +87,7 @@ static bool bothdowncandidates(node_t * u, node_t * v)
 	edge_t *e0 = original_normal_edge(e);
 	edge_t *f0 = original_normal_edge(f);
 	return samestructuraldir(e, f)
+	    && rendered_edges_are_equal(f0, e0)
 	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0
 	    && (e0 == NULL || f0 == NULL || aghead(e0) != aghead(f0)
 		|| portcmp(ED_head_port(e0), ED_head_port(f0)) == 0);
@@ -109,6 +110,7 @@ static bool bothupcandidates(node_t * u, node_t * v)
 	edge_t *e0 = original_normal_edge(e);
 	edge_t *f0 = original_normal_edge(f);
 	return samestructuraldir(e, f)
+	    && rendered_edges_are_equal(f0, e0)
 	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0
 	    && (e0 == NULL || f0 == NULL || agtail(e0) != agtail(f0)
 		|| portcmp(ED_tail_port(e0), ED_tail_port(f0)) == 0);
@@ -116,50 +118,48 @@ static bool bothupcandidates(node_t * u, node_t * v)
     return false;
 }
 
-static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
+static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
 {
     node_t *left;
     edge_t *e, *f, *e0;
 
     left = GD_rank(g)[r].v[lpos];
-    for (int i = lpos + 1; i <= rpos; i++) {
-	node_t *const right = GD_rank(g)[r].v[i];
-	if (dir == DOWN) {
-	    while ((e = ND_out(right).list[0])) {
-		int k;
-		for (k = 0; (f = ND_out(left).list[k]); k++)
-		    if (aghead(f) == aghead(e))
-			break;
-		if (f == NULL)
-		    f = virtual_edge(left, aghead(e), e);
-		while ((e0 = ND_in(right).list[0])) {
-		    keep_distinct_original_drawn(e0, f);
-		    merge_oneway(e0, f);
-		    delete_fast_edge(e0);
-		}
-		delete_fast_edge(e);
+    node_t *const right = GD_rank(g)[r].v[rpos];
+    if (dir == DOWN) {
+	while ((e = ND_out(right).list[0])) {
+	    int k;
+	    for (k = 0; (f = ND_out(left).list[k]); k++)
+		if (aghead(f) == aghead(e))
+		    break;
+	    if (f == NULL)
+		f = virtual_edge(left, aghead(e), e);
+	    while ((e0 = ND_in(right).list[0])) {
+		keep_distinct_original_drawn(e0, f);
+		merge_oneway(e0, f);
+		delete_fast_edge(e0);
 	    }
-	} else {
-	    while ((e = ND_in(right).list[0])) {
-		int k;
-		for (k = 0; (f = ND_in(left).list[k]); k++)
-		    if (agtail(f) == agtail(e))
-			break;
-		if (f == NULL)
-		    f = virtual_edge(agtail(e), left, e);
-		while ((e0 = ND_out(right).list[0])) {
-		    keep_distinct_original_drawn(e0, f);
-		    merge_oneway(e0, f);
-		    delete_fast_edge(e0);
-		}
-		delete_fast_edge(e);
-	    }
+	    delete_fast_edge(e);
 	}
-	assert(ND_in(right).size + ND_out(right).size == 0);
-	delete_fast_node(g, right);
+    } else {
+	while ((e = ND_in(right).list[0])) {
+	    int k;
+	    for (k = 0; (f = ND_in(left).list[k]); k++)
+		if (agtail(f) == agtail(e))
+		    break;
+	    if (f == NULL)
+		f = virtual_edge(agtail(e), left, e);
+	    while ((e0 = ND_out(right).list[0])) {
+		keep_distinct_original_drawn(e0, f);
+		merge_oneway(e0, f);
+		delete_fast_edge(e0);
+	    }
+	    delete_fast_edge(e);
+	}
     }
+    assert(ND_in(right).size + ND_out(right).size == 0);
+    delete_fast_node(g, right);
 
-    int k = lpos + 1;
+    int k = rpos;
     for (int i = rpos + 1; i < GD_rank(g)[r].n; ++i) {
 	node_t *const n = GD_rank(g)[r].v[k] = GD_rank(g)[r].v[i];
 	ND_order(n) = k;
@@ -348,13 +348,14 @@ int dot_concentrate(graph_t *g) {
 	    if (!downcandidate(left))
 		continue;
 	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
-		 rightpos++) {
+		 ) {
 		right = GD_rank(g)[r].v[rightpos];
-		if (!bothdowncandidates(left, right))
-		    break;
+		if (!bothdowncandidates(left, right)) {
+		    rightpos++;
+		    continue;
+		}
+		mergevirtual_pair(g, r, leftpos, rightpos, DOWN);
 	    }
-	    if (rightpos - leftpos > 1)
-		mergevirtual(g, r, leftpos, rightpos - 1, DOWN);
 	}
     }
     /* this is the corresponding upward pass */
@@ -364,13 +365,14 @@ int dot_concentrate(graph_t *g) {
 	    if (!upcandidate(left))
 		continue;
 	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
-		 rightpos++) {
+		 ) {
 		right = GD_rank(g)[r].v[rightpos];
-		if (!bothupcandidates(left, right))
-		    break;
+		if (!bothupcandidates(left, right)) {
+		    rightpos++;
+		    continue;
+		}
+		mergevirtual_pair(g, r, leftpos, rightpos, UP);
 	    }
-	    if (rightpos - leftpos > 1)
-		mergevirtual(g, r, leftpos, rightpos - 1, UP);
 	}
 	r--;
     }
