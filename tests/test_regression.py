@@ -7035,6 +7035,19 @@ def test_concentrate_xlabel_does_not_supply_edge_tooltip_fallback(tmp_path: Path
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
 )
+def test_concentrate_ortho_duplicate_edges_are_ignored(tmp_path: Path):
+    """ortho concentration marks suppressed duplicates before repeated layout."""
+
+    exe, env = _compile_concentrate_edge_identity_tooltip_test(tmp_path)
+    subprocess.run(
+        (exe, "ortho-duplicate-ignored"), capture_output=True, env=env, check=True
+    )
+
+
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
 def test_concentrate_repeated_layout_discards_accumulated_arrows(tmp_path: Path):
     """``gv_cleanup_edge`` drops the private arrow fold before a second layout."""
 

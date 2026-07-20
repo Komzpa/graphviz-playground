@@ -167,6 +167,7 @@ static bool register_ortho_edge(ortho_concentrate_state_t *state,
     if (opposite_direction) {
       ED_conc_opp_flag(representative_edge) = true;
     }
+    ED_edge_type(edge) = IGNORED;
     return false;
   }
 
