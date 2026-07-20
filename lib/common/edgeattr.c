@@ -4,10 +4,11 @@
 /*
  * Concentration projects each edge into two parts: the core rendered identity
  * built here, and the edge's own per-physical-endpoint arrow decorations built
- * in lib/common/arrows.c. The core resolves defaults, aliases, inheritance,
- * substitutions, colors, numbers, HTML flags, and physical endpoint
- * orientation. Unrendered attributes contribute no slot, and reverse
- * projection swaps head and tail at extraction time.
+ * in lib/common/arrows.c. Parsed labels and ports are projected directly from
+ * the state initialized by common_init_edge(). The residual attribute table is
+ * limited to values that later layout or emission code still reads as text.
+ * Unrendered attributes contribute no slot, and reverse projection swaps head
+ * and tail at extraction time.
  *
  * The arrow comparison deliberately depends on direction. Same-direction
  * parallels must LOOK identical, so their own decoration records are compared
@@ -24,10 +25,9 @@
  * its edge actually draws an arrow, so invisible declarations on arrow-less
  * endpoints cannot block an opposite-direction merge.
  *
- * The classification and hyperlink tables are the slot-extractor contract.
- * Keeping every exception in those rows or in one normalizer is longer than a
- * collection of strcmp() shortcuts, but makes defaults, ownership, and endpoint
- * orientation reviewable without reconstructing a pairwise decision tree.
+ * The residual classification and hyperlink tables are the raw slot-extractor
+ * contract. Parsed state stays out of them so parser defaults and inheritance
+ * cannot be reimplemented here.
  */
 
 #include "config.h"
@@ -64,21 +64,16 @@ typedef enum {
 typedef enum {
   ATTRIBUTE_DEFAULT_NONE,
   ATTRIBUTE_DEFAULT_ONE,
-  ATTRIBUTE_DEFAULT_FONT_SIZE,
-  ATTRIBUTE_DEFAULT_LABEL_FONT_SIZE,
   ATTRIBUTE_DEFAULT_LABEL_ANGLE,
   ATTRIBUTE_DEFAULT_FALSE,
 } attribute_default_kind_t;
 
 typedef enum {
   ATTRIBUTE_RENDER_ALWAYS,
-  ATTRIBUTE_RENDER_ANY_LABEL,
   ATTRIBUTE_RENDER_MAIN_LABEL,
-  ATTRIBUTE_RENDER_PRIMARY_LABEL,
   ATTRIBUTE_RENDER_PLAIN_PRIMARY_LABEL,
   ATTRIBUTE_RENDER_ENDPOINT_LABEL,
   ATTRIBUTE_RENDER_LAYOUT_ONLY,
-  ATTRIBUTE_RENDER_ARROW_DECORATION,
   ATTRIBUTE_RENDER_COLOR_TRANSLATOR,
 } attribute_render_scope_t;
 
@@ -88,76 +83,34 @@ typedef struct {
   attribute_default_kind_t default_kind;
   attribute_render_scope_t render_scope;
   bool color : 1;
-  bool label_color : 1;
   bool clipping : 1;
-  bool endpoint_label : 1;
   bool substituted : 1;
-  bool fontname : 1;
-  bool port : 1;
   bool endpoint : 1;
   bool style : 1;
-  bool fill_color : 1;
-  bool font_color : 1;
-  bool label_font_color : 1;
-  bool label_fontname : 1;
   bool compound_only : 1;
-  bool base_font : 1;
   bool presence_affects_rendering : 1;
 } edge_attribute_classification_t;
 
 /*
- * Rows classify declared edge attributes into independently projected slots.
- * Attributes absent from the table are ordinary rendered slots. Arrow
- * decoration rows remain explicit so they cannot fall through into identity.
+ * Only attributes still consumed as text by layout or emission belong here.
+ * Parsed labels, fonts, ports, and arrow decorations are projected from their
+ * renderer-owned structures instead. Unknown attributes are not rendered and
+ * therefore do not contribute identity.
  */
 static const edge_attribute_classification_t edge_attribute_classifications[] =
     {
+        /* Hyperlinks, targets, tooltips, and substituted identifiers. */
         {.name = "URL", .alias_group = ATTRIBUTE_ALIAS_URL},
-        {.name = "arrowhead",
-         .render_scope = ATTRIBUTE_RENDER_ARROW_DECORATION},
-        {.name = "arrowsize",
-         .render_scope = ATTRIBUTE_RENDER_ARROW_DECORATION},
-        {.name = "arrowtail",
-         .render_scope = ATTRIBUTE_RENDER_ARROW_DECORATION},
-        {.name = "color", .color = true},
-        {.name = "colorscheme",
-         .render_scope = ATTRIBUTE_RENDER_COLOR_TRANSLATOR},
-        {.name = "constraint", .render_scope = ATTRIBUTE_RENDER_LAYOUT_ONLY},
-        /* emit_end_edge() attaches decorate splines only to label/xlabel. */
-        {.name = "decorate",
-         .default_kind = ATTRIBUTE_DEFAULT_FALSE,
-         .render_scope = ATTRIBUTE_RENDER_MAIN_LABEL},
-        {.name = "dir", .render_scope = ATTRIBUTE_RENDER_ARROW_DECORATION},
         {.name = "edgeURL", .alias_group = ATTRIBUTE_ALIAS_URL},
         {.name = "edgehref", .alias_group = ATTRIBUTE_ALIAS_URL},
         {.name = "edgetarget", .alias_group = ATTRIBUTE_ALIAS_TARGET},
         {.name = "edgetooltip", .alias_group = ATTRIBUTE_ALIAS_TOOLTIP},
-        {.name = "fillcolor",
-         .render_scope = ATTRIBUTE_RENDER_ARROW_DECORATION,
-         .color = true,
-         .fill_color = true},
-        {.name = "fontcolor",
-         .render_scope = ATTRIBUTE_RENDER_ANY_LABEL,
-         .color = true,
-         .label_color = true,
-         .font_color = true},
-        {.name = "fontname",
-         .render_scope = ATTRIBUTE_RENDER_ANY_LABEL,
-         .fontname = true,
-         .base_font = true},
-        {.name = "fontsize",
-         .default_kind = ATTRIBUTE_DEFAULT_FONT_SIZE,
-         .render_scope = ATTRIBUTE_RENDER_ANY_LABEL,
-         .base_font = true},
         {.name = "headURL",
          .alias_group = ATTRIBUTE_ALIAS_URL,
          .endpoint = true},
-        {.name = "headclip", .clipping = true, .endpoint = true},
         {.name = "headhref",
          .alias_group = ATTRIBUTE_ALIAS_URL,
          .endpoint = true},
-        {.name = "headlabel", .endpoint_label = true, .endpoint = true},
-        {.name = "headport", .port = true, .endpoint = true},
         {.name = "headtarget",
          .alias_group = ATTRIBUTE_ALIAS_TARGET,
          .endpoint = true},
@@ -168,6 +121,35 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
         {.name = "href", .alias_group = ATTRIBUTE_ALIAS_URL},
         {.name = "id", .substituted = true},
         {.name = "labelURL", .alias_group = ATTRIBUTE_ALIAS_URL},
+        {.name = "labelhref", .alias_group = ATTRIBUTE_ALIAS_URL},
+        {.name = "labeltarget", .alias_group = ATTRIBUTE_ALIAS_TARGET},
+        {.name = "labeltooltip",
+         .alias_group = ATTRIBUTE_ALIAS_TOOLTIP,
+         .substituted = true},
+        {.name = "tailURL",
+         .alias_group = ATTRIBUTE_ALIAS_URL,
+         .endpoint = true},
+        {.name = "tailhref",
+         .alias_group = ATTRIBUTE_ALIAS_URL,
+         .endpoint = true},
+        {.name = "tailtarget",
+         .alias_group = ATTRIBUTE_ALIAS_TARGET,
+         .endpoint = true},
+        {.name = "tailtooltip",
+         .alias_group = ATTRIBUTE_ALIAS_TOOLTIP,
+         .substituted = true,
+         .endpoint = true},
+        {.name = "target", .alias_group = ATTRIBUTE_ALIAS_TARGET},
+        {.name = "tooltip", .alias_group = ATTRIBUTE_ALIAS_TOOLTIP},
+
+        /* Raw visual properties read during layout or emission. */
+        {.name = "color", .color = true},
+        {.name = "comment"},
+        /* emit_end_edge() attaches decorate splines only to label/xlabel. */
+        {.name = "decorate",
+         .default_kind = ATTRIBUTE_DEFAULT_FALSE,
+         .render_scope = ATTRIBUTE_RENDER_MAIN_LABEL},
+        {.name = "headclip", .clipping = true, .endpoint = true},
         {.name = "labelaligned",
          .default_kind = ATTRIBUTE_DEFAULT_FALSE,
          .render_scope = ATTRIBUTE_RENDER_PLAIN_PRIMARY_LABEL},
@@ -180,53 +162,22 @@ static const edge_attribute_classification_t edge_attribute_classifications[] =
          .default_kind = ATTRIBUTE_DEFAULT_ONE,
          .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
          .presence_affects_rendering = true},
-        /* common_init_edge() reads labelfloat only while creating ED_label. */
-        {.name = "labelfloat",
-         .default_kind = ATTRIBUTE_DEFAULT_FALSE,
-         .render_scope = ATTRIBUTE_RENDER_PRIMARY_LABEL},
-        /* initFontLabelEdgeAttr() supplies only headlabel/taillabel fonts. */
-        {.name = "labelfontcolor",
-         .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
-         .color = true,
-         .label_color = true,
-         .label_font_color = true},
-        {.name = "labelfontname",
-         .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
-         .fontname = true,
-         .label_fontname = true},
-        {.name = "labelfontsize",
-         .default_kind = ATTRIBUTE_DEFAULT_LABEL_FONT_SIZE,
-         .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL},
-        {.name = "labelhref", .alias_group = ATTRIBUTE_ALIAS_URL},
-        {.name = "labeltarget", .alias_group = ATTRIBUTE_ALIAS_TARGET},
-        {.name = "labeltooltip",
-         .alias_group = ATTRIBUTE_ALIAS_TOOLTIP,
-         .substituted = true},
+        {.name = "layer"},
         {.name = "lhead", .endpoint = true, .compound_only = true},
         {.name = "ltail", .endpoint = true, .compound_only = true},
-        {.name = "minlen", .render_scope = ATTRIBUTE_RENDER_LAYOUT_ONLY},
         {.name = "penwidth", .default_kind = ATTRIBUTE_DEFAULT_ONE},
+        {.name = "radius"},
         {.name = "samehead", .endpoint = true},
         {.name = "sametail", .endpoint = true},
+        {.name = "showboxes"},
         {.name = "style", .style = true},
-        {.name = "tailURL",
-         .alias_group = ATTRIBUTE_ALIAS_URL,
-         .endpoint = true},
         {.name = "tailclip", .clipping = true, .endpoint = true},
-        {.name = "tailhref",
-         .alias_group = ATTRIBUTE_ALIAS_URL,
-         .endpoint = true},
-        {.name = "taillabel", .endpoint_label = true, .endpoint = true},
-        {.name = "tailport", .port = true, .endpoint = true},
-        {.name = "tailtarget",
-         .alias_group = ATTRIBUTE_ALIAS_TARGET,
-         .endpoint = true},
-        {.name = "tailtooltip",
-         .alias_group = ATTRIBUTE_ALIAS_TOOLTIP,
-         .substituted = true,
-         .endpoint = true},
-        {.name = "target", .alias_group = ATTRIBUTE_ALIAS_TARGET},
-        {.name = "tooltip", .alias_group = ATTRIBUTE_ALIAS_TOOLTIP},
+
+        /* Translators and layout-only attributes do not emit identity slots. */
+        {.name = "colorscheme",
+         .render_scope = ATTRIBUTE_RENDER_COLOR_TRANSLATOR},
+        {.name = "constraint", .render_scope = ATTRIBUTE_RENDER_LAYOUT_ONLY},
+        {.name = "minlen", .render_scope = ATTRIBUTE_RENDER_LAYOUT_ONLY},
         {.name = "weight", .render_scope = ATTRIBUTE_RENDER_LAYOUT_ONLY},
 };
 
@@ -244,8 +195,6 @@ static const endpoint_attribute_names_t endpoint_attribute_names[] = {
     {.names = {"tailURL", "headURL"}},
     {.names = {"tailclip", "headclip"}},
     {.names = {"tailhref", "headhref"}},
-    {.names = {"taillabel", "headlabel"}},
-    {.names = {"tailport", "headport"}},
     {.names = {"ltail", "lhead"}},
     {.names = {"sametail", "samehead"}},
     {.names = {"tailtarget", "headtarget"}},
@@ -334,90 +283,33 @@ static bool edge_has_any_of_attributes(Agraph_t *root_graph, Agedge_t *edge,
   return false;
 }
 
-static bool edge_has_main_label(Agraph_t *root_graph, Agedge_t *edge) {
-  static const char *const main_labels[] = {"label", "xlabel"};
-  return edge_has_any_of_attributes(root_graph, edge, main_labels,
-                                    ATTRIBUTE_COUNT(main_labels));
+static bool edge_has_main_label(Agedge_t *edge) {
+  return ED_label(edge) != NULL || ED_xlabel(edge) != NULL;
 }
 
-static bool edge_has_endpoint_label(Agraph_t *root_graph, Agedge_t *edge) {
-  static const char *const endpoint_labels[] = {"headlabel", "taillabel"};
-  return edge_has_any_of_attributes(root_graph, edge, endpoint_labels,
-                                    ATTRIBUTE_COUNT(endpoint_labels));
-}
-
-static bool
-edge_uses_label_color(Agraph_t *root_graph, Agedge_t *edge,
-                      const edge_attribute_classification_t *classification) {
-  if (classification->font_color) {
-    return edge_has_main_label(root_graph, edge) ||
-           (edge_has_endpoint_label(root_graph, edge) &&
-            named_attribute_value(root_graph, edge, "labelfontcolor").text[0] ==
-                '\0');
-  }
-  if (classification->label_font_color) {
-    return edge_has_endpoint_label(root_graph, edge);
-  }
-  return true;
-}
-
-static bool
-edge_uses_base_font(Agraph_t *root_graph, Agedge_t *edge,
-                    const edge_attribute_classification_t *classification) {
-  if (edge_has_main_label(root_graph, edge)) {
-    return true;
-  }
-  if (!edge_has_endpoint_label(root_graph, edge)) {
-    return false;
-  }
-
-  const char *const endpoint_override =
-      classification->fontname ? "labelfontname" : "labelfontsize";
-  return agfindedgeattr(root_graph, (char *)endpoint_override) == NULL;
+static bool edge_has_endpoint_label(Agedge_t *edge) {
+  return ED_head_label(edge) != NULL || ED_tail_label(edge) != NULL;
 }
 
 static bool edge_attribute_is_rendered(
     Agraph_t *root_graph, Agedge_t *edge,
     const edge_attribute_classification_t *classification) {
-  if (classification == NULL) {
-    return true;
-  }
   if (classification->alias_group != ATTRIBUTE_ALIAS_NONE ||
       classification->render_scope == ATTRIBUTE_RENDER_LAYOUT_ONLY ||
-      classification->render_scope == ATTRIBUTE_RENDER_ARROW_DECORATION ||
       classification->render_scope == ATTRIBUTE_RENDER_COLOR_TRANSLATOR) {
     return false;
   }
-  if (classification->render_scope == ATTRIBUTE_RENDER_ANY_LABEL &&
-      !edge_has_main_label(root_graph, edge) &&
-      !edge_has_endpoint_label(root_graph, edge)) {
-    return false;
-  }
   if (classification->render_scope == ATTRIBUTE_RENDER_MAIN_LABEL &&
-      !edge_has_main_label(root_graph, edge)) {
-    return false;
-  }
-  if (classification->render_scope == ATTRIBUTE_RENDER_PRIMARY_LABEL &&
-      named_attribute_value(root_graph, edge, "label").text[0] == '\0') {
+      !edge_has_main_label(edge)) {
     return false;
   }
   if (classification->render_scope == ATTRIBUTE_RENDER_PLAIN_PRIMARY_LABEL) {
-    const comparable_attribute_value_t label =
-        named_attribute_value(root_graph, edge, "label");
-    if (label.text[0] == '\0' || label.is_html) {
+    if (ED_label(edge) == NULL || ED_label(edge)->html) {
       return false;
     }
   }
   if (classification->render_scope == ATTRIBUTE_RENDER_ENDPOINT_LABEL &&
-      !edge_has_endpoint_label(root_graph, edge)) {
-    return false;
-  }
-  if (classification->label_color &&
-      !edge_uses_label_color(root_graph, edge, classification)) {
-    return false;
-  }
-  if (classification->base_font &&
-      !edge_uses_base_font(root_graph, edge, classification)) {
+      !edge_has_endpoint_label(edge)) {
     return false;
   }
   /* dotLayout() calls dot_compoundEdges() only for a truthy compound graph. */
@@ -426,23 +318,6 @@ static bool edge_attribute_is_rendered(
     return false;
   }
   return true;
-}
-
-static comparable_attribute_value_t edge_color_default_value(
-    Agraph_t *root_graph, Agedge_t *edge,
-    const edge_attribute_classification_t *classification) {
-  if (classification->fill_color) {
-    const comparable_attribute_value_t color =
-        named_attribute_value(root_graph, edge, "color");
-    return color.text[0] == '\0' ? plain_attribute_value(DEFAULT_COLOR) : color;
-  }
-  if (classification->label_font_color) {
-    const comparable_attribute_value_t fontcolor =
-        named_attribute_value(root_graph, edge, "fontcolor");
-    return fontcolor.text[0] == '\0' ? plain_attribute_value(DEFAULT_COLOR)
-                                     : fontcolor;
-  }
-  return plain_attribute_value(DEFAULT_COLOR);
 }
 
 static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
@@ -501,6 +376,89 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
   agxbfree(&rendered_list);
 }
 
+static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
+                                    const char *slot_name,
+                                    comparable_attribute_value_t value,
+                                    bool allow_color_list) {
+  if (allow_color_list && !value.is_html && strchr(value.text, ':') != NULL) {
+    append_edge_color_list_value(signature, edge, slot_name, value.text);
+    return;
+  }
+
+  gvcolor_t color;
+  if (edge_color_value(edge, value, &color)) {
+    agxbuf rendered_color = {0};
+    agxbprint(&rendered_color, "#%02x%02x%02x%02x", color.u.rgba[0],
+              color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
+    append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_color));
+    agxbfree(&rendered_color);
+    return;
+  }
+
+  append_signature_slot(signature, slot_name, value);
+}
+
+static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
+                                   const char *slot_prefix,
+                                   const textlabel_t *label) {
+  if (label == NULL) {
+    return;
+  }
+
+  agxbuf slot_name = {0};
+  agxbprint(&slot_name, "%s:text", slot_prefix);
+  append_signature_slot(signature, agxbuse(&slot_name),
+                        (comparable_attribute_value_t){.text = label->text,
+                                                       .is_html = label->html});
+
+  agxbclear(&slot_name);
+  agxbprint(&slot_name, "%s:fontname", slot_prefix);
+  append_plain_signature_slot(signature, agxbuse(&slot_name), label->fontname);
+
+  agxbclear(&slot_name);
+  agxbprint(&slot_name, "%s:fontsize", slot_prefix);
+  agxbuf rendered_number = {0};
+  agxbprint(&rendered_number, "%a", label->fontsize);
+  append_plain_signature_slot(signature, agxbuse(&slot_name),
+                              agxbuse(&rendered_number));
+  agxbfree(&rendered_number);
+
+  agxbclear(&slot_name);
+  agxbprint(&slot_name, "%s:fontcolor", slot_prefix);
+  append_edge_color_value(signature, edge, agxbuse(&slot_name),
+                          plain_attribute_value(label->fontcolor), false);
+  agxbfree(&slot_name);
+}
+
+static textlabel_t *edge_endpoint_label(Agedge_t *edge,
+                                        edge_endpoint_t endpoint) {
+  return endpoint == EDGE_HEAD_ENDPOINT ? ED_head_label(edge)
+                                        : ED_tail_label(edge);
+}
+
+static void append_structured_label_slots(agxbuf *signature, Agedge_t *edge,
+                                          bool reverse_orientation) {
+  append_textlabel_slots(signature, edge, "label", ED_label(edge));
+  if (ED_label(edge) != NULL) {
+    append_plain_signature_slot(signature, "label:ontop",
+                                ED_label_ontop(edge) ? "true" : "false");
+  }
+  append_textlabel_slots(signature, edge, "xlabel", ED_xlabel(edge));
+
+  for (edge_endpoint_t endpoint = EDGE_TAIL_ENDPOINT;
+       endpoint < EDGE_ENDPOINT_COUNT; endpoint++) {
+    const edge_endpoint_t source_endpoint =
+        reverse_orientation
+            ? (endpoint == EDGE_HEAD_ENDPOINT ? EDGE_TAIL_ENDPOINT
+                                              : EDGE_HEAD_ENDPOINT)
+            : endpoint;
+    append_textlabel_slots(signature, edge,
+                           endpoint == EDGE_HEAD_ENDPOINT ? "headlabel"
+                                                          : "taillabel",
+                           edge_endpoint_label(edge, source_endpoint));
+  }
+}
+
 static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
                                          double default_value, double minimum,
                                          double *number) {
@@ -522,7 +480,6 @@ static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
 }
 
 static bool edge_numeric_projected_value(
-    Agraph_t *root_graph, Agedge_t *edge,
     const edge_attribute_classification_t *classification,
     comparable_attribute_value_t value, double *number) {
   if (classification == NULL) {
@@ -533,17 +490,6 @@ static bool edge_numeric_projected_value(
 
   if (classification->default_kind == ATTRIBUTE_DEFAULT_ONE) {
     default_value = 1.0;
-  } else if (classification->default_kind == ATTRIBUTE_DEFAULT_FONT_SIZE) {
-    default_value = DEFAULT_FONTSIZE;
-    minimum = MIN_FONTSIZE;
-  } else if (classification->default_kind ==
-             ATTRIBUTE_DEFAULT_LABEL_FONT_SIZE) {
-    if (!edge_numeric_attribute_value(
-            named_attribute_value(root_graph, edge, "fontsize"),
-            DEFAULT_FONTSIZE, MIN_FONTSIZE, &default_value)) {
-      return false;
-    }
-    minimum = MIN_FONTSIZE;
   } else if (classification->default_kind == ATTRIBUTE_DEFAULT_LABEL_ANGLE) {
     default_value = PORT_LABEL_ANGLE;
     minimum = -180.0;
@@ -554,21 +500,32 @@ static bool edge_numeric_projected_value(
   return edge_numeric_attribute_value(value, default_value, minimum, number);
 }
 
-static comparable_attribute_value_t edge_fontname_default_value(
-    Agraph_t *root_graph, Agedge_t *edge,
-    const edge_attribute_classification_t *classification) {
-  if (classification->label_fontname) {
-    const comparable_attribute_value_t fontname =
-        named_attribute_value(root_graph, edge, "fontname");
-    return fontname.text[0] == '\0' ? plain_attribute_value(DEFAULT_FONTNAME)
-                                    : fontname;
-  }
-  return plain_attribute_value(DEFAULT_FONTNAME);
-}
-
 static port edge_endpoint_port(Agedge_t *edge, edge_endpoint_t endpoint) {
   return endpoint == EDGE_HEAD_ENDPOINT ? ED_head_port(edge)
                                         : ED_tail_port(edge);
+}
+
+static void append_structured_port_slots(agxbuf *signature, Agedge_t *edge,
+                                         bool reverse_orientation) {
+  for (edge_endpoint_t endpoint = EDGE_TAIL_ENDPOINT;
+       endpoint < EDGE_ENDPOINT_COUNT; endpoint++) {
+    const edge_endpoint_t source_endpoint =
+        reverse_orientation
+            ? (endpoint == EDGE_HEAD_ENDPOINT ? EDGE_TAIL_ENDPOINT
+                                              : EDGE_HEAD_ENDPOINT)
+            : endpoint;
+    const port resolved_port = edge_endpoint_port(edge, source_endpoint);
+    if (!resolved_port.defined) {
+      continue;
+    }
+
+    agxbuf resolved_value = {0};
+    agxbprint(&resolved_value, "%a,%a", resolved_port.p.x, resolved_port.p.y);
+    append_plain_signature_slot(
+        signature, endpoint == EDGE_HEAD_ENDPOINT ? "headport" : "tailport",
+        agxbuse(&resolved_value));
+    agxbfree(&resolved_value);
+  }
 }
 
 static void append_projected_attribute_value(agxbuf *signature,
@@ -581,58 +538,29 @@ static void append_projected_attribute_value(agxbuf *signature,
   const edge_attribute_classification_t *const classification =
       edge_attribute_classification(attribute_name);
 
-  if (classification != NULL && classification->port) {
-    const edge_endpoint_t endpoint = strcmp(attribute_name, "headport") == 0
-                                         ? EDGE_HEAD_ENDPOINT
-                                         : EDGE_TAIL_ENDPOINT;
-    const port resolved_port = edge_endpoint_port(edge, endpoint);
-    if (resolved_port.defined) {
-      agxbuf resolved_value = {0};
-      agxbprint(&resolved_value, "%a,%a", resolved_port.p.x, resolved_port.p.y);
-      append_plain_signature_slot(signature, slot_name,
-                                  agxbuse(&resolved_value));
-      agxbfree(&resolved_value);
-      return;
-    }
-  }
-
-  if (classification != NULL &&
-      (classification->endpoint_label || classification->substituted) &&
-      !value.is_html) {
+  if (classification->substituted && !value.is_html) {
     char *const substituted = strdup_and_subst_obj((char *)value.text, edge);
     append_plain_signature_slot(signature, slot_name, substituted);
     free(substituted);
     return;
   }
 
-  if (classification != NULL && classification->clipping) {
+  if (classification->clipping) {
     append_plain_signature_slot(
         signature, slot_name,
         value.text[0] == '\0' || mapbool(value.text) ? "true" : "false");
     return;
   }
 
-  if (classification != NULL && classification->color) {
+  if (classification->color) {
     if (value.text[0] == '\0') {
-      value = edge_color_default_value(root_graph, edge, classification);
+      value = plain_attribute_value(DEFAULT_COLOR);
     }
-    if (!value.is_html && strchr(value.text, ':') != NULL) {
-      append_edge_color_list_value(signature, edge, slot_name, value.text);
-      return;
-    }
-    gvcolor_t color;
-    if (edge_color_value(edge, value, &color)) {
-      agxbuf rendered_color = {0};
-      agxbprint(&rendered_color, "#%02x%02x%02x%02x", color.u.rgba[0],
-                color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
-      append_plain_signature_slot(signature, slot_name,
-                                  agxbuse(&rendered_color));
-      agxbfree(&rendered_color);
-      return;
-    }
+    append_edge_color_value(signature, edge, slot_name, value, true);
+    return;
   }
 
-  if (classification != NULL && classification->presence_affects_rendering) {
+  if (classification->presence_affects_rendering) {
     agxbuf presence_slot = {0};
     agxbprint(&presence_slot, "%s:present", slot_name);
     append_plain_signature_slot(signature, agxbuse(&presence_slot),
@@ -641,8 +569,7 @@ static void append_projected_attribute_value(agxbuf *signature,
   }
 
   double number;
-  if (edge_numeric_projected_value(root_graph, edge, classification, value,
-                                   &number)) {
+  if (edge_numeric_projected_value(classification, value, &number)) {
     agxbuf rendered_number = {0};
     agxbprint(&rendered_number, "%a", number);
     append_plain_signature_slot(signature, slot_name,
@@ -651,18 +578,11 @@ static void append_projected_attribute_value(agxbuf *signature,
     return;
   }
 
-  if (classification != NULL && classification->fontname &&
-      value.text[0] == '\0') {
-    value = edge_fontname_default_value(root_graph, edge, classification);
-  }
-
-  if (classification != NULL && classification->style && !value.is_html &&
-      value.text[0] == '\0') {
+  if (classification->style && !value.is_html && value.text[0] == '\0') {
     value = plain_attribute_value("solid");
   }
 
-  if (classification != NULL &&
-      classification->default_kind == ATTRIBUTE_DEFAULT_FALSE) {
+  if (classification->default_kind == ATTRIBUTE_DEFAULT_FALSE) {
     append_plain_signature_slot(
         signature, slot_name,
         value.text[0] != '\0' && mapbool(value.text) ? "true" : "false");
@@ -695,7 +615,7 @@ static void append_ordinary_attribute_slots(agxbuf *signature,
        attribute = agnxtattr(root_graph, AGEDGE, attribute)) {
     const edge_attribute_classification_t *const classification =
         edge_attribute_classification(attribute->name);
-    if ((classification != NULL && classification->endpoint) ||
+    if (classification == NULL || classification->endpoint ||
         !edge_attribute_is_rendered(root_graph, edge, classification)) {
       continue;
     }
@@ -759,8 +679,6 @@ typedef struct {
   size_t tooltip_fallback_names_size;
   const char *const *target_names;
   size_t target_names_size;
-  const char *const *label_gate_names;
-  size_t label_gate_names_size;
   bool url_uses_label_gate;
   const char *const *target_anchor_names;
   size_t target_anchor_names_size;
@@ -794,10 +712,6 @@ static const char *const edge_target_names[] = {"edgetarget", "target"};
 static const char *const label_target_names[] = {"labeltarget", "target"};
 static const char *const head_target_names[] = {"headtarget", "target"};
 static const char *const tail_target_names[] = {"tailtarget", "target"};
-
-static const char *const label_gate_names[] = {"label", "xlabel"};
-static const char *const head_label_gate_names[] = {"headlabel"};
-static const char *const tail_label_gate_names[] = {"taillabel"};
 
 static const char *const edge_target_anchor_names[] = {
     "href", "URL", "edgehref", "edgeURL", "tooltip", "edgetooltip"};
@@ -843,8 +757,6 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
                 ATTRIBUTE_COUNT(edge_tooltip_fallback_names),
             .target_names = label_target_names,
             .target_names_size = ATTRIBUTE_COUNT(label_target_names),
-            .label_gate_names = label_gate_names,
-            .label_gate_names_size = ATTRIBUTE_COUNT(label_gate_names),
             .url_uses_label_gate = true,
             .target_anchor_names = label_target_anchor_names,
             .target_anchor_names_size =
@@ -865,8 +777,6 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
                 ATTRIBUTE_COUNT(head_tooltip_fallback_names),
             .target_names = head_target_names,
             .target_names_size = ATTRIBUTE_COUNT(head_target_names),
-            .label_gate_names = head_label_gate_names,
-            .label_gate_names_size = ATTRIBUTE_COUNT(head_label_gate_names),
             .target_anchor_names = head_target_anchor_names,
             .target_anchor_names_size =
                 ATTRIBUTE_COUNT(head_target_anchor_names),
@@ -886,8 +796,6 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
                 ATTRIBUTE_COUNT(tail_tooltip_fallback_names),
             .target_names = tail_target_names,
             .target_names_size = ATTRIBUTE_COUNT(tail_target_names),
-            .label_gate_names = tail_label_gate_names,
-            .label_gate_names_size = ATTRIBUTE_COUNT(tail_label_gate_names),
             .target_anchor_names = tail_target_anchor_names,
             .target_anchor_names_size =
                 ATTRIBUTE_COUNT(tail_target_anchor_names),
@@ -895,11 +803,21 @@ static const hyperlink_layer_t hyperlink_layers[HYPERLINK_LAYER_COUNT] = {
         },
 };
 
-static bool hyperlink_layer_gate_is_open(Agraph_t *root_graph, Agedge_t *edge,
-                                         const hyperlink_layer_t *layer) {
-  return layer->label_gate_names_size == 0 ||
-         edge_has_any_of_attributes(root_graph, edge, layer->label_gate_names,
-                                    layer->label_gate_names_size);
+static bool hyperlink_layer_gate_is_open(Agedge_t *edge,
+                                         hyperlink_layer_id_t layer) {
+  switch (layer) {
+  case HYPERLINK_LAYER_EDGE:
+    return true;
+  case HYPERLINK_LAYER_LABEL:
+    return edge_has_main_label(edge);
+  case HYPERLINK_LAYER_HEAD:
+    return ED_head_label(edge) != NULL;
+  case HYPERLINK_LAYER_TAIL:
+    return ED_tail_label(edge) != NULL;
+  case HYPERLINK_LAYER_COUNT:
+    return false;
+  }
+  return false;
 }
 
 static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
@@ -908,9 +826,11 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
        layer_index++) {
     const hyperlink_layer_t *const canonical_layer =
         &hyperlink_layers[layer_index];
+    const hyperlink_layer_id_t source_layer_id =
+        reverse_orientation ? canonical_layer->opposite_layer
+                            : (hyperlink_layer_id_t)layer_index;
     const hyperlink_layer_t *const source_layer =
-        reverse_orientation ? &hyperlink_layers[canonical_layer->opposite_layer]
-                            : canonical_layer;
+        &hyperlink_layers[source_layer_id];
 
     for (hyperlink_value_kind_t kind = HYPERLINK_VALUE_URL;
          kind < HYPERLINK_VALUE_COUNT; kind++) {
@@ -926,30 +846,28 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
         const comparable_attribute_value_t url =
             named_first_nonempty_attribute_value(root_graph, edge, names,
                                                  names_size);
-        rendered =
-            (!source_layer->url_uses_label_gate ||
-             hyperlink_layer_gate_is_open(root_graph, edge, source_layer)) &&
-            (url.text[0] != '\0' ||
-             edge_has_any_of_attributes(root_graph, edge,
-                                        source_layer->tooltip_names,
-                                        source_layer->tooltip_names_size));
+        rendered = (!source_layer->url_uses_label_gate ||
+                    hyperlink_layer_gate_is_open(edge, source_layer_id)) &&
+                   (url.text[0] != '\0' ||
+                    edge_has_any_of_attributes(
+                        root_graph, edge, source_layer->tooltip_names,
+                        source_layer->tooltip_names_size));
         break;
       }
       case HYPERLINK_VALUE_TOOLTIP:
         names = source_layer->tooltip_names;
         names_size = source_layer->tooltip_names_size;
         kind_name = "tooltip";
-        rendered = hyperlink_layer_gate_is_open(root_graph, edge, source_layer);
+        rendered = hyperlink_layer_gate_is_open(edge, source_layer_id);
         break;
       case HYPERLINK_VALUE_TARGET:
         names = source_layer->target_names;
         names_size = source_layer->target_names_size;
         kind_name = "target";
-        rendered =
-            hyperlink_layer_gate_is_open(root_graph, edge, source_layer) &&
-            edge_has_any_of_attributes(root_graph, edge,
-                                       source_layer->target_anchor_names,
-                                       source_layer->target_anchor_names_size);
+        rendered = hyperlink_layer_gate_is_open(edge, source_layer_id) &&
+                   edge_has_any_of_attributes(
+                       root_graph, edge, source_layer->target_anchor_names,
+                       source_layer->target_anchor_names_size);
         break;
       case HYPERLINK_VALUE_COUNT:
         break;
@@ -997,7 +915,7 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
     }
 
     if (source_layer->label_url_names_size != 0 &&
-        hyperlink_layer_gate_is_open(root_graph, edge, source_layer)) {
+        hyperlink_layer_gate_is_open(edge, source_layer_id)) {
       comparable_attribute_value_t value = named_first_nonempty_attribute_value(
           root_graph, edge, source_layer->label_url_names,
           source_layer->label_url_names_size);
@@ -1022,6 +940,8 @@ project_rendered_edge_identity(Agedge_t *edge, bool reverse_orientation) {
   Agraph_t *const root_graph = agroot(agraphof(edge));
   agxbuf signature = {0};
 
+  append_structured_label_slots(&signature, edge, reverse_orientation);
+  append_structured_port_slots(&signature, edge, reverse_orientation);
   append_ordinary_attribute_slots(&signature, root_graph, edge);
   append_endpoint_attribute_slots(&signature, root_graph, edge,
                                   reverse_orientation);
