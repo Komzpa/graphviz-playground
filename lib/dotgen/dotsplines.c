@@ -896,6 +896,59 @@ static edge_t *cloneEdge(graph_t *g, node_t *tn, node_t *hn, edge_t *orig) {
   return e;
 }
 
+static void copy_resolved_ports(edge_t *clone, const edge_t *original,
+                                bool reversed) {
+  if (reversed) {
+    ED_tail_port(clone) = ED_head_port(original);
+    ED_head_port(clone) = ED_tail_port(original);
+  } else {
+    ED_tail_port(clone) = ED_tail_port(original);
+    ED_head_port(clone) = ED_head_port(original);
+  }
+}
+
+static void restore_flat_edge_ports(edge_t **edges, unsigned count,
+                                    node_t *tail) {
+  for (unsigned i = 0; i < count; ++i) {
+    edge_t *edge = edges[i];
+    while (ED_edge_type(edge) != NORMAL)
+      edge = ED_to_orig(edge);
+
+    edge_t *const clone = ED_alg(edge);
+    if (clone != NULL)
+      copy_resolved_ports(clone, edge, agtail(edge) != tail);
+  }
+}
+
+static void restore_flat_endpoint(bezier *spline, bool at_tail, pointf anchor) {
+  const size_t endpoint = at_tail ? 0 : spline->size - 1;
+  const size_t control = at_tail ? 1 : spline->size - 2;
+  const int arrow = at_tail ? spline->sflag : spline->eflag;
+  pointf *const arrow_tip = at_tail ? &spline->sp : &spline->ep;
+
+  if (arrow != ARR_NONE) {
+    const pointf offset = sub_pointf(anchor, *arrow_tip);
+    spline->list[endpoint] = add_pointf(spline->list[endpoint], offset);
+    spline->list[control] = add_pointf(spline->list[control], offset);
+    *arrow_tip = anchor;
+  } else {
+    spline->list[endpoint] = anchor;
+  }
+}
+
+static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
+  if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip) {
+    const pointf anchor =
+        add_pointf(ND_coord(agtail(edge)), ED_tail_port(edge).p);
+    restore_flat_endpoint(spline, true, anchor);
+  }
+  if (ED_head_port(edge).defined && !ED_head_port(edge).clip) {
+    const pointf anchor =
+        add_pointf(ND_coord(aghead(edge)), ED_head_port(edge).p);
+    restore_flat_endpoint(spline, false, anchor);
+  }
+}
+
 /// rotate, if necessary, then translate points
 static pointf transformf(pointf p, pointf del, int flip) {
   if (flip) {
@@ -1206,6 +1259,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   GD_dotroot(auxg) = auxg;
   setEdgeType(auxg, et);
   dot_init_node_edge(auxg);
+  restore_flat_edge_ports(edges, cnt, tn);
 
   dot_rank(auxg);
   const int r = dot_mincross(auxg);
@@ -1233,6 +1287,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       ND_coord(n).y = midx;
   }
   dot_sameports(auxg);
+  restore_flat_edge_ports(edges, cnt, tn);
   const int rc = dot_splines_(auxg, 0);
   if (rc != 0) {
     return rc;
@@ -1263,19 +1318,11 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     bz->sp = transformf(auxbz->sp, del, GD_flip(g));
     bz->eflag = auxbz->eflag;
     bz->ep = transformf(auxbz->ep, del, GD_flip(g));
-    for (size_t j = 0; j < auxbz->size;) {
-      pointf cp[4];
-      cp[0] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      if (j >= auxbz->size)
-        break;
-      cp[1] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[2] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[3] = transformf(auxbz->list[j], del, GD_flip(g));
-      update_bb_bz(&GD_bb(g), cp);
-    }
+    for (size_t j = 0; j < auxbz->size; ++j)
+      bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
+    restore_flat_endpoints(e, bz);
+    for (size_t j = 0; j + 3 < bz->size; j += 3)
+      update_bb_bz(&GD_bb(g), &bz->list[j]);
     if (ED_label(e)) {
       ED_label(e)->pos = transformf(ED_label(auxe)->pos, del, GD_flip(g));
       ED_label(e)->set = true;

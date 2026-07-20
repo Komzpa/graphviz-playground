@@ -4799,6 +4799,283 @@ def _drawn_edge_spline_point_count(edge: dict) -> int:
     )
 
 
+def _edge_position_tokens(
+    edge: dict,
+) -> tuple[list[tuple[str, tuple[float, float]]], list[tuple[float, float]]]:
+    """Split an edge's ``pos`` into endpoint markers and spline points."""
+
+    markers = []
+    points = []
+    for token in edge["pos"].split():
+        marker = ""
+        coordinates = token
+        if token.startswith(("e,", "s,")):
+            marker = token[0]
+            coordinates = token[2:]
+        x, y = coordinates.split(",", 1)
+        point = (float(x), float(y))
+        if marker:
+            markers.append((marker, point))
+        else:
+            points.append(point)
+    return markers, points
+
+
+def _edge_physical_endpoint(edge: dict, endpoint: str) -> tuple[float, float]:
+    """Return the visible head or tail endpoint from Graphviz JSON output."""
+
+    markers, points = _edge_position_tokens(edge)
+    marker = "e" if endpoint == "head" else "s"
+    marked_points = [point for kind, point in markers if kind == marker]
+    if marked_points:
+        assert len(marked_points) == 1
+        return marked_points[0]
+    assert points
+    return points[-1] if endpoint == "head" else points[0]
+
+
+def _group_anchor_points(
+    source: str,
+    *,
+    node_name: str,
+    endpoint: str,
+    attribute: str,
+    groups: set[str],
+) -> set[tuple[float, float]]:
+    """Collect rounded visible anchors for selected samehead/sametail groups."""
+
+    layout = json.loads(dot("json", source=source))
+    node_ids = {node["name"]: node["_gvid"] for node in layout["objects"]}
+    node_id = node_ids[node_name]
+    endpoint_id = "head" if endpoint == "head" else "tail"
+    return {
+        tuple(
+            round(coordinate, 3)
+            for coordinate in _edge_physical_endpoint(edge, endpoint)
+        )
+        for edge in layout["edges"]
+        if "_draw_" in edge
+        and edge[endpoint_id] == node_id
+        and edge.get(attribute, "") in groups
+    }
+
+
+def _samehead_mixed_route_fixture(concentrate: bool) -> str:
+    """Exercise regular, backward-classified, and flat samehead members."""
+
+    return f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          rankdir=TB
+
+          s0 -> A [samehead=x]
+          s1 -> A [samehead=x]
+          A -> back_anchor [style=invis, weight=100]
+          back_anchor -> A [samehead=x]
+          {{ rank=same; flat; A; }}
+          flat -> A [samehead=x]
+
+          b0 -> B [samehead=y]
+          b1 -> B [samehead=z]
+        }}
+    """
+
+
+def _sametail_mixed_route_fixture(concentrate: bool) -> str:
+    """Exercise regular, backward-classified, and flat sametail members."""
+
+    return f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          rankdir=TB
+
+          A -> t0 [sametail=x]
+          A -> t1 [sametail=x]
+          back -> A [style=invis, weight=100]
+          A -> back [sametail=x]
+          {{ rank=same; A; flat; }}
+          A -> flat [sametail=x]
+
+          A -> u0 [sametail=y]
+          A -> u1 [sametail=z]
+        }}
+    """
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_samehead_anchor_spans_regular_backward_and_flat_routes(
+    concentrate: bool,
+):
+    """Every samehead member meets its node at one physical point (GitLab #448)."""
+
+    anchors = _group_anchor_points(
+        _samehead_mixed_route_fixture(concentrate),
+        node_name="A",
+        endpoint="head",
+        attribute="samehead",
+        groups={"x"},
+    )
+    assert len(anchors) == 1, anchors
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_sametail_anchor_spans_regular_backward_and_flat_routes(
+    concentrate: bool,
+):
+    """Every sametail member leaves its node at one physical point (GitLab #448)."""
+
+    anchors = _group_anchor_points(
+        _sametail_mixed_route_fixture(concentrate),
+        node_name="A",
+        endpoint="tail",
+        attribute="sametail",
+        groups={"x"},
+    )
+    assert len(anchors) == 1, anchors
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_samehead_flat_edges_share_the_resolved_anchor(
+    concentrate: bool,
+):
+    """Flat adjacent samehead edges keep the group port selected by dot."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          {{ rank=same; a; b; z; }}
+          a -> z [samehead=x]
+          b -> z [samehead=x]
+        }}
+    """
+    anchors = _group_anchor_points(
+        source,
+        node_name="z",
+        endpoint="head",
+        attribute="samehead",
+        groups={"x"},
+    )
+    assert len(anchors) == 1, anchors
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_sametail_flat_edges_share_the_resolved_anchor(
+    concentrate: bool,
+):
+    """Flat adjacent sametail edges keep the group port selected by dot."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          {{ rank=same; z; a; b; }}
+          z -> a [sametail=x]
+          z -> b [sametail=x]
+        }}
+    """
+    anchors = _group_anchor_points(
+        source,
+        node_name="z",
+        endpoint="tail",
+        attribute="sametail",
+        groups={"x"},
+    )
+    assert len(anchors) == 1, anchors
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_distinct_samehead_groups_keep_distinct_anchors(
+    concentrate: bool,
+):
+    """Different samehead IDs do not acquire a shared physical port."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          b0 -> B [samehead=y]
+          b1 -> B [samehead=z]
+        }}
+    """
+    anchors = _group_anchor_points(
+        source,
+        node_name="B",
+        endpoint="head",
+        attribute="samehead",
+        groups={"y", "z"},
+    )
+    assert len(anchors) == 2, anchors
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_distinct_sametail_groups_keep_distinct_anchors(
+    concentrate: bool,
+):
+    """Different sametail IDs do not acquire a shared physical port."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          A -> a0 [sametail=y]
+          A -> a1 [sametail=z]
+        }}
+    """
+    anchors = _group_anchor_points(
+        source,
+        node_name="A",
+        endpoint="tail",
+        attribute="sametail",
+        groups={"y", "z"},
+    )
+    assert len(anchors) == 2, anchors
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_ungrouped_flat_edges_keep_independent_anchors(
+    concentrate: bool,
+):
+    """The flat-edge fix does not create samehead behavior without samehead."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          {{ rank=same; a; b; z; }}
+          a -> z
+          b -> z
+        }}
+    """
+    anchors = _group_anchor_points(
+        source,
+        node_name="z",
+        endpoint="head",
+        attribute="samehead",
+        groups={""},
+    )
+    assert len(anchors) == 2, anchors
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_concentrate_ungrouped_flat_tails_keep_independent_anchors(
+    concentrate: bool,
+):
+    """The flat-edge fix does not create sametail behavior without sametail."""
+
+    source = f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          {{ rank=same; z; a; b; }}
+          z -> a
+          z -> b
+        }}
+    """
+    anchors = _group_anchor_points(
+        source,
+        node_name="z",
+        endpoint="tail",
+        attribute="sametail",
+        groups={""},
+    )
+    assert len(anchors) == 2, anchors
+
+
 def _arrowhead_shaft_angle(edge: dict) -> float:
     """Return the angle between a normal head arrow and its shaft tangent."""
 

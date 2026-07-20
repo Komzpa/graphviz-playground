@@ -245,6 +245,8 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
     size_t start, end;
     edge_t *orig;
     boxf *tbox, *hbox;
+    pointf tailp, headp;
+    bool pinTail = false, pinHead = false;
 
     node_t *tn = agtail(fe);
     graph_t *const g = agraphof(tn);
@@ -262,13 +264,26 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
 	clipHead = ED_head_port(orig).clip;
 	tbox = ED_tail_port(orig).bp;
 	hbox = ED_head_port(orig).bp;
+	tailp = add_pointf(ND_coord(tn), ED_tail_port(orig).p);
+	headp = add_pointf(ND_coord(hn), ED_head_port(orig).p);
+	pinTail = ED_tail_port(orig).defined && !clipTail;
+	pinHead = ED_head_port(orig).defined && !clipHead;
     }
     else { /* fe and orig are reversed */
 	clipTail = ED_head_port(orig).clip;
 	clipHead = ED_tail_port(orig).clip;
 	hbox = ED_tail_port(orig).bp;
 	tbox = ED_head_port(orig).bp;
+	tailp = add_pointf(ND_coord(tn), ED_head_port(orig).p);
+	headp = add_pointf(ND_coord(hn), ED_tail_port(orig).p);
+	pinTail = ED_head_port(orig).defined && !clipTail;
+	pinHead = ED_tail_port(orig).defined && !clipHead;
     }
+
+    if (pinTail)
+	ps[0] = tailp;
+    if (pinHead)
+	ps[pn - 1] = headp;
 
     /* spline may be interior to node */
     if(clipTail && ND_shape(tn) && ND_shape(tn)->fns->insidefn) {
