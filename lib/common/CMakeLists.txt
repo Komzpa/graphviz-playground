@@ -37,6 +37,7 @@ add_library(common_obj OBJECT
 
   # Source files
   args.c
+  attrname.c
   arrows.c
   colxlate.c
   ellipse.c
