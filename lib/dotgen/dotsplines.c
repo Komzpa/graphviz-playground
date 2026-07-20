@@ -135,7 +135,8 @@ same_direction_edges_are_concentrated_duplicates(edge_t *retained,
                                                              candidate);
 }
 
-static unsigned fold_concentrated_duplicate_routes(edge_t **edges,
+static unsigned
+suppress_and_compact_concentrated_duplicate_routes(edge_t **edges,
                                                    unsigned cnt) {
   if (!Concentrate) {
     return cnt;
@@ -489,7 +490,8 @@ static int dot_splines_(graph_t *g, int normalize) {
         break;
     }
 
-    cnt = fold_concentrated_duplicate_routes(LIST_AT(&edges, ind), cnt);
+    cnt = suppress_and_compact_concentrated_duplicate_routes(
+        LIST_AT(&edges, ind), cnt);
     if (cnt == 0)
       continue;
 
