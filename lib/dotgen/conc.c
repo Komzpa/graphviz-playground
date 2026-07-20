@@ -91,8 +91,8 @@ static bool bothdowncandidates(node_t * u, node_t * v)
 	return original_edges_have_same_rank_direction(e, f)
 	    && rendered_edges_are_equal(f0, e0)
 	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0
-	    && (e0 == NULL || f0 == NULL || aghead(e0) != aghead(f0)
-		|| portcmp(ED_head_port(e0), ED_head_port(f0)) == 0);
+	    && e0 != NULL && f0 != NULL && aghead(e0) == aghead(f0)
+	    && portcmp(ED_head_port(e0), ED_head_port(f0)) == 0;
     }
     return false;
 }
@@ -101,6 +101,19 @@ static bool upcandidate(node_t * v)
 {
     return ND_node_type(v) == VIRTUAL && ND_out(v).size == 1
 	    && ND_in(v).size == 1 && ND_label(v) == NULL;
+}
+
+static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
+{
+    edge_t *e0 = original_normal_edge(e);
+    edge_t *f0 = original_normal_edge(f);
+
+    if (e0 == NULL || f0 == NULL)
+	return false;
+    if (agtail(e0) == agtail(f0))
+	return true;
+    return ND_order(agtail(e0)) + 1 == ND_order(agtail(f0))
+	|| ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
 }
 
 static bool bothupcandidates(node_t * u, node_t * v)
@@ -114,7 +127,8 @@ static bool bothupcandidates(node_t * u, node_t * v)
 	return original_edges_have_same_rank_direction(e, f)
 	    && rendered_edges_are_equal(f0, e0)
 	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0
-	    && (e0 == NULL || f0 == NULL || agtail(e0) != agtail(f0)
+	    && original_tails_are_same_or_adjacent(e, f)
+	    && (agtail(e0) != agtail(f0)
 		|| portcmp(ED_tail_port(e0), ED_tail_port(f0)) == 0);
     }
     return false;

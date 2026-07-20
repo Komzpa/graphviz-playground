@@ -341,7 +341,7 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
           merge_chain(graph, backward_edge, ED_to_virt(opposite_edge), true);
           return true;
         }
-        if (fallback_route_edge == NULL) {
+        if (!Concentrate && fallback_route_edge == NULL) {
           fallback_route_edge = opposite_edge;
         } else {
           /*
