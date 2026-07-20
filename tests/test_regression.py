@@ -6061,6 +6061,19 @@ def test_concentrate_setlinewidth_style_folds_into_penwidth(splines: str):
     )
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_bold_style_folds_into_penwidth(splines: str):
+    """gvrender_set_style() renders style=bold as PENWIDTH_BOLD."""
+
+    _assert_concentrated_edge_counts(
+        splines,
+        (
+            _edge_count_case(1, "a -> b [style=bold]", "a -> b [penwidth=2]"),
+            _edge_count_case(2, "c -> d [style=bold]", "c -> d [penwidth=3]"),
+        ),
+    )
+
+
 def test_concentrate_plain_label_identity_uses_compiled_text():
     """Escaped and literal newlines render alike, but justification does not."""
 

@@ -638,12 +638,17 @@ edge_numeric_projected_value(edge_attribute_classification_t classification,
   return edge_numeric_attribute_value(value, default_value, minimum, number);
 }
 
-static bool style_setlinewidth_value(const char *style, double *penwidth) {
+static bool style_penwidth_value(const char *style, double *penwidth) {
   if (style == NULL || style[0] == '\0') {
     return false;
   }
   bool found = false;
   for (char **item = parse_style((char *)style); *item != NULL; item++) {
+    if (strcmp(*item, "bold") == 0) {
+      *penwidth = 2.0;
+      found = true;
+      continue;
+    }
     if (strcmp(*item, "setlinewidth") != 0) {
       continue;
     }
@@ -667,8 +672,7 @@ edge_projected_penwidth(edge_attribute_classification_t classification,
     return false;
   }
   if (strcmp(classification.name, "penwidth") == 0 && value.text[0] == '\0' &&
-      !value.is_html &&
-      style_setlinewidth_value(agget(edge, "style"), penwidth)) {
+      !value.is_html && style_penwidth_value(agget(edge, "style"), penwidth)) {
     return true;
   }
   return edge_numeric_projected_value(classification, value, penwidth);
@@ -683,7 +687,7 @@ static void append_style_value(agxbuf *signature, const char *slot_name,
 
   agxbuf rendered_style = {0};
   for (char **item = parse_style((char *)value.text); *item != NULL; item++) {
-    if (strcmp(*item, "setlinewidth") == 0) {
+    if (strcmp(*item, "bold") == 0 || strcmp(*item, "setlinewidth") == 0) {
       continue;
     }
     if (agxblen(&rendered_style) > 0) {
@@ -783,7 +787,7 @@ static void append_projected_attribute_value(agxbuf *signature,
   }
   if (facts->style) {
     double penwidth;
-    if (!value.is_html && style_setlinewidth_value(value.text, &penwidth) &&
+    if (!value.is_html && style_penwidth_value(value.text, &penwidth) &&
         agfindedgeattr(root_graph, "penwidth") == NULL) {
       agxbuf rendered_number = {0};
       agxbprint(&rendered_number, "%a", penwidth);
