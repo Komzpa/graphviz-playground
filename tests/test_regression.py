@@ -5756,6 +5756,11 @@ def _assert_concentrated_edge_counts(
                 'a -> b [headlabel="\\T"]',
                 'b -> a [taillabel="\\T"]',
             ),
+            _edge_count_case(
+                2,
+                'a -> b [headlabel=<<TABLE HREF="\\T"><TR><TD>x</TD></TR></TABLE>>]',
+                'b -> a [taillabel=<<TABLE HREF="\\T"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
         ),
         _named_edge_count_cases(
             "html-like-versus-plain-attribute",
