@@ -5339,6 +5339,28 @@ def test_concentrate_train11_minimized_route_has_no_line_gap():
     assert all(gap <= 20 for gap in _drawn_edge_piece_end_gaps(edge))
 
 
+def test_concentrate_drbd_minimized_routes_do_not_touch_tangentially():
+    """Distinct concentrated routes should stay visually traceable."""
+
+    source = r"""
+        digraph disk_states {
+          graph [concentrate=true]
+          Inconsistent -> UpToDate [label="resync completed"]
+          Inconsistent -> Failed [label="io completion error"]
+          UpToDate -> Inconsistent [label=ioctl_replicate]
+          UpToDate -> Failed [label="io completion error"]
+          Consistent -> Inconsistent [label="start resync"]
+          Consistent -> UpToDate [label="receive_param()"]
+          Consistent -> Failed [label="io completion error"]
+          Outdated -> Inconsistent [label="start resync"]
+          Outdated -> Failed [label="io completion error"]
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+
+    assert _tangential_touching_pair_count(layout) == 0
+
+
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
 def test_concentrate_train11_suppressed_arrows_survive_pos_roundtrip():
     """Suppressed junction arrows do not reappear after a positioned rerender."""
@@ -5690,6 +5712,137 @@ def _point_segment_distance(
         ),
     )
     return math.dist(point, (start[0] + t * dx, start[1] + t * dy))
+
+
+def _drawn_edge_polyline(edge: dict) -> list[tuple[float, float]]:
+    """Flatten an edge's drawn route enough to catch tangent near-touches."""
+
+    route = []
+    for operation in edge.get("_draw_", []):
+        if operation["op"] == "L":
+            samples = [tuple(point) for point in operation["points"]]
+        elif operation["op"] in {"B", "b"}:
+            samples = []
+            points = operation["points"]
+            for start in range(0, len(points) - 1, 3):
+                control = points[start : start + 4]
+                assert len(control) == 4
+                for step in range(13):
+                    t = step / 12
+                    u = 1 - t
+                    samples.append(
+                        (
+                            u**3 * control[0][0]
+                            + 3 * u**2 * t * control[1][0]
+                            + 3 * u * t**2 * control[2][0]
+                            + t**3 * control[3][0],
+                            u**3 * control[0][1]
+                            + 3 * u**2 * t * control[1][1]
+                            + 3 * u * t**2 * control[2][1]
+                            + t**3 * control[3][1],
+                        )
+                    )
+        else:
+            continue
+        if route and samples and math.dist(route[-1], samples[0]) < 0.01:
+            route.extend(samples[1:])
+        else:
+            route.extend(samples)
+    return route
+
+
+def _segment_distance(
+    a: tuple[float, float],
+    b: tuple[float, float],
+    c: tuple[float, float],
+    d: tuple[float, float],
+) -> tuple[float, float, float]:
+    """Return segment distance and normalized positions along both segments."""
+
+    candidates = []
+    for point, start, end, first_segment in (
+        (a, c, d, True),
+        (b, c, d, True),
+        (c, a, b, False),
+        (d, a, b, False),
+    ):
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        length2 = dx * dx + dy * dy
+        t = 0.0
+        if length2 != 0:
+            t = max(
+                0.0,
+                min(
+                    1.0,
+                    ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy)
+                    / length2,
+                ),
+            )
+        foot = (start[0] + t * dx, start[1] + t * dy)
+        if first_segment:
+            candidates.append((math.dist(point, foot), 0.0 if point == a else 1.0, t))
+        else:
+            candidates.append((math.dist(point, foot), t, 0.0 if point == c else 1.0))
+    return min(candidates, key=lambda candidate: candidate[0])
+
+
+def _route_lengths(points: list[tuple[float, float]]) -> list[float]:
+    lengths = [0.0]
+    for first, second in zip(points, points[1:]):
+        lengths.append(lengths[-1] + math.dist(first, second))
+    return lengths
+
+
+def _tangential_touching_pair_count(layout: dict) -> int:
+    """Count distinct drawn route pairs that almost touch while tangent."""
+
+    routes = [
+        (edge, _drawn_edge_polyline(edge))
+        for edge in layout["edges"]
+        if "_draw_" in edge
+    ]
+    routes = [(edge, route) for edge, route in routes if len(route) >= 2]
+    count = 0
+    for index, (first_edge, first_route) in enumerate(routes):
+        first_lengths = _route_lengths(first_route)
+        for second_edge, second_route in routes[index + 1 :]:
+            second_lengths = _route_lengths(second_route)
+            found = False
+            for first_index, (a, b) in enumerate(zip(first_route, first_route[1:])):
+                first_len = max(0.001, math.dist(a, b))
+                for second_index, (c, d) in enumerate(
+                    zip(second_route, second_route[1:])
+                ):
+                    if _segments_cross(a, b, c, d):
+                        continue
+                    distance, ta, tb = _segment_distance(a, b, c, d)
+                    if distance >= 5:
+                        continue
+                    first_pos = first_lengths[first_index] + ta * first_len
+                    second_len = max(0.001, math.dist(c, d))
+                    second_pos = second_lengths[second_index] + tb * second_len
+                    if (
+                        min(
+                            first_pos,
+                            first_lengths[-1] - first_pos,
+                            second_pos,
+                            second_lengths[-1] - second_pos,
+                        )
+                        < 20
+                    ):
+                        continue
+                    if _angle_between_vectors(
+                        (b[0] - a[0], b[1] - a[1]),
+                        (d[0] - c[0], d[1] - c[1]),
+                    ) < 15:
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                count += 1
+    return count
 
 
 def _endpoint_label_text_ops(edge: dict, stream: str) -> list[dict]:

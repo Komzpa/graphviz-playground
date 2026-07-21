@@ -52,6 +52,33 @@ static bool rendered_edges_are_equal(edge_t *edge, edge_t *representative)
                                                                edge);
 }
 
+static bool has_labeled_continuation(edge_t *edge)
+{
+    for (edge_t *candidate = agfstout(agraphof(edge), aghead(edge));
+	 candidate != NULL; candidate = agnxtout(agraphof(edge), candidate)) {
+	if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL)
+	    return true;
+    }
+    return false;
+}
+
+static bool dense_same_head_labeled_fan(edge_t *edge, edge_t *other)
+{
+    if (ED_label(edge) == NULL || ED_label(other) == NULL ||
+	aghead(edge) != aghead(other) || !rendered_edges_are_equal(edge, other) ||
+	!has_labeled_continuation(edge))
+	return false;
+
+    size_t equivalent_labeled_edges = 0;
+    for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
+	 candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
+	if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL &&
+	    rendered_edges_are_equal(candidate, edge))
+	    equivalent_labeled_edges++;
+    }
+    return equivalent_labeled_edges >= 4;
+}
+
 static bool other_list_contains(edge_t *edge)
 {
     if (ND_other(agtail(edge)).list == NULL)
@@ -89,8 +116,13 @@ static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
 	return false;
     if (agtail(e0) == agtail(f0))
 	return true;
-    if (ED_label(e0) != NULL || ED_label(f0) != NULL)
-	return true;
+    if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
+	dense_same_head_labeled_fan(e0, f0)) {
+	const bool adjacent_tails =
+	    ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
+	    ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
+	return adjacent_tails;
+    }
     size_t e0_head_count = 0;
     size_t i = 0;
     for (edge_t *candidate = agfstout(agraphof(e0), agtail(e0));
@@ -128,8 +160,14 @@ static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
     if (abs(ND_rank(agtail(e0)) - ND_rank(aghead(e0))) > 3 ||
 	abs(ND_rank(agtail(f0)) - ND_rank(aghead(f0))) > 3)
 	return false;
-    return ND_order(agtail(e0)) + 1 == ND_order(agtail(f0))
-	|| ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
+    const bool adjacent_tails =
+	ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
+	ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
+    if (!adjacent_tails)
+	return false;
+    if (ED_label(e0) != NULL || ED_label(f0) != NULL)
+	return false;
+    return true;
 }
 
 static bool bothdowncandidates(node_t * u, node_t * v)
