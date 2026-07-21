@@ -973,6 +973,12 @@ makeStraightEdge(graph_t * g, edge_t * e, int et, splineInfo* sinfo)
     free(edge_list);
 }
 
+static edge_t *rendered_attribute_edge(edge_t *edge) {
+    while (edge != NULL && ED_edge_type(edge) != NORMAL)
+	edge = ED_to_orig(edge);
+    return edge;
+}
+
 void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
                        splineInfo *sinfo) {
     pointf dumb[4];
@@ -988,9 +994,16 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
 		edge_t *const candidate = edge_list[j];
 		if (ED_edge_type(candidate) == IGNORED)
 		    continue;
-		if (gv_edge_attributes_are_equal(retained, candidate) &&
-		    same_direction_edge_arrow_decorations_are_mergeable(retained,
-		                                                        candidate)) {
+		edge_t *const retained_attribute_edge =
+		    rendered_attribute_edge(retained);
+		edge_t *const candidate_attribute_edge =
+		    rendered_attribute_edge(candidate);
+		if (retained_attribute_edge != NULL &&
+		    candidate_attribute_edge != NULL &&
+		    gv_edge_attributes_are_equal(retained_attribute_edge,
+		                                 candidate_attribute_edge) &&
+		    same_direction_edge_arrow_decorations_are_mergeable(
+			retained_attribute_edge, candidate_attribute_edge)) {
 		    fold_concentrated_edge_arrow_decorations(retained, candidate,
 		                                             false);
 		    ED_edge_type(candidate) = IGNORED;

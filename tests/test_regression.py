@@ -4263,6 +4263,26 @@ def test_2416():
     assert abs(y_1 - y_2) > 1, "edge arrows appear to be drawn next to the same node"
 
 
+def test_curved_concentrated_attributed_edges_do_not_crash():
+    """Curved route concentration compares original edges, not virtual pieces."""
+
+    source = b"""
+        digraph {
+          graph [concentrate=true splines=curved]
+          a -> c [minlen=3 color=red]
+          a -> c [minlen=3 color=red]
+        }
+    """
+    proc = subprocess.run(
+        [which("dot"), "-Tjson"],
+        input=source,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr.decode(errors="replace")
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_2454():
     """
