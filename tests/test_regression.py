@@ -5478,6 +5478,82 @@ def _sampled_edge_crossing_count(edges: list[dict]) -> int:
     return len(crossing_pairs)
 
 
+def _graph_width(layout: dict) -> float:
+    left, _, right, _ = (float(value) for value in layout["bb"].split(","))
+    return max(1.0, right - left)
+
+
+def _pos_points(pos: str) -> list[tuple[float, float]]:
+    values = [
+        float(value)
+        for value in re.findall(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", pos)
+    ]
+    return list(zip(values[0::2], values[1::2]))
+
+
+def _longest_horizontal_chain(points: list[tuple[float, float]]) -> float:
+    best = 0.0
+    current = 0.0
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        dx = x1 - x0
+        dy = y1 - y0
+        length = math.hypot(dx, dy)
+        if length <= 0:
+            continue
+        angle = abs(math.degrees(math.atan2(dy, dx)))
+        angle = min(angle, 180 - angle)
+        if angle <= 10:
+            current += length
+            best = max(best, current)
+        else:
+            current = 0.0
+    return best
+
+
+def _long_horizontal_edge_count(layout: dict) -> int:
+    min_chain = _graph_width(layout) * 0.4
+    return sum(
+        _longest_horizontal_chain(_pos_points(edge["pos"])) > min_chain
+        for edge in layout["edges"]
+        if "pos" in edge
+    )
+
+
+def _longest_layout_path(nodes: set[int], edges: list[tuple[int, int]]) -> list[int]:
+    outgoing = {node: [] for node in nodes}
+    for tail, head in edges:
+        if tail in nodes and head in nodes:
+            outgoing.setdefault(tail, []).append(head)
+
+    def walk(node: int, active: frozenset[int] = frozenset()) -> tuple[int, ...]:
+        if node in active:
+            return ()
+        best = (node,)
+        next_active = active | {node}
+        for head in outgoing.get(node, []):
+            suffix = walk(head, next_active)
+            if suffix and len((node,) + suffix) > len(best):
+                best = (node,) + suffix
+        return best
+
+    return list(max((walk(node) for node in nodes), key=len, default=()))
+
+
+def _normalized_longest_path_drift(layout: dict) -> float:
+    centers = {
+        node["_gvid"]: tuple(float(value) for value in node["pos"].split(",", 1))
+        for node in layout["objects"]
+        if "pos" in node
+    }
+    path = _longest_layout_path(
+        set(centers),
+        [(edge["tail"], edge["head"]) for edge in layout["edges"]],
+    )
+    xs = [centers[node][0] for node in path]
+    assert xs
+    return (max(xs) - min(xs)) / _graph_width(layout)
+
+
 _CONCENTRATE_ABSTRACT_BUSES = r"""
     digraph abstract {
       graph [concentrate=true, size="6,6"]
@@ -5501,6 +5577,76 @@ _CONCENTRATE_ABSTRACT_BUSES = r"""
 """
 
 
+_CONCENTRATE_ABSTRACT_HORIZONTAL_BUS_MINIMIZED = r"""
+    digraph abstract {
+      graph [concentrate=true, size="6,6"]
+      10 -> T1
+      10 -> 11
+      10 -> 14
+      10 -> 13
+      10 -> 12
+      11 -> 4
+      14 -> 15
+      13 -> 19
+      4 -> 5
+      15 -> T1
+      3 -> 4
+      S35 -> 36
+      S35 -> 43
+      36 -> 19
+      43 -> 38
+      43 -> 40
+      38 -> 4
+      40 -> 19
+      S30 -> 31
+      S30 -> 33
+      31 -> T1
+      31 -> 32
+      9 -> T1
+      9 -> 42
+      42 -> 4
+      37 -> 38
+      37 -> 40
+      37 -> 39
+      37 -> 41
+      39 -> 15
+    }
+"""
+
+
+_CONCENTRATE_ROWE_SPINE_BEND_MINIMIZED = r"""
+    digraph rowe {
+      graph [concentrate=true, size="6,6"]
+      node [shape=box]
+      4 -> 5
+      5 -> 23
+      5 -> 35
+      23 -> 24
+      35 -> 36
+      24 -> 25
+      24 -> 27
+      36 -> 19
+      25 -> 26
+      19 -> 28
+      19 -> 21
+      26 -> 4
+      28 -> 29
+      21 -> 22
+      29 -> 30
+      22 -> 23
+      30 -> 31
+      30 -> 33
+      31 -> 32
+      33 -> 34
+      32 -> 23
+      40 -> 19
+      38 -> 4
+      37 -> 40
+      37 -> 38
+    }
+"""
+
+
 def _node_positions(layout: dict) -> dict[str, tuple[float, float]]:
     positions = {}
     for node in layout["objects"]:
@@ -5518,6 +5664,20 @@ def test_concentrate_keeps_abstract_spine_x_corridor():
     positions = _node_positions(layout)
     spine_x = [positions[node][0] for node in ("4", "5", "23", "T1")]
     assert max(spine_x) - min(spine_x) <= 1
+
+
+def test_concentrate_abstract_minimized_has_no_horizontal_bus():
+    """Concentration should not create long flat bus segments."""
+
+    layout = json.loads(dot("json", source=_CONCENTRATE_ABSTRACT_HORIZONTAL_BUS_MINIMIZED))
+    assert _long_horizontal_edge_count(layout) < 3
+
+
+def test_concentrate_rowe_minimized_spine_does_not_bend():
+    """Concentration should not collapse a long spine into an S-bend."""
+
+    layout = json.loads(dot("json", source=_CONCENTRATE_ROWE_SPINE_BEND_MINIMIZED))
+    assert _normalized_longest_path_drift(layout) <= 0.733
 
 
 def test_concentrate_b69_minimized_crossing_parity():

@@ -80,6 +80,58 @@ static bool downcandidate(node_t * v)
 	    && ND_out(v).size == 1 && ND_label(v) == NULL;
 }
 
+static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
+{
+    edge_t *e0 = original_normal_edge(e);
+    edge_t *f0 = original_normal_edge(f);
+
+    if (e0 == NULL || f0 == NULL)
+	return false;
+    if (agtail(e0) == agtail(f0))
+	return true;
+    if (ED_label(e0) != NULL || ED_label(f0) != NULL)
+	return true;
+    size_t e0_head_count = 0;
+    size_t i = 0;
+    for (edge_t *candidate = agfstout(agraphof(e0), agtail(e0));
+	 candidate != NULL; candidate = agnxtout(agraphof(e0), candidate), ++i) {
+	bool seen = false;
+	size_t j = 0;
+	for (edge_t *prior = agfstout(agraphof(e0), agtail(e0)); j < i;
+	     prior = agnxtout(agraphof(e0), prior), ++j) {
+	    if (aghead(prior) == aghead(candidate)) {
+		seen = true;
+		break;
+	    }
+	}
+	if (!seen)
+	    e0_head_count++;
+    }
+    size_t f0_head_count = 0;
+    i = 0;
+    for (edge_t *candidate = agfstout(agraphof(f0), agtail(f0));
+	 candidate != NULL; candidate = agnxtout(agraphof(f0), candidate), ++i) {
+	bool seen = false;
+	size_t j = 0;
+	for (edge_t *prior = agfstout(agraphof(f0), agtail(f0)); j < i;
+	     prior = agnxtout(agraphof(f0), prior), ++j) {
+	    if (aghead(prior) == aghead(candidate)) {
+		seen = true;
+		break;
+	    }
+	}
+	if (!seen)
+	    f0_head_count++;
+    }
+    if (e0_head_count > 2 || f0_head_count > 2)
+	return false;
+    if (abs(ND_rank(agtail(e0)) - ND_rank(aghead(e0))) > 3 ||
+	abs(ND_rank(agtail(f0)) - ND_rank(aghead(f0))) > 3)
+	return false;
+    return ND_order(agtail(e0)) + 1 == ND_order(agtail(f0))
+	|| ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
+}
+
 static bool bothdowncandidates(node_t * u, node_t * v)
 {
     edge_t *e, *f;
@@ -91,6 +143,7 @@ static bool bothdowncandidates(node_t * u, node_t * v)
 	return original_edges_have_same_rank_direction(e, f)
 	    && rendered_edges_are_equal(f0, e0)
 	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0
+	    && original_tails_are_same_or_adjacent(e, f)
 	    && e0 != NULL && f0 != NULL && aghead(e0) == aghead(f0)
 	    && portcmp(ED_head_port(e0), ED_head_port(f0)) == 0;
     }
@@ -101,19 +154,6 @@ static bool upcandidate(node_t * v)
 {
     return ND_node_type(v) == VIRTUAL && ND_out(v).size == 1
 	    && ND_in(v).size == 1 && ND_label(v) == NULL;
-}
-
-static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
-{
-    edge_t *e0 = original_normal_edge(e);
-    edge_t *f0 = original_normal_edge(f);
-
-    if (e0 == NULL || f0 == NULL)
-	return false;
-    if (agtail(e0) == agtail(f0))
-	return true;
-    return ND_order(agtail(e0)) + 1 == ND_order(agtail(f0))
-	|| ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
 }
 
 static bool bothupcandidates(node_t * u, node_t * v)
