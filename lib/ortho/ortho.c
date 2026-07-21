@@ -1198,6 +1198,40 @@ static double htrack(segment *seg, maze *m) {
   return round(lo + f * (hi - lo));
 }
 
+static bool axis_aligned_segment_intersects_box(pointf a, pointf b, boxf box) {
+    if (fabs(a.x - b.x) <= MILLIPOINT) {
+	const double x = a.x;
+	const double lo = fmin(a.y, b.y);
+	const double hi = fmax(a.y, b.y);
+	return x > box.LL.x + MILLIPOINT && x < box.UR.x - MILLIPOINT &&
+	       hi > box.LL.y + MILLIPOINT && lo < box.UR.y - MILLIPOINT;
+    }
+    if (fabs(a.y - b.y) <= MILLIPOINT) {
+	const double y = a.y;
+	const double lo = fmin(a.x, b.x);
+	const double hi = fmax(a.x, b.x);
+	return y > box.LL.y + MILLIPOINT && y < box.UR.y - MILLIPOINT &&
+	       hi > box.LL.x + MILLIPOINT && lo < box.UR.x - MILLIPOINT;
+    }
+    return false;
+}
+
+static bool detour_intersects_node_cell(const pointf *detour, size_t detour_size,
+					const maze *mp, const cell *tail_cell,
+					const cell *head_cell) {
+    for (size_t i = 0; i + 1 < detour_size; i++) {
+	for (size_t j = 0; j < mp->ngcells; j++) {
+	    const cell *const node_cell = mp->gcells + j;
+	    if (node_cell == tail_cell || node_cell == head_cell)
+		continue;
+	    if (axis_aligned_segment_intersects_box(detour[i], detour[i + 1],
+						    node_cell->bb))
+		return true;
+	}
+    }
+    return false;
+}
+
 static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
                              splineInfo *sinfo, epair_t es[]) {
     LIST(pointf) ispline = {0};
@@ -1232,18 +1266,26 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 		: MIN(ND_coord(agtail(e)).x - ND_lw(agtail(e)),
 		      ND_coord(aghead(e)).x - ND_lw(aghead(e))) -
 		      ORTHO_PORT_CLEARANCE;
-	    const pointf detour[] = {
-		p1,
-		{.x = p1.x, .y = outside_y_tail},
+		    const pointf detour[] = {
+			p1,
+			{.x = p1.x, .y = outside_y_tail},
 		{.x = outside_x, .y = outside_y_tail},
 		{.x = outside_x, .y = outside_y_head},
-		{.x = q1.x, .y = outside_y_head},
-		q1,
-	    };
-	    for (size_t i = 0; i < sizeof(detour) / sizeof(detour[0]); i++)
-		LIST_APPEND(&vertices, detour[i]);
-	} else {
-	    LIST_APPEND(&vertices, p1);
+			{.x = q1.x, .y = outside_y_head},
+			q1,
+		    };
+		    if (!detour_intersects_node_cell(detour,
+						     sizeof(detour) /
+							 sizeof(detour[0]),
+						     mp, CELL(agtail(e)),
+						     CELL(aghead(e)))) {
+			for (size_t i = 0; i < sizeof(detour) / sizeof(detour[0]); i++)
+			    LIST_APPEND(&vertices, detour[i]);
+			goto finish_edge;
+		    }
+		}
+		{
+		    LIST_APPEND(&vertices, p1);
 	    pointf p;
 	    if (seg->isVert)
 		p = (pointf){.x = vtrack(seg, mp), .y = p1.y};
@@ -1268,11 +1310,12 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 		p = (pointf){.x = q1.x, .y = htrack(seg, mp)};
 	    if (!APPROXEQPT(*LIST_BACK(&vertices), p, MILLIPOINT))
 		LIST_APPEND(&vertices, p);
-	    if (!APPROXEQPT(*LIST_BACK(&vertices), q1, MILLIPOINT))
-		LIST_APPEND(&vertices, q1);
-	}
+		    if (!APPROXEQPT(*LIST_BACK(&vertices), q1, MILLIPOINT))
+			LIST_APPEND(&vertices, q1);
+		}
 
-	LIST_APPEND(&ispline, LIST_FRONT(&vertices)[0]);
+finish_edge:
+		LIST_APPEND(&ispline, LIST_FRONT(&vertices)[0]);
 	for (size_t i = 1; i < LIST_SIZE(&vertices); i++) {
 	    const pointf previous = LIST_GET(&vertices, i - 1);
 	    const pointf next = LIST_GET(&vertices, i);

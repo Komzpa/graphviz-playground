@@ -6778,6 +6778,21 @@ def test_concentrate_color_list_identity_matches_parse_segs_fractions():
     )
 
 
+def test_concentrate_color_list_identity_counts_empty_lanes():
+    """Parallel color-list rendering counts every colon as a lane separator."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                2,
+                'a -> b [dir=none color="red::blue"]',
+                'a -> b [dir=none color="red:blue"]',
+            ),
+        ),
+    )
+
+
 def test_concentrate_radius_identity_is_gated_on_ortho_edges():
     """emit_edge_graphics() consumes edge radius only for splines=ortho."""
 
@@ -6856,6 +6871,23 @@ def test_concentrate_setlinewidth_style_folds_into_penwidth(splines: str):
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_setlinewidth_checks_this_edge_penwidth(splines: str):
+    """style=setlinewidth(N) renders even when another edge declares penwidth."""
+
+    _assert_concentrated_edge_counts(
+        splines,
+        (
+            _edge_count_case(
+                3,
+                'a -> b [style="setlinewidth(4)"]',
+                'a -> b [style="setlinewidth(2)"]',
+                "c -> d [penwidth=1]",
+            ),
+        ),
+    )
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_bold_style_folds_into_penwidth(splines: str):
     """gvrender_set_style() renders style=bold as PENWIDTH_BOLD."""
 
@@ -6880,6 +6912,18 @@ def test_concentrate_edge_style_identity_uses_final_pen_token(splines: str):
             _edge_count_case(2, 'c -> d [style="dashed,solid"]', 'c -> d [style=dashed]'),
         ),
     )
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_edge_style_identity_keeps_invis_absorbing(splines: str):
+    """emit_edge() skips an edge as soon as any style token is invis."""
+
+    source = _concentrated_graph(
+        splines,
+        'a -> b [style="invis,solid"]',
+        "a -> b",
+    )
+    assert len(_drawn_edges(source)) == 1
 
 
 def test_concentrate_plain_label_identity_uses_compiled_text():
@@ -6959,6 +7003,59 @@ def test_concentrate_html_label_bgcolor_identity_uses_colorscheme():
     )
 
 
+def test_concentrate_html_table_identity_uses_parsed_tree():
+    """make_html_label() replaces table text, so identity uses the parse tree."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                2,
+                "a -> b [label=<<TABLE><TR><TD>one</TD></TR></TABLE>>]",
+                "a -> b [label=<<TABLE><TR><TD>two</TD></TR></TABLE>>]",
+            ),
+            _edge_count_case(
+                2,
+                "b -> c [label=<<TABLE><TR><TD>one</TD><TD>two</TD></TR></TABLE>>]",
+                "b -> c [label=<<TABLE><TR><TD>one</TD></TR><TR><TD>two</TD></TR></TABLE>>]",
+            ),
+            _edge_count_case(
+                2,
+                "c -> d [label=<<TABLE><TR><TD ROWSPAN=\"2\">one</TD><TD>two</TD></TR><TR><TD>three</TD></TR></TABLE>>]",
+                "c -> d [label=<<TABLE><TR><TD>one</TD><TD>two</TD></TR><TR><TD>three</TD></TR></TABLE>>]",
+            ),
+        ),
+    )
+
+
+def test_concentrate_html_table_border_identity_uses_pencolor():
+    """HTML table borders inherit edge pencolor before color."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                2,
+                "a -> b [pencolor=red label=<<TABLE><TR><TD>x</TD></TR></TABLE>>]",
+                "a -> b [pencolor=blue label=<<TABLE><TR><TD>x</TD></TR></TABLE>>]",
+            ),
+        ),
+    )
+
+
+def test_concentrate_html_img_identity_uses_effective_imagescale():
+    """HTML IMG without SCALE uses the edge imagescale at emit time."""
+
+    image = Path(__file__).parent / "../cmd/gvedit/images/save.png"
+    assert image.exists(), "missing test data"
+    source = _concentrated_graph(
+        "",
+        f'a -> b [imagescale=true label=<<TABLE><TR><TD><IMG SRC="{image}"/></TD></TR></TABLE>>]',
+        f'a -> b [imagescale=false label=<<TABLE><TR><TD><IMG SRC="{image}"/></TD></TR></TABLE>>]',
+    )
+    assert len(_drawn_edges(source)) == 2
+
+
 def test_concentrate_html_label_numeric_color_without_colorscheme_does_not_crash():
     """Missing colorscheme defaults must not dereference NULL in identity slots."""
 
@@ -6997,6 +7094,34 @@ def test_tapered_multicolor_arrow_fillcolor_is_renderable():
     drawn_edges = _drawn_edges(tapered_multicolor)
     assert len(drawn_edges) == 1
     assert "_hdraw_" in drawn_edges[0]
+
+
+def test_concentrate_arrow_fillcolor_identity_resolves_color_list_first_color():
+    """Explicit arrow fillcolor color-lists render through the active colorscheme."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                2,
+                'a -> b [colorscheme=accent3 fillcolor="1:2"]',
+                'a -> b [colorscheme=paired3 fillcolor="1:2"]',
+            ),
+        ),
+    )
+
+
+def test_concentrate_retained_arrow_fillcolor_is_resolved_before_emit():
+    """A retained arrow record must not emit a raw color-list fillcolor."""
+
+    source = _concentrated_graph(
+        "",
+        'a -> b [fillcolor="red:blue"]',
+        'a -> b [fillcolor="red:blue"]',
+    )
+    drawn_edges = _drawn_edges(source)
+    assert len(drawn_edges) == 1
+    assert _arrow_fill_color(drawn_edges[0], "h") == "#ff0000"
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -7324,6 +7449,40 @@ def test_concentrate_multiedge_routes_clear_non_endpoint_nodes():
                 for x, y in points
             )
             assert clearance >= 0.5, (edge["color"], node["name"], clearance)
+
+
+def test_concentrate_same_rank_opposite_vertical_ports_use_clear_ortho_route():
+    """The same-rank vertical-port detour must not cut through neighbor nodes."""
+
+    source = """
+        strict digraph {
+          graph [concentrate=true, splines=ortho, nodesep=0.05]
+          node [shape=circle, width=0.45, fixedsize=true]
+          { rank=same; x; a; b }
+          a:s -> b:n [penwidth=3]
+          b:n -> a:s [penwidth=3]
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    neighbor = next(node for node in layout["objects"] if node["name"] == "x")
+    ellipse = next(
+        operation["rect"] for operation in neighbor["_draw_"] if operation["op"] == "e"
+    )
+    center_x, center_y, radius_x, radius_y = ellipse
+    assert radius_x == pytest.approx(radius_y)
+    edge = next(edge for edge in layout["edges"] if "_draw_" in edge)
+    penwidth = float(edge.get("penwidth", 1))
+    points = tuple(
+        point
+        for operation in edge["_draw_"]
+        if operation["op"] == "b"
+        for point in _sample_bezier_points(operation["points"])
+    )
+    clearance = min(
+        math.hypot(x - center_x, y - center_y) - radius_x - penwidth / 2
+        for x, y in points
+    )
+    assert clearance >= 0.5
 
 
 def test_unconcentrated_single_edge_arrowhead_angle_is_unchanged():

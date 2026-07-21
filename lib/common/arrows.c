@@ -213,9 +213,14 @@ static char *color_list_endpoint_color(char *color_list,
 
 static void resolve_arrow_fillcolor(arrow_decoration_t *decoration,
                                     Agedge_t *edge, const char *fillcolor) {
-  if (decoration->fillcolor_is_html || fillcolor == NULL ||
-      strchr(fillcolor, ':') != NULL) {
+  if (decoration->fillcolor_is_html || fillcolor == NULL) {
     return;
+  }
+
+  char *first_color = NULL;
+  if (strchr(fillcolor, ':') != NULL) {
+    first_color = color_list_endpoint_color((char *)fillcolor, EDGE_ARROW_END);
+    fillcolor = first_color;
   }
 
   gvcolor_t color;
@@ -224,6 +229,7 @@ static void resolve_arrow_fillcolor(arrow_decoration_t *decoration,
   char *const restored_color_scheme = setColorScheme(previous_color_scheme);
   free(previous_color_scheme);
   free(restored_color_scheme);
+  free(first_color);
   if (result == COLOR_OK) {
     decoration->fillcolor_is_rgba = true;
     memcpy(decoration->fillcolor_rgba, color.u.rgba,
@@ -420,8 +426,8 @@ void fold_concentrated_edge_arrow_decorations(
                                       &candidate[candidate_endpoint]));
     if (arrow_decoration_is_empty(&retained[retained_endpoint])) {
       retained[retained_endpoint] = candidate[candidate_endpoint];
-      resolve_borrowed_arrow_fillcolor(&retained[retained_endpoint]);
     }
+    resolve_borrowed_arrow_fillcolor(&retained[retained_endpoint]);
   }
 
   arrow_decoration_t *const accumulated =

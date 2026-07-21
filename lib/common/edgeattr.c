@@ -290,6 +290,176 @@ static void append_substituted_html_signature_slot(agxbuf *signature,
   free(substituted);
 }
 
+static void append_nullable_plain_field(agxbuf *signature,
+                                        const char *field_name,
+                                        const char *value) {
+  append_plain_signature_slot(signature, field_name,
+                              value == NULL ? "" : value);
+}
+
+static void append_html_data_identity_slots(agxbuf *signature,
+                                            const char *slot_prefix,
+                                            const htmldata_t *data) {
+  agxbuf field = {0};
+  agxbprint(&field, "%s:border", slot_prefix);
+  agxbuf rendered_number = {0};
+  agxbprint(&rendered_number, "%u", data->border);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+  agxbclear(&rendered_number);
+
+  agxbclear(&field);
+  agxbprint(&field, "%s:cellborder-set", slot_prefix);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              (data->flags & BORDER_SET) ? "true" : "false");
+
+  agxbclear(&field);
+  agxbprint(&field, "%s:pencolor", slot_prefix);
+  append_nullable_plain_field(signature, agxbuse(&field), data->pencolor);
+
+  agxbclear(&field);
+  agxbprint(&field, "%s:bgcolor", slot_prefix);
+  append_nullable_plain_field(signature, agxbuse(&field), data->bgcolor);
+
+  agxbclear(&field);
+  agxbprint(&field, "%s:sides", slot_prefix);
+  agxbprint(&rendered_number, "%u", data->sides);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+  agxbclear(&rendered_number);
+
+  agxbclear(&field);
+  agxbprint(&field, "%s:style", slot_prefix);
+  agxbprint(&rendered_number, "%d:%d:%d:%d:%d", data->style.radial,
+            data->style.rounded, data->style.invisible, data->style.dotted,
+            data->style.dashed);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+  agxbfree(&rendered_number);
+  agxbfree(&field);
+}
+
+static void append_html_label_identity_slots(agxbuf *signature, Agedge_t *edge,
+                                             const char *slot_prefix,
+                                             const htmllabel_t *label,
+                                             const char *fallback_imagescale);
+
+static void append_html_text_identity_slots(agxbuf *signature, Agedge_t *edge,
+                                            const char *slot_prefix,
+                                            const htmltxt_t *text) {
+  agxbuf field = {0};
+  agxbprint(&field, "%s:span-count", slot_prefix);
+  agxbuf rendered_number = {0};
+  agxbprint(&rendered_number, "%zu", text->nspans);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+
+  for (size_t i = 0; i < text->nspans; i++) {
+    const htextspan_t *span = &text->spans[i];
+    for (size_t j = 0; j < span->nitems; j++) {
+      const textspan_t *item = &span->items[j];
+      agxbclear(&field);
+      agxbprint(&field, "%s:%zu:%zu:text", slot_prefix, i, j);
+      append_substituted_signature_slot(signature, agxbuse(&field), item->str,
+                                        edge);
+      if (item->font != NULL) {
+        agxbclear(&field);
+        agxbprint(&field, "%s:%zu:%zu:font", slot_prefix, i, j);
+        agxbclear(&rendered_number);
+        agxbprint(&rendered_number, "%s:%s:%a:%u",
+                  item->font->name == NULL ? "" : item->font->name,
+                  item->font->color == NULL ? "" : item->font->color,
+                  item->font->size, item->font->flags);
+        append_plain_signature_slot(signature, agxbuse(&field),
+                                    agxbuse(&rendered_number));
+      }
+    }
+  }
+  agxbfree(&rendered_number);
+  agxbfree(&field);
+}
+
+static void append_html_image_identity_slots(agxbuf *signature,
+                                             const char *slot_prefix,
+                                             const htmlimg_t *image,
+                                             const char *fallback_imagescale) {
+  agxbuf field = {0};
+  agxbprint(&field, "%s:src", slot_prefix);
+  append_nullable_plain_field(signature, agxbuse(&field), image->src);
+
+  agxbclear(&field);
+  agxbprint(&field, "%s:scale", slot_prefix);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              image->scale != NULL ? image->scale
+                                                   : fallback_imagescale);
+  agxbfree(&field);
+}
+
+static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
+                                             const char *slot_prefix,
+                                             const htmltbl_t *table,
+                                             const char *fallback_imagescale) {
+  append_html_data_identity_slots(signature, slot_prefix, &table->data);
+
+  agxbuf field = {0};
+  agxbprint(&field, "%s:shape", slot_prefix);
+  agxbuf rendered_number = {0};
+  agxbprint(&rendered_number, "%zu:%zu:%d:%d", table->row_count,
+            table->column_count, table->hrule, table->vrule);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+
+  if (table->cells != NULL) {
+    for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+      agxbclear(&field);
+      agxbprint(&field, "%s:cell:%u:%u", slot_prefix, (*cell)->row,
+                (*cell)->col);
+      append_html_data_identity_slots(signature, agxbuse(&field),
+                                      &(*cell)->data);
+      agxbclear(&rendered_number);
+      agxbprint(&rendered_number, "%u:%u:%d:%d", (*cell)->rowspan,
+                (*cell)->colspan, (*cell)->hruled, (*cell)->vruled);
+      agxbput(&field, ":span");
+      append_plain_signature_slot(signature, agxbuse(&field),
+                                  agxbuse(&rendered_number));
+
+      agxbclear(&field);
+      agxbprint(&field, "%s:cell:%u:%u:child", slot_prefix, (*cell)->row,
+                (*cell)->col);
+      append_html_label_identity_slots(signature, edge, agxbuse(&field),
+                                       &(*cell)->child, fallback_imagescale);
+    }
+  }
+  agxbfree(&rendered_number);
+  agxbfree(&field);
+}
+
+static void append_html_label_identity_slots(agxbuf *signature, Agedge_t *edge,
+                                             const char *slot_prefix,
+                                             const htmllabel_t *label,
+                                             const char *fallback_imagescale) {
+  append_plain_signature_slot(signature, slot_prefix,
+                              label->kind == HTML_TBL     ? "table"
+                              : label->kind == HTML_TEXT  ? "text"
+                              : label->kind == HTML_IMAGE ? "image"
+                                                          : "unset");
+  switch (label->kind) {
+  case HTML_TBL:
+    append_html_table_identity_slots(signature, edge, slot_prefix, label->u.tbl,
+                                     fallback_imagescale);
+    return;
+  case HTML_TEXT:
+    append_html_text_identity_slots(signature, edge, slot_prefix, label->u.txt);
+    return;
+  case HTML_IMAGE:
+    append_html_image_identity_slots(signature, slot_prefix, label->u.img,
+                                     fallback_imagescale);
+    return;
+  case HTML_UNSET:
+    return;
+  }
+}
+
 static bool html_label_may_use_colorscheme(const char *text) {
   for (const char *attribute = text; *attribute != '\0'; attribute++) {
     size_t name_size = strlen("COLOR");
@@ -482,15 +652,23 @@ static bool parse_color_segment_fraction(strview_t *segment, double *fraction) {
 
 static normalized_color_segment_t *
 normalized_color_segments(const char *color_list, size_t *segment_count) {
-  size_t capacity = 0;
-  for (tok_t t = tok(color_list, ":"); !tok_end(&t); tok_next(&t)) {
-    capacity++;
+  size_t capacity = 1;
+  for (const char *p = color_list; *p != '\0'; p++) {
+    if (*p == ':') {
+      capacity++;
+    }
   }
   normalized_color_segment_t *segments = gv_calloc(capacity, sizeof(*segments));
   double left = 1.0;
   size_t count = 0;
-  for (tok_t t = tok(color_list, ":"); !tok_end(&t); tok_next(&t)) {
-    strview_t color = tok_get(&t);
+  const char *segment_start = color_list;
+  for (size_t i = 0; i < capacity; i++) {
+    const char *const segment_end = strchr(segment_start, ':');
+    strview_t color = {
+        .data = segment_start,
+        .size = segment_end == NULL ? strlen(segment_start)
+                                    : (size_t)(segment_end - segment_start),
+    };
     double fraction = 0.0;
     if (!parse_color_segment_fraction(&color, &fraction)) {
       free(segments);
@@ -507,6 +685,10 @@ normalized_color_segments(const char *color_list, size_t *segment_count) {
       left = 0.0;
       break;
     }
+    if (segment_end == NULL) {
+      break;
+    }
+    segment_start = segment_end + 1;
   }
 
   if (left > 0.0) {
@@ -567,11 +749,13 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
   agxbuf rendered_list = {0};
   char *const previous_color_scheme =
       setColorScheme(agget(edge, "colorscheme"));
+  const bool has_explicit_segments =
+      color_list_has_explicit_segments(color_list);
 
   if (segment_count == 1 && segments[0].fraction > 1.0 - 1E-5 &&
       segments[0].fraction < 1.0 + 1E-5) {
     append_color_segment(&rendered_list, segments[0].color);
-  } else if (!color_list_has_explicit_segments(color_list)) {
+  } else if (!has_explicit_segments) {
     agxbput(&rendered_list, "parallel:");
     for (size_t j = 0; j < segment_count; j++) {
       const size_t i = reverse_orientation ? segment_count - j - 1 : j;
@@ -596,6 +780,16 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
   free(restored_color_scheme);
   free(segments);
   append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_list));
+  if (!has_explicit_segments) {
+    agxbuf count_slot_name = {0};
+    agxbprint(&count_slot_name, "%s:lane-count", slot_name);
+    agxbuf rendered_count = {0};
+    agxbprint(&rendered_count, "%zu", segment_count);
+    append_plain_signature_slot(signature, agxbuse(&count_slot_name),
+                                agxbuse(&rendered_count));
+    agxbfree(&rendered_count);
+    agxbfree(&count_slot_name);
+  }
   agxbfree(&rendered_list);
 }
 
@@ -633,8 +827,12 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
   agxbuf slot_name = {0};
   agxbprint(&slot_name, "%s:text", slot_prefix);
   if (label->html) {
-    append_substituted_html_signature_slot(signature, agxbuse(&slot_name),
-                                           label->text, edge);
+    const char *imagescale = agget(edge, "imagescale");
+    if (imagescale == NULL || imagescale[0] == '\0') {
+      imagescale = "false";
+    }
+    append_html_label_identity_slots(signature, edge, agxbuse(&slot_name),
+                                     label->u.html, imagescale);
     if (html_label_may_use_colorscheme(label->text)) {
       agxbclear(&slot_name);
       agxbprint(&slot_name, "%s:colorscheme", slot_prefix);
@@ -813,6 +1011,11 @@ static void append_style_value(agxbuf *signature, const char *slot_name,
   agxbuf rendered_style = {0};
   const char *pen_pattern = NULL;
   for (char **item = parse_style((char *)value.text); *item != NULL; item++) {
+    if (strcmp(*item, "invis") == 0) {
+      append_plain_signature_slot(signature, slot_name, "invis");
+      agxbfree(&rendered_style);
+      return;
+    }
     if (strcmp(*item, "bold") == 0 || strcmp(*item, "setlinewidth") == 0 ||
         (!keep_rounded && strcmp(*item, "rounded") == 0)) {
       continue;
