@@ -4745,6 +4745,20 @@ def _drawn_edges(source: str) -> list[dict]:
     return [edge for edge in layout["edges"] if "_draw_" in edge]
 
 
+def _drawn_edge_piece_end_gaps(edge: dict) -> list[float]:
+    """Measure endpoint gaps between consecutive drawn spline pieces."""
+
+    pieces = [
+        operation["points"]
+        for operation in edge.get("_draw_", [])
+        if operation["op"] in {"B", "b", "L"} and len(operation["points"]) >= 2
+    ]
+    return [
+        math.dist(left[-1], right[0])
+        for left, right in zip(pieces, pieces[1:])
+    ]
+
+
 def _concentrated_graph(splines: str, *body: str) -> str:
     """Wrap readable DOT statements in a concentrated directed graph."""
 
@@ -5288,10 +5302,41 @@ def test_concentrate_train11_internal_junctions_have_no_head_arrows():
     )
     layout = json.loads(dot("json", source=source))
 
-    for tail in ("st8", "st6", "st4"):
+    for tail in ("st8",):
         edge = _drawn_edge_between(layout, tail, "st0")
         assert "_hdraw_" not in edge
+    assert "_hdraw_" in _drawn_edge_between(layout, "st6", "st0")
+    assert "_hdraw_" in _drawn_edge_between(layout, "st4", "st0")
     assert "_hdraw_" in _drawn_edge_between(layout, "st10", "st0")
+
+
+def test_concentrate_train11_minimized_route_has_no_line_gap():
+    """A reversed concentrated route keeps a continuous shaft to its endpoint."""
+
+    source = r"""
+        digraph G {
+          graph [concentrate=true, rankdir=LR, size="6,6"]
+          node [fontsize=8, shape=circle]
+          st0 -> st0 [label="00/0"]
+          st1 [fontsize=""]
+          st0 -> st1 [label="10/-"]
+          st5 [fontsize=""]
+          st1 -> st5
+          st3 [fontsize=""]
+          st1 -> st3
+          st5 -> st6 [label="01/1"]
+          st4 [fontsize=""]
+          st3 -> st4
+          st6 -> st0 [label="00/-"]
+          st6 -> st6 [label="01/1"]
+          st4 -> st0 [label="00/-"]
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    edge = _drawn_edge_between(layout, "st6", "st0")
+
+    assert "_hdraw_" in edge
+    assert all(gap <= 20 for gap in _drawn_edge_piece_end_gaps(edge))
 
 
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
@@ -5304,9 +5349,11 @@ def test_concentrate_train11_suppressed_arrows_survive_pos_roundtrip():
     positioned = dot("dot", source=source)
     layout = json.loads(run(which("neato"), "-n2", "-Tjson", input=positioned))
 
-    for tail in ("st8", "st6", "st4"):
+    for tail in ("st8",):
         edge = _drawn_edge_between(layout, tail, "st0")
         assert "_hdraw_" not in edge
+    assert "_hdraw_" in _drawn_edge_between(layout, "st6", "st0")
+    assert "_hdraw_" in _drawn_edge_between(layout, "st4", "st0")
     assert "_hdraw_" in _drawn_edge_between(layout, "st10", "st0")
 
 
