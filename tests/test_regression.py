@@ -7219,6 +7219,31 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     assert sum("_hdraw_" in edge for edge in edges) == 1
 
 
+def test_concentrate_same_tail_fanout_routes_share_initial_trunk():
+    """Same-endpoint fan-out gathers before splitting to distinct heads."""
+
+    source = _graph_with_concentrate(
+        True,
+        "a -> b [minlen=2]",
+        "a -> c [minlen=2]",
+    )
+    edges = _drawn_edges(source)
+    assert len(edges) == 2
+    first_segments = [
+        operation["points"]
+        for operation in edges[0]["_draw_"]
+        if operation["op"] == "b"
+    ]
+    second_segments = [
+        operation["points"]
+        for operation in edges[1]["_draw_"]
+        if operation["op"] == "b"
+    ]
+    assert len(first_segments) == 2
+    assert len(second_segments) == 1
+    assert math.dist(first_segments[0][-1], second_segments[0][0]) <= 1.01
+
+
 def test_concentrate_same_rank_reverse_route_uses_balanced_tangent():
     """A merged bidirectional same-rank route stays visually straight."""
 
