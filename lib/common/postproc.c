@@ -253,11 +253,12 @@ static pointf edgeEndpointLabelPoint(Agedge_t *e, textlabel_t *lp, bool head_p) 
     if (head_p) {
 	bezier *bez = &spl->list[spl->size - 1];
 	endpoint = bez->eflag ? bez->ep : bez->list[bez->size - 1];
-	inside = bez->list[bez->size - 1];
+	inside = bez->eflag || bez->size < 2 ? bez->list[bez->size - 1]
+					      : bez->list[bez->size - 2];
     } else {
 	bezier *bez = &spl->list[0];
 	endpoint = bez->sflag ? bez->sp : bez->list[0];
-	inside = bez->list[0];
+	inside = bez->sflag || bez->size < 2 ? bez->list[0] : bez->list[1];
     }
 
     pointf away = {inside.x - endpoint.x, inside.y - endpoint.y};

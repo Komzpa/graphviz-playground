@@ -11,6 +11,7 @@ import io
 import itertools
 import json
 import math
+import operator
 import os
 import platform
 import re
@@ -7529,6 +7530,29 @@ def test_endpoint_label_default_position_uses_clearance_anchor():
     )
 
     assert math.dist(label_point, endpoint) <= math.dist(node_center, endpoint)
+
+
+def test_arrowless_endpoint_labels_follow_spline_direction():
+    """Labels without arrow clip points still seed from nearby spline geometry."""
+
+    for label_attribute, draw_stream, endpoint_name, comparison in (
+        ("taillabel", "_tldraw_", "tail", operator.lt),
+        ("headlabel", "_hldraw_", "head", operator.gt),
+    ):
+        layout = json.loads(
+            dot(
+                "json",
+                source=f'digraph {{ a -> b [dir=none {label_attribute}="x"] }}',
+            )
+        )
+        edge = layout["edges"][0]
+        endpoint = _edge_physical_endpoint(edge, endpoint_name)
+        label_point = next(
+            tuple(operation["pt"])
+            for operation in edge[draw_stream]
+            if operation["op"] == "T"
+        )
+        assert comparison(label_point[1], endpoint[1])
 
 
 def test_concentrate_endpoint_labels_keep_distinct_flat_routes():
