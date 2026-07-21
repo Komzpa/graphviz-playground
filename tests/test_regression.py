@@ -8293,6 +8293,32 @@ def test_concentrate_flat_cycle_keeps_virtual_representatives_private():
     assert len(_drawn_edges(flat_cycle)) == 3
 
 
+def test_concentrate_flat_aux_routes_keep_suppressed_junction_arrows_hidden():
+    """Aux-graph flat route copies must preserve concentrated suppression bits."""
+
+    layout = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  graph [concentrate=true]
+                  { rank=same; a; b }
+                  a:e -> b:w
+                  b:w -> a:e
+                }
+            """,
+        )
+    )
+    arrow_polygons = [
+        operation
+        for edge in layout["edges"]
+        for stream in ("_hdraw_", "_tdraw_")
+        for operation in edge.get(stream, [])
+        if operation["op"] == "P"
+    ]
+    assert len(arrow_polygons) == 1
+
+
 def test_concentrate_ortho_ignores_suppressed_representatives():
     """Suppressed edges never become ortho concentration group heads."""
 

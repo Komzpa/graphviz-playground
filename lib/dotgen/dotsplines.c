@@ -1625,8 +1625,10 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     auxbz = auxspl->list;
     bz = new_spline(e, auxbz->size);
     bz->sflag = auxbz->sflag;
+    bz->suppress_sflag = auxbz->suppress_sflag;
     bz->sp = transformf(auxbz->sp, del, GD_flip(g));
     bz->eflag = auxbz->eflag;
+    bz->suppress_eflag = auxbz->suppress_eflag;
     bz->ep = transformf(auxbz->ep, del, GD_flip(g));
     for (size_t j = 0; j < auxbz->size; ++j)
       bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
