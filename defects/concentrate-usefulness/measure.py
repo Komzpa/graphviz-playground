@@ -118,6 +118,14 @@ def self_test(dot: Path) -> None:
         )
 
 
+def has_ok_xdot_renders(entry: dict) -> bool:
+    renders = entry.get("renders", {})
+    return all(
+        renders.get(side, {}).get("xdot", {}).get("status") == "ok"
+        for side in ("base", "branch")
+    )
+
+
 def manifest_items(gallery: Path, sections: set[str]) -> list[tuple[str, str, Path]]:
     manifest = json.loads((gallery / "manifest.json").read_text(encoding="utf-8"))
     items: dict[str, tuple[str, str, Path]] = {}
@@ -130,7 +138,12 @@ def manifest_items(gallery: Path, sections: set[str]) -> list[tuple[str, str, Pa
             section = entry.get("section")
             source_path = entry.get("source_path")
             fixture_id = entry.get("id")
-            if section in sections and source_path and fixture_id:
+            if (
+                section in sections
+                and source_path
+                and fixture_id
+                and has_ok_xdot_renders(entry)
+            ):
                 items[fixture_id] = (fixture_id, section, gallery / source_path)
     return sorted(items.values())
 

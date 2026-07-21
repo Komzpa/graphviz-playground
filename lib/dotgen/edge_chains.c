@@ -148,14 +148,24 @@ bool mergeable(edge_t *first_edge, edge_t *second_edge) {
          aghead(first_edge) == aghead(second_edge) &&
          ED_label(first_edge) == ED_label(second_edge) &&
          ED_xlabel(first_edge) == ED_xlabel(second_edge) &&
-         ED_head_label(first_edge) == ED_head_label(second_edge) &&
-         ED_tail_label(first_edge) == ED_tail_label(second_edge) &&
-         ports_eq(first_edge, second_edge);
+         ports_eq(first_edge, second_edge) &&
+         gv_edge_attributes_are_equal(first_edge, second_edge);
 }
 
 static bool edge_has_no_labels(edge_t *edge) {
-  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL &&
-         ED_head_label(edge) == NULL && ED_tail_label(edge) == NULL;
+  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
+}
+
+static bool endpoint_labels_are_route_compatible(edge_t *first_edge,
+                                                 edge_t *second_edge) {
+  const bool first_has_endpoint_label =
+      ED_head_label(first_edge) != NULL || ED_tail_label(first_edge) != NULL;
+  const bool second_has_endpoint_label =
+      ED_head_label(second_edge) != NULL || ED_tail_label(second_edge) != NULL;
+  if (!first_has_endpoint_label && !second_has_endpoint_label) {
+    return true;
+  }
+  return gv_edge_attributes_are_equal(first_edge, second_edge);
 }
 
 static edge_t *find_prior_concentrated_representative(graph_t *graph,
@@ -194,7 +204,8 @@ static edge_t *find_prior_parallel_route(graph_t *graph, edge_t *edge) {
         edge_has_no_labels(prior_edge) && edge_has_no_labels(edge);
 
     if (same_endpoints && prior_edge_owns_chain && both_edges_are_unlabeled &&
-        ports_eq(prior_edge, edge)) {
+        ports_eq(prior_edge, edge) &&
+        endpoint_labels_are_route_compatible(prior_edge, edge)) {
       return prior_edge;
     }
 
@@ -472,8 +483,7 @@ void build_edge_chains(graph_t *graph) {
       /* Parallel input edges may share one virtual routing representation. */
       if (previous_edge != NULL && agtail(edge) == agtail(previous_edge) &&
           aghead(edge) == aghead(previous_edge)) {
-        if (ND_rank(agtail(edge)) == ND_rank(aghead(edge)) &&
-            mergeable(previous_edge, edge)) {
+        if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
           edge_t *representative_edge = previous_edge;
           if (Concentrate) {
             edge_t *const equivalent_edge =
@@ -482,12 +492,15 @@ void build_edge_chains(graph_t *graph) {
               representative_edge = equivalent_edge;
             }
           }
-          merge_oneway(edge, representative_edge);
-          other_edge(edge);
-          continue;
+          if (mergeable(representative_edge, edge)) {
+            merge_oneway(edge, representative_edge);
+            other_edge(edge);
+            continue;
+          }
         }
         if (edge_has_no_labels(edge) && edge_has_no_labels(previous_edge) &&
-            ports_eq(edge, previous_edge)) {
+            ports_eq(edge, previous_edge) &&
+            endpoint_labels_are_route_compatible(edge, previous_edge)) {
           if (Concentrate) {
             if (route_concentrated_parallel_edge(graph, edge)) {
               continue;
