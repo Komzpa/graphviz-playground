@@ -1270,12 +1270,27 @@ static bool hyperlink_target_anchor_is_present(Agraph_t *root_graph,
   }
 
   if (owner == ATTRIBUTE_OWNER_LABEL) {
-    return edge_has_explicit_owner_kind(root_graph, edge, owner,
-                                        ATTRIBUTE_KIND_URL) ||
+    return edge_has_inherited_attribute(
+               root_graph, edge, hyperlink_value_matrix,
+               ATTRIBUTE_COUNT(hyperlink_value_matrix),
+               (attribute_identity_t){.owner = owner,
+                                      .kind = ATTRIBUTE_KIND_URL}) ||
            edge_has_explicit_owner_kind(root_graph, edge, owner,
                                         ATTRIBUTE_KIND_TOOLTIP) ||
            edge_has_explicit_owner_kind(root_graph, edge, ATTRIBUTE_OWNER_EDGE,
                                         ATTRIBUTE_KIND_URL);
+  }
+
+  if (owner == ATTRIBUTE_OWNER_HEAD || owner == ATTRIBUTE_OWNER_TAIL) {
+    return edge_has_inherited_attribute(
+               root_graph, edge, endpoint_label_url_matrix,
+               ATTRIBUTE_COUNT(endpoint_label_url_matrix),
+               (attribute_identity_t){.owner = owner,
+                                      .kind = ATTRIBUTE_KIND_URL}) ||
+           edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                        ATTRIBUTE_KIND_TOOLTIP) ||
+           edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                        ATTRIBUTE_KIND_TARGET);
   }
 
   return edge_has_explicit_owner_kind(root_graph, edge, owner,
@@ -1332,6 +1347,20 @@ static const char *hyperlink_value_kind_name(hyperlink_value_kind_t kind) {
   return "";
 }
 
+static attribute_kind_t hyperlink_attribute_kind(hyperlink_value_kind_t kind) {
+  switch (kind) {
+  case HYPERLINK_VALUE_URL:
+    return ATTRIBUTE_KIND_URL;
+  case HYPERLINK_VALUE_TOOLTIP:
+    return ATTRIBUTE_KIND_TOOLTIP;
+  case HYPERLINK_VALUE_TARGET:
+    return ATTRIBUTE_KIND_TARGET;
+  case HYPERLINK_VALUE_COUNT:
+    break;
+  }
+  return ATTRIBUTE_KIND_URL;
+}
+
 static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
                                    Agedge_t *edge, bool reverse_orientation) {
   for (attribute_owner_t canonical_owner = ATTRIBUTE_OWNER_EDGE;
@@ -1348,7 +1377,7 @@ static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
       const attribute_inheritance_t *const inheritance = attribute_inheritance(
           hyperlink_value_matrix, ATTRIBUTE_COUNT(hyperlink_value_matrix),
           (attribute_identity_t){.owner = source_owner,
-                                 .kind = (attribute_kind_t)kind});
+                                 .kind = hyperlink_attribute_kind(kind)});
       comparable_attribute_value_t value =
           named_inherited_attribute_value(root_graph, edge, inheritance);
       bool tooltip_uses_fallback = false;

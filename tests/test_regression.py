@@ -6555,6 +6555,17 @@ def test_concentrate_drawn_edge_counts(
     _assert_concentrated_edge_counts(splines, cases)
 
 
+def test_concentrate_main_label_bare_url_anchors_labeltarget():
+    """Bare edge URL fallback makes main labeltarget visible to identity."""
+
+    source = _concentrated_graph(
+        "",
+        "a -> b [label=x URL=u labeltarget=one]",
+        "a -> b [label=x URL=u labeltarget=two]",
+    )
+    assert len(_drawn_edges(source)) == 2
+
+
 @pytest.mark.parametrize(
     ("splines", "cases"),
     (
