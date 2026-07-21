@@ -4756,6 +4756,141 @@ def _concentrated_graph(splines: str, *body: str) -> str:
     """
 
 
+def _graph_with_concentrate(concentrate: bool, *body: str) -> str:
+    """Wrap readable DOT statements in a directed graph with concentrate set."""
+
+    body_source = "\n".join(body)
+    return f"""
+        digraph {{
+          graph [concentrate={str(concentrate).lower()}]
+          {body_source}
+        }}
+    """
+
+
+def _set_graph_concentrate(source: str, concentrate: bool) -> str:
+    """Force the first graph-level concentrate assignment in a source fixture."""
+
+    return re.sub(
+        r"\bconcentrate\s*=\s*(?:true|false)\b",
+        f"concentrate={str(concentrate).lower()}",
+        source,
+        count=1,
+    )
+
+
+def _assert_concentrate_route_gain(
+    source: str, plain_count: int, concentrate_count: int
+) -> None:
+    """Assert exact drawn-route counts and that concentration is not a no-op."""
+
+    plain_routes = len(_drawn_edges(_set_graph_concentrate(source, False)))
+    concentrate_routes = len(_drawn_edges(_set_graph_concentrate(source, True)))
+    assert plain_routes == plain_count
+    assert concentrate_routes == concentrate_count
+    assert concentrate_routes < plain_routes
+
+
+@pytest.mark.parametrize(
+    ("case", "source", "plain_count", "concentrate_count"),
+    (
+        pytest.param(
+            "plain-duplicates",
+            _graph_with_concentrate(True, "a -> b", "a -> b", "a -> b"),
+            3,
+            1,
+            id="plain-duplicates",
+        ),
+        pytest.param(
+            "same-rendered-attrs",
+            _graph_with_concentrate(
+                True,
+                "a -> b [color=blue style=dashed penwidth=2]",
+                "a -> b [color=blue style=dashed penwidth=2]",
+                "a -> b [color=blue style=dashed penwidth=2]",
+            ),
+            3,
+            1,
+            id="same-rendered-attrs",
+        ),
+        pytest.param(
+            "reverse-same-physical-endpoint",
+            _graph_with_concentrate(
+                True,
+                "a -> b [samehead=x]",
+                "b -> a [sametail=x]",
+            ),
+            2,
+            1,
+            id="reverse-same-physical-endpoint",
+        ),
+    ),
+)
+def test_concentrate_positive_route_gain(
+    case: str, source: str, plain_count: int, concentrate_count: int
+):
+    """Equivalent edge groups still reduce visible drawn routes."""
+
+    assert case
+    _assert_concentrate_route_gain(source, plain_count, concentrate_count)
+
+
+def test_concentrate_drm_topology_positive_route_gain():
+    """DRM topology keeps useful concentration for rendered-equivalent edges."""
+
+    source = """
+        digraph T {
+          graph [concentrate=true];
+          subgraph cluster_driver {
+            fillcolor = grey;
+            style = filled;
+            edge [dir=none];
+            driver -> payload1;
+            driver -> payload2 [penwidth=3];
+            edge [dir=""];
+          }
+          edge [style=dashed];
+          driver -> port1;
+          driver -> port2;
+          driver -> port3:e;
+          driver -> port4 [color=grey];
+          payload1:s -> port1:e;
+          payload2:s -> port3:e [penwidth=3];
+          edge [style=""];
+          subgraph cluster_topology {
+            label="Topology Manager";
+            labelloc=bottom;
+            mstb1 -> {port1, port2};
+            port1 -> mstb2;
+            edge [color=grey];
+            port2 -> mstb3 -> {port3, port4};
+            port3 -> mstb4;
+            edge [color=""];
+            edge [style=dashed;dir=back];
+            mstb1 -> {port1, port2};
+            port1 -> mstb2;
+            port2 -> mstb3 [penwidth=3];
+            mstb3 -> port3 [penwidth=3];
+            edge [color=grey];
+            mstb3 -> port4;
+            port3 -> mstb4;
+          }
+          mstb1 [label="MSTB #1";style=filled;fillcolor=palegreen];
+          mstb2 [label="MSTB #2";style=filled;fillcolor=palegreen];
+          mstb3 [label="MSTB #3";style=filled;fillcolor=palegreen;penwidth=3];
+          mstb4 [label="MSTB #4";style=filled;fillcolor=grey];
+          port1 [label="Port #1"];
+          port2 [label="Port #2";penwidth=5];
+          port3 [label="Port #3";penwidth=3];
+          port4 [label="Port #4";style=filled;fillcolor=grey];
+          driver [label="DRM driver";style=filled;shape=box;fillcolor=lightblue];
+          payload1 [label="Payload #1";style=filled;shape=box;fillcolor=lightblue];
+          payload2 [label="Payload #2";style=filled;shape=box;fillcolor=lightblue;penwidth=3];
+        }
+    """
+    _assert_concentrate_route_gain(source, 22, 15)
+
+
 def _drawn_edge_color(edge: dict) -> str:
     """Read the pen color from an edge's xdot ``c`` operation."""
 
