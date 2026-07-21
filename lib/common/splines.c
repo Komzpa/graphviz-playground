@@ -97,6 +97,12 @@ arrow_clip(edge_t * fe, node_t * hn,
 	SWAP(&start_arrowsize, &end_arrowsize);
 	SWAP(&suppress_sflag, &suppress_eflag);
     }
+    if (j && suppress_sflag && suppress_eflag) {
+	if (hn == agtail(e))
+	    suppress_sflag = false;
+	else if (hn == aghead(e))
+	    suppress_eflag = false;
+    }
     spl->suppress_sflag = suppress_sflag;
     spl->suppress_eflag = suppress_eflag;
     if (info->isOrtho) {
