@@ -6639,6 +6639,19 @@ def test_concentrate_html_label_bgcolor_identity_uses_colorscheme():
     )
 
 
+def test_concentrate_html_label_numeric_color_without_colorscheme_does_not_crash():
+    """Missing colorscheme defaults must not dereference NULL in identity slots."""
+
+    source = """
+        digraph {
+          graph [concentrate=true splines=ortho]
+          a -> b [label=<<FONT COLOR="1">x</FONT>>]
+          a -> b [label=<<FONT COLOR="1">x</FONT>>]
+        }
+    """
+    assert len(_drawn_edges(source)) == 1
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_singleton_sameport_groups_do_not_affect_identity(splines: str):
     """dot_sameports() moves samehead/sametail ports only with >1 members."""

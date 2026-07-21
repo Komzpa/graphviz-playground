@@ -628,8 +628,9 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
     if (html_label_may_use_colorscheme(label->text)) {
       agxbclear(&slot_name);
       agxbprint(&slot_name, "%s:colorscheme", slot_prefix);
+      const char *colorscheme = agget(edge, "colorscheme");
       append_plain_signature_slot(signature, agxbuse(&slot_name),
-                                  agget(edge, "colorscheme"));
+                                  colorscheme == NULL ? "" : colorscheme);
     }
     size_t anchor_index = 0;
     append_html_label_hyperlink_slots(signature, edge, slot_prefix,
