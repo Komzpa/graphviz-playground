@@ -281,9 +281,12 @@ static void append_substituted_signature_slot(agxbuf *signature,
 
 static bool html_label_may_use_colorscheme(const char *text) {
   for (const char *attribute = text; *attribute != '\0'; attribute++) {
-    const size_t name_size = strlen("COLOR");
+    size_t name_size = strlen("COLOR");
     if (strncasecmp(attribute, "COLOR", name_size) != 0) {
-      continue;
+      name_size = strlen("BGCOLOR");
+      if (strncasecmp(attribute, "BGCOLOR", name_size) != 0) {
+        continue;
+      }
     }
     const char *value = attribute + name_size;
     while (isspace((unsigned char)value[0])) {

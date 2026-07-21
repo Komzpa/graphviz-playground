@@ -6624,6 +6624,21 @@ def test_concentrate_html_label_identity_uses_colorscheme():
     )
 
 
+def test_concentrate_html_label_bgcolor_identity_uses_colorscheme():
+    """Scheme-relative HTML-like label backgrounds resolve at emit time."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                2,
+                'a -> b [colorscheme=accent3 label=<<TABLE><TR><TD BGCOLOR="1">x</TD></TR></TABLE>>]',
+                'a -> b [colorscheme=paired3 label=<<TABLE><TR><TD BGCOLOR="1">x</TD></TR></TABLE>>]',
+            ),
+        ),
+    )
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_singleton_sameport_groups_do_not_affect_identity(splines: str):
     """dot_sameports() moves samehead/sametail ports only with >1 members."""
