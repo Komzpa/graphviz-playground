@@ -148,11 +148,14 @@ bool mergeable(edge_t *first_edge, edge_t *second_edge) {
          aghead(first_edge) == aghead(second_edge) &&
          ED_label(first_edge) == ED_label(second_edge) &&
          ED_xlabel(first_edge) == ED_xlabel(second_edge) &&
+         ED_head_label(first_edge) == ED_head_label(second_edge) &&
+         ED_tail_label(first_edge) == ED_tail_label(second_edge) &&
          ports_eq(first_edge, second_edge);
 }
 
 static bool edge_has_no_labels(edge_t *edge) {
-  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
+  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL &&
+         ED_head_label(edge) == NULL && ED_tail_label(edge) == NULL;
 }
 
 static edge_t *find_prior_concentrated_representative(graph_t *graph,
@@ -469,7 +472,8 @@ void build_edge_chains(graph_t *graph) {
       /* Parallel input edges may share one virtual routing representation. */
       if (previous_edge != NULL && agtail(edge) == agtail(previous_edge) &&
           aghead(edge) == aghead(previous_edge)) {
-        if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
+        if (ND_rank(agtail(edge)) == ND_rank(aghead(edge)) &&
+            mergeable(previous_edge, edge)) {
           edge_t *representative_edge = previous_edge;
           if (Concentrate) {
             edge_t *const equivalent_edge =

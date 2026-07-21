@@ -5491,6 +5491,87 @@ def _pos_points(pos: str) -> list[tuple[float, float]]:
     return list(zip(values[0::2], values[1::2]))
 
 
+def _point_segment_distance(
+    point: tuple[float, float], start: tuple[float, float], end: tuple[float, float]
+) -> float:
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length2 = dx * dx + dy * dy
+    if length2 == 0:
+        return math.dist(point, start)
+    t = max(
+        0.0,
+        min(
+            1.0,
+            ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length2,
+        ),
+    )
+    return math.dist(point, (start[0] + t * dx, start[1] + t * dy))
+
+
+def _endpoint_label_text_ops(edge: dict, stream: str) -> list[dict]:
+    font_size = 8.0
+    labels = []
+    for operation in edge.get(stream, []):
+        if operation["op"] == "F":
+            font_size = operation["size"]
+        elif operation["op"] == "T":
+            labels.append(
+                {
+                    "center": tuple(operation["pt"]),
+                    "width": operation["width"],
+                    "height": font_size,
+                    "font_size": font_size,
+                }
+            )
+    return labels
+
+
+def _endpoint_label_overlap_area(first: dict, second: dict) -> float:
+    ax, ay = first["center"]
+    bx, by = second["center"]
+    x_overlap = max(
+        0.0,
+        min(ax + first["width"] / 2, bx + second["width"] / 2)
+        - max(ax - first["width"] / 2, bx - second["width"] / 2),
+    )
+    y_overlap = max(
+        0.0,
+        min(ay + first["height"] / 2, by + second["height"] / 2)
+        - max(ay - first["height"] / 2, by - second["height"] / 2),
+    )
+    return x_overlap * y_overlap
+
+
+def _endpoint_label_detach_honda_score(layout: dict) -> tuple[int, int]:
+    labels = []
+    detached = 0
+    for edge in layout["edges"]:
+        points = _pos_points(edge.get("pos", ""))
+        for stream in ("_hldraw_", "_tldraw_"):
+            for label in _endpoint_label_text_ops(edge, stream):
+                distance = min(
+                    (
+                        _point_segment_distance(label["center"], start, end)
+                        for start, end in zip(points, points[1:])
+                    ),
+                    default=math.inf,
+                )
+                if distance / label["font_size"] > 0.45:
+                    detached += 1
+                labels.append(label)
+
+    overlaps = 0
+    for first, second in itertools.combinations(labels, 2):
+        area = _endpoint_label_overlap_area(first, second)
+        smaller = min(
+            first["width"] * first["height"], second["width"] * second["height"]
+        )
+        if smaller > 0 and area / smaller > 0.50:
+            overlaps += 1
+    return detached, overlaps
+
+
 def _longest_horizontal_chain(points: list[tuple[float, float]]) -> float:
     best = 0.0
     current = 0.0
@@ -7308,6 +7389,27 @@ def test_endpoint_label_default_position_uses_clearance_anchor():
     )
 
     assert math.dist(label_point, endpoint) <= math.dist(node_center, endpoint)
+
+
+def test_concentrate_endpoint_labels_keep_distinct_flat_routes():
+    """Endpoint labels on distinct flat concentrated lanes stay attached."""
+
+    source = """
+        digraph {
+          graph [concentrate=true nodesep=0.2 rankdir=LR ranksep=0.2]
+          node [fontsize=10 height=0 width=0]
+          edge [arrowsize=0.9 dir=none fontsize=8 labelangle=-30
+                labeldistance=0.8 labelfontsize=8]
+
+          n003 -> n002 [arrowhead=dot headlabel=":s:"]
+          n003 -> n002 [arrowtail=inv samearrowhead=1 samehead=m000]
+          n005 -> n002 [arrowhead=dot arrowtail=inv headlabel=":u:"
+                        samearrowhead=1 samehead=m000]
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+
+    assert _endpoint_label_detach_honda_score(layout) == (0, 0)
 
 
 def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Path, dict]:

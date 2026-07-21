@@ -58,7 +58,7 @@ def set_concentrate(source: str, enabled: bool) -> str:
     return re.sub(r"(\b(?:strict\s+)?(?:di)?graph\b[^{]*\{)", rf"\1\n  graph [concentrate={value}];", source, count=1)
 
 
-def run_xdot(dot: Path, source: str) -> str:
+def run_xdot(dot: Path, source: str, timeout: float) -> str:
     with tempfile.NamedTemporaryFile("w", suffix=".dot", encoding="utf-8") as input:
         input.write(source)
         input.flush()
@@ -68,6 +68,7 @@ def run_xdot(dot: Path, source: str) -> str:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            timeout=timeout,
         )
     return completed.stdout
 
@@ -94,17 +95,23 @@ def xdot_drawn_route_count(xdot: str) -> int:
     return count
 
 
-def measure_source(dot: Path, source_path: Path) -> Counts:
+def measure_source(dot: Path, source_path: Path, timeout: float) -> Counts:
     source = source_path.read_text(encoding="utf-8")
-    plain = xdot_drawn_route_count(run_xdot(dot, set_concentrate(source, False)))
-    concentrate = xdot_drawn_route_count(run_xdot(dot, set_concentrate(source, True)))
+    plain = xdot_drawn_route_count(
+        run_xdot(dot, set_concentrate(source, False), timeout)
+    )
+    concentrate = xdot_drawn_route_count(
+        run_xdot(dot, set_concentrate(source, True), timeout)
+    )
     return Counts(plain=plain, concentrate=concentrate)
 
 
 def self_test(dot: Path) -> None:
     toy = "digraph { graph [concentrate=true]; a -> b; a -> b; a -> b; }\n"
-    plain = xdot_drawn_route_count(run_xdot(dot, set_concentrate(toy, False)))
-    concentrate = xdot_drawn_route_count(run_xdot(dot, set_concentrate(toy, True)))
+    plain = xdot_drawn_route_count(run_xdot(dot, set_concentrate(toy, False), 10))
+    concentrate = xdot_drawn_route_count(
+        run_xdot(dot, set_concentrate(toy, True), 10)
+    )
     if (plain, concentrate) != (3, 1):
         raise AssertionError(
             f"toy xdot counter expected plain=3 concentrate=1, got {plain=} {concentrate=}"
@@ -129,15 +136,24 @@ def manifest_items(gallery: Path, sections: set[str]) -> list[tuple[str, str, Pa
 
 
 def scan_corpus(
-    base_dot: Path, branch_dot: Path, gallery: Path, sections: set[str]
+    base_dot: Path,
+    branch_dot: Path,
+    gallery: Path,
+    sections: set[str],
+    timeout: float,
 ) -> tuple[list[FixtureResult], list[tuple[str, str, Path, str]]]:
     results: list[FixtureResult] = []
     failures: list[tuple[str, str, Path, str]] = []
     for fixture_id, section, source in manifest_items(gallery, sections):
         try:
-            base = measure_source(base_dot, source)
-            branch = measure_source(branch_dot, source)
-        except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as exc:
+            base = measure_source(base_dot, source, timeout)
+            branch = measure_source(branch_dot, source, timeout)
+        except (
+            OSError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            UnicodeDecodeError,
+        ) as exc:
             failures.append((fixture_id, section, source, str(exc)))
             continue
         results.append(
@@ -237,6 +253,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--anchor", type=Path, default=DEFAULT_ANCHOR)
     parser.add_argument("--sections", nargs="+", default=["spicy", "corpus"])
     parser.add_argument("--top", type=int, default=20)
+    parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--output", "-o", type=Path)
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
@@ -247,10 +264,14 @@ def main() -> int:
     self_test(args.branch_dot)
     if args.self_test:
         return 0
-    anchor_base = measure_source(args.base_dot, args.anchor)
-    anchor_branch = measure_source(args.branch_dot, args.anchor)
+    anchor_base = measure_source(args.base_dot, args.anchor, args.timeout)
+    anchor_branch = measure_source(args.branch_dot, args.anchor, args.timeout)
     results, failures = scan_corpus(
-        args.base_dot, args.branch_dot, args.gallery, set(args.sections)
+        args.base_dot,
+        args.branch_dot,
+        args.gallery,
+        set(args.sections),
+        args.timeout,
     )
     report = render_report(anchor_base, anchor_branch, results, failures, args.top)
     if args.output:
