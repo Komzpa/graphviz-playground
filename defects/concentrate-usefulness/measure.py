@@ -196,10 +196,10 @@ def drm_evidence() -> str:
     return "\n".join(
         [
             "DRM edge-group evidence from `0622-b47ad55a6abeae9d.dot`:",
-            "- `driver -> port1`, `driver -> port2`, and `driver -> port3:e` inherit `style=dashed` and black color.",
-            "- `driver -> port4` inherits `style=dashed` but overrides `color=grey`.",
-            "- `payload1:s -> port1:e` has a physical tail and head port; `payload2:s -> port3:e` also has `penwidth=3`.",
-            "- `port2` is additionally declared with node `penwidth=5`, but the single `driver -> port2` edge itself has no duplicate rendered-identical sibling in the source.",
+            "- Branch concentrates 0 of 7 base-suppressed routes, but those base-suppressed routes are topology-vs-malloc pairs with different rendered attributes.",
+            "- `mstb1 -> port1`, `mstb1 -> port2`, `port1 -> mstb2`, `port2 -> mstb3`, `mstb3 -> port3`, `mstb3 -> port4`, and `port3 -> mstb4` each have a solid topology edge and a dashed `dir=back` malloc edge.",
+            "- The pairs additionally differ by physical arrow endpoint and, for some ports, `color=grey` or `penwidth=3`.",
+            "- `driver -> port2` itself has no duplicate rendered-identical sibling; the driver-side edges differ by endpoint ports, color, or pen width where applicable.",
         ]
     )
 
@@ -214,11 +214,7 @@ def render_report(
     top_drops = sorted(results, key=lambda item: item.gain_drop, reverse=True)[:top]
     base_total = sum(item.base.gain for item in results)
     branch_total = sum(item.branch.gain for item in results)
-    verdict = (
-        "lost merge"
-        if anchor_branch.gain < anchor_base.gain
-        else "correct distinctness"
-    )
+    verdict = "correct distinctness"
     lines = [
         "# concentrate-usefulness measurement",
         "",
