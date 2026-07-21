@@ -6595,6 +6595,24 @@ def test_concentrate_plain_label_identity_uses_compiled_text():
     assert len(_drawn_edges(different_justification)) == 2
 
 
+def test_concentrate_html_endpoint_label_identity_uses_substituted_text():
+    """HTML endpoint labels emit edge substitutions, so identity must too."""
+
+    same_direction_distinct = _concentrated_graph(
+        "",
+        'a -> b [headlabel=<<FONT COLOR="red">\\T</FONT>>]',
+        'a -> b [headlabel=<<FONT COLOR="red">\\H</FONT>>]',
+    )
+    assert len(_drawn_edges(same_direction_distinct)) == 2
+
+    opposite_direction_distinct = _concentrated_graph(
+        "",
+        'a -> b [headlabel=<<FONT COLOR="red">\\T</FONT>>]',
+        'b -> a [taillabel=<<FONT COLOR="red">\\T</FONT>>]',
+    )
+    assert len(_drawn_edges(opposite_direction_distinct)) == 2
+
+
 def test_concentrate_html_label_identity_uses_colorscheme():
     """Scheme-relative HTML-like label colors resolve at emit time."""
 

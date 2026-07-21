@@ -279,6 +279,17 @@ static void append_substituted_signature_slot(agxbuf *signature,
   free(substituted);
 }
 
+static void append_substituted_html_signature_slot(agxbuf *signature,
+                                                   const char *slot_name,
+                                                   const char *value,
+                                                   Agedge_t *edge) {
+  char *const substituted = strdup_and_subst_obj((char *)value, edge);
+  append_signature_slot(
+      signature, slot_name,
+      (comparable_attribute_value_t){.text = substituted, .is_html = true});
+  free(substituted);
+}
+
 static bool html_label_may_use_colorscheme(const char *text) {
   for (const char *attribute = text; *attribute != '\0'; attribute++) {
     size_t name_size = strlen("COLOR");
@@ -622,9 +633,8 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
   agxbuf slot_name = {0};
   agxbprint(&slot_name, "%s:text", slot_prefix);
   if (label->html) {
-    append_signature_slot(
-        signature, agxbuse(&slot_name),
-        (comparable_attribute_value_t){.text = label->text, .is_html = true});
+    append_substituted_html_signature_slot(signature, agxbuse(&slot_name),
+                                           label->text, edge);
     if (html_label_may_use_colorscheme(label->text)) {
       agxbclear(&slot_name);
       agxbprint(&slot_name, "%s:colorscheme", slot_prefix);
