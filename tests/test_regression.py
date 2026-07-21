@@ -7493,6 +7493,20 @@ def test_concentrate_color_list_arrow_endpoint_overrides_explicit_fillcolor():
     assert _arrow_fill_color(drawn_edges[0], "t") == "#0000ff"
 
 
+def test_concentrate_color_list_arrow_endpoint_strips_segment_fractions():
+    """Endpoint arrow colors resolve color-list segments without fractions."""
+
+    borrowed_segment_arrow = _concentrated_graph(
+        "",
+        'a -> b [dir=none color="red;0.5:blue;0.5"]',
+        'b -> a [dir=back color="blue;0.5:red;0.5"]',
+    )
+    drawn_edges = _drawn_edges(borrowed_segment_arrow)
+    assert len(drawn_edges) == 1
+    assert "_hdraw_" in drawn_edges[0]
+    assert _arrow_fill_color(drawn_edges[0], "h") == "#0000ff"
+
+
 def test_endpoint_label_default_position_uses_clearance_anchor():
     """Endpoint labels default from the endpoint anchor, not their lower-left box."""
 

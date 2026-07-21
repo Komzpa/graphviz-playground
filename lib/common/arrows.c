@@ -197,8 +197,12 @@ static char *color_list_endpoint_color(char *color_list,
     }
   }
 
-  const char *const endpoint_color =
+  char *const endpoint_color =
       endpoint == EDGE_ARROW_START && second != NULL ? second : first;
+  char *separator = endpoint_color == NULL ? NULL : strchr(endpoint_color, ';');
+  if (separator != NULL) {
+    *separator = '\0';
+  }
   char *const result =
       endpoint_color == NULL || endpoint_color[0] == '\0'
           ? gv_strdup(DEFAULT_COLOR)
