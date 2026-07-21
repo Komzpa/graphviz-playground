@@ -7479,6 +7479,20 @@ def test_concentrate_borrowed_reverse_arrow_uses_endpoint_segment_color():
     assert _arrow_fill_color(drawn_edges[0], "t") == "#0000ff"
 
 
+def test_concentrate_color_list_arrow_endpoint_overrides_explicit_fillcolor():
+    """Non-tapered color-list arrows use their endpoint segment color."""
+
+    borrowed_segment_arrow = _concentrated_graph(
+        "",
+        'a -> b [dir=none color="red:blue" fillcolor=green]',
+        'b -> a [dir=forward color="blue:red" fillcolor=green]',
+    )
+    drawn_edges = _drawn_edges(borrowed_segment_arrow)
+    assert len(drawn_edges) == 1
+    assert "_tdraw_" in drawn_edges[0]
+    assert _arrow_fill_color(drawn_edges[0], "t") == "#0000ff"
+
+
 def test_endpoint_label_default_position_uses_clearance_anchor():
     """Endpoint labels default from the endpoint anchor, not their lower-left box."""
 

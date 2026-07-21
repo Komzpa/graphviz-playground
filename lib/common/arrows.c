@@ -256,7 +256,7 @@ static arrow_decoration_t edge_arrow_decoration(Agedge_t *edge,
       }
     }
     decoration.fillcolor_affects_identity = tapered;
-    if (!tapered && !explicit_edge_fillcolor(edge)) {
+    if (!tapered) {
       char *const endpoint_color =
           color_list_endpoint_color((char *)spline_color, endpoint);
       resolve_arrow_fillcolor(&decoration, edge, endpoint_color);
