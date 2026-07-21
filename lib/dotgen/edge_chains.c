@@ -148,8 +148,7 @@ bool mergeable(edge_t *first_edge, edge_t *second_edge) {
          aghead(first_edge) == aghead(second_edge) &&
          ED_label(first_edge) == ED_label(second_edge) &&
          ED_xlabel(first_edge) == ED_xlabel(second_edge) &&
-         ports_eq(first_edge, second_edge) &&
-         gv_edge_attributes_are_equal(first_edge, second_edge);
+         ports_eq(first_edge, second_edge);
 }
 
 static bool edge_has_no_labels(edge_t *edge) {
@@ -492,7 +491,8 @@ void build_edge_chains(graph_t *graph) {
               representative_edge = equivalent_edge;
             }
           }
-          if (mergeable(representative_edge, edge)) {
+          if (mergeable(representative_edge, edge) &&
+              endpoint_labels_are_route_compatible(representative_edge, edge)) {
             merge_oneway(edge, representative_edge);
             other_edge(edge);
             continue;
