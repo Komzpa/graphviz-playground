@@ -39,6 +39,7 @@
 #include <common/htmltable.h>
 #include <common/render.h>
 #include <common/utils.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -279,12 +280,26 @@ static void append_substituted_signature_slot(agxbuf *signature,
 }
 
 static bool html_label_may_use_colorscheme(const char *text) {
-  const size_t prefix_size = strlen("COLOR=\"");
   for (const char *attribute = text; *attribute != '\0'; attribute++) {
-    if (strncasecmp(attribute, "COLOR=\"", prefix_size) != 0) {
+    const size_t name_size = strlen("COLOR");
+    if (strncasecmp(attribute, "COLOR", name_size) != 0) {
       continue;
     }
-    const char *const value = attribute + prefix_size;
+    const char *value = attribute + name_size;
+    while (isspace((unsigned char)value[0])) {
+      value++;
+    }
+    if (value[0] != '=') {
+      continue;
+    }
+    value++;
+    while (isspace((unsigned char)value[0])) {
+      value++;
+    }
+    if (value[0] != '"' && value[0] != '\'') {
+      continue;
+    }
+    value++;
     if (value[0] >= '0' && value[0] <= '9') {
       return true;
     }

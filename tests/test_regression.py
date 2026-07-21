@@ -6611,6 +6611,11 @@ def test_concentrate_html_label_identity_uses_colorscheme():
                 'c -> d [colorscheme=paired3 label=<<font color="1">x</font>>]',
             ),
             _edge_count_case(
+                2,
+                "g -> h [colorscheme=accent3 label=<<FONT COLOR='1'>x</FONT>>]",
+                "g -> h [colorscheme=paired3 label=<<FONT COLOR='1'>x</FONT>>]",
+            ),
+            _edge_count_case(
                 1,
                 'e -> f [colorscheme=accent3 label=<<FONT COLOR="red">x</FONT>>]',
                 'e -> f [colorscheme=paired3 label=<<FONT COLOR="red">x</FONT>>]',
