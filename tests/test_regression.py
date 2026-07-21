@@ -8228,6 +8228,28 @@ def test_concentrate_short_compound_arrows_do_not_overlap():
         assert _boxes_are_disjoint(first, second)
 
 
+def test_concentrate_compound_clipping_keeps_suppressed_junction_arrows_hidden():
+    """Cluster clipping must preserve concentrated junction suppression bits."""
+
+    source = """
+        digraph {
+          graph [concentrate=true compound=true]
+          subgraph cluster_a { a }
+          subgraph cluster_b { b }
+          a -> b [ltail=cluster_a lhead=cluster_b]
+          b -> a [ltail=cluster_b lhead=cluster_a]
+        }
+    """
+    edge = _drawn_edges(source)[0]
+    arrow_polygons = [
+        operation
+        for stream in ("_hdraw_", "_tdraw_")
+        for operation in edge.get(stream, [])
+        if operation["op"] == "P"
+    ]
+    assert len(arrow_polygons) == 1
+
+
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
 def test_concentrate_matches_reverse_arrowheads_by_physical_endpoint(
     splines: str,
