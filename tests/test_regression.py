@@ -5224,6 +5224,62 @@ def test_concentrate_p3_crossings_do_not_exceed_base():
     assert _sampled_edge_crossing_count(edges) <= 1
 
 
+def _assert_concentrate_keeps_zero_crossings(source: str) -> None:
+    plain_edges = _drawn_edges(_set_graph_concentrate(source, False))
+    concentrated_edges = _drawn_edges(_set_graph_concentrate(source, True))
+
+    assert _sampled_edge_crossing_count(plain_edges) == 0
+    assert _sampled_edge_crossing_count(concentrated_edges) == 0
+
+
+@pytest.mark.parametrize(
+    ("case", "source"),
+    (
+        pytest.param(
+            "corpus-0005-tree",
+            _graph_with_concentrate(
+                True,
+                "root -> {lead_a lead_b}",
+                "lead_a -> {team_a team_b team_c}",
+                "lead_b -> {team_d team_e}",
+                "team_d -> {leaf_a leaf_b leaf_c}",
+            ),
+            id="corpus-0005-tree",
+        ),
+        pytest.param(
+            "corpus-0007-fanout",
+            _graph_with_concentrate(
+                True,
+                "root -> {finance product engineering operations}",
+                "product -> {analyst designer}",
+                "engineering -> {frontend backend qa}",
+                "operations -> support",
+            ),
+            id="corpus-0007-fanout",
+        ),
+        pytest.param(
+            "corpus-0017-pipeline",
+            _graph_with_concentrate(
+                True,
+                "rankdir=LR",
+                "provider -> raw",
+                "raw -> normalize -> normalized",
+                "normalized -> recombine -> event -> rollup",
+                "normalized -> event",
+                "normalized -> episode",
+                "feed -> snapshot -> version -> episode",
+            ),
+            id="corpus-0017-pipeline",
+        ),
+    ),
+)
+def test_concentrate_preserves_zero_crossings(case: str, source: str):
+    """Before-zero corpus fixtures stay crossing-free after concentration."""
+
+    assert case
+    _assert_concentrate_keeps_zero_crossings(source)
+
+
 def test_concentrate_train11_internal_junctions_have_no_head_arrows():
     """Concentration does not draw arrowheads at absorbed internal junctions."""
 
