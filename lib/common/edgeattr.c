@@ -797,6 +797,11 @@ static bool graph_uses_ortho_edges(Agraph_t *root_graph) {
   return splines_value != NULL && strcmp(splines_value, "ortho") == 0;
 }
 
+static bool edge_style_token_sets_pen_pattern(const char *style) {
+  return strcmp(style, "solid") == 0 || strcmp(style, "dashed") == 0 ||
+         strcmp(style, "dotted") == 0 || strcmp(style, "invis") == 0;
+}
+
 static void append_style_value(agxbuf *signature, const char *slot_name,
                                comparable_attribute_value_t value,
                                bool keep_rounded) {
@@ -806,15 +811,26 @@ static void append_style_value(agxbuf *signature, const char *slot_name,
   }
 
   agxbuf rendered_style = {0};
+  const char *pen_pattern = NULL;
   for (char **item = parse_style((char *)value.text); *item != NULL; item++) {
     if (strcmp(*item, "bold") == 0 || strcmp(*item, "setlinewidth") == 0 ||
         (!keep_rounded && strcmp(*item, "rounded") == 0)) {
+      continue;
+    }
+    if (edge_style_token_sets_pen_pattern(*item)) {
+      pen_pattern = *item;
       continue;
     }
     if (agxblen(&rendered_style) > 0) {
       agxbputc(&rendered_style, ',');
     }
     agxbput(&rendered_style, *item);
+  }
+  if (pen_pattern != NULL) {
+    if (agxblen(&rendered_style) > 0) {
+      agxbputc(&rendered_style, ',');
+    }
+    agxbput(&rendered_style, pen_pattern);
   }
   append_plain_signature_slot(
       signature, slot_name,

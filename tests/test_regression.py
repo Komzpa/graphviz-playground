@@ -6581,6 +6581,20 @@ def test_concentrate_bold_style_folds_into_penwidth(splines: str):
     )
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_edge_style_identity_uses_final_pen_token(splines: str):
+    """gvrender_set_style() applies the last pen-pattern style token."""
+
+    _assert_concentrated_edge_counts(
+        splines,
+        (
+            _edge_count_case(1, 'a -> b [style="dashed,solid"]', "a -> b"),
+            _edge_count_case(1, 'b -> c [style="solid,dashed"]', 'b -> c [style=dashed]'),
+            _edge_count_case(2, 'c -> d [style="dashed,solid"]', 'c -> d [style=dashed]'),
+        ),
+    )
+
+
 def test_concentrate_plain_label_identity_uses_compiled_text():
     """Escaped and literal newlines render alike, but justification does not."""
 
