@@ -31,6 +31,7 @@ static pointf Offset;
 
 static void place_flip_graph_label(graph_t * g);
 static void bow_labeled_long_return_routes(graph_t *g);
+static void gather_unlabeled_same_tail_fans(graph_t *g);
 
 #define M1 \
 "/pathbox {\n\
@@ -675,6 +676,7 @@ void gv_postprocess(Agraph_t * g, int allowTranslation)
 	}
 	translate_drawing(g);
 	bow_labeled_long_return_routes(g);
+	gather_unlabeled_same_tail_fans(g);
     }
     if (GD_label(g) && !GD_label(g)->set)
 	place_root_label(g, dimen);
@@ -774,6 +776,66 @@ static void bow_labeled_long_return_routes(graph_t *g)
 	for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e))
 	    bow_labeled_long_return_route(g, e);
     }
+}
+
+static bool unlabeled_leaf_fan_arm(edge_t *e)
+{
+    if (!Concentrate || agisdirected(agraphof(e)) || agtail(e) == aghead(e))
+	return false;
+    if (edge_has_any_label(e) || ED_xlabel(e) != NULL)
+	return false;
+    if (ED_spl(e) == NULL || ED_spl(e)->size != 1)
+	return false;
+    bezier *const bz = &ED_spl(e)->list[0];
+    if (bz->size != 4)
+	return false;
+
+    node_t *const head = aghead(e);
+    size_t incident = 0;
+    for (edge_t *candidate = agfstedge(agraphof(e), head); candidate != NULL;
+	 candidate = agnxtedge(agraphof(e), candidate, head))
+	incident++;
+    return incident == 1;
+}
+
+static void gather_unlabeled_same_tail_fan(graph_t *g, node_t *tail)
+{
+    (void)g;
+
+    size_t count = 0;
+    pointf shared[3] = {{0}};
+    for (edge_t *e = agfstout(agraphof(tail), tail); e != NULL;
+	 e = agnxtout(agraphof(tail), e)) {
+	if (!unlabeled_leaf_fan_arm(e))
+	    continue;
+	bezier *const bz = &ED_spl(e)->list[0];
+	for (size_t i = 0; i < 3; i++) {
+	    shared[i].x += bz->list[i].x;
+	    shared[i].y += bz->list[i].y;
+	}
+	count++;
+    }
+
+    if (count < 3)
+	return;
+    for (size_t i = 0; i < 3; i++) {
+	shared[i].x /= count;
+	shared[i].y /= count;
+    }
+    for (edge_t *e = agfstout(agraphof(tail), tail); e != NULL;
+	 e = agnxtout(agraphof(tail), e)) {
+	if (!unlabeled_leaf_fan_arm(e))
+	    continue;
+	bezier *const bz = &ED_spl(e)->list[0];
+	for (size_t i = 0; i < 3; i++)
+	    bz->list[i] = shared[i];
+    }
+}
+
+static void gather_unlabeled_same_tail_fans(graph_t *g)
+{
+    for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n))
+	gather_unlabeled_same_tail_fan(g, n);
 }
 
 /* place_flip_graph_label:
