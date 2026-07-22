@@ -320,9 +320,6 @@ static unsigned short html_data_effective_flags(const htmldata_t *data) {
   if (data->border == DEFAULT_HTML_BORDER) {
     flags &= (unsigned short)~BORDER_SET;
   }
-  if (!(flags & FIXED_FLAG)) {
-    flags &= (unsigned short)~(HALIGN_MASK | VALIGN_MASK);
-  }
   return flags;
 }
 
@@ -393,11 +390,13 @@ static void append_html_data_identity_slots(
 
   agxbclear(&field);
   agxbprint(&field, "%s:style", slot_prefix);
+  const bool border_style_visible = data->border > 0 && !data->style.invisible;
   agxbprint(&rendered_number, "%d:%d:%d:%d:%d",
             data->bgcolor != NULL && data->bgcolor[0] != '\0' &&
                 data->style.radial,
-            data->style.rounded, data->style.invisible, data->style.dotted,
-            data->style.dashed);
+            data->style.rounded, data->style.invisible,
+            border_style_visible && data->style.dotted,
+            border_style_visible && data->style.dashed);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
   agxbfree(&rendered_number);

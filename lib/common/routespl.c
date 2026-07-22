@@ -1191,6 +1191,8 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
 			    candidate_attribute_edge == NULL)
 			    continue;
 			const bool candidate_is_opposite_direction =
+			    agtail(retained_attribute_edge) !=
+			        aghead(retained_attribute_edge) &&
 			    agtail(retained_attribute_edge) ==
 			        aghead(candidate_attribute_edge) &&
 			    aghead(retained_attribute_edge) ==
