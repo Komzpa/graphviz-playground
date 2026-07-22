@@ -1393,7 +1393,7 @@ static void straighten_flat_port_progression(bezier *spline) {
 
   const pointf start = spline->list[0];
   const pointf end = spline->list[spline->size - 1];
-  for (size_t i = 1; i + 1 < spline->size; ++i) {
+  for (size_t i = 2; i + 2 < spline->size; ++i) {
     const double fraction = (double)i / (double)(spline->size - 1);
     spline->list[i].x = start.x + (end.x - start.x) * fraction;
   }

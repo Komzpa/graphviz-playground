@@ -8907,6 +8907,38 @@ def test_concentrate_flat_port_routes_respect_endpoint_geometry(source: str):
         assert _arrowhead_shaft_angle(edge) <= 0.1
 
 
+def test_concentrate_ungrouped_flat_port_route_preserves_tail_direction():
+    """Straightening a multi-segment flat route preserves terminal port arms."""
+
+    source = """
+        digraph {
+          graph [concentrate=true]
+          TOP -> {rank=same a f} -> BOTTOM
+          a:w -> f:e
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    edge = _drawn_edge_between(layout, "a", "f")
+    points = _edge_bezier_points(edge)
+
+    for endpoint in ("tail", "head"):
+        node_id = edge["tail" if endpoint == "tail" else "head"]
+        node = next(node for node in layout["objects"] if node["_gvid"] == node_id)
+        center_x, center_y, _, _ = _ellipse(node)
+        route = min(
+            (points, list(reversed(points))),
+            key=lambda candidate: math.dist(candidate[0], (center_x, center_y)),
+        )
+        anchor = route[0]
+        outward_point = next(
+            point for point in route[1:] if math.dist(point, anchor) > 0.001
+        )
+        outward_normal = (anchor[0] - center_x, anchor[1] - center_y)
+        departure = (outward_point[0] - anchor[0], outward_point[1] - anchor[1])
+        assert sum(a * b for a, b in zip(outward_normal, departure)) > 0
+    assert _arrowhead_shaft_angle(edge) <= 0.1
+
+
 @pytest.mark.parametrize("concentrate", (False, True))
 def test_flat_grouped_routes_depart_outward(concentrate: bool):
     """Restoring a sametail anchor also translates its terminal control arm."""
