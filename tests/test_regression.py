@@ -7243,6 +7243,11 @@ def test_concentrate_html_table_identity_uses_layout_fields():
                 'e -> f [label=<<TABLE ALIGN="LEFT"><TR><TD>x</TD></TR></TABLE>>]',
                 'e -> f [label=<<TABLE ALIGN="RIGHT"><TR><TD>x</TD></TR></TABLE>>]',
             ),
+            _edge_count_case(
+                2,
+                'g -> h [headlabel=<<TABLE BGCOLOR="red:blue" GRADIENTANGLE="0"><TR><TD>x</TD></TR></TABLE>>]',
+                'h -> g [taillabel=<<TABLE BGCOLOR="red:blue" GRADIENTANGLE="90"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
         ),
     )
 

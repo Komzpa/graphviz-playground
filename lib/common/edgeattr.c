@@ -322,6 +322,13 @@ static void append_html_data_identity_slots(agxbuf *signature,
   append_nullable_plain_field(signature, agxbuse(&field), data->bgcolor);
 
   agxbclear(&field);
+  agxbprint(&field, "%s:gradientangle", slot_prefix);
+  agxbprint(&rendered_number, "%d", data->gradientangle);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+  agxbclear(&rendered_number);
+
+  agxbclear(&field);
   agxbprint(&field, "%s:sides", slot_prefix);
   agxbprint(&rendered_number, "%u", data->sides);
   append_plain_signature_slot(signature, agxbuse(&field),
