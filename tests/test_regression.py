@@ -7278,6 +7278,11 @@ def test_concentrate_html_table_border_identity_uses_pencolor():
                 "a -> b [pencolor=red label=<<TABLE><TR><TD>x</TD></TR></TABLE>>]",
                 "a -> b [pencolor=blue label=<<TABLE><TR><TD>x</TD></TR></TABLE>>]",
             ),
+            _edge_count_case(
+                2,
+                'c -> d [colorscheme=accent3 pencolor=1 headlabel=<<TABLE><TR><TD>x</TD></TR></TABLE>>]',
+                'd -> c [colorscheme=paired3 pencolor=1 taillabel=<<TABLE><TR><TD>x</TD></TR></TABLE>>]',
+            ),
         ),
     )
 

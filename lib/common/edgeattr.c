@@ -297,8 +297,15 @@ static void append_nullable_plain_field(agxbuf *signature,
                               value == NULL ? "" : value);
 }
 
+static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
+                                    const char *slot_name,
+                                    comparable_attribute_value_t value,
+                                    bool allow_color_list,
+                                    bool reverse_orientation);
+
 static void append_html_data_identity_slots(agxbuf *signature,
                                             const char *slot_prefix,
+                                            Agedge_t *edge,
                                             const htmldata_t *data) {
   agxbuf field = {0};
   agxbprint(&field, "%s:border", slot_prefix);
@@ -315,7 +322,10 @@ static void append_html_data_identity_slots(agxbuf *signature,
 
   agxbclear(&field);
   agxbprint(&field, "%s:pencolor", slot_prefix);
-  append_nullable_plain_field(signature, agxbuse(&field), data->pencolor);
+  append_edge_color_value(
+      signature, edge, agxbuse(&field),
+      plain_attribute_value(data->pencolor == NULL ? "" : data->pencolor),
+      false, false);
 
   agxbclear(&field);
   agxbprint(&field, "%s:bgcolor", slot_prefix);
@@ -451,7 +461,7 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
                                              const char *slot_prefix,
                                              const htmltbl_t *table,
                                              const char *fallback_imagescale) {
-  append_html_data_identity_slots(signature, slot_prefix, &table->data);
+  append_html_data_identity_slots(signature, slot_prefix, edge, &table->data);
 
   agxbuf field = {0};
   agxbprint(&field, "%s:shape", slot_prefix);
@@ -466,7 +476,7 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
       agxbclear(&field);
       agxbprint(&field, "%s:cell:%u:%u", slot_prefix, (*cell)->row,
                 (*cell)->col);
-      append_html_data_identity_slots(signature, agxbuse(&field),
+      append_html_data_identity_slots(signature, agxbuse(&field), edge,
                                       &(*cell)->data);
       agxbclear(&rendered_number);
       agxbprint(&rendered_number, "%u:%u:%d:%d", (*cell)->rowspan,
