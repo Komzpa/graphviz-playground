@@ -322,6 +322,7 @@ static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
 
 static edge_t *getmainedge(edge_t *);
 static bool concentrated_label_dedupe_match(edge_t *, edge_t *);
+static bool same_self_edge_node_pair(edge_t *, edge_t *);
 
 static void dedupe_concentrated_edge_labels(graph_t *graph) {
   if (!Concentrate) {
@@ -453,6 +454,10 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   if (APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT)) {
     return true;
   }
+  if (same_self_edge_node_pair(edge, prior_edge) &&
+      gv_edge_ports_are_equal(edge, prior_edge)) {
+    return true;
+  }
   if (aghead(edge) != aghead(prior_edge)) {
     return false;
   }
@@ -540,6 +545,11 @@ static bool has_grouped_flat_endpoint(edge_t *edge) {
       E_sametail != NULL ? agxget(edge, E_sametail) : NULL;
   return (samehead != NULL && samehead[0] != '\0') ||
          (sametail != NULL && sametail[0] != '\0');
+}
+
+static bool same_self_edge_node_pair(edge_t *edge, edge_t *other) {
+  return agtail(edge) == aghead(edge) && agtail(other) == aghead(other) &&
+         agtail(edge) == agtail(other);
 }
 
 static bool swap_ends_p(edge_t *e) {
@@ -817,7 +827,8 @@ static int dot_splines_(graph_t *g, int normalize) {
     }
     unsigned cnt;
     for (cnt = 1; l < LIST_SIZE(&edges); cnt++, l++) {
-      if (le0 != (le1 = getmainedge((e1 = LIST_GET(&edges, l)))))
+      le1 = getmainedge((e1 = LIST_GET(&edges, l)));
+      if (le0 != le1 && !same_self_edge_node_pair(le0, le1))
         break;
       if (ED_adjacent(e0))
         continue; /* all flat adjacent edges at once */
