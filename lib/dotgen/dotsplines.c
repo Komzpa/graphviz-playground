@@ -180,11 +180,10 @@ static void place_grouped_endpoint_label_outside_node(graph_t *graph,
   if (GD_flip(graph)) {
     SWAP(&dimen.x, &dimen.y);
   }
-  const double node_x_extent = direction.x < 0.0 ? ND_lw(endpoint)
-                                                 : ND_rw(endpoint);
-  const double node_extent =
-      fabs(direction.x) * node_x_extent +
-      fabs(direction.y) * ND_ht(endpoint) / 2.0;
+  const double node_x_extent =
+      direction.x < 0.0 ? ND_lw(endpoint) : ND_rw(endpoint);
+  const double node_extent = fabs(direction.x) * node_x_extent +
+                             fabs(direction.y) * ND_ht(endpoint) / 2.0;
   const double label_extent =
       fabs(direction.x) * dimen.x / 2.0 + fabs(direction.y) * dimen.y / 2.0;
   const double distance = node_extent + label_extent + ENDPOINT_LABEL_GAP;
@@ -988,10 +987,9 @@ finish:
          label_index++) {
       if (!endpoint_labels[label_index].needs_node_clearance)
         continue;
-      node_t *const endpoint =
-          endpoint_labels[label_index].head_p
-              ? aghead(endpoint_labels[label_index].edge)
-              : agtail(endpoint_labels[label_index].edge);
+      node_t *const endpoint = endpoint_labels[label_index].head_p
+                                   ? aghead(endpoint_labels[label_index].edge)
+                                   : agtail(endpoint_labels[label_index].edge);
       for (size_t sibling_index = 0; sibling_index < endpoint_label_count;
            sibling_index++) {
         if (endpoint_labels[sibling_index].needs_node_clearance)

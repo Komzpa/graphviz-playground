@@ -290,10 +290,27 @@ static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
                                     bool allow_color_list,
                                     bool reverse_orientation);
 
+enum { DEFAULT_HTML_CELLPADDING = 2 };
+
+static unsigned char html_table_identity_pad(const htmltbl_t *table) {
+  return (table->data.flags & PAD_SET) ? table->data.pad
+                                       : DEFAULT_HTML_CELLPADDING;
+}
+
+static unsigned short html_table_identity_flags(const htmltbl_t *table) {
+  unsigned short flags = table->data.flags;
+  if (html_table_identity_pad(table) == DEFAULT_HTML_CELLPADDING) {
+    flags &= (unsigned short)~PAD_SET;
+  }
+  return flags;
+}
+
 static void append_html_data_identity_slots(agxbuf *signature,
                                             const char *slot_prefix,
                                             Agedge_t *edge,
-                                            const htmldata_t *data) {
+                                            const htmldata_t *data,
+                                            unsigned char layout_pad,
+                                            unsigned short layout_flags) {
   agxbuf field = {0};
   agxbprint(&field, "%s:border", slot_prefix);
   agxbuf rendered_number = {0};
@@ -338,14 +355,14 @@ static void append_html_data_identity_slots(agxbuf *signature,
   agxbclear(&field);
   agxbprint(&field, "%s:layout", slot_prefix);
   agxbprint(&rendered_number, "%d:%u:%hhu:%hhu:%hu:%hu", data->space,
-            data->border, data->pad, data->sides, data->width, data->height);
+            data->border, layout_pad, data->sides, data->width, data->height);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
   agxbclear(&rendered_number);
 
   agxbclear(&field);
   agxbprint(&field, "%s:flags", slot_prefix);
-  agxbprint(&rendered_number, "%hu", data->flags);
+  agxbprint(&rendered_number, "%hu", layout_flags);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
   agxbclear(&rendered_number);
@@ -464,7 +481,9 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
                                              const char *slot_prefix,
                                              const htmltbl_t *table,
                                              const char *fallback_imagescale) {
-  append_html_data_identity_slots(signature, slot_prefix, edge, &table->data);
+  append_html_data_identity_slots(signature, slot_prefix, edge, &table->data,
+                                  html_table_identity_pad(table),
+                                  html_table_identity_flags(table));
 
   agxbuf field = {0};
   agxbprint(&field, "%s:shape", slot_prefix);
@@ -480,7 +499,8 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
       agxbprint(&field, "%s:cell:%u:%u", slot_prefix, (*cell)->row,
                 (*cell)->col);
       append_html_data_identity_slots(signature, agxbuse(&field), edge,
-                                      &(*cell)->data);
+                                      &(*cell)->data, (*cell)->data.pad,
+                                      (*cell)->data.flags);
       agxbclear(&rendered_number);
       agxbprint(&rendered_number, "%u:%u:%d:%d", (*cell)->rowspan,
                 (*cell)->colspan, (*cell)->hruled, (*cell)->vruled);
@@ -618,9 +638,7 @@ static void append_html_data_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
   const bool has_url = data->href != NULL && data->href[0] != '\0';
   const bool has_tooltip = data->title != NULL && data->title[0] != '\0';
   const bool has_target = data->target != NULL && data->target[0] != '\0';
-  const bool has_id = data->id != NULL && data->id[0] != '\0';
-  if (!has_url && !has_tooltip &&
-      (!parent_anchor_open || (!has_target && !has_id))) {
+  if (!has_url && !has_tooltip && (!parent_anchor_open || !has_target)) {
     return;
   }
 
