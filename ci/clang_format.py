@@ -378,7 +378,6 @@ EXCLUDE = (
     "lib/pathplan/pathgeom.h",
     "lib/pathplan/pathplan.h",
     "lib/pathplan/route.c",
-    "lib/pathplan/shortest.c",
     "lib/pathplan/shortestpth.c",
     "lib/pathplan/solvers.c",
     "lib/pathplan/solvers.h",
