@@ -146,8 +146,7 @@ static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
     if (agtail(e0) == agtail(f0) && aghead(e0) == aghead(f0))
 	return true;
     if (agtail(e0) == agtail(f0))
-	return unique_original_head_count(e0) <= 2 &&
-	       (has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0));
+	return has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0);
     if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
 	dense_same_head_labeled_fan(e0, f0)) {
 	const bool adjacent_tails =
