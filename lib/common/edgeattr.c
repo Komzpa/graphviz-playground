@@ -611,9 +611,7 @@ static void append_html_data_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
                                              const htmldata_t *data,
                                              size_t *anchor_index) {
   if ((data->href == NULL || data->href[0] == '\0') &&
-      (data->title == NULL || data->title[0] == '\0') &&
-      (data->target == NULL || data->target[0] == '\0') &&
-      (data->id == NULL || data->id[0] == '\0')) {
+      (data->title == NULL || data->title[0] == '\0')) {
     return;
   }
 

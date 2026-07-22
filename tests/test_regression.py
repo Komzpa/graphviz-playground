@@ -6742,6 +6742,31 @@ def test_concentrate_main_label_bare_url_anchors_labeltarget():
     assert len(_drawn_edges(source)) == 2
 
 
+def test_concentrate_html_table_anchor_identity_matches_emit_gate():
+    """HTML table TARGET/ID are visible only on URL or tooltip anchors."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                1,
+                'a -> b [headlabel=<<TABLE TARGET="one"><TR><TD>x</TD></TR></TABLE>>]',
+                'b -> a [taillabel=<<TABLE TARGET="two"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                1,
+                'c -> d [headlabel=<<TABLE ID="one"><TR><TD>x</TD></TR></TABLE>>]',
+                'd -> c [taillabel=<<TABLE ID="two"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                2,
+                'e -> f [headlabel=<<TABLE HREF="u" TARGET="one" ID="one"><TR><TD>x</TD></TR></TABLE>>]',
+                'f -> e [taillabel=<<TABLE HREF="u" TARGET="two" ID="two"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     ("splines", "cases"),
     (
