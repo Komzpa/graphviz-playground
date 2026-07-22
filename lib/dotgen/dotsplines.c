@@ -55,10 +55,13 @@
 #define AUXGRAPH 128
 #define GRAPHTYPEMASK 192 /* the OR of the above */
 #define ENDPOINT_LABEL_GAP 4.0
+#define ENDPOINT_LABEL_NODE_MIN 20.0
 
 typedef struct {
   textlabel_t *label;
-  node_t *shared_anchor;
+  edge_t *edge;
+  bool head_p;
+  bool needs_node_clearance;
 } endpoint_label_t;
 
 static bool has_grouped_flat_endpoint(edge_t *);
@@ -112,12 +115,9 @@ static bool label_boxes_overlap_or_touch(boxf a, boxf b) {
              MIN(a.UR.y + ENDPOINT_LABEL_GAP, b.UR.y + ENDPOINT_LABEL_GAP);
 }
 
-static bool has_shared_endpoint_anchor(edge_t *edge, bool head_p) {
-  if (Concentrate && has_grouped_flat_endpoint(edge))
-    return false;
-
-  attrsym_t *const attr = head_p ? E_samehead : E_sametail;
-  return attr != NULL && agxget(edge, attr)[0] != '\0';
+static bool boxes_overlap(boxf a, boxf b) {
+  return MAX(a.LL.x, b.LL.x) <= MIN(a.UR.x, b.UR.x) &&
+         MAX(a.LL.y, b.LL.y) <= MIN(a.UR.y, b.UR.y);
 }
 
 static bool edge_spline_bounds(const edge_t *edge, boxf *bounds) {
@@ -161,6 +161,59 @@ static double graph_node_right_bound(graph_t *graph) {
   return right;
 }
 
+static void place_grouped_endpoint_label_outside_node(graph_t *graph,
+                                                      edge_t *edge,
+                                                      bool head_p) {
+  node_t *const endpoint = head_p ? aghead(edge) : agtail(edge);
+  node_t *const opposite = head_p ? agtail(edge) : aghead(edge);
+  textlabel_t *const label = head_p ? ED_head_label(edge) : ED_tail_label(edge);
+  pointf direction = {.x = ND_coord(endpoint).x - ND_coord(opposite).x,
+                      .y = ND_coord(endpoint).y - ND_coord(opposite).y};
+  const double length = hypot(direction.x, direction.y);
+  if (length <= 0.0) {
+    return;
+  }
+  direction.x /= length;
+  direction.y /= length;
+
+  pointf dimen = label->dimen;
+  if (GD_flip(graph)) {
+    SWAP(&dimen.x, &dimen.y);
+  }
+  const double node_x_extent = direction.x < 0.0 ? ND_lw(endpoint)
+                                                 : ND_rw(endpoint);
+  const double node_extent =
+      fabs(direction.x) * node_x_extent +
+      fabs(direction.y) * ND_ht(endpoint) / 2.0;
+  const double label_extent =
+      fabs(direction.x) * dimen.x / 2.0 + fabs(direction.y) * dimen.y / 2.0;
+  const double distance = node_extent + label_extent + ENDPOINT_LABEL_GAP;
+
+  label->pos.x = ND_coord(endpoint).x + direction.x * distance;
+  label->pos.y = ND_coord(endpoint).y + direction.y * distance;
+  if (fabs(direction.x) > 0.01) {
+    label->pos.x += copysign(2.0 * ENDPOINT_LABEL_GAP, direction.x);
+  }
+}
+
+static bool label_overlaps_any_node(graph_t *graph, const textlabel_t *label) {
+  const boxf lbl_box = label_box(graph, label);
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    if (ND_lw(node) + ND_rw(node) < ENDPOINT_LABEL_NODE_MIN ||
+        ND_ht(node) < ENDPOINT_LABEL_NODE_MIN)
+      continue;
+    if (boxes_overlap(lbl_box, node_box(node)))
+      return true;
+  }
+  return false;
+}
+
+static bool endpoint_label_uses_default_placement(edge_t *edge) {
+  return (E_labelangle == NULL || agxget(edge, E_labelangle)[0] == '\0') &&
+         (E_labeldistance == NULL || agxget(edge, E_labeldistance)[0] == '\0');
+}
+
 static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
                                                       edge_t *retained,
                                                       edge_t *duplicate) {
@@ -190,7 +243,7 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
 
 static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
                                      size_t label_count) {
-  if (label_count < 2) {
+  if (label_count == 0) {
     return;
   }
 
@@ -231,34 +284,36 @@ static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
     }
 
     for (size_t i = 0; i < label_count; i++) {
-      node_t *const anchor = labels[i].shared_anchor;
-      if (anchor == NULL)
+      if (!labels[i].needs_node_clearance)
         continue;
 
-      const boxf lbl_box = label_box(graph, labels[i].label);
-      const boxf n_box = node_box(anchor);
-      if (!label_boxes_overlap_or_touch(lbl_box, n_box))
-        continue;
+      for (node_t *node = agfstnode(graph); node != NULL;
+           node = agnxtnode(graph, node)) {
+        const boxf lbl_box = label_box(graph, labels[i].label);
+        const boxf n_box = node_box(node);
+        if (!label_boxes_overlap_or_touch(lbl_box, n_box))
+          continue;
 
-      const int x_direction =
-          labels[i].label->pos.x <= ND_coord(anchor).x ? -1 : 1;
-      const int y_direction =
-          labels[i].label->pos.y <= ND_coord(anchor).y ? -1 : 1;
-      const double anchor_gap = 2.0 * ENDPOINT_LABEL_GAP;
-      const double x_push = x_direction < 0
-                                ? lbl_box.UR.x + anchor_gap - n_box.LL.x
-                                : n_box.UR.x + anchor_gap - lbl_box.LL.x;
-      const double y_push = y_direction < 0
-                                ? lbl_box.UR.y + anchor_gap - n_box.LL.y
-                                : n_box.UR.y + anchor_gap - lbl_box.LL.y;
+        const int x_direction =
+            labels[i].label->pos.x <= ND_coord(node).x ? -1 : 1;
+        const int y_direction =
+            labels[i].label->pos.y <= ND_coord(node).y ? -1 : 1;
+        const double anchor_gap = 2.0 * ENDPOINT_LABEL_GAP;
+        const double x_push = x_direction < 0
+                                  ? lbl_box.UR.x + anchor_gap - n_box.LL.x
+                                  : n_box.UR.x + anchor_gap - lbl_box.LL.x;
+        const double y_push = y_direction < 0
+                                  ? lbl_box.UR.y + anchor_gap - n_box.LL.y
+                                  : n_box.UR.y + anchor_gap - lbl_box.LL.y;
 
-      if (x_push <= y_push) {
-        labels[i].label->pos.x += (double)x_direction * x_push;
-      } else {
-        labels[i].label->pos.y += (double)y_direction * y_push;
+        if (x_push <= y_push) {
+          labels[i].label->pos.x += (double)x_direction * x_push;
+        } else {
+          labels[i].label->pos.y += (double)y_direction * y_push;
+        }
+        updateBB(graph, labels[i].label);
+        moved = true;
       }
-      updateBB(graph, labels[i].label);
-      moved = true;
     }
     if (!moved) {
       break;
@@ -845,11 +900,18 @@ finish:
           if (ED_head_label(out_edge)) {
             if (ED_head_label(out_edge)->set ||
                 place_portlabel(out_edge, true)) {
+              const bool needs_node_clearance =
+                  has_grouped_flat_endpoint(out_edge) &&
+                  endpoint_label_uses_default_placement(out_edge) &&
+                  label_overlaps_any_node(g, ED_head_label(out_edge));
+              if (needs_node_clearance)
+                place_grouped_endpoint_label_outside_node(g, out_edge, true);
               updateBB(g, ED_head_label(out_edge));
               endpoint_labels[endpoint_label_count++] = (endpoint_label_t){
                   .label = ED_head_label(out_edge),
-                  .shared_anchor =
-                      has_shared_endpoint_anchor(out_edge, true) ? n : NULL};
+                  .edge = out_edge,
+                  .head_p = true,
+                  .needs_node_clearance = needs_node_clearance};
             }
           }
         }
@@ -858,14 +920,46 @@ finish:
         for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
           if (ED_tail_label(e)) {
             if (ED_tail_label(e)->set || place_portlabel(e, false)) {
+              const bool needs_node_clearance =
+                  has_grouped_flat_endpoint(e) &&
+                  endpoint_label_uses_default_placement(e) &&
+                  label_overlaps_any_node(g, ED_tail_label(e));
+              if (needs_node_clearance)
+                place_grouped_endpoint_label_outside_node(g, e, false);
               updateBB(g, ED_tail_label(e));
               endpoint_labels[endpoint_label_count++] = (endpoint_label_t){
                   .label = ED_tail_label(e),
-                  .shared_anchor =
-                      has_shared_endpoint_anchor(e, false) ? n : NULL};
+                  .edge = e,
+                  .head_p = false,
+                  .needs_node_clearance = needs_node_clearance};
             }
           }
         }
+      }
+    }
+    for (size_t label_index = 0; label_index < endpoint_label_count;
+         label_index++) {
+      if (!endpoint_labels[label_index].needs_node_clearance)
+        continue;
+      node_t *const endpoint =
+          endpoint_labels[label_index].head_p
+              ? aghead(endpoint_labels[label_index].edge)
+              : agtail(endpoint_labels[label_index].edge);
+      for (size_t sibling_index = 0; sibling_index < endpoint_label_count;
+           sibling_index++) {
+        if (endpoint_labels[sibling_index].needs_node_clearance)
+          continue;
+        node_t *const other_endpoint =
+            endpoint_labels[sibling_index].head_p
+                ? aghead(endpoint_labels[sibling_index].edge)
+                : agtail(endpoint_labels[sibling_index].edge);
+        if (other_endpoint != endpoint)
+          continue;
+        endpoint_labels[sibling_index].needs_node_clearance = true;
+        place_grouped_endpoint_label_outside_node(
+            g, endpoint_labels[sibling_index].edge,
+            endpoint_labels[sibling_index].head_p);
+        updateBB(g, endpoint_labels[sibling_index].label);
       }
     }
     separate_endpoint_labels(g, endpoint_labels, endpoint_label_count);

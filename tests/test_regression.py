@@ -4956,6 +4956,17 @@ def _drawn_label_texts(edge: dict) -> list[str]:
     ]
 
 
+def _edge_label_draw_streams(edge: dict, include_endpoint: bool = False) -> list[list[dict]]:
+    """Read main and endpoint edge label xdot streams."""
+
+    streams = ("_ldraw_", "_hldraw_", "_tldraw_") if include_endpoint else ("_ldraw_",)
+    return [
+        edge.get(stream, [])
+        for stream in streams
+        if stream in edge
+    ]
+
+
 def _edge_label_texts(source: str) -> list[str]:
     """Read text emitted by all edge label draw streams."""
 
@@ -4966,32 +4977,40 @@ def _edge_label_texts(source: str) -> list[str]:
     ]
 
 
-def _edge_label_boxes(source: str) -> list[tuple[str, tuple[float, float, float, float]]]:
+def _edge_label_boxes(
+    source: str, include_endpoint: bool = False
+) -> list[tuple[str, tuple[float, float, float, float]]]:
     """Read approximate edge-label boxes from JSON xdot label streams."""
 
     boxes = []
     for edge in json.loads(dot("json", source=source))["edges"]:
-        font_size = 14.0
-        for operation in edge.get("_ldraw_", []):
-            if operation["op"] == "F":
-                font_size = float(operation.get("size", font_size))
-            if operation["op"] != "T":
-                continue
-            x, y = operation["pt"]
-            width = float(operation.get("width", 0.0))
-            align = operation.get("align", "c")
-            if align == "l":
-                left = x
-            elif align == "r":
-                left = x - width
-            else:
-                left = x - width / 2
-            boxes.append(
-                (
-                    operation["text"],
-                    (left, y - 0.3 * font_size, left + width, y + 0.9 * font_size),
+        for stream in _edge_label_draw_streams(edge, include_endpoint):
+            font_size = 14.0
+            for operation in stream:
+                if operation["op"] == "F":
+                    font_size = float(operation.get("size", font_size))
+                if operation["op"] != "T":
+                    continue
+                x, y = operation["pt"]
+                width = float(operation.get("width", 0.0))
+                align = operation.get("align", "c")
+                if align == "l":
+                    left = x
+                elif align == "r":
+                    left = x - width
+                else:
+                    left = x - width / 2
+                boxes.append(
+                    (
+                        operation["text"],
+                        (
+                            left,
+                            y - 0.3 * font_size,
+                            left + width,
+                            y + 0.9 * font_size,
+                        ),
+                    )
                 )
-            )
     return boxes
 
 
@@ -5073,6 +5092,25 @@ def test_concentrated_duplicate_self_edge_labels_sit_clear_of_drawing(fixture: s
                 assert _point_segment_distance(
                     ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2), start, end
                 ) > min(box[2] - box[0], box[3] - box[1]) / 2
+
+
+def test_2814_grouped_endpoint_labels_sit_clear_of_nodes():
+    """Grouped flat endpoint labels should not be separated into node boxes."""
+
+    source = (Path(__file__).parent / "2814.dot").read_text()
+    layout = json.loads(dot("json", source=source))
+    boxes = [
+        (text, box)
+        for text, box in _edge_label_boxes(source, include_endpoint=True)
+        if text in {"Edg2", "Edg3", "Edg4", "Edg5"}
+    ]
+    assert {text for text, _ in boxes} == {"Edg2", "Edg3", "Edg4", "Edg5"}
+
+    for text, box in boxes:
+        for node_name, node_box in _node_boxes(layout):
+            assert not _boxes_overlap(box, node_box), (text, node_name)
+    for (_, first), (_, second) in itertools.combinations(boxes, 2):
+        assert _box_gap(first, second) >= 2.0
 
 
 def _arrow_polygon_point_count(edge: dict, endpoint: str) -> int:
