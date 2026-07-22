@@ -6959,14 +6959,14 @@ def test_concentrate_color_list_identity_matches_parse_segs_fractions():
     )
 
 
-def test_concentrate_color_list_identity_counts_empty_lanes():
-    """Parallel color-list rendering counts every colon as a lane separator."""
+def test_concentrate_color_list_identity_skips_empty_lanes():
+    """Parallel color-list rendering skips empty strtok lanes."""
 
     _assert_concentrated_edge_counts(
         "",
         (
             _edge_count_case(
-                2,
+                1,
                 'a -> b [dir=none color="red::blue"]',
                 'a -> b [dir=none color="red:blue"]',
             ),
@@ -8079,6 +8079,19 @@ def test_concentrate_matches_equivalent_color_spellings(splines: str):
         "a -> b [color=red fillcolor=red]",
     )
     assert _drawn_edge_colors(fillcolor_defaults_to_color) == ["#ff0000"]
+
+
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_non_segmented_color_lists_ignore_empty_lanes(splines: str):
+    """Parallel color-list rendering skips empty strtok lanes."""
+
+    empty_lane_spellings = _concentrated_graph(
+        splines,
+        'a -> b [dir=none color=":red"]',
+        'a -> b [dir=none color="red:"]',
+        "a -> b [dir=none color=red]",
+    )
+    assert _drawn_edge_colors(empty_lane_spellings) == ["#ff0000"]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

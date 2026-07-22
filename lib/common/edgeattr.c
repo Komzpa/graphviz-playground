@@ -454,8 +454,8 @@ static void append_html_image_identity_slots(agxbuf *signature,
 
   agxbclear(&field);
   agxbprint(&field, "%s:scale", slot_prefix);
-  const char *const scale = image->scale != NULL ? image->scale
-                                                 : fallback_imagescale;
+  const char *const scale =
+      image->scale != NULL ? image->scale : fallback_imagescale;
   const char *canonical_scale = "false";
   if (scale != NULL) {
     if (strcasecmp(scale, "width") == 0) {
@@ -749,7 +749,8 @@ static bool parse_color_segment_fraction(strview_t *segment, double *fraction) {
 }
 
 static normalized_color_segment_t *
-normalized_color_segments(const char *color_list, size_t *segment_count) {
+normalized_color_segments(const char *color_list, bool skip_empty_segments,
+                          size_t *segment_count) {
   size_t capacity = 1;
   for (const char *p = color_list; *p != '\0'; p++) {
     if (*p == ':') {
@@ -772,6 +773,13 @@ normalized_color_segments(const char *color_list, size_t *segment_count) {
       free(segments);
       *segment_count = 0;
       return NULL;
+    }
+    if (skip_empty_segments && color.size == 0) {
+      if (segment_end == NULL) {
+        break;
+      }
+      segment_start = segment_end + 1;
+      continue;
     }
     if (fraction > left) {
       fraction = left;
@@ -836,9 +844,11 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
                                          const char *slot_name,
                                          const char *color_list,
                                          bool reverse_orientation) {
+  const bool has_explicit_segments =
+      color_list_has_explicit_segments(color_list);
   size_t segment_count = 0;
-  normalized_color_segment_t *const segments =
-      normalized_color_segments(color_list, &segment_count);
+  normalized_color_segment_t *const segments = normalized_color_segments(
+      color_list, !has_explicit_segments, &segment_count);
   if (segments == NULL) {
     append_plain_signature_slot(signature, slot_name, color_list);
     return;
@@ -847,11 +857,11 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
   agxbuf rendered_list = {0};
   char *const previous_color_scheme =
       setColorScheme(agget(edge, "colorscheme"));
-  const bool has_explicit_segments =
-      color_list_has_explicit_segments(color_list);
 
-  if (segment_count == 1 && segments[0].fraction > 1.0 - 1E-5 &&
-      segments[0].fraction < 1.0 + 1E-5) {
+  const bool renders_as_single_color = segment_count == 1 &&
+                                       segments[0].fraction > 1.0 - 1E-5 &&
+                                       segments[0].fraction < 1.0 + 1E-5;
+  if (renders_as_single_color) {
     append_color_segment(&rendered_list, segments[0].color);
   } else if (!has_explicit_segments) {
     agxbput(&rendered_list, "parallel:");
@@ -878,7 +888,7 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
   free(restored_color_scheme);
   free(segments);
   append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_list));
-  if (!has_explicit_segments) {
+  if (!has_explicit_segments && !renders_as_single_color) {
     agxbuf count_slot_name = {0};
     agxbprint(&count_slot_name, "%s:lane-count", slot_name);
     agxbuf rendered_count = {0};
