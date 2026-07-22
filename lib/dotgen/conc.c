@@ -136,6 +136,47 @@ static bool has_explicit_long_minlen(edge_t *edge)
     return value[0] != '\0' && atoi(value) > 1;
 }
 
+static size_t normal_in_count(node_t *node)
+{
+    size_t count = 0;
+    for (edge_t *edge = agfstin(agraphof(node), node); edge != NULL;
+	 edge = agnxtin(agraphof(node), edge)) {
+	if (ED_edge_type(edge) == NORMAL)
+	    count++;
+    }
+    return count;
+}
+
+static bool has_normal_out(edge_t *edge)
+{
+    node_t *const node = aghead(edge);
+    for (edge_t *candidate = agfstout(agraphof(node), node); candidate != NULL;
+	 candidate = agnxtout(agraphof(node), candidate)) {
+	if (ED_edge_type(candidate) == NORMAL)
+	    return true;
+    }
+    return false;
+}
+
+static bool isolated_long_minlen_fan(edge_t *edge)
+{
+    node_t *const tail = agtail(edge);
+    if (normal_in_count(tail) != 0)
+	return false;
+
+    size_t head_count = 0;
+    for (edge_t *candidate = agfstout(agraphof(edge), tail); candidate != NULL;
+	 candidate = agnxtout(agraphof(edge), candidate)) {
+	if (ED_edge_type(candidate) != NORMAL)
+	    continue;
+	if (!has_explicit_long_minlen(candidate) || has_normal_out(candidate) ||
+	    normal_in_count(aghead(candidate)) != 1)
+	    return false;
+	head_count++;
+    }
+    return head_count > 2;
+}
+
 static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
 {
     edge_t *e0 = original_normal_edge(e);
@@ -146,7 +187,9 @@ static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
     if (agtail(e0) == agtail(f0) && aghead(e0) == aghead(f0))
 	return true;
     if (agtail(e0) == agtail(f0))
-	return has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0);
+	return (unique_original_head_count(e0) <= 2 ||
+		isolated_long_minlen_fan(e0)) &&
+	       (has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0));
     if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
 	dense_same_head_labeled_fan(e0, f0)) {
 	const bool adjacent_tails =
