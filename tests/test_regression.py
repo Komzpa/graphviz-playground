@@ -7016,6 +7016,19 @@ def test_concentrate_plain_label_identity_uses_compiled_text():
     assert len(_drawn_edges(different_justification)) == 2
 
 
+def test_concentrate_label_dedupe_keeps_distinct_rendered_label_links():
+    """Equal label text/position cannot hide different label anchors."""
+
+    source = _concentrated_graph(
+        "",
+        "a -> b [label=x labelURL=one]",
+        "a -> b [label=x labelURL=two]",
+    )
+    edges = _drawn_edges(source)
+    assert len(edges) == 2
+    assert len([edge for edge in edges if edge.get("label") == "x"]) == 2
+
+
 def test_concentrate_html_endpoint_label_identity_uses_substituted_text():
     """HTML endpoint labels emit edge substitutions, so identity must too."""
 

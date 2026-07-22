@@ -151,6 +151,9 @@ static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
   }
 }
 
+static edge_t *getmainedge(edge_t *);
+static bool concentrated_label_dedupe_match(edge_t *, edge_t *);
+
 static void dedupe_concentrated_edge_labels(graph_t *graph) {
   if (!Concentrate) {
     return;
@@ -171,10 +174,7 @@ static void dedupe_concentrated_edge_labels(graph_t *graph) {
           if (prior_edge == edge) {
             goto next_edge;
           }
-          const textlabel_t *const prior_label = ED_label(prior_edge);
-          if (prior_label != NULL && prior_label->set &&
-              strcmp(label->text, prior_label->text) == 0 &&
-              APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT)) {
+          if (concentrated_label_dedupe_match(edge, prior_edge)) {
             label->set = false;
             goto next_edge;
           }
@@ -226,6 +226,15 @@ static edge_t *getmainedge(edge_t *e) {
 
 static bool edge_has_no_labels(edge_t *edge) {
   return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
+}
+
+static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
+  const textlabel_t *const label = ED_label(edge);
+  const textlabel_t *const prior_label = ED_label(prior_edge);
+  return label != NULL && prior_label != NULL && label->set &&
+         prior_label->set && gv_edge_attributes_are_equal(prior_edge, edge) &&
+         strcmp(label->text, prior_label->text) == 0 &&
+         APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT);
 }
 
 static bool
