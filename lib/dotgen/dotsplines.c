@@ -2545,7 +2545,8 @@ static bool terminal_spline_arm(edge_t *edge, pointf junction,
   return found;
 }
 
-static bool same_junction_arm(const junction_arm_t *a, const junction_arm_t *b) {
+static bool same_junction_arm(const junction_arm_t *a,
+                              const junction_arm_t *b) {
   return a->spline == b->spline && a->endpoint == b->endpoint;
 }
 
@@ -2587,15 +2588,13 @@ static bool mean_unit_vector(const junction_arm_t *arms, size_t arm_count,
 }
 
 static void align_trunk_to_arms(graph_t *g, junction_arm_t *trunk,
-                                const junction_arm_t *arms,
-                                size_t arm_count) {
+                                const junction_arm_t *arms, size_t arm_count) {
   pointf mean;
   if (!mean_unit_vector(arms, arm_count, &mean))
     return;
 
-  trunk->spline->list[trunk->control] =
-      add_pointf(trunk->spline->list[trunk->endpoint],
-                 scale(-trunk->length, mean));
+  trunk->spline->list[trunk->control] = add_pointf(
+      trunk->spline->list[trunk->endpoint], scale(-trunk->length, mean));
   for (size_t i = 0; i + 3 < trunk->spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &trunk->spline->list[i]);
 }
