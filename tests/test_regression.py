@@ -5587,6 +5587,40 @@ def test_concentrate_backward_junction_arrows_follow_swapped_beziers():
     assert all("_hdraw_" in edge and "_tdraw_" in edge for edge in edges)
 
 
+def test_concentrate_compound_overlap_ignores_suppressed_junction_arrows():
+    """Suppressed compound junction arrows do not collapse the retained route."""
+
+    source = """
+        digraph {
+          graph [compound=true concentrate=true]
+          node [shape=point width=0.05 height=0.05]
+          subgraph cluster_tail {
+            label=""
+            margin=0
+            t0
+            t1
+          }
+          subgraph cluster_head {
+            label=""
+            margin=0
+            h0
+            h1
+          }
+          {rank=same; t0; h0}
+          t0 -> h0 [ltail=cluster_tail lhead=cluster_head minlen=0 dir=both]
+          h0 -> t0 [ltail=cluster_head lhead=cluster_tail minlen=0 dir=both]
+        }
+    """
+    edges = _drawn_edges(source)
+    assert len(edges) == 1
+    points = _edge_bezier_points(edges[0])
+
+    assert all(
+        not (first == second == third)
+        for first, second, third in zip(points, points[1:], points[2:])
+    )
+
+
 def _arrowhead_shaft_angle(edge: dict) -> float:
     """Return the angle between a normal head arrow and its shaft tangent."""
 

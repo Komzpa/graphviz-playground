@@ -436,7 +436,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 	    nbez.sp = bez->sp;
     }
 
-    if (lt && lh && nbez.sflag && nbez.eflag) {
+    if (lt && lh && nbez.sflag && !nbez.suppress_sflag && nbez.eflag &&
+	!nbez.suppress_eflag) {
 	const double tail_arrow =
 	    NOMINAL_ARROW_LENGTH * edge_arrow_arrowsize(e, EDGE_ARROW_START);
 	const double head_arrow =
