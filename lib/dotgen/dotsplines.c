@@ -281,6 +281,7 @@ static Agedge_t *top_bound(Agedge_t *, int);
 static void align_concentrated_route_tangents(graph_t *, edge_t *);
 static void align_arrow_tangents(graph_t *, edge_t *);
 static void align_flat_arrow_tangents_in_graph(graph_t *);
+static void align_concentrated_junction_trunks(graph_t *);
 
 static edge_t *getmainedge(edge_t *e) {
   edge_t *le = e;
@@ -755,6 +756,7 @@ static int dot_splines_(graph_t *g, int normalize) {
 
   /* normalize splines so they always go from tail to head */
   /* place_portlabel relies on this being done first */
+  align_concentrated_junction_trunks(g);
   if (normalize)
     edge_normalize(g);
 
@@ -2529,6 +2531,156 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
 
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+typedef struct {
+  bezier *spline;
+  size_t endpoint;
+  size_t control;
+  pointf vector;
+  double length;
+} junction_arm_t;
+
+static bool terminal_spline_arm(edge_t *edge, pointf junction,
+                                junction_arm_t *arm) {
+  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+  if (ED_spl(edge) == NULL)
+    return false;
+
+  double best = 1.0;
+  bool found = false;
+  for (size_t i = 0; i < ED_spl(edge)->size; i++) {
+    bezier *const spline = &ED_spl(edge)->list[i];
+    if (spline->size < 4)
+      continue;
+
+    const size_t last = spline->size - 1;
+    const double start_distance = DIST(spline->list[0], junction);
+    const double end_distance = DIST(spline->list[last], junction);
+    size_t endpoint;
+    size_t control;
+    double distance;
+    if (start_distance <= end_distance) {
+      endpoint = 0;
+      control = 1;
+      distance = start_distance;
+    } else {
+      endpoint = last;
+      control = last - 1;
+      distance = end_distance;
+    }
+    if (distance > best)
+      continue;
+
+    const pointf vector =
+        sub_pointf(spline->list[control], spline->list[endpoint]);
+    const double length = hypot(vector.x, vector.y);
+    if (length <= MILLIPOINT)
+      continue;
+
+    *arm = (junction_arm_t){.spline = spline,
+                            .endpoint = endpoint,
+                            .control = control,
+                            .vector = vector,
+                            .length = length};
+    best = distance;
+    found = true;
+  }
+  return found;
+}
+
+static bool same_junction_arm(const junction_arm_t *a, const junction_arm_t *b) {
+  return a->spline == b->spline && a->endpoint == b->endpoint;
+}
+
+static size_t collect_junction_arms(edge_t **edges, int count, pointf junction,
+                                    junction_arm_t *arms, size_t arm_count) {
+  for (int i = 0; i < count; i++) {
+    junction_arm_t arm;
+    if (!terminal_spline_arm(edges[i], junction, &arm))
+      continue;
+
+    bool seen = false;
+    for (size_t j = 0; j < arm_count; j++) {
+      if (same_junction_arm(&arms[j], &arm)) {
+        seen = true;
+        break;
+      }
+    }
+    if (!seen)
+      arms[arm_count++] = arm;
+  }
+  return arm_count;
+}
+
+static bool mean_unit_vector(const junction_arm_t *arms, size_t arm_count,
+                             pointf *mean) {
+  *mean = (pointf){0};
+  for (size_t i = 0; i < arm_count; i++) {
+    mean->x += arms[i].vector.x / arms[i].length;
+    mean->y += arms[i].vector.y / arms[i].length;
+  }
+
+  const double length = hypot(mean->x, mean->y);
+  if (length <= MILLIPOINT)
+    return false;
+
+  mean->x /= length;
+  mean->y /= length;
+  return true;
+}
+
+static void align_trunk_to_arms(graph_t *g, junction_arm_t *trunk,
+                                const junction_arm_t *arms,
+                                size_t arm_count) {
+  pointf mean;
+  if (!mean_unit_vector(arms, arm_count, &mean))
+    return;
+
+  trunk->spline->list[trunk->control] =
+      add_pointf(trunk->spline->list[trunk->endpoint],
+                 scale(-trunk->length, mean));
+  for (size_t i = 0; i + 3 < trunk->spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &trunk->spline->list[i]);
+}
+
+static void align_concentrated_junction_trunk(graph_t *g, node_t *node) {
+  const int incoming_count = ND_in(node).size;
+  const int outgoing_count = ND_out(node).size;
+  if (!((incoming_count == 1 && outgoing_count >= 2) ||
+        (outgoing_count == 1 && incoming_count >= 2)))
+    return;
+
+  const size_t max_arms = (size_t)incoming_count + (size_t)outgoing_count;
+  junction_arm_t *const incoming = gv_calloc(max_arms, sizeof(junction_arm_t));
+  junction_arm_t *const outgoing = gv_calloc(max_arms, sizeof(junction_arm_t));
+  const pointf junction = ND_coord(node);
+  const size_t incoming_arms = collect_junction_arms(
+      ND_in(node).list, incoming_count, junction, incoming, 0);
+  const size_t outgoing_arms = collect_junction_arms(
+      ND_out(node).list, outgoing_count, junction, outgoing, 0);
+
+  if (incoming_arms == 1 && outgoing_arms >= 2)
+    align_trunk_to_arms(g, &incoming[0], outgoing, outgoing_arms);
+  else if (outgoing_arms == 1 && incoming_arms >= 2)
+    align_trunk_to_arms(g, &outgoing[0], incoming, incoming_arms);
+
+  free(incoming);
+  free(outgoing);
+}
+
+static void align_concentrated_junction_trunks(graph_t *g) {
+  if (!Concentrate)
+    return;
+
+  for (int rank = GD_minrank(g); rank <= GD_maxrank(g); rank++) {
+    for (int i = 0; i < GD_rank(g)[rank].n; i++) {
+      node_t *const node = GD_rank(g)[rank].v[i];
+      if (spline_merge(node))
+        align_concentrated_junction_trunk(g, node);
+    }
+  }
 }
 
 static bool bezier_intersects_box(const pointf control[4], boxf obstacle) {
