@@ -7104,6 +7104,41 @@ def test_concentrate_html_table_identity_uses_parsed_tree():
     )
 
 
+def test_concentrate_html_table_identity_uses_layout_fields():
+    """Table layout attributes change rendered HTML label geometry."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                2,
+                'a -> b [label=<<TABLE CELLPADDING="2"><TR><TD>x</TD></TR></TABLE>>]',
+                'a -> b [label=<<TABLE CELLPADDING="10"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                2,
+                'b -> c [label=<<TABLE CELLSPACING="2"><TR><TD>x</TD></TR></TABLE>>]',
+                'b -> c [label=<<TABLE CELLSPACING="10"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                2,
+                'c -> d [label=<<TABLE WIDTH="20"><TR><TD>x</TD></TR></TABLE>>]',
+                'c -> d [label=<<TABLE WIDTH="60"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                2,
+                'd -> e [label=<<TABLE FIXEDSIZE="false"><TR><TD>x</TD></TR></TABLE>>]',
+                'd -> e [label=<<TABLE FIXEDSIZE="true" WIDTH="60" HEIGHT="40"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                2,
+                'e -> f [label=<<TABLE ALIGN="LEFT"><TR><TD>x</TD></TR></TABLE>>]',
+                'e -> f [label=<<TABLE ALIGN="RIGHT"><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+        ),
+    )
+
+
 def test_concentrate_html_table_border_identity_uses_pencolor():
     """HTML table borders inherit edge pencolor before color."""
 

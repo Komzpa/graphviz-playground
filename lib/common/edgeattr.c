@@ -329,6 +329,21 @@ static void append_html_data_identity_slots(agxbuf *signature,
   agxbclear(&rendered_number);
 
   agxbclear(&field);
+  agxbprint(&field, "%s:layout", slot_prefix);
+  agxbprint(&rendered_number, "%d:%u:%hhu:%hhu:%hu:%hu", data->space,
+            data->border, data->pad, data->sides, data->width, data->height);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+  agxbclear(&rendered_number);
+
+  agxbclear(&field);
+  agxbprint(&field, "%s:flags", slot_prefix);
+  agxbprint(&rendered_number, "%hu", data->flags);
+  append_plain_signature_slot(signature, agxbuse(&field),
+                              agxbuse(&rendered_number));
+  agxbclear(&rendered_number);
+
+  agxbclear(&field);
   agxbprint(&field, "%s:style", slot_prefix);
   agxbprint(&rendered_number, "%d:%d:%d:%d:%d", data->style.radial,
             data->style.rounded, data->style.invisible, data->style.dotted,
