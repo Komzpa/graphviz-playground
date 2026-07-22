@@ -379,8 +379,7 @@ same_direction_edges_are_concentrated_duplicates(edge_t *retained,
   return retained != candidate && agtail(retained) == agtail(candidate) &&
          aghead(retained) == aghead(candidate) &&
          edge_has_no_labels(retained) && edge_has_no_labels(candidate) &&
-         portcmp(ED_tail_port(retained), ED_tail_port(candidate)) == 0 &&
-         portcmp(ED_head_port(retained), ED_head_port(candidate)) == 0 &&
+         gv_edge_ports_are_equal(retained, candidate) &&
          gv_edge_attributes_are_equal(retained, candidate) &&
          same_direction_edge_arrow_decorations_are_mergeable(retained,
                                                              candidate);
@@ -730,9 +729,7 @@ static int dot_splines_(graph_t *g, int normalize) {
         makefwdedge(&fwdedgeb.out, eb);
         eb = &fwdedgeb.out;
       }
-      if (portcmp(ED_tail_port(ea), ED_tail_port(eb)))
-        break;
-      if (portcmp(ED_head_port(ea), ED_head_port(eb)))
+      if (!gv_edge_ports_are_equal(ea, eb))
         break;
       if ((ED_tree_index(e0) & EDGETYPEMASK) == FLATEDGE &&
           ED_label(e0) != ED_label(e1))
@@ -1019,10 +1016,12 @@ static int edgecmp(const void *p0, const void *p1) {
     makefwdedge(&fwdedgeb.out, eb);
     eb = &fwdedgeb.out;
   }
-  if ((rv = portcmp(ED_tail_port(ea), ED_tail_port(eb))))
-    return rv;
-  if ((rv = portcmp(ED_head_port(ea), ED_head_port(eb))))
-    return rv;
+  if (!gv_edge_ports_are_equal(ea, eb)) {
+    if ((rv = portcmp(ED_tail_port(ea), ED_tail_port(eb))))
+      return rv;
+    if ((rv = portcmp(ED_head_port(ea), ED_head_port(eb))))
+      return rv;
+  }
 
   et0 = ED_tree_index(e0) & GRAPHTYPEMASK;
   et1 = ED_tree_index(e1) & GRAPHTYPEMASK;

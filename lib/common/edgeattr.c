@@ -1154,6 +1154,116 @@ static port edge_endpoint_port(Agedge_t *edge, edge_endpoint_t endpoint) {
                                         : ED_tail_port(edge);
 }
 
+static const char *edge_endpoint_port_attribute(Agedge_t *edge,
+                                                edge_endpoint_t endpoint) {
+  if (ED_to_orig(edge) != NULL) {
+    return "";
+  }
+  return agget(edge, endpoint == EDGE_HEAD_ENDPOINT ? HEAD_ID : TAIL_ID);
+}
+
+static bool string_view_equals(strview_t view, const char *string) {
+  return strlen(string) == view.size &&
+         strncmp(view.data, string, view.size) == 0;
+}
+
+static bool compass_point_name_is_valid(strview_t name) {
+  static const char *const names[] = {"_",  "c", "e",  "n",  "ne",
+                                      "nw", "s", "se", "sw", "w"};
+  for (size_t i = 0; i < ATTRIBUTE_COUNT(names); i++) {
+    if (string_view_equals(name, names[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool record_field_id_matches(field_t *field, strview_t id) {
+  if (field == NULL) {
+    return false;
+  }
+  if (field->id != NULL && string_view_equals(id, field->id)) {
+    return true;
+  }
+  for (int i = 0; i < field->n_flds; i++) {
+    if (record_field_id_matches(field->fld[i], id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool record_port_id_resolves(node_t *node, strview_t id) {
+  return ND_shape(node) != NULL &&
+         (strcmp(ND_shape(node)->name, "record") == 0 ||
+          strcmp(ND_shape(node)->name, "Mrecord") == 0) &&
+         record_field_id_matches(ND_shape_info(node), id);
+}
+
+static bool html_port_id_resolves(node_t *node, strview_t id) {
+  if (ND_label(node) == NULL || !ND_label(node)->html) {
+    return false;
+  }
+
+  char *const id_string = gv_strndup(id.data, id.size);
+  unsigned char sides = 0;
+  const bool resolves = html_port(node, id_string, &sides) != NULL;
+  free(id_string);
+  return resolves;
+}
+
+static bool node_port_id_resolves(node_t *node, strview_t id) {
+  return record_port_id_resolves(node, id) || html_port_id_resolves(node, id);
+}
+
+static void append_string_view(agxbuf *buffer, strview_t view) {
+  agxbprint(buffer, "%.*s", (int)view.size, view.data);
+}
+
+static bool append_declared_endpoint_port_anchor(agxbuf *buffer, node_t *node,
+                                                 const char *declared) {
+  if (declared == NULL || declared[0] == '\0') {
+    return false;
+  }
+
+  const char *const separator = strchr(declared, ':');
+  const strview_t id =
+      separator == NULL
+          ? (strview_t){.data = declared, .size = strlen(declared)}
+          : (strview_t){.data = declared,
+                        .size = (size_t)(separator - declared)};
+  if (id.size > 0) {
+    if (node_port_id_resolves(node, id)) {
+      agxbput(buffer, "field:");
+      append_string_view(buffer, id);
+      const strview_t compass =
+          separator == NULL ? (strview_t){0}
+                            : (strview_t){.data = separator + 1,
+                                          .size = strlen(separator + 1)};
+      if (compass.size > 0 && compass_point_name_is_valid(compass)) {
+        agxbputc(buffer, ':');
+        append_string_view(buffer, compass);
+      }
+      return true;
+    }
+    if (separator == NULL && compass_point_name_is_valid(id)) {
+      agxbput(buffer, "compass:");
+      append_string_view(buffer, id);
+      return true;
+    }
+    return false;
+  }
+
+  const strview_t compass = {.data = separator + 1,
+                             .size = strlen(separator + 1)};
+  if (!compass_point_name_is_valid(compass)) {
+    return false;
+  }
+  agxbput(buffer, "compass:");
+  append_string_view(buffer, compass);
+  return true;
+}
+
 static void append_structured_port_slots(agxbuf *signature, Agedge_t *edge,
                                          bool reverse_orientation) {
   for (edge_endpoint_t endpoint = EDGE_TAIL_ENDPOINT;
@@ -1167,9 +1277,18 @@ static void append_structured_port_slots(agxbuf *signature, Agedge_t *edge,
     if (!resolved_port.defined) {
       continue;
     }
-
+    node_t *const source_node =
+        source_endpoint == EDGE_HEAD_ENDPOINT ? aghead(edge) : agtail(edge);
+    const char *const declared_port =
+        edge_endpoint_port_attribute(edge, source_endpoint);
     agxbuf resolved_value = {0};
-    agxbprint(&resolved_value, "%a,%a,%d,%d", resolved_port.p.x,
+    if (!append_declared_endpoint_port_anchor(&resolved_value, source_node,
+                                              declared_port)) {
+      agxbfree(&resolved_value);
+      continue;
+    }
+
+    agxbprint(&resolved_value, "|%a,%a,%d,%d", resolved_port.p.x,
               resolved_port.p.y, resolved_port.constrained, resolved_port.dyna);
     append_plain_signature_slot(
         signature, endpoint == EDGE_HEAD_ENDPOINT ? "headport" : "tailport",
@@ -1880,17 +1999,47 @@ static bool edge_rendered_identities_are_equal(Agedge_t *first_edge,
   return equal;
 }
 
-static bool port_values_are_equal(port first_port, port second_port) {
-  return first_port.defined == second_port.defined &&
-         (!first_port.defined || (first_port.p.x == second_port.p.x &&
-                                  first_port.p.y == second_port.p.y));
+static char *project_endpoint_port_identity(Agedge_t *edge,
+                                            edge_endpoint_t endpoint) {
+  const port resolved_port = edge_endpoint_port(edge, endpoint);
+  agxbuf identity = {0};
+  if (!resolved_port.defined) {
+    return gv_strdup("");
+  }
+
+  node_t *const node =
+      endpoint == EDGE_HEAD_ENDPOINT ? aghead(edge) : agtail(edge);
+  const char *const declared_port =
+      edge_endpoint_port_attribute(edge, endpoint);
+  if (!append_declared_endpoint_port_anchor(&identity, node, declared_port)) {
+    agxbclear(&identity);
+    return gv_strdup("");
+  }
+
+  agxbprint(&identity, "|%a,%a,%d,%d", resolved_port.p.x, resolved_port.p.y,
+            resolved_port.constrained, resolved_port.dyna);
+  return agxbdisown(&identity);
+}
+
+static bool edge_endpoint_ports_are_equal(Agedge_t *first_edge,
+                                          edge_endpoint_t first_endpoint,
+                                          Agedge_t *second_edge,
+                                          edge_endpoint_t second_endpoint) {
+  char *const first =
+      project_endpoint_port_identity(first_edge, first_endpoint);
+  char *const second =
+      project_endpoint_port_identity(second_edge, second_endpoint);
+  const bool equal = strcmp(first, second) == 0;
+  free(first);
+  free(second);
+  return equal;
 }
 
 bool gv_edge_ports_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
   for (edge_endpoint_t endpoint = EDGE_TAIL_ENDPOINT;
        endpoint < EDGE_ENDPOINT_COUNT; endpoint++) {
-    if (!port_values_are_equal(edge_endpoint_port(first_edge, endpoint),
-                               edge_endpoint_port(second_edge, endpoint))) {
+    if (!edge_endpoint_ports_are_equal(first_edge, endpoint, second_edge,
+                                       endpoint)) {
       return false;
     }
   }
@@ -1904,9 +2053,8 @@ bool gv_opposite_edge_ports_are_equal(Agedge_t *first_edge,
     const edge_endpoint_t second_endpoint = first_endpoint == EDGE_HEAD_ENDPOINT
                                                 ? EDGE_TAIL_ENDPOINT
                                                 : EDGE_HEAD_ENDPOINT;
-    if (!port_values_are_equal(
-            edge_endpoint_port(first_edge, first_endpoint),
-            edge_endpoint_port(second_edge, second_endpoint))) {
+    if (!edge_endpoint_ports_are_equal(first_edge, first_endpoint, second_edge,
+                                       second_endpoint)) {
       return false;
     }
   }

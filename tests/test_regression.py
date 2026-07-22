@@ -4907,6 +4907,13 @@ def test_concentrate_positive_route_gain(
     _assert_concentrate_route_gain(source, plain_count, concentrate_count)
 
 
+def test_concentrate_issue_2764_bogus_record_ports_still_merge():
+    """Unresolved record ports fall back to center and remain concentratable."""
+
+    source = Path(__file__).with_name("2764.dot").read_text(encoding="utf-8")
+    _assert_concentrate_route_gain(source, 5, 4)
+
+
 def _drawn_edge_color(edge: dict) -> str:
     """Read the pen color from an edge's xdot ``c`` operation."""
 

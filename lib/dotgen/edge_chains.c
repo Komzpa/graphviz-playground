@@ -469,6 +469,9 @@ void build_edge_chains(graph_t *graph) {
         if (suppress_concentrated_cluster_edge_with_opposite(edge)) {
           continue;
         }
+        if (route_concentrated_parallel_edge(graph, edge)) {
+          continue;
+        }
         if (mergeable(previous_edge, edge)) {
           if (ED_to_virt(previous_edge) != NULL) {
             merge_chain(graph, edge, ED_to_virt(previous_edge), false);

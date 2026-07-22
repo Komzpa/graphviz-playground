@@ -228,10 +228,10 @@ static bool bothdowncandidates(node_t * u, node_t * v)
 	edge_t *f0 = original_normal_edge(f);
 	return original_edges_have_same_rank_direction(e, f)
 	    && rendered_edges_are_equal(f0, e0)
-	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0
+	    && gv_edge_ports_are_equal(e, f)
 	    && original_tails_are_same_or_adjacent(e, f)
 	    && e0 != NULL && f0 != NULL
-	    && portcmp(ED_head_port(e0), ED_head_port(f0)) == 0;
+	    && gv_edge_ports_are_equal(e0, f0);
     }
     return false;
 }
@@ -252,10 +252,9 @@ static bool bothupcandidates(node_t * u, node_t * v)
 	edge_t *f0 = original_normal_edge(f);
 	return original_edges_have_same_rank_direction(e, f)
 	    && rendered_edges_are_equal(f0, e0)
-	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0
+	    && gv_edge_ports_are_equal(e, f)
 	    && original_tails_are_same_or_adjacent(e, f)
-	    && (agtail(e0) != agtail(f0)
-		|| portcmp(ED_tail_port(e0), ED_tail_port(f0)) == 0);
+	    && (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
     }
     return false;
 }

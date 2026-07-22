@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <common/edgeattr.h>
 #include <common/geomprocs.h>
 #include <dotgen/dot.h>
 #include <dotgen/aspect.h>
@@ -1028,13 +1029,7 @@ static void make_leafslots(graph_t * g)
 
 int ports_eq(edge_t * e, edge_t * f)
 {
-    return ED_head_port(e).defined == ED_head_port(f).defined
-	    && ((ED_head_port(e).p.x == ED_head_port(f).p.x &&
-		 ED_head_port(e).p.y == ED_head_port(f).p.y)
-		|| !ED_head_port(e).defined)
-	    && ((ED_tail_port(e).p.x == ED_tail_port(f).p.x &&
-		 ED_tail_port(e).p.y == ED_tail_port(f).p.y)
-		|| !ED_tail_port(e).defined);
+    return gv_edge_ports_are_equal(e, f);
 }
 
 static void expand_leaves(graph_t * g)
