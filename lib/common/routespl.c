@@ -1004,8 +1004,8 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
 		                                 candidate_attribute_edge) &&
 		    same_direction_edge_arrow_decorations_are_mergeable(
 			retained_attribute_edge, candidate_attribute_edge)) {
-		    fold_concentrated_edge_arrow_decorations(retained, candidate,
-		                                             false);
+			    fold_concentrated_edge_arrow_decorations(
+				retained_attribute_edge, candidate_attribute_edge, false);
 		    ED_edge_type(candidate) = IGNORED;
 		}
 	    }

@@ -4266,21 +4266,31 @@ def test_2416():
 def test_curved_concentrated_attributed_edges_do_not_crash():
     """Curved route concentration compares original edges, not virtual pieces."""
 
-    source = b"""
-        digraph {
-          graph [concentrate=true splines=curved]
-          a -> c [minlen=3 color=red]
-          a -> c [minlen=3 color=red]
-        }
-    """
-    proc = subprocess.run(
-        [which("dot"), "-Tjson"],
-        input=source,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stderr.decode(errors="replace")
+    for source in (
+        b"""
+            digraph {
+              graph [concentrate=true splines=curved]
+              a -> c [minlen=3 color=red]
+              a -> c [minlen=3 color=red]
+            }
+        """,
+        b"""
+            digraph {
+              graph [concentrate=true splines=curved]
+              a -> b -> c -> d
+              a -> d [minlen=3 color=red]
+              a -> d [minlen=3 color=red]
+            }
+        """,
+    ):
+        proc = subprocess.run(
+            [which("dot"), "-Tjson"],
+            input=source,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr.decode(errors="replace")
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
