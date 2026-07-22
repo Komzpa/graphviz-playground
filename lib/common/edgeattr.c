@@ -290,7 +290,11 @@ static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
                                     bool allow_color_list,
                                     bool reverse_orientation);
 
-enum { DEFAULT_HTML_CELLPADDING = 2 };
+enum {
+  DEFAULT_HTML_BORDER = 1,
+  DEFAULT_HTML_CELLPADDING = 2,
+  DEFAULT_HTML_CELLSPACING = 2,
+};
 
 static unsigned char html_table_identity_pad(const htmltbl_t *table) {
   return (table->data.flags & PAD_SET) ? table->data.pad
@@ -302,15 +306,30 @@ static unsigned short html_table_identity_flags(const htmltbl_t *table) {
   if (html_table_identity_pad(table) == DEFAULT_HTML_CELLPADDING) {
     flags &= (unsigned short)~PAD_SET;
   }
+  if (table->data.space == DEFAULT_HTML_CELLSPACING) {
+    flags &= (unsigned short)~SPACE_SET;
+  }
+  if (table->data.border == DEFAULT_HTML_BORDER) {
+    flags &= (unsigned short)~BORDER_SET;
+  }
   return flags;
 }
 
-static void append_html_data_identity_slots(agxbuf *signature,
-                                            const char *slot_prefix,
-                                            Agedge_t *edge,
-                                            const htmldata_t *data,
-                                            unsigned char layout_pad,
-                                            unsigned short layout_flags) {
+static unsigned short html_data_effective_flags(const htmldata_t *data) {
+  unsigned short flags = data->flags;
+  if (data->border == DEFAULT_HTML_BORDER) {
+    flags &= (unsigned short)~BORDER_SET;
+  }
+  if (!(flags & FIXED_FLAG)) {
+    flags &= (unsigned short)~(HALIGN_MASK | VALIGN_MASK);
+  }
+  return flags;
+}
+
+static void append_html_data_identity_slots(
+    agxbuf *signature, const char *slot_prefix, Agedge_t *edge,
+    const htmldata_t *data, signed char layout_space, unsigned char layout_pad,
+    unsigned short layout_flags, bool pencolor_visible) {
   agxbuf field = {0};
   agxbprint(&field, "%s:border", slot_prefix);
   agxbuf rendered_number = {0};
@@ -322,13 +341,14 @@ static void append_html_data_identity_slots(agxbuf *signature,
   agxbclear(&field);
   agxbprint(&field, "%s:cellborder-set", slot_prefix);
   append_plain_signature_slot(signature, agxbuse(&field),
-                              (data->flags & BORDER_SET) ? "true" : "false");
+                              (layout_flags & BORDER_SET) ? "true" : "false");
 
   agxbclear(&field);
   agxbprint(&field, "%s:pencolor", slot_prefix);
   append_edge_color_value(
       signature, edge, agxbuse(&field),
-      plain_attribute_value(data->pencolor == NULL ? "" : data->pencolor),
+      plain_attribute_value(
+          !pencolor_visible || data->pencolor == NULL ? "" : data->pencolor),
       false, false);
 
   agxbclear(&field);
@@ -340,7 +360,10 @@ static void append_html_data_identity_slots(agxbuf *signature,
 
   agxbclear(&field);
   agxbprint(&field, "%s:gradientangle", slot_prefix);
-  agxbprint(&rendered_number, "%d", data->gradientangle);
+  agxbprint(&rendered_number, "%d",
+            data->bgcolor == NULL || data->bgcolor[0] == '\0'
+                ? 0
+                : data->gradientangle);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
   agxbclear(&rendered_number);
@@ -354,8 +377,9 @@ static void append_html_data_identity_slots(agxbuf *signature,
 
   agxbclear(&field);
   agxbprint(&field, "%s:layout", slot_prefix);
-  agxbprint(&rendered_number, "%d:%u:%hhu:%hhu:%hu:%hu", data->space,
-            data->border, layout_pad, data->sides, data->width, data->height);
+  agxbprint(&rendered_number, "%d:%u:%hhu:%hhu:%a:%a", layout_space,
+            data->border, layout_pad, data->sides, data->box.UR.x,
+            data->box.UR.y);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
   agxbclear(&rendered_number);
@@ -369,7 +393,9 @@ static void append_html_data_identity_slots(agxbuf *signature,
 
   agxbclear(&field);
   agxbprint(&field, "%s:style", slot_prefix);
-  agxbprint(&rendered_number, "%d:%d:%d:%d:%d", data->style.radial,
+  agxbprint(&rendered_number, "%d:%d:%d:%d:%d",
+            data->bgcolor != NULL && data->bgcolor[0] != '\0' &&
+                data->style.radial,
             data->style.rounded, data->style.invisible, data->style.dotted,
             data->style.dashed);
   append_plain_signature_slot(signature, agxbuse(&field),
@@ -404,6 +430,8 @@ static void append_html_label_identity_slots(agxbuf *signature, Agedge_t *edge,
                                              const char *slot_prefix,
                                              const htmllabel_t *label,
                                              const char *fallback_imagescale);
+static bool html_label_has_visible_pen(const htmllabel_t *label);
+static bool html_label_may_use_fallback_font(const htmllabel_t *label);
 
 static void append_html_text_identity_slots(agxbuf *signature, Agedge_t *edge,
                                             const char *slot_prefix,
@@ -481,9 +509,9 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
                                              const char *slot_prefix,
                                              const htmltbl_t *table,
                                              const char *fallback_imagescale) {
-  append_html_data_identity_slots(signature, slot_prefix, edge, &table->data,
-                                  html_table_identity_pad(table),
-                                  html_table_identity_flags(table));
+  append_html_data_identity_slots(
+      signature, slot_prefix, edge, &table->data, table->data.space,
+      html_table_identity_pad(table), html_table_identity_flags(table), true);
 
   agxbuf field = {0};
   agxbprint(&field, "%s:shape", slot_prefix);
@@ -498,9 +526,15 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
       agxbclear(&field);
       agxbprint(&field, "%s:cell:%u:%u", slot_prefix, (*cell)->row,
                 (*cell)->col);
-      append_html_data_identity_slots(signature, agxbuse(&field), edge,
-                                      &(*cell)->data, (*cell)->data.pad,
-                                      (*cell)->data.flags);
+      const bool cell_pencolor_visible =
+          !(*cell)->data.style.invisible &&
+          ((*cell)->data.border > 0 ||
+           ((*cell)->child.kind == HTML_TBL &&
+            html_label_has_visible_pen(&(*cell)->child)));
+      append_html_data_identity_slots(
+          signature, agxbuse(&field), edge, &(*cell)->data, table->data.space,
+          (*cell)->data.pad, html_data_effective_flags(&(*cell)->data),
+          cell_pencolor_visible);
       agxbclear(&rendered_number);
       agxbprint(&rendered_number, "%u:%u:%d:%d", (*cell)->rowspan,
                 (*cell)->colspan, (*cell)->hruled, (*cell)->vruled);
@@ -508,11 +542,13 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
       append_plain_signature_slot(signature, agxbuse(&field),
                                   agxbuse(&rendered_number));
 
-      agxbclear(&field);
-      agxbprint(&field, "%s:cell:%u:%u:child", slot_prefix, (*cell)->row,
-                (*cell)->col);
-      append_html_label_identity_slots(signature, edge, agxbuse(&field),
-                                       &(*cell)->child, fallback_imagescale);
+      if (!(*cell)->data.style.invisible) {
+        agxbclear(&field);
+        agxbprint(&field, "%s:cell:%u:%u:child", slot_prefix, (*cell)->row,
+                  (*cell)->col);
+        append_html_label_identity_slots(signature, edge, agxbuse(&field),
+                                         &(*cell)->child, fallback_imagescale);
+      }
     }
   }
   agxbfree(&rendered_number);
@@ -545,8 +581,60 @@ static void append_html_label_identity_slots(agxbuf *signature, Agedge_t *edge,
   }
 }
 
+static bool html_text_may_use_fallback_font(const htmltxt_t *text) {
+  for (size_t i = 0; i < text->nspans; i++) {
+    const htextspan_t *span = &text->spans[i];
+    for (size_t j = 0; j < span->nitems; j++) {
+      const textspan_t *item = &span->items[j];
+      if (item->font == NULL || item->font->name == NULL ||
+          item->font->color == NULL || item->font->size == 0.0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool html_table_may_use_fallback_font(const htmltbl_t *table) {
+  if (table->cells == NULL) {
+    return false;
+  }
+  for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+    if (html_label_may_use_fallback_font(&(*cell)->child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool html_label_may_use_fallback_font(const htmllabel_t *label) {
+  switch (label->kind) {
+  case HTML_TBL:
+    return html_table_may_use_fallback_font(label->u.tbl);
+  case HTML_TEXT:
+    return html_text_may_use_fallback_font(label->u.txt);
+  case HTML_IMAGE:
+  case HTML_UNSET:
+    return false;
+  }
+  return false;
+}
+
 static bool color_may_use_colorscheme(const char *color) {
-  return color != NULL && color[0] >= '0' && color[0] <= '9';
+  if (color == NULL) {
+    return false;
+  }
+  for (const char *item = color; *item != '\0'; item++) {
+    if (item == color || item[-1] == ':') {
+      while (*item == ' ' || *item == '\t') {
+        item++;
+      }
+      if (*item >= '0' && *item <= '9') {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 static bool html_data_may_use_colorscheme(const htmldata_t *data) {
@@ -592,6 +680,38 @@ static bool html_label_may_use_colorscheme(const htmllabel_t *label) {
     return html_table_may_use_colorscheme(label->u.tbl);
   case HTML_TEXT:
     return html_text_may_use_colorscheme(label->u.txt);
+  case HTML_IMAGE:
+  case HTML_UNSET:
+    return false;
+  }
+  return false;
+}
+
+static bool html_data_has_visible_pen(const htmldata_t *data) {
+  return !data->style.invisible && data->border > 0;
+}
+
+static bool html_table_has_visible_pen(const htmltbl_t *table) {
+  if (html_data_has_visible_pen(&table->data)) {
+    return true;
+  }
+  if (table->cells == NULL) {
+    return false;
+  }
+  for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+    if (html_data_has_visible_pen(&(*cell)->data) ||
+        html_label_has_visible_pen(&(*cell)->child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool html_label_has_visible_pen(const htmllabel_t *label) {
+  switch (label->kind) {
+  case HTML_TBL:
+    return html_table_has_visible_pen(label->u.tbl);
+  case HTML_TEXT:
   case HTML_IMAGE:
   case HTML_UNSET:
     return false;
@@ -870,6 +990,11 @@ static bool color_list_has_explicit_segments(const char *color_list) {
   return strchr(color_list, ';') != NULL;
 }
 
+static bool color_list_renders_as_segmented_multicolor(const char *color_list) {
+  return color_list != NULL && strchr(color_list, ';') != NULL &&
+         strchr(color_list, ':') != NULL;
+}
+
 static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
                                          const char *slot_name,
                                          const char *color_list,
@@ -996,7 +1121,7 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
     agxbfree(&rendered_label);
   }
 
-  if (label->html) {
+  if (label->html && !html_label_may_use_fallback_font(label->u.html)) {
     agxbfree(&slot_name);
     return;
   }
@@ -1388,6 +1513,20 @@ static void append_projected_attribute_value(agxbuf *signature,
     return;
   }
 
+  if (strcmp(classification.name, "radius") == 0 && !value.is_html) {
+    char *end = NULL;
+    const double radius =
+        value.text[0] == '\0' ? 0.0 : strtod(value.text, &end);
+    if (value.text[0] == '\0' || end != value.text) {
+      agxbuf rendered_number = {0};
+      agxbprint(&rendered_number, "%a", radius);
+      append_plain_signature_slot(signature, slot_name,
+                                  agxbuse(&rendered_number));
+      agxbfree(&rendered_number);
+      return;
+    }
+  }
+
   if (facts->style && !value.is_html && value.text[0] == '\0') {
     value = plain_attribute_value("solid");
   }
@@ -1451,6 +1590,9 @@ static bool edge_uses_tapered_style(Agedge_t *edge) {
 static void append_taper_direction_slot(agxbuf *signature, Agedge_t *edge,
                                         bool reverse_orientation) {
   if (!edge_uses_tapered_style(edge)) {
+    return;
+  }
+  if (color_list_renders_as_segmented_multicolor(agget(edge, "color"))) {
     return;
   }
 
