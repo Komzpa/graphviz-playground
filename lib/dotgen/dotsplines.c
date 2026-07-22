@@ -1401,51 +1401,6 @@ static void straighten_flat_port_progression(bezier *spline) {
   }
 }
 
-static bool large_outgoing_fan(edge_t *edge) {
-  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
-    edge = ED_to_orig(edge);
-
-  graph_t *const graph = agraphof(agtail(edge));
-  node_t *const tail = agtail(edge);
-  size_t distinct_heads = 0;
-
-  for (edge_t *candidate = agfstout(graph, tail); candidate != NULL;
-       candidate = agnxtout(graph, candidate)) {
-    node_t *const head = aghead(candidate);
-    bool seen = false;
-    for (edge_t *prior = agfstout(graph, tail); prior != candidate;
-         prior = agnxtout(graph, prior)) {
-      if (aghead(prior) == head) {
-        seen = true;
-        break;
-      }
-    }
-    if (!seen && ++distinct_heads >= 4)
-      return true;
-  }
-  return false;
-}
-
-static void straighten_fan_terminal_control(edge_t *edge) {
-  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
-    edge = ED_to_orig(edge);
-
-  if (!large_outgoing_fan(edge) || ED_spl(edge) == NULL ||
-      ED_spl(edge)->size == 0)
-    return;
-
-  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
-  if (spline->size < 4)
-    return;
-
-  const size_t control = spline->size - 2;
-  const pointf start = spline->list[0];
-  const pointf end = spline->list[spline->size - 1];
-  const double fraction = (double)control / (double)(spline->size - 1);
-  spline->list[control].x = start.x + (end.x - start.x) * fraction;
-  spline->list[control].y = start.y + (end.y - start.y) * fraction;
-}
-
 static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   const pointf tail_center = ND_coord(agtail(edge));
   const pointf head_center = ND_coord(aghead(edge));
@@ -2949,7 +2904,6 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_SYNC(&pointfs);
     clip_and_install(fe, hn, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs), &sinfo);
     align_concentrated_route_tangents(g, fe);
-    straighten_fan_terminal_control(fe);
     LIST_FREE(&pointfs);
     LIST_FREE(&pointfs2);
     return;
