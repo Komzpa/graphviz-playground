@@ -653,26 +653,31 @@ static void append_html_table_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
                                               bool parent_anchor_open,
                                               size_t *anchor_index) {
   const bool table_anchor_open =
-      parent_anchor_open || (table->data.href != NULL &&
-                             table->data.href[0] != '\0') ||
+      parent_anchor_open ||
+      (table->data.href != NULL && table->data.href[0] != '\0') ||
       (table->data.title != NULL && table->data.title[0] != '\0');
   append_html_data_hyperlink_slots(signature, edge, slot_prefix, &table->data,
                                    parent_anchor_open, anchor_index);
   if (table->cells == NULL) {
     return;
   }
+  agxbuf field = {0};
   for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
     const bool cell_anchor_open =
-        table_anchor_open || ((*cell)->data.href != NULL &&
-                              (*cell)->data.href[0] != '\0') ||
+        table_anchor_open ||
+        ((*cell)->data.href != NULL && (*cell)->data.href[0] != '\0') ||
         ((*cell)->data.title != NULL && (*cell)->data.title[0] != '\0');
-    append_html_data_hyperlink_slots(signature, edge, slot_prefix,
+    agxbclear(&field);
+    agxbprint(&field, "%s:cell:%u:%u", slot_prefix, (*cell)->row, (*cell)->col);
+    append_html_data_hyperlink_slots(signature, edge, agxbuse(&field),
                                      &(*cell)->data, table_anchor_open,
                                      anchor_index);
-    append_html_label_hyperlink_slots(signature, edge, slot_prefix,
+    agxbput(&field, ":child");
+    append_html_label_hyperlink_slots(signature, edge, agxbuse(&field),
                                       &(*cell)->child, cell_anchor_open,
                                       anchor_index);
   }
+  agxbfree(&field);
 }
 
 static void append_html_label_hyperlink_slots(agxbuf *signature, Agedge_t *edge,

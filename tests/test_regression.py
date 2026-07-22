@@ -6780,6 +6780,11 @@ def test_concentrate_html_table_anchor_identity_matches_emit_gate():
                 'i -> j [label=<<TABLE TOOLTIP="tip"><TR><TD TARGET="one">x</TD></TR></TABLE>>]',
                 'i -> j [label=<<TABLE TOOLTIP="tip"><TR><TD TARGET="two">x</TD></TR></TABLE>>]',
             ),
+            _edge_count_case(
+                2,
+                'k -> l [headlabel=<<TABLE BORDER="0"><TR><TD HREF="u">x</TD><TD>y</TD></TR></TABLE>>]',
+                'k -> l [headlabel=<<TABLE BORDER="0"><TR><TD>x</TD><TD HREF="u">y</TD></TR></TABLE>>]',
+            ),
         ),
     )
 
