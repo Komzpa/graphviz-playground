@@ -7139,6 +7139,21 @@ def test_concentrate_html_table_identity_uses_layout_fields():
     )
 
 
+def test_concentrate_html_br_align_identity_uses_span_justification():
+    """BR ALIGN changes multiline text placement."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                2,
+                'a -> b [label=<left<BR ALIGN="LEFT"/>x>]',
+                'a -> b [label=<left<BR ALIGN="RIGHT"/>x>]',
+            ),
+        ),
+    )
+
+
 def test_concentrate_html_table_border_identity_uses_pencolor():
     """HTML table borders inherit edge pencolor before color."""
 

@@ -371,6 +371,13 @@ static void append_html_text_identity_slots(agxbuf *signature, Agedge_t *edge,
 
   for (size_t i = 0; i < text->nspans; i++) {
     const htextspan_t *span = &text->spans[i];
+    agxbclear(&field);
+    agxbprint(&field, "%s:%zu:just", slot_prefix, i);
+    agxbclear(&rendered_number);
+    agxbprint(&rendered_number, "%hhd", span->just);
+    append_plain_signature_slot(signature, agxbuse(&field),
+                                agxbuse(&rendered_number));
+
     for (size_t j = 0; j < span->nitems; j++) {
       const textspan_t *item = &span->items[j];
       agxbclear(&field);
