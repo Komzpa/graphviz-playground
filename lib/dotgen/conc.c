@@ -18,6 +18,7 @@
 #include <common/edgeattr.h>
 #include	<dotgen/dot.h>
 #include	<stdbool.h>
+#include	<string.h>
 
 #define		UP		0
 #define		DOWN	1
@@ -192,6 +193,9 @@ static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
 	       (has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0));
     if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
 	dense_same_head_labeled_fan(e0, f0)) {
+	if (strchr(ED_label(e0)->text, ' ') != NULL &&
+	    strchr(ED_label(f0)->text, ' ') != NULL)
+	    return true;
 	const bool adjacent_tails =
 	    ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
 	    ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));

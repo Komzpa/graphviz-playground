@@ -299,10 +299,29 @@ static bool edge_has_no_labels(edge_t *edge) {
 static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   const textlabel_t *const label = ED_label(edge);
   const textlabel_t *const prior_label = ED_label(prior_edge);
-  return label != NULL && prior_label != NULL && label->set &&
-         prior_label->set && gv_edge_attributes_are_equal(prior_edge, edge) &&
-         strcmp(label->text, prior_label->text) == 0 &&
-         APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT);
+  if (label == NULL || prior_label == NULL || !label->set ||
+      !prior_label->set || !gv_edge_attributes_are_equal(prior_edge, edge) ||
+      strcmp(label->text, prior_label->text) != 0) {
+    return false;
+  }
+  if (APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT)) {
+    return true;
+  }
+  if (aghead(edge) != aghead(prior_edge)) {
+    return false;
+  }
+
+  size_t matching_labels = 0;
+  for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
+       candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
+    const textlabel_t *const candidate_label = ED_label(candidate);
+    if (candidate_label != NULL &&
+        gv_edge_attributes_are_equal(edge, candidate) &&
+        strcmp(label->text, candidate_label->text) == 0) {
+      matching_labels++;
+    }
+  }
+  return matching_labels >= 3;
 }
 
 static bool
