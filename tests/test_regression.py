@@ -5659,29 +5659,33 @@ def test_concentrate_compound_overlap_ignores_suppressed_junction_arrows():
     )
 
 
-def _arrowhead_shaft_angle(edge: dict) -> float:
-    """Return the angle between a normal head arrow and its shaft tangent."""
+def _arrowhead_shaft_angle(edge: dict, stream: str = "_hdraw_") -> float:
+    """Return the angle between a normal arrow and its shaft tangent."""
 
-    bezier = next(
-        operation["points"]
-        for operation in reversed(edge["_draw_"])
-        if operation["op"] == "b"
-    )
     polygon = next(
         operation["points"]
-        for operation in edge["_hdraw_"]
+        for operation in edge[stream]
         if operation["op"] == "P"
     )
     assert len(polygon) == 3
+    tip = polygon[1]
+    bezier, endpoint_index = min(
+        (
+            (operation["points"], endpoint_index)
+            for operation in edge["_draw_"]
+            if operation["op"] == "b"
+            for endpoint_index in (0, len(operation["points"]) - 1)
+        ),
+        key=lambda candidate: math.dist(candidate[0][candidate[1]], tip),
+    )
     base_midpoint = (
         (polygon[0][0] + polygon[2][0]) / 2,
         (polygon[0][1] + polygon[2][1]) / 2,
     )
-    endpoint = bezier[-1]
+    endpoint = bezier[endpoint_index]
+    oriented = bezier if endpoint_index == 0 else list(reversed(bezier))
     prior = next(
-        point
-        for point in reversed(bezier[:-1])
-        if math.dist(point, endpoint) > 0.001
+        point for point in oriented[1:] if math.dist(point, endpoint) > 0.001
     )
     shaft = (endpoint[0] - prior[0], endpoint[1] - prior[1])
     arrow_axis = (
@@ -7865,6 +7869,60 @@ def test_concentrate_multiedge_arrowheads_follow_shaft_tangents():
     drawn_edges = _drawn_edges(_BACKWARD_PARALLEL_COLORS_FIXTURE)
     assert len(drawn_edges) == 2
     assert max(_arrowhead_shaft_angle(edge) for edge in drawn_edges) <= 0.1
+
+
+def test_concentrate_single_route_arrowhead_follows_smoothed_tangent():
+    """Post-route smoothing cannot leave a single route's arrow axis stale."""
+
+    source = """
+        digraph {
+          graph [concentrate=true]
+          subgraph cluster_a {
+            n49 -> n53 [label=int]
+            n55
+          }
+          subgraph cluster_b {
+            n50 -> n61
+            n49 -> n61
+          }
+          n55 -> n57 [label=exe, dir=back]
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    edge = _drawn_edge_between(layout, "n55", "n57")
+
+    assert _arrowhead_shaft_angle(edge, "_tdraw_") <= 2
+
+
+def test_concentrate_smoothing_preserves_terminal_departure():
+    """Interior smoothing does not turn a clipped terminal arm inward."""
+
+    source = """
+        digraph {
+          graph [concentrate=true]
+          node [shape=doublecircle]
+          running
+          lost
+          node [shape=circle]
+          { rank=min; running_rta [label="running;\\nreconnect\\ntimer\\nactive"] }
+          running [label="running;\\nreconnect\\ntimer\\nstopped"]
+          blocked
+          failfast [label="fail I/O\\nfast"]
+          running -> running_rta [label="fast_io_fail_tmo = off and\\ndev_loss_tmo = off;\\nsrp_start_tl_fail_timers()"]
+          running_rta -> running [label="fast_io_fail_tmo = off and\\ndev_loss_tmo = off;\\nreconnecting succeeded"]
+          running -> blocked [label="fast_io_fail_tmo >= 0 or\\ndev_loss_tmo >= 0;\\nsrp_start_tl_fail_timers()"]
+          blocked -> failfast [label="fast_io_fail_tmo\\nexpired or\\nreconnecting\\nfailed"]
+          blocked -> lost [label="dev_loss_tmo\\nexpired or\\nsrp_stop_rport_timers()"]
+          failfast -> lost [label="dev_loss_tmo\\nexpired or\\nsrp_stop_rport_timers()"]
+          failfast -> failfast [label="reconnecting\\nfailed"]
+          running -> lost [label="srp_stop_rport_timers()"]
+          running_rta -> lost [label="srp_stop_rport_timers()"]
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    edge = _drawn_edge_between(layout, "running_rta", "lost")
+
+    _assert_endpoint_departure(layout, edge, "tail")
 
 
 def test_concentrate_multiedge_routes_clear_non_endpoint_nodes():

@@ -1740,6 +1740,8 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
   points[pointn++] = hp;
   clip_and_install(e, aghead(e), points, pointn, &sinfo);
   align_concentrated_route_tangents(agraphof(tn), e);
+  if (Concentrate)
+    align_arrow_tangents(agraphof(tn), e);
   ED_label(e)->pos.x = ctrx;
   ED_label(e)->pos.y = tp.y + (ED_label(e)->dimen.y + LBL_SPACE) / 2.0;
   ED_label(e)->set = true;
@@ -1793,6 +1795,8 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
     ED_label(e)->set = true;
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
     align_concentrated_route_tangents(agraphof(tn), e);
+    if (Concentrate)
+      align_arrow_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -1835,6 +1839,8 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
     align_concentrated_route_tangents(agraphof(tn), e);
+    if (Concentrate)
+      align_arrow_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -2202,6 +2208,8 @@ static void make_flat_labeled_edge(graph_t *g, const spline_info_t sp, path *P,
   }
   clip_and_install(e, aghead(e), ps, pn, &sinfo);
   align_concentrated_route_tangents(g, e);
+  if (Concentrate)
+    align_arrow_tangents(g, e);
   if (ps_needs_free)
     free(ps);
 }
@@ -2276,6 +2284,8 @@ static void make_flat_bottom_edges(graph_t *g, const spline_info_t sp, path *P,
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
     align_concentrated_route_tangents(g, e);
+    if (Concentrate)
+      align_arrow_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -2400,6 +2410,8 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
     align_concentrated_route_tangents(g, e);
+    if (Concentrate)
+      align_arrow_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -2683,9 +2695,49 @@ static int turn_sign(double angle) {
   return angle < 0 ? -1 : 1;
 }
 
-static void smooth_alternating_concentrated_controls(bezier *spline) {
+static double terminal_departure(node_t *node, pointf endpoint,
+                                 pointf control) {
+  const pointf normal = sub_pointf(endpoint, ND_coord(node));
+  const pointf departure = sub_pointf(control, endpoint);
+  return normal.x * departure.x + normal.y * departure.y;
+}
+
+static node_t *node_nearest_spline_endpoint(edge_t *edge, pointf endpoint) {
+  edge = getmainedge(edge);
+  node_t *const tail = agtail(edge);
+  node_t *const head = aghead(edge);
+  return DIST(endpoint, ND_coord(tail)) <= DIST(endpoint, ND_coord(head))
+             ? tail
+             : head;
+}
+
+static void restore_outward_terminal_controls(bezier *spline, edge_t *edge,
+                                              pointf start_control,
+                                              pointf end_control) {
+  const size_t last = spline->size - 1;
+  node_t *const start_node =
+      node_nearest_spline_endpoint(edge, spline->list[0]);
+  node_t *const end_node =
+      node_nearest_spline_endpoint(edge, spline->list[last]);
+
+  // Smoothing may reshape an outward arm, but must not reverse it into its
+  // physical endpoint node. Restore only the arm whose sign was reversed.
+  if (terminal_departure(start_node, spline->list[0], start_control) > 0 &&
+      terminal_departure(start_node, spline->list[0], spline->list[1]) <= 0)
+    spline->list[1] = start_control;
+  if (terminal_departure(end_node, spline->list[last], end_control) > 0 &&
+      terminal_departure(end_node, spline->list[last],
+                         spline->list[last - 1]) <= 0)
+    spline->list[last - 1] = end_control;
+}
+
+static void smooth_alternating_concentrated_controls(bezier *spline,
+                                                     edge_t *edge) {
   if (spline->size <= 4)
     return;
+
+  const pointf start_control = spline->list[1];
+  const pointf end_control = spline->list[spline->size - 2];
 
   bool alternating = false;
   bool repeated_interior_corner = false;
@@ -2730,6 +2782,7 @@ static void smooth_alternating_concentrated_controls(bezier *spline) {
       spline->list[i] =
           add_pointf(chord_point, scale(sin(M_PI * t), peak_offset));
     }
+    restore_outward_terminal_controls(spline, edge, start_control, end_control);
     return;
   }
 
@@ -2757,6 +2810,7 @@ static void smooth_alternating_concentrated_controls(bezier *spline) {
     spline->list[i].x = start.x + chord.x * t;
     spline->list[i].y = start.y + chord.y * t;
   }
+  restore_outward_terminal_controls(spline, edge, start_control, end_control);
 }
 
 static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
@@ -2780,7 +2834,7 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
        ED_label(main_edge) != NULL || ED_head_label(main_edge) != NULL ||
        ED_tail_label(main_edge) != NULL ||
        has_grouped_flat_endpoint(main_edge)))
-    smooth_alternating_concentrated_controls(spline);
+    smooth_alternating_concentrated_controls(spline, main_edge);
   if (!merged_tail && !merged_head && !bidirectional_concentration)
     return;
 
@@ -3219,6 +3273,8 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_SYNC(&pointfs);
     clip_and_install(fe, hn, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs), &sinfo);
     align_concentrated_route_tangents(g, fe);
+    if (Concentrate)
+      align_arrow_tangents(g, fe);
     LIST_FREE(&pointfs);
     LIST_FREE(&pointfs2);
     return;
