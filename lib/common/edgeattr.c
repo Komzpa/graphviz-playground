@@ -1541,9 +1541,7 @@ static bool hyperlink_target_anchor_is_present(Agraph_t *root_graph,
                (attribute_identity_t){.owner = owner,
                                       .kind = ATTRIBUTE_KIND_URL}) ||
            edge_has_explicit_owner_kind(root_graph, edge, owner,
-                                        ATTRIBUTE_KIND_TOOLTIP) ||
-           edge_has_explicit_owner_kind(root_graph, edge, ATTRIBUTE_OWNER_EDGE,
-                                        ATTRIBUTE_KIND_URL);
+                                        ATTRIBUTE_KIND_TOOLTIP);
   }
 
   if (owner == ATTRIBUTE_OWNER_HEAD || owner == ATTRIBUTE_OWNER_TAIL) {
