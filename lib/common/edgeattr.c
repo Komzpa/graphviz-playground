@@ -602,6 +602,7 @@ static bool edge_has_endpoint_label(Agedge_t *edge) {
 static void append_html_label_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
                                               const char *slot_prefix,
                                               const htmllabel_t *label,
+                                              bool parent_anchor_open,
                                               size_t *anchor_index);
 
 static void append_html_data_hyperlink_field(agxbuf *signature, Agedge_t *edge,
@@ -624,9 +625,14 @@ static void append_html_data_hyperlink_field(agxbuf *signature, Agedge_t *edge,
 static void append_html_data_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
                                              const char *slot_prefix,
                                              const htmldata_t *data,
+                                             bool parent_anchor_open,
                                              size_t *anchor_index) {
-  if ((data->href == NULL || data->href[0] == '\0') &&
-      (data->title == NULL || data->title[0] == '\0')) {
+  const bool has_url = data->href != NULL && data->href[0] != '\0';
+  const bool has_tooltip = data->title != NULL && data->title[0] != '\0';
+  const bool has_target = data->target != NULL && data->target[0] != '\0';
+  const bool has_id = data->id != NULL && data->id[0] != '\0';
+  if (!has_url && !has_tooltip &&
+      (!parent_anchor_open || (!has_target && !has_id))) {
     return;
   }
 
@@ -644,28 +650,41 @@ static void append_html_data_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
 static void append_html_table_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
                                               const char *slot_prefix,
                                               const htmltbl_t *table,
+                                              bool parent_anchor_open,
                                               size_t *anchor_index) {
+  const bool table_anchor_open =
+      parent_anchor_open || (table->data.href != NULL &&
+                             table->data.href[0] != '\0') ||
+      (table->data.title != NULL && table->data.title[0] != '\0');
   append_html_data_hyperlink_slots(signature, edge, slot_prefix, &table->data,
-                                   anchor_index);
+                                   parent_anchor_open, anchor_index);
   if (table->cells == NULL) {
     return;
   }
   for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+    const bool cell_anchor_open =
+        table_anchor_open || ((*cell)->data.href != NULL &&
+                              (*cell)->data.href[0] != '\0') ||
+        ((*cell)->data.title != NULL && (*cell)->data.title[0] != '\0');
     append_html_data_hyperlink_slots(signature, edge, slot_prefix,
-                                     &(*cell)->data, anchor_index);
+                                     &(*cell)->data, table_anchor_open,
+                                     anchor_index);
     append_html_label_hyperlink_slots(signature, edge, slot_prefix,
-                                      &(*cell)->child, anchor_index);
+                                      &(*cell)->child, cell_anchor_open,
+                                      anchor_index);
   }
 }
 
 static void append_html_label_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
                                               const char *slot_prefix,
                                               const htmllabel_t *label,
+                                              bool parent_anchor_open,
                                               size_t *anchor_index) {
   switch (label->kind) {
   case HTML_TBL:
     append_html_table_hyperlink_slots(signature, edge, slot_prefix,
-                                      label->u.tbl, anchor_index);
+                                      label->u.tbl, parent_anchor_open,
+                                      anchor_index);
     return;
   case HTML_TEXT:
   case HTML_IMAGE:
@@ -950,7 +969,7 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
     }
     size_t anchor_index = 0;
     append_html_label_hyperlink_slots(signature, edge, slot_prefix,
-                                      label->u.html, &anchor_index);
+                                      label->u.html, false, &anchor_index);
   } else {
     agxbuf rendered_label = {0};
     for (size_t i = 0; i < label->u.txt.nspans; i++) {

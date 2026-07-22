@@ -6770,6 +6770,16 @@ def test_concentrate_html_table_anchor_identity_matches_emit_gate():
                 'e -> f [headlabel=<<TABLE HREF="u" TARGET="one" ID="one"><TR><TD>x</TD></TR></TABLE>>]',
                 'f -> e [taillabel=<<TABLE HREF="u" TARGET="two" ID="two"><TR><TD>x</TD></TR></TABLE>>]',
             ),
+            _edge_count_case(
+                2,
+                'g -> h [headlabel=<<TABLE HREF="u"><TR><TD TARGET="one">x</TD></TR></TABLE>>]',
+                'h -> g [taillabel=<<TABLE HREF="u"><TR><TD TARGET="two">x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                2,
+                'i -> j [label=<<TABLE TOOLTIP="tip"><TR><TD TARGET="one">x</TD></TR></TABLE>>]',
+                'i -> j [label=<<TABLE TOOLTIP="tip"><TR><TD TARGET="two">x</TD></TR></TABLE>>]',
+            ),
         ),
     )
 
