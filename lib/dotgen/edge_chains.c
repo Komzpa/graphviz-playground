@@ -303,8 +303,8 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
     edge_t *const concentrated_representative =
         find_prior_concentrated_representative(graph, backward_edge);
     if (concentrated_representative != NULL) {
-      fold_concentrated_edge_arrow_decorations(
-          concentrated_representative, backward_edge, false);
+      fold_concentrated_edge_arrow_decorations(concentrated_representative,
+                                               backward_edge, false);
       ED_edge_type(backward_edge) = IGNORED;
       return true;
     }
@@ -320,10 +320,10 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
     const bool is_available = ED_edge_type(opposite_edge) != IGNORED;
 
     if (connects_same_nodes && !is_self_edge && is_available) {
-      const bool compatible_endpoints = edge_has_no_labels(backward_edge) &&
-                                        edge_has_no_labels(opposite_edge) &&
-                                        gv_opposite_edge_ports_are_equal(
-                                            backward_edge, opposite_edge);
+      const bool compatible_endpoints =
+          edge_has_no_labels(backward_edge) &&
+          edge_has_no_labels(opposite_edge) &&
+          gv_opposite_edge_ports_are_equal(backward_edge, opposite_edge);
       if (compatible_endpoints) {
         if (Concentrate &&
             gv_opposite_edge_attributes_are_equal(backward_edge,
@@ -398,7 +398,7 @@ static bool suppress_concentrated_cluster_edge_with_opposite(edge_t *edge) {
         gv_opposite_edge_ports_are_equal(edge, opposite_edge) &&
         gv_opposite_edge_attributes_are_equal(edge, opposite_edge) &&
         opposite_direction_edge_arrow_decorations_are_mergeable(opposite_edge,
-                                                                 edge)) {
+                                                                edge)) {
       fold_concentrated_edge_arrow_decorations(opposite_edge, edge, true);
       ED_edge_type(edge) = IGNORED;
       ED_conc_opp_flag(opposite_edge) = true;

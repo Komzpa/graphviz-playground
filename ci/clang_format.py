@@ -185,7 +185,6 @@ EXCLUDE = (
     "lib/common/utils.c",
     "lib/dotgen/acyclic.c",
     "lib/dotgen/class1.c",
-    "lib/dotgen/edge_chains.c",
     "lib/dotgen/cluster.c",
     "lib/dotgen/compound.c",
     "lib/dotgen/conc.c",
