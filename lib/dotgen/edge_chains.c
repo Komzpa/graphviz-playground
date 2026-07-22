@@ -125,12 +125,17 @@ void merge_chain(graph_t *graph, edge_t *original_edge,
   assert(ED_to_virt(original_edge) == NULL);
   ED_to_virt(original_edge) = first_virtual_edge;
   edge_t *representative_edge = first_virtual_edge;
+  bool is_endpoint_segment = true;
   do {
     /* interclust multi-edges are not counted now */
     if (update_count) {
       ED_count(representative_edge) += ED_count(original_edge);
       ED_xpenalty(representative_edge) += ED_xpenalty(original_edge);
-      ED_weight(representative_edge) += ED_weight(original_edge);
+      const bool reaches_original_endpoint =
+          ND_rank(aghead(representative_edge)) == last_rank;
+      if (is_endpoint_segment || reaches_original_endpoint) {
+        ED_weight(representative_edge) += ED_weight(original_edge);
+      }
     }
     if (ND_rank(aghead(representative_edge)) == last_rank) {
       break;
@@ -139,6 +144,7 @@ void merge_chain(graph_t *graph, edge_t *original_edge,
       widen_virtual_node(graph, aghead(representative_edge));
     }
     representative_edge = ND_out(aghead(representative_edge)).list[0];
+    is_endpoint_segment = false;
   } while (representative_edge != NULL);
 }
 
