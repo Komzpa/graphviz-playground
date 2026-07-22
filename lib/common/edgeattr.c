@@ -354,6 +354,28 @@ static void append_html_data_identity_slots(agxbuf *signature,
   agxbfree(&field);
 }
 
+static void append_html_font_color(agxbuf *rendered_number, Agedge_t *edge,
+                                   const char *color_name) {
+  if (color_name == NULL || color_name[0] == '\0') {
+    return;
+  }
+
+  char *const previous_color_scheme =
+      setColorScheme(agget(edge, "colorscheme"));
+  gvcolor_t color;
+  const int result = colorxlate(color_name, &color, RGBA_BYTE);
+  char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+  free(previous_color_scheme);
+  free(restored_color_scheme);
+
+  if (result == COLOR_OK) {
+    agxbprint(rendered_number, "#%02x%02x%02x%02x", color.u.rgba[0],
+              color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
+  } else {
+    agxbput(rendered_number, color_name);
+  }
+}
+
 static void append_html_label_identity_slots(agxbuf *signature, Agedge_t *edge,
                                              const char *slot_prefix,
                                              const htmllabel_t *label,
@@ -388,10 +410,11 @@ static void append_html_text_identity_slots(agxbuf *signature, Agedge_t *edge,
         agxbclear(&field);
         agxbprint(&field, "%s:%zu:%zu:font", slot_prefix, i, j);
         agxbclear(&rendered_number);
-        agxbprint(&rendered_number, "%s:%s:%a:%u",
-                  item->font->name == NULL ? "" : item->font->name,
-                  item->font->color == NULL ? "" : item->font->color,
-                  item->font->size, item->font->flags);
+        agxbprint(&rendered_number,
+                  "%s:", item->font->name == NULL ? "" : item->font->name);
+        append_html_font_color(&rendered_number, edge, item->font->color);
+        agxbprint(&rendered_number, ":%a:%u", item->font->size,
+                  item->font->flags);
         append_plain_signature_slot(signature, agxbuse(&field),
                                     agxbuse(&rendered_number));
       }

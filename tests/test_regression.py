@@ -7077,6 +7077,21 @@ def test_concentrate_html_label_identity_uses_colorscheme():
     )
 
 
+def test_concentrate_html_font_color_identity_uses_rendered_color():
+    """Parsed HTML font colors compare by rendered color, not spelling."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                1,
+                'a -> b [headlabel=<<FONT COLOR="red">x</FONT>>]',
+                'a -> b [headlabel=<<FONT COLOR="#ff0000">x</FONT>>]',
+            ),
+        ),
+    )
+
+
 def test_concentrate_html_label_bgcolor_identity_uses_colorscheme():
     """Scheme-relative HTML-like label backgrounds resolve at emit time."""
 
