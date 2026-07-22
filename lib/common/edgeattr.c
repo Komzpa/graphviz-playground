@@ -329,7 +329,10 @@ static void append_html_data_identity_slots(agxbuf *signature,
 
   agxbclear(&field);
   agxbprint(&field, "%s:bgcolor", slot_prefix);
-  append_nullable_plain_field(signature, agxbuse(&field), data->bgcolor);
+  append_edge_color_value(
+      signature, edge, agxbuse(&field),
+      plain_attribute_value(data->bgcolor == NULL ? "" : data->bgcolor), false,
+      false);
 
   agxbclear(&field);
   agxbprint(&field, "%s:gradientangle", slot_prefix);
