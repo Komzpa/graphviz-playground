@@ -989,6 +989,16 @@ static bool color_list_has_explicit_segments(const char *color_list) {
   return strchr(color_list, ';') != NULL;
 }
 
+static size_t raw_color_lane_count(const char *color_list) {
+  size_t lane_count = 1;
+  for (const char *p = color_list; *p != '\0'; p++) {
+    if (*p == ':') {
+      lane_count++;
+    }
+  }
+  return lane_count;
+}
+
 static bool color_list_renders_as_segmented_multicolor(const char *color_list) {
   return color_list != NULL && strchr(color_list, ';') != NULL &&
          strchr(color_list, ':') != NULL;
@@ -1000,6 +1010,8 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
                                          bool reverse_orientation) {
   const bool has_explicit_segments =
       color_list_has_explicit_segments(color_list);
+  const size_t raw_lane_count =
+      has_explicit_segments ? 0 : raw_color_lane_count(color_list);
   size_t segment_count = 0;
   normalized_color_segment_t *const segments = normalized_color_segments(
       color_list, !has_explicit_segments, &segment_count);
@@ -1042,11 +1054,11 @@ static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
   free(restored_color_scheme);
   free(segments);
   append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_list));
-  if (!has_explicit_segments && !renders_as_single_color) {
+  if (raw_lane_count > 1) {
     agxbuf count_slot_name = {0};
     agxbprint(&count_slot_name, "%s:lane-count", slot_name);
     agxbuf rendered_count = {0};
-    agxbprint(&rendered_count, "%zu", segment_count);
+    agxbprint(&rendered_count, "%zu", raw_lane_count);
     append_plain_signature_slot(signature, agxbuse(&count_slot_name),
                                 agxbuse(&rendered_count));
     agxbfree(&rendered_count);

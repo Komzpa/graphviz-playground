@@ -7242,14 +7242,18 @@ def test_concentrate_color_list_identity_matches_parse_segs_fractions():
     )
 
 
-def test_concentrate_color_list_identity_skips_empty_lanes():
-    """Parallel color-list rendering skips empty strtok lanes."""
+def test_concentrate_color_list_identity_keeps_empty_lanes():
+    """Empty color-list lanes change the stroke count, so they stay distinct.
+
+    color="red::blue" renders three parallel-stroke lanes (raw colon
+    count) while "red:blue" renders two; the identity keeps them
+    separate."""
 
     _assert_concentrated_edge_counts(
         "",
         (
             _edge_count_case(
-                1,
+                2,
                 'a -> b [dir=none color="red::blue"]',
                 'a -> b [dir=none color="red:blue"]',
             ),
@@ -8499,8 +8503,13 @@ def test_concentrate_matches_equivalent_color_spellings(splines: str):
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
-def test_concentrate_non_segmented_color_lists_ignore_empty_lanes(splines: str):
-    """Parallel color-list rendering skips empty strtok lanes."""
+def test_concentrate_non_segmented_color_lists_preserve_empty_lanes(splines: str):
+    """Empty color-list lanes shift parallel strokes, so they stay distinct.
+
+    emit_edge_graphics() counts raw colons into numc and offsets the
+    parallel strokes, so color="red:" renders shifted relative to
+    color=red; the identity must keep them apart.  ":red" and "red:"
+    share the same lane count and may merge with each other."""
 
     empty_lane_spellings = _concentrated_graph(
         splines,
@@ -8508,7 +8517,7 @@ def test_concentrate_non_segmented_color_lists_ignore_empty_lanes(splines: str):
         'a -> b [dir=none color="red:"]',
         "a -> b [dir=none color=red]",
     )
-    assert _drawn_edge_colors(empty_lane_spellings) == ["#ff0000"]
+    assert _drawn_edge_colors(empty_lane_spellings) == ["#ff0000", "#ff0000"]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))

@@ -187,7 +187,6 @@ EXCLUDE = (
     "lib/dotgen/class1.c",
     "lib/dotgen/cluster.c",
     "lib/dotgen/compound.c",
-    "lib/dotgen/conc.c",
     "lib/dotgen/decomp.c",
     "lib/dotgen/dot.h",
     "lib/dotgen/dotinit.c",

@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright (c) 2011 AT&T Intellectual Property 
+ * Copyright (c) 2011 AT&T Intellectual Property
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v2.0
  * which accompanies this distribution, and is available at
@@ -8,7 +8,6 @@
  * Contributors: Details at https://graphviz.org
  *************************************************************************/
 
-
 /*
  *	build edge_t concentrators for parallel edges with a common endpoint
  */
@@ -16,437 +15,435 @@
 #include "config.h"
 
 #include <common/edgeattr.h>
-#include	<dotgen/dot.h>
-#include	<stdbool.h>
-#include	<string.h>
+#include <dotgen/dot.h>
+#include <stdbool.h>
+#include <string.h>
 
-#define		UP		0
-#define		DOWN	1
+#define UP 0
+#define DOWN 1
 
-static edge_t *original_normal_edge(edge_t *edge)
-{
-    while (edge != NULL && ED_edge_type(edge) != NORMAL)
-	edge = ED_to_orig(edge);
-    return edge;
+static edge_t *original_normal_edge(edge_t *edge) {
+  while (edge != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+  return edge;
 }
 
-static bool original_edges_have_same_rank_direction(edge_t * e, edge_t * f)
-{
-    e = original_normal_edge(e);
-    f = original_normal_edge(f);
-    if (e == NULL || f == NULL)
-	return false;
-    if (ED_conc_opp_flag(e))
-	return false;
-    if (ED_conc_opp_flag(f))
-	return false;
-    return (ND_rank(agtail(f)) - ND_rank(aghead(f))) *
-               (ND_rank(agtail(e)) - ND_rank(aghead(e))) >
-           0;
-}
-
-static bool rendered_edges_are_equal(edge_t *edge, edge_t *representative)
-{
-    return edge != NULL && representative != NULL &&
-           gv_edge_attributes_are_equal(edge, representative) &&
-           same_direction_edge_arrow_decorations_are_mergeable(representative,
-                                                               edge);
-}
-
-static bool has_labeled_continuation(edge_t *edge)
-{
-    for (edge_t *candidate = agfstout(agraphof(edge), aghead(edge));
-	 candidate != NULL; candidate = agnxtout(agraphof(edge), candidate)) {
-	if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL)
-	    return true;
-    }
+static bool original_edges_have_same_rank_direction(edge_t *e, edge_t *f) {
+  e = original_normal_edge(e);
+  f = original_normal_edge(f);
+  if (e == NULL || f == NULL)
     return false;
+  if (ED_conc_opp_flag(e))
+    return false;
+  if (ED_conc_opp_flag(f))
+    return false;
+  return (ND_rank(agtail(f)) - ND_rank(aghead(f))) *
+             (ND_rank(agtail(e)) - ND_rank(aghead(e))) >
+         0;
 }
 
-static bool dense_same_head_labeled_fan(edge_t *edge, edge_t *other)
-{
-    if (ED_label(edge) == NULL || ED_label(other) == NULL ||
-	aghead(edge) != aghead(other) || !rendered_edges_are_equal(edge, other) ||
-	!has_labeled_continuation(edge))
-	return false;
+static bool rendered_edges_are_equal(edge_t *edge, edge_t *representative) {
+  return edge != NULL && representative != NULL &&
+         gv_edge_attributes_are_equal(edge, representative) &&
+         same_direction_edge_arrow_decorations_are_mergeable(representative,
+                                                             edge);
+}
 
-    size_t equivalent_labeled_edges = 0;
-    for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
-	 candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
-	if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL &&
-	    rendered_edges_are_equal(candidate, edge))
-	    equivalent_labeled_edges++;
-    }
-    return equivalent_labeled_edges >= 4;
+static bool has_labeled_continuation(edge_t *edge) {
+  for (edge_t *candidate = agfstout(agraphof(edge), aghead(edge));
+       candidate != NULL; candidate = agnxtout(agraphof(edge), candidate)) {
+    if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL)
+      return true;
+  }
+  return false;
+}
+
+static bool dense_same_head_labeled_fan(edge_t *edge, edge_t *other) {
+  if (ED_label(edge) == NULL || ED_label(other) == NULL ||
+      aghead(edge) != aghead(other) || !rendered_edges_are_equal(edge, other) ||
+      !has_labeled_continuation(edge))
+    return false;
+
+  size_t equivalent_labeled_edges = 0;
+  for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
+       candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
+    if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL &&
+        rendered_edges_are_equal(candidate, edge))
+      equivalent_labeled_edges++;
+  }
+  return equivalent_labeled_edges >= 4;
 }
 
 static bool dense_same_head_labeled_fan_can_join_at(edge_t *edge, edge_t *other,
-						    node_t *join)
-{
-    if (!dense_same_head_labeled_fan(edge, other))
-	return true;
-    if (strchr(ED_label(edge)->text, ' ') == NULL ||
-	strchr(ED_label(other)->text, ' ') == NULL)
-	return true;
+                                                    node_t *join) {
+  if (!dense_same_head_labeled_fan(edge, other))
+    return true;
+  if (strchr(ED_label(edge)->text, ' ') == NULL ||
+      strchr(ED_label(other)->text, ' ') == NULL)
+    return true;
 
-    double lowest_tail_y = HUGE_VAL;
-    for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
-	 candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
-	if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL &&
-	    rendered_edges_are_equal(candidate, edge))
-	    lowest_tail_y = MIN(lowest_tail_y, ND_coord(agtail(candidate)).y);
-    }
-    return lowest_tail_y == HUGE_VAL ||
-	   ND_coord(join).y < lowest_tail_y - MILLIPOINT;
+  double lowest_tail_y = HUGE_VAL;
+  for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
+       candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
+    if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL &&
+        rendered_edges_are_equal(candidate, edge))
+      lowest_tail_y = MIN(lowest_tail_y, ND_coord(agtail(candidate)).y);
+  }
+  return lowest_tail_y == HUGE_VAL ||
+         ND_coord(join).y < lowest_tail_y - MILLIPOINT;
 }
 
-static bool other_list_contains(edge_t *edge)
-{
-    if (ND_other(agtail(edge)).list == NULL)
-	return false;
-    for (size_t i = 0; ND_other(agtail(edge)).list[i] != NULL; ++i) {
-	if (ND_other(agtail(edge)).list[i] == edge)
-	    return true;
-    }
+static bool other_list_contains(edge_t *edge) {
+  if (ND_other(agtail(edge)).list == NULL)
     return false;
+  for (size_t i = 0; ND_other(agtail(edge)).list[i] != NULL; ++i) {
+    if (ND_other(agtail(edge)).list[i] == edge)
+      return true;
+  }
+  return false;
 }
 
-static void keep_distinct_original_drawn(edge_t *edge, edge_t *representative)
-{
-    edge_t *const original_edge = original_normal_edge(edge);
-    edge_t *const representative_edge = original_normal_edge(representative);
+static void keep_distinct_original_drawn(edge_t *edge, edge_t *representative) {
+  edge_t *const original_edge = original_normal_edge(edge);
+  edge_t *const representative_edge = original_normal_edge(representative);
 
-    if (original_edge != NULL && ED_edge_type(original_edge) == NORMAL &&
-	!rendered_edges_are_equal(original_edge, representative_edge) &&
-	!other_list_contains(original_edge))
-	other_edge(original_edge);
+  if (original_edge != NULL && ED_edge_type(original_edge) == NORMAL &&
+      !rendered_edges_are_equal(original_edge, representative_edge) &&
+      !other_list_contains(original_edge))
+    other_edge(original_edge);
 }
 
-static bool downcandidate(node_t * v)
-{
-    return ND_node_type(v) == VIRTUAL && ND_in(v).size == 1
-	    && ND_out(v).size == 1 && ND_label(v) == NULL;
+static bool downcandidate(node_t *v) {
+  return ND_node_type(v) == VIRTUAL && ND_in(v).size == 1 &&
+         ND_out(v).size == 1 && ND_label(v) == NULL;
 }
 
-static size_t unique_original_head_count(edge_t *edge)
-{
-    size_t count = 0;
-    size_t i = 0;
-    for (edge_t *candidate = agfstout(agraphof(edge), agtail(edge));
-	 candidate != NULL; candidate = agnxtout(agraphof(edge), candidate), ++i) {
-	bool seen = false;
-	size_t j = 0;
-	for (edge_t *prior = agfstout(agraphof(edge), agtail(edge)); j < i;
-	     prior = agnxtout(agraphof(edge), prior), ++j) {
-	    if (aghead(prior) == aghead(candidate)) {
-		seen = true;
-		break;
-	    }
-	}
-	if (!seen)
-	    count++;
+static size_t unique_original_head_count(edge_t *edge) {
+  size_t count = 0;
+  size_t i = 0;
+  for (edge_t *candidate = agfstout(agraphof(edge), agtail(edge));
+       candidate != NULL;
+       candidate = agnxtout(agraphof(edge), candidate), ++i) {
+    bool seen = false;
+    size_t j = 0;
+    for (edge_t *prior = agfstout(agraphof(edge), agtail(edge)); j < i;
+         prior = agnxtout(agraphof(edge), prior), ++j) {
+      if (aghead(prior) == aghead(candidate)) {
+        seen = true;
+        break;
+      }
     }
-    return count;
+    if (!seen)
+      count++;
+  }
+  return count;
 }
 
-static bool has_explicit_long_minlen(edge_t *edge)
-{
-    if (E_minlen == NULL)
-	return false;
-    const char *const value = agxget(edge, E_minlen);
-    return value[0] != '\0' && atoi(value) > 1;
-}
-
-static size_t normal_in_count(node_t *node)
-{
-    size_t count = 0;
-    for (edge_t *edge = agfstin(agraphof(node), node); edge != NULL;
-	 edge = agnxtin(agraphof(node), edge)) {
-	if (ED_edge_type(edge) == NORMAL)
-	    count++;
-    }
-    return count;
-}
-
-static bool has_normal_out(edge_t *edge)
-{
-    node_t *const node = aghead(edge);
-    for (edge_t *candidate = agfstout(agraphof(node), node); candidate != NULL;
-	 candidate = agnxtout(agraphof(node), candidate)) {
-	if (ED_edge_type(candidate) == NORMAL)
-	    return true;
-    }
+static bool has_explicit_long_minlen(edge_t *edge) {
+  if (E_minlen == NULL)
     return false;
+  const char *const value = agxget(edge, E_minlen);
+  return value[0] != '\0' && atoi(value) > 1;
 }
 
-static bool isolated_long_minlen_fan(edge_t *edge)
-{
-    node_t *const tail = agtail(edge);
-    if (normal_in_count(tail) != 0)
-	return false;
-
-    size_t head_count = 0;
-    for (edge_t *candidate = agfstout(agraphof(edge), tail); candidate != NULL;
-	 candidate = agnxtout(agraphof(edge), candidate)) {
-	if (ED_edge_type(candidate) != NORMAL)
-	    continue;
-	if (!has_explicit_long_minlen(candidate) || has_normal_out(candidate) ||
-	    normal_in_count(aghead(candidate)) != 1)
-	    return false;
-	head_count++;
-    }
-    return head_count > 2;
+static size_t normal_in_count(node_t *node) {
+  size_t count = 0;
+  for (edge_t *edge = agfstin(agraphof(node), node); edge != NULL;
+       edge = agnxtin(agraphof(node), edge)) {
+    if (ED_edge_type(edge) == NORMAL)
+      count++;
+  }
+  return count;
 }
 
-static bool undirected_unlabeled_same_tail_fan(edge_t *e, edge_t *f)
-{
-    return !agisdirected(agraphof(e)) && ED_label(e) == NULL &&
-	   ED_label(f) == NULL && ED_xlabel(e) == NULL && ED_xlabel(f) == NULL;
+static bool has_normal_out(edge_t *edge) {
+  node_t *const node = aghead(edge);
+  for (edge_t *candidate = agfstout(agraphof(node), node); candidate != NULL;
+       candidate = agnxtout(agraphof(node), candidate)) {
+    if (ED_edge_type(candidate) == NORMAL)
+      return true;
+  }
+  return false;
 }
 
-static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
-{
+static bool isolated_long_minlen_fan(edge_t *edge) {
+  node_t *const tail = agtail(edge);
+  if (normal_in_count(tail) != 0)
+    return false;
+
+  size_t head_count = 0;
+  for (edge_t *candidate = agfstout(agraphof(edge), tail); candidate != NULL;
+       candidate = agnxtout(agraphof(edge), candidate)) {
+    if (ED_edge_type(candidate) != NORMAL)
+      continue;
+    if (!has_explicit_long_minlen(candidate) || has_normal_out(candidate) ||
+        normal_in_count(aghead(candidate)) != 1)
+      return false;
+    head_count++;
+  }
+  return head_count > 2;
+}
+
+static bool tail_has_intermediate_normal_out(edge_t *edge) {
+  edge_t *const original = original_normal_edge(edge);
+  if (original == NULL)
+    return false;
+
+  node_t *const tail = agtail(original);
+  node_t *const head = aghead(original);
+  const int low_rank = MIN(ND_rank(tail), ND_rank(head));
+  const int high_rank = MAX(ND_rank(tail), ND_rank(head));
+  for (edge_t *candidate = agfstout(agraphof(original), tail);
+       candidate != NULL; candidate = agnxtout(agraphof(original), candidate)) {
+    if (candidate == original || ED_edge_type(candidate) != NORMAL)
+      continue;
+    node_t *const candidate_head = aghead(candidate);
+    if (candidate_head == head)
+      continue;
+    if (ND_rank(candidate_head) > low_rank &&
+        ND_rank(candidate_head) < high_rank)
+      return true;
+  }
+  return false;
+}
+
+static bool undirected_unlabeled_same_tail_fan(edge_t *e, edge_t *f) {
+  return !agisdirected(agraphof(e)) && ED_label(e) == NULL &&
+         ED_label(f) == NULL && ED_xlabel(e) == NULL && ED_xlabel(f) == NULL;
+}
+
+static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f) {
+  edge_t *e0 = original_normal_edge(e);
+  edge_t *f0 = original_normal_edge(f);
+
+  if (e0 == NULL || f0 == NULL)
+    return false;
+  if (agtail(e0) == agtail(f0) && aghead(e0) == aghead(f0))
+    return true;
+  if (agtail(e0) == agtail(f0))
+    return undirected_unlabeled_same_tail_fan(e0, f0) ||
+           ((unique_original_head_count(e0) <= 2 ||
+             isolated_long_minlen_fan(e0)) &&
+            (has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0)));
+  if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
+      dense_same_head_labeled_fan(e0, f0)) {
+    if (!tail_has_intermediate_normal_out(e0) &&
+        !tail_has_intermediate_normal_out(f0) &&
+        strchr(ED_label(e0)->text, ' ') != NULL &&
+        strchr(ED_label(f0)->text, ' ') != NULL)
+      return true;
+    const bool adjacent_tails =
+        ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
+        ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
+    return adjacent_tails;
+  }
+  const size_t e0_head_count = unique_original_head_count(e0);
+  const size_t f0_head_count = unique_original_head_count(f0);
+  if (e0_head_count > 2 || f0_head_count > 2)
+    return false;
+  if (abs(ND_rank(agtail(e0)) - ND_rank(aghead(e0))) > 3 ||
+      abs(ND_rank(agtail(f0)) - ND_rank(aghead(f0))) > 3)
+    return false;
+  const bool adjacent_tails =
+      ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
+      ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
+  if (!adjacent_tails)
+    return false;
+  if (ED_label(e0) != NULL || ED_label(f0) != NULL)
+    return false;
+  return true;
+}
+
+static bool bothdowncandidates(node_t *u, node_t *v) {
+  edge_t *e, *f;
+  e = ND_in(u).list[0];
+  f = ND_in(v).list[0];
+  if (downcandidate(v) && agtail(e) == agtail(f)) {
     edge_t *e0 = original_normal_edge(e);
     edge_t *f0 = original_normal_edge(f);
-
-    if (e0 == NULL || f0 == NULL)
-	return false;
-    if (agtail(e0) == agtail(f0) && aghead(e0) == aghead(f0))
-	return true;
-    if (agtail(e0) == agtail(f0))
-	return undirected_unlabeled_same_tail_fan(e0, f0) ||
-	       ((unique_original_head_count(e0) <= 2 ||
-		 isolated_long_minlen_fan(e0)) &&
-		(has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0)));
-    if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
-	dense_same_head_labeled_fan(e0, f0)) {
-	if (strchr(ED_label(e0)->text, ' ') != NULL &&
-	    strchr(ED_label(f0)->text, ' ') != NULL)
-	    return true;
-	const bool adjacent_tails =
-	    ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
-	    ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
-	return adjacent_tails;
-    }
-    const size_t e0_head_count = unique_original_head_count(e0);
-    const size_t f0_head_count = unique_original_head_count(f0);
-    if (e0_head_count > 2 || f0_head_count > 2)
-	return false;
-    if (abs(ND_rank(agtail(e0)) - ND_rank(aghead(e0))) > 3 ||
-	abs(ND_rank(agtail(f0)) - ND_rank(aghead(f0))) > 3)
-	return false;
-    const bool adjacent_tails =
-	ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
-	ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
-    if (!adjacent_tails)
-	return false;
-    if (ED_label(e0) != NULL || ED_label(f0) != NULL)
-	return false;
-    return true;
+    return original_edges_have_same_rank_direction(e, f) &&
+           rendered_edges_are_equal(f0, e0) && gv_edge_ports_are_equal(e, f) &&
+           original_tails_are_same_or_adjacent(e, f) &&
+           dense_same_head_labeled_fan_can_join_at(e0, f0, u) && e0 != NULL &&
+           f0 != NULL && gv_edge_ports_are_equal(e0, f0);
+  }
+  return false;
 }
 
-static bool bothdowncandidates(node_t * u, node_t * v)
-{
-    edge_t *e, *f;
-    e = ND_in(u).list[0];
-    f = ND_in(v).list[0];
-    if (downcandidate(v) && agtail(e) == agtail(f)) {
-	edge_t *e0 = original_normal_edge(e);
-	edge_t *f0 = original_normal_edge(f);
-	return original_edges_have_same_rank_direction(e, f)
-	    && rendered_edges_are_equal(f0, e0)
-	    && gv_edge_ports_are_equal(e, f)
-	    && original_tails_are_same_or_adjacent(e, f)
-	    && dense_same_head_labeled_fan_can_join_at(e0, f0, u)
-	    && e0 != NULL && f0 != NULL
-	    && gv_edge_ports_are_equal(e0, f0);
-    }
-    return false;
+static bool upcandidate(node_t *v) {
+  return ND_node_type(v) == VIRTUAL && ND_out(v).size == 1 &&
+         ND_in(v).size == 1 && ND_label(v) == NULL;
 }
 
-static bool upcandidate(node_t * v)
-{
-    return ND_node_type(v) == VIRTUAL && ND_out(v).size == 1
-	    && ND_in(v).size == 1 && ND_label(v) == NULL;
+static bool bothupcandidates(node_t *u, node_t *v) {
+  edge_t *e, *f;
+  e = ND_out(u).list[0];
+  f = ND_out(v).list[0];
+  if (upcandidate(v) && aghead(e) == aghead(f)) {
+    edge_t *e0 = original_normal_edge(e);
+    edge_t *f0 = original_normal_edge(f);
+    return original_edges_have_same_rank_direction(e, f) &&
+           rendered_edges_are_equal(f0, e0) && gv_edge_ports_are_equal(e, f) &&
+           original_tails_are_same_or_adjacent(e, f) &&
+           dense_same_head_labeled_fan_can_join_at(e0, f0, u) &&
+           (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
+  }
+  return false;
 }
 
-static bool bothupcandidates(node_t * u, node_t * v)
-{
-    edge_t *e, *f;
-    e = ND_out(u).list[0];
-    f = ND_out(v).list[0];
-    if (upcandidate(v) && aghead(e) == aghead(f)) {
-	edge_t *e0 = original_normal_edge(e);
-	edge_t *f0 = original_normal_edge(f);
-	return original_edges_have_same_rank_direction(e, f)
-	    && rendered_edges_are_equal(f0, e0)
-	    && gv_edge_ports_are_equal(e, f)
-	    && original_tails_are_same_or_adjacent(e, f)
-	    && dense_same_head_labeled_fan_can_join_at(e0, f0, u)
-	    && (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
-    }
-    return false;
+static void add_concentrated_segment_weight(edge_t *edge,
+                                            edge_t *representative) {
+  while (representative != NULL) {
+    ED_weight(representative) += ED_weight(edge);
+    representative = ED_to_virt(representative);
+  }
 }
 
-static void add_concentrated_segment_weight(edge_t *edge, edge_t *representative)
-{
-    while (representative != NULL) {
-	ED_weight(representative) += ED_weight(edge);
-	representative = ED_to_virt(representative);
-    }
+static bool concentrated_junction(node_t *n) {
+  return ND_node_type(n) == VIRTUAL &&
+         (ND_in(n).size > 1 || ND_out(n).size > 1);
 }
 
-static bool concentrated_junction(node_t *n)
-{
-    return ND_node_type(n) == VIRTUAL &&
-           (ND_in(n).size > 1 || ND_out(n).size > 1);
+static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir) {
+  node_t *left;
+  edge_t *e, *f, *e0;
+
+  left = GD_rank(g)[r].v[lpos];
+  node_t *const right = GD_rank(g)[r].v[rpos];
+  if (dir == DOWN) {
+    while ((e = ND_out(right).list[0])) {
+      int k;
+      for (k = 0; (f = ND_out(left).list[k]); k++)
+        if (aghead(f) == aghead(e))
+          break;
+      if (f == NULL)
+        f = virtual_edge(left, aghead(e), e);
+      else
+        add_concentrated_segment_weight(e, f);
+      ED_conc_suppressed_tail(e) = true;
+      ED_conc_suppressed_tail(f) = true;
+      if (concentrated_junction(aghead(e))) {
+        ED_conc_suppressed_head(e) = true;
+        ED_conc_suppressed_head(f) = true;
+      }
+      while ((e0 = ND_in(right).list[0])) {
+        keep_distinct_original_drawn(e0, f);
+        if (concentrated_junction(agtail(e0)))
+          ED_conc_suppressed_tail(e0) = true;
+        ED_conc_suppressed_head(e0) = true;
+        merge_oneway(e0, f);
+        delete_fast_edge(e0);
+      }
+      delete_fast_edge(e);
+    }
+  } else {
+    while ((e = ND_in(right).list[0])) {
+      int k;
+      for (k = 0; (f = ND_in(left).list[k]); k++)
+        if (agtail(f) == agtail(e))
+          break;
+      if (f == NULL)
+        f = virtual_edge(agtail(e), left, e);
+      else
+        add_concentrated_segment_weight(e, f);
+      if (concentrated_junction(agtail(e))) {
+        ED_conc_suppressed_tail(e) = true;
+        ED_conc_suppressed_tail(f) = true;
+      }
+      ED_conc_suppressed_head(e) = true;
+      ED_conc_suppressed_head(f) = true;
+      while ((e0 = ND_out(right).list[0])) {
+        keep_distinct_original_drawn(e0, f);
+        ED_conc_suppressed_tail(e0) = true;
+        if (concentrated_junction(aghead(e0)))
+          ED_conc_suppressed_head(e0) = true;
+        merge_oneway(e0, f);
+        delete_fast_edge(e0);
+      }
+      delete_fast_edge(e);
+    }
+  }
+  assert(ND_in(right).size + ND_out(right).size == 0);
+  delete_fast_node(g, right);
+
+  int k = rpos;
+  for (int i = rpos + 1; i < GD_rank(g)[r].n; ++i) {
+    node_t *const n = GD_rank(g)[r].v[k] = GD_rank(g)[r].v[i];
+    ND_order(n) = k;
+    k++;
+  }
+  GD_rank(g)[r].n = k;
+  GD_rank(g)[r].v[GD_rank(g)[r].n] = NULL;
 }
 
-static void mergevirtual_pair(graph_t * g, int r, int lpos, int rpos, int dir)
-{
-    node_t *left;
-    edge_t *e, *f, *e0;
+static void infuse(graph_t *g, node_t *n) {
+  node_t *lead;
 
-    left = GD_rank(g)[r].v[lpos];
-    node_t *const right = GD_rank(g)[r].v[rpos];
-    if (dir == DOWN) {
-	while ((e = ND_out(right).list[0])) {
-	    int k;
-	    for (k = 0; (f = ND_out(left).list[k]); k++)
-		if (aghead(f) == aghead(e))
-		    break;
-	    if (f == NULL)
-		f = virtual_edge(left, aghead(e), e);
-	    else
-		add_concentrated_segment_weight(e, f);
-	    ED_conc_suppressed_tail(e) = true;
-	    ED_conc_suppressed_tail(f) = true;
-	    if (concentrated_junction(aghead(e))) {
-		ED_conc_suppressed_head(e) = true;
-		ED_conc_suppressed_head(f) = true;
-	    }
-	    while ((e0 = ND_in(right).list[0])) {
-		keep_distinct_original_drawn(e0, f);
-		if (concentrated_junction(agtail(e0)))
-		    ED_conc_suppressed_tail(e0) = true;
-		ED_conc_suppressed_head(e0) = true;
-		merge_oneway(e0, f);
-		delete_fast_edge(e0);
-	    }
-	    delete_fast_edge(e);
-	}
-    } else {
-	while ((e = ND_in(right).list[0])) {
-	    int k;
-	    for (k = 0; (f = ND_in(left).list[k]); k++)
-		if (agtail(f) == agtail(e))
-		    break;
-	    if (f == NULL)
-		f = virtual_edge(agtail(e), left, e);
-	    else
-		add_concentrated_segment_weight(e, f);
-	    if (concentrated_junction(agtail(e))) {
-		ED_conc_suppressed_tail(e) = true;
-		ED_conc_suppressed_tail(f) = true;
-	    }
-	    ED_conc_suppressed_head(e) = true;
-	    ED_conc_suppressed_head(f) = true;
-	    while ((e0 = ND_out(right).list[0])) {
-		keep_distinct_original_drawn(e0, f);
-		ED_conc_suppressed_tail(e0) = true;
-		if (concentrated_junction(aghead(e0)))
-		    ED_conc_suppressed_head(e0) = true;
-		merge_oneway(e0, f);
-		delete_fast_edge(e0);
-	    }
-	    delete_fast_edge(e);
-	}
-    }
-    assert(ND_in(right).size + ND_out(right).size == 0);
-    delete_fast_node(g, right);
-
-    int k = rpos;
-    for (int i = rpos + 1; i < GD_rank(g)[r].n; ++i) {
-	node_t *const n = GD_rank(g)[r].v[k] = GD_rank(g)[r].v[i];
-	ND_order(n) = k;
-	k++;
-    }
-    GD_rank(g)[r].n = k;
-    GD_rank(g)[r].v[GD_rank(g)[r].n] = NULL;
+  lead = GD_rankleader(g)[ND_rank(n)];
+  if (lead == NULL || ND_order(lead) > ND_order(n))
+    GD_rankleader(g)[ND_rank(n)] = n;
 }
 
-static void infuse(graph_t * g, node_t * n)
-{
-    node_t *lead;
+static int rebuild_vlists(graph_t *g) {
+  int c, i, r, maxi;
+  node_t *n, *lead;
+  edge_t *rep;
 
-    lead = GD_rankleader(g)[ND_rank(n)];
-    if (lead == NULL || ND_order(lead) > ND_order(n))
-	GD_rankleader(g)[ND_rank(n)] = n;
-}
-
-static int rebuild_vlists(graph_t * g)
-{
-    int c, i, r, maxi;
-    node_t *n, *lead;
-    edge_t *rep;
-
-    for (r = GD_minrank(g); r <= GD_maxrank(g); r++)
-	GD_rankleader(g)[r] = NULL;
-    dot_scan_ranks(g);
-    for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	infuse(g, n);
-	for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-	    for (rep = e; ED_to_virt(rep); rep = ED_to_virt(rep));
-	    while (rep != NULL && ND_rank(aghead(rep)) < ND_rank(aghead(e))) {
-		infuse(g, aghead(rep));
-		rep = ND_out(aghead(rep)).list[0];
-	    }
-	}
+  for (r = GD_minrank(g); r <= GD_maxrank(g); r++)
+    GD_rankleader(g)[r] = NULL;
+  dot_scan_ranks(g);
+  for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    infuse(g, n);
+    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+      for (rep = e; ED_to_virt(rep); rep = ED_to_virt(rep))
+        ;
+      while (rep != NULL && ND_rank(aghead(rep)) < ND_rank(aghead(e))) {
+        infuse(g, aghead(rep));
+        rep = ND_out(aghead(rep)).list[0];
+      }
     }
+  }
 
-    for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
-	lead = GD_rankleader(g)[r];
-	if (lead == NULL) {
-		agerrorf("rebuild_vlists: lead is null for rank %d\n", r);
-		return -1;
-	}
-	else if (GD_rank(dot_root(g))[r].v[ND_order(lead)] != lead) {
-	    agerrorf("rebuild_vlists: rank lead %s not in order %d of rank %d\n", 
-		agnameof(lead), ND_order(lead), r);
-	    return -1;
-	}
-	GD_rank(g)[r].v = GD_rank(dot_root(g))[r].v + ND_order(GD_rankleader(g)[r]);
-	maxi = -1;
-	for (i = 0; i < GD_rank(g)[r].n; i++) {
-	    if ((n = GD_rank(g)[r].v[i]) == NULL)
-		break;
-	    if (ND_node_type(n) == NORMAL) {
-		if (agcontains(g, n))
-		    maxi = i;
-		else
-		    break;
-	    } else {
-		edge_t *e;
-		for (e = ND_in(n).list[0]; e && ED_to_orig(e);
-		     e = ED_to_orig(e));
-		if (e && agcontains(g, agtail(e))
-		    && agcontains(g, aghead(e)))
-		    maxi = i;
-	    }
-	}
-	if (maxi == -1)
-	    agwarningf("degenerate concentrated rank %s,%d\n", agnameof(g),
-		  r);
-	GD_rank(g)[r].n = maxi + 1;
+  for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
+    lead = GD_rankleader(g)[r];
+    if (lead == NULL) {
+      agerrorf("rebuild_vlists: lead is null for rank %d\n", r);
+      return -1;
+    } else if (GD_rank(dot_root(g))[r].v[ND_order(lead)] != lead) {
+      agerrorf("rebuild_vlists: rank lead %s not in order %d of rank %d\n",
+               agnameof(lead), ND_order(lead), r);
+      return -1;
     }
+    GD_rank(g)[r].v = GD_rank(dot_root(g))[r].v + ND_order(GD_rankleader(g)[r]);
+    maxi = -1;
+    for (i = 0; i < GD_rank(g)[r].n; i++) {
+      if ((n = GD_rank(g)[r].v[i]) == NULL)
+        break;
+      if (ND_node_type(n) == NORMAL) {
+        if (agcontains(g, n))
+          maxi = i;
+        else
+          break;
+      } else {
+        edge_t *e;
+        for (e = ND_in(n).list[0]; e && ED_to_orig(e); e = ED_to_orig(e))
+          ;
+        if (e && agcontains(g, agtail(e)) && agcontains(g, aghead(e)))
+          maxi = i;
+      }
+    }
+    if (maxi == -1)
+      agwarningf("degenerate concentrated rank %s,%d\n", agnameof(g), r);
+    GD_rank(g)[r].n = maxi + 1;
+  }
 
-    for (c = 1; c <= GD_n_cluster(g); c++) {
-	int ret = rebuild_vlists(GD_clust(g)[c]);
-	if (ret != 0) {
-	    return ret;
-	}
+  for (c = 1; c <= GD_n_cluster(g); c++) {
+    int ret = rebuild_vlists(GD_clust(g)[c]);
+    if (ret != 0) {
+      return ret;
     }
-    return 0;
+  }
+  return 0;
 }
 
 static bool edges_run_in_opposite_directions(edge_t *first_edge,
@@ -540,57 +537,55 @@ static void concentrate_flat_edges(graph_t *graph) {
 }
 
 int dot_concentrate(graph_t *g) {
-    int c, r, leftpos, rightpos;
-    node_t *left, *right;
+  int c, r, leftpos, rightpos;
+  node_t *left, *right;
 
-    concentrate_flat_edges(g);
-    if (GD_maxrank(g) - GD_minrank(g) <= 1) {
-      return 0;
-    }
-    /* this is the downward looking pass. r is a candidate rank. */
-    for (r = 1; GD_rank(g)[r + 1].n; r++) {
-	for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {
-	    left = GD_rank(g)[r].v[leftpos];
-	    if (!downcandidate(left))
-		continue;
-	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
-		 ) {
-		right = GD_rank(g)[r].v[rightpos];
-		if (!bothdowncandidates(left, right)) {
-		    if (!agisdirected(g))
-			break;
-		    rightpos++;
-		    continue;
-		}
-		mergevirtual_pair(g, r, leftpos, rightpos, DOWN);
-	    }
-	}
-    }
-    /* this is the corresponding upward pass */
-    while (r > 0) {
-	for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {
-	    left = GD_rank(g)[r].v[leftpos];
-	    if (!upcandidate(left))
-		continue;
-	    for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;
-		 ) {
-		right = GD_rank(g)[r].v[rightpos];
-		if (!bothupcandidates(left, right)) {
-		    if (!agisdirected(g))
-			break;
-		    rightpos++;
-		    continue;
-		}
-		mergevirtual_pair(g, r, leftpos, rightpos, UP);
-	    }
-	}
-	r--;
-    }
-    for (c = 1; c <= GD_n_cluster(g); c++) {
-	if (rebuild_vlists(GD_clust(g)[c]) != 0) {
-	    agerr(AGPREV, "concentrate=true may not work correctly.\n");
-	    return -1;
-	}
-    }
+  concentrate_flat_edges(g);
+  if (GD_maxrank(g) - GD_minrank(g) <= 1) {
     return 0;
+  }
+  /* this is the downward looking pass. r is a candidate rank. */
+  for (r = 1; GD_rank(g)[r + 1].n; r++) {
+    for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {
+      left = GD_rank(g)[r].v[leftpos];
+      if (!downcandidate(left))
+        continue;
+      for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;) {
+        right = GD_rank(g)[r].v[rightpos];
+        if (!bothdowncandidates(left, right)) {
+          if (!agisdirected(g))
+            break;
+          rightpos++;
+          continue;
+        }
+        mergevirtual_pair(g, r, leftpos, rightpos, DOWN);
+      }
+    }
+  }
+  /* this is the corresponding upward pass */
+  while (r > 0) {
+    for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {
+      left = GD_rank(g)[r].v[leftpos];
+      if (!upcandidate(left))
+        continue;
+      for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;) {
+        right = GD_rank(g)[r].v[rightpos];
+        if (!bothupcandidates(left, right)) {
+          if (!agisdirected(g))
+            break;
+          rightpos++;
+          continue;
+        }
+        mergevirtual_pair(g, r, leftpos, rightpos, UP);
+      }
+    }
+    r--;
+  }
+  for (c = 1; c <= GD_n_cluster(g); c++) {
+    if (rebuild_vlists(GD_clust(g)[c]) != 0) {
+      agerr(AGPREV, "concentrate=true may not work correctly.\n");
+      return -1;
+    }
+  }
+  return 0;
 }
