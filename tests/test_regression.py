@@ -4922,6 +4922,62 @@ def _edge_label_texts(source: str) -> list[str]:
     ]
 
 
+def _edge_label_boxes(source: str) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """Read approximate edge-label boxes from JSON xdot label streams."""
+
+    boxes = []
+    for edge in json.loads(dot("json", source=source))["edges"]:
+        font_size = 14.0
+        for operation in edge.get("_ldraw_", []):
+            if operation["op"] == "F":
+                font_size = float(operation.get("size", font_size))
+            if operation["op"] != "T":
+                continue
+            x, y = operation["pt"]
+            width = float(operation.get("width", 0.0))
+            align = operation.get("align", "c")
+            if align == "l":
+                left = x
+            elif align == "r":
+                left = x - width
+            else:
+                left = x - width / 2
+            boxes.append(
+                (
+                    operation["text"],
+                    (left, y - 0.3 * font_size, left + width, y + 0.9 * font_size),
+                )
+            )
+    return boxes
+
+
+def _box_gap(
+    first: tuple[float, float, float, float],
+    second: tuple[float, float, float, float],
+) -> float:
+    """Measure the shortest distance between two axis-aligned boxes."""
+
+    dx = max(first[0] - second[2], second[0] - first[2], 0.0)
+    dy = max(first[1] - second[3], second[1] - first[3], 0.0)
+    return math.hypot(dx, dy)
+
+
+@pytest.mark.parametrize("fixture", ("sb_box_dbl.gv", "sb_circle_dbl.gv"))
+def test_concentrated_duplicate_self_edge_labels_do_not_overlap(fixture: str):
+    """
+    Concentrating identical labeled self-edges should not overprint duplicate
+    label instances.
+    """
+
+    source = (Path(__file__).parent / "graphs" / fixture).read_text().replace(
+        "{", "{\n  graph [concentrate=true];", 1
+    )
+    boxes = _edge_label_boxes(source)
+    assert len(boxes) == 2
+    for (_, first), (_, second) in itertools.combinations(boxes, 2):
+        assert _box_gap(first, second) >= 4.0
+
+
 def _arrow_polygon_point_count(edge: dict, endpoint: str) -> int:
     """Distinguish arrow shapes by the size of their xdot ``P`` polygon."""
 
