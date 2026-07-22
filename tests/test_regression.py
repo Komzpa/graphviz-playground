@@ -4961,6 +4961,144 @@ def test_concentrate_issue_2764_bogus_record_ports_still_merge():
     _assert_concentrate_route_gain(source, 5, 4)
 
 
+def _drawn_route_topology(source: str) -> tuple[int, tuple[str, ...]]:
+    """Return a compact topology signature for concentrate metamorphic checks."""
+
+    colors = tuple(sorted(_drawn_edge_color(edge) for edge in _drawn_edges(source)))
+    return len(colors), colors
+
+
+def test_concentrate_metamorphic_edge_permutation_invariance():
+    """Equivalent duplicate placement does not change the chosen topology."""
+
+    bodies = [
+        ("a -> b [color=red]", "a -> b [color=blue]", "a -> b [color=red]"),
+        ("a -> b [color=red]", "a -> b [color=red]", "a -> b [color=blue]"),
+        ("a -> b [color=blue]", "a -> b [color=red]", "a -> b [color=red]"),
+    ]
+    signatures = {
+        _drawn_route_topology(_concentrated_graph("", *body)) for body in bodies
+    }
+    assert signatures == {(2, ("#0000ff", "#ff0000"))}
+
+
+def test_concentrate_metamorphic_duplicate_pressure_monotonicity():
+    """Adding exact duplicates never adds visible concentrate lanes."""
+
+    route_counts = [
+        len(_drawn_edges(_concentrated_graph("", *("a -> b" for _ in range(count)))))
+        for count in range(1, 7)
+    ]
+    assert route_counts == [1, 1, 1, 1, 1, 1]
+
+
+def test_concentrate_metamorphic_exact_duplicates_add_no_visual_lanes():
+    """Exact duplicates render as one visual lane, not N parallel lanes."""
+
+    source = _graph_with_concentrate(
+        True,
+        "a -> b [color=red penwidth=2]",
+        "a -> b [color=red penwidth=2]",
+        "a -> b [color=red penwidth=2]",
+    )
+    assert _drawn_route_topology(source) == (1, ("#ff0000",))
+
+
+def test_concentrate_metamorphic_rankdir_mirror_symmetry():
+    """Mirroring rank direction preserves the concentrate topology."""
+
+    left_to_right = _concentrated_graph(
+        "rankdir=LR",
+        "a -> b [color=red]",
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+    )
+    right_to_left = _concentrated_graph(
+        "rankdir=RL",
+        "a -> b [color=red]",
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+    )
+    assert _drawn_route_topology(left_to_right) == _drawn_route_topology(right_to_left)
+
+
+def test_concentrate_metamorphic_invisible_degree2_node_insertion_stability():
+    """An unrelated invisible degree-2 node does not perturb duplicate routing."""
+
+    base = _concentrated_graph("", "a -> b", "a -> b")
+    inserted = _concentrated_graph(
+        "",
+        "a -> b",
+        "a -> x [style=invis]",
+        "x -> b [style=invis]",
+        "a -> b",
+    )
+    assert len(_drawn_edges(base)) == 1
+    assert len(_drawn_edges(inserted)) == 1
+
+
+def test_concentrate_metamorphic_no_worse_than_baseline_primary_metric():
+    """The primary route-count metric is no worse with concentrate enabled."""
+
+    source = _graph_with_concentrate(
+        True,
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+        "a -> b [color=red]",
+        "b -> c",
+        "b -> c",
+    )
+    plain_routes = len(_drawn_edges(_set_graph_concentrate(source, False)))
+    concentrated_routes = len(_drawn_edges(_set_graph_concentrate(source, True)))
+    assert concentrated_routes <= plain_routes
+
+
+def test_concentrate_metamorphic_layout_determinism():
+    """The same concentrated input produces stable JSON layout topology."""
+
+    source = _concentrated_graph(
+        "",
+        "a -> b [color=red]",
+        "a -> b [color=red]",
+        "a -> b [color=blue]",
+        "b -> c",
+    )
+    layouts = [json.loads(dot("json", source=source)) for _ in range(3)]
+    assert layouts[0]["edges"] == layouts[1]["edges"] == layouts[2]["edges"]
+
+
+def test_concentrate_oracle_trace_developer_mode(tmp_path: Path):
+    """GV_CONCENTRATE_ORACLE emits a fenced plan diff only when requested."""
+
+    source = tmp_path / "oracle.dot"
+    source.write_text(
+        """
+        digraph {
+          graph [concentrate=true]
+          a -> b [color=red]
+          a -> b [color=red]
+          a -> b [color=blue]
+        }
+        """,
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["GV_CONCENTRATE_ORACLE"] = "1"
+    env["GV_CONCENTRATE_ORACLE_MAX_EDGES"] = "8"
+    completed = subprocess.run(
+        ["dot", "-Txdot", source],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+    assert "concentrate-oracle: begin" in completed.stderr
+    assert "heuristic=" in completed.stderr
+    assert "best=" in completed.stderr
+    assert "variants=no-merge,join-at-rank,sub-bundles,full-trunk" in completed.stderr
+
+
 def _drawn_edge_color(edge: dict) -> str:
     """Read the pen color from an edge's xdot ``c`` operation."""
 

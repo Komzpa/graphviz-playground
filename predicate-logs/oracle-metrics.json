@@ -1,0 +1,23 @@
+[
+  {
+    "bbox": "0,0,54,180",
+    "blocked_metrics": {
+      "label_overlap": "requires internal mincross/lane/label-obstacle structures",
+      "mincross_logical": "requires internal mincross/lane/label-obstacle structures",
+      "node_obstacle_intersections": "requires internal mincross/lane/label-obstacle structures"
+    },
+    "bundle_shared_length": 0,
+    "candidates_accepted": 2,
+    "candidates_rejected": 0,
+    "crossings_visible": 0,
+    "fixture": "/home/kom/proj/ai_pr/graphviz-pr1-cleanup-20260719/predicate-logs/oracle-toy.dot",
+    "junction_count": 0,
+    "label_overlap": null,
+    "max_junction_angle": null,
+    "max_tangent_discontinuity": 7.370344058940303,
+    "mincross_logical": null,
+    "node_obstacle_intersections": null,
+    "runtime": 0.022083,
+    "visible_ink": 74.135
+  }
+]

@@ -16,6 +16,7 @@
 #include <common/utils.h>
 #include <dotgen/dot.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <util/alloc.h>
@@ -263,6 +264,135 @@ static edge_t *find_prior_flat_concentrated_equivalent(graph_t *graph,
   return NULL;
 }
 
+typedef struct {
+  bool enabled;
+  int edge_count;
+  int accepted;
+  int rejected;
+} concentrate_oracle_state_t;
+
+static concentrate_oracle_state_t ConcentrateOracle;
+
+static int concentrate_oracle_limit(void) {
+  const char *const value = getenv("GV_CONCENTRATE_ORACLE_MAX_EDGES");
+  if (value == NULL || value[0] == '\0') {
+    return 24;
+  }
+
+  char *end = NULL;
+  const long parsed = strtol(value, &end, 10);
+  if (end == value || parsed < 0 || parsed > 1000000) {
+    return 24;
+  }
+  return (int)parsed;
+}
+
+static int graph_edge_count(graph_t *graph) {
+  int edge_count = 0;
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    for (edge_t *edge = agfstout(graph, node); edge != NULL;
+         edge = agnxtout(graph, edge)) {
+      edge_count++;
+    }
+  }
+  return edge_count;
+}
+
+static void concentrate_oracle_begin(graph_t *graph) {
+  ConcentrateOracle = (concentrate_oracle_state_t){0};
+
+  const char *const enabled = getenv("GV_CONCENTRATE_ORACLE");
+  if (enabled == NULL || enabled[0] == '\0' || strcmp(enabled, "0") == 0 ||
+      !Concentrate) {
+    return;
+  }
+
+  const int edge_count = graph_edge_count(graph);
+  const int limit = concentrate_oracle_limit();
+  if (edge_count > limit) {
+    fprintf(stderr, "concentrate-oracle: skipped graph=%s edges=%d limit=%d\n",
+            agnameof(graph), edge_count, limit);
+    return;
+  }
+
+  ConcentrateOracle.enabled = true;
+  ConcentrateOracle.edge_count = edge_count;
+  fprintf(
+      stderr,
+      "concentrate-oracle: begin graph=%s edges=%d limit=%d mode=developer\n",
+      agnameof(graph), edge_count, limit);
+}
+
+static void concentrate_oracle_end(graph_t *graph) {
+  if (!ConcentrateOracle.enabled) {
+    return;
+  }
+
+  fprintf(stderr,
+          "concentrate-oracle: end graph=%s edges=%d candidates_accepted=%d "
+          "candidates_rejected=%d metrics=mincross_logical:NA "
+          "crossings_visible:NA bundle_shared_length:rank-span-proxy "
+          "visible_ink:NA junction_count:rank-span-proxy "
+          "max_junction_angle:NA max_tangent_discontinuity:NA bbox:NA "
+          "label_overlap:NA node_obstacle_intersections:NA\n",
+          agnameof(graph), ConcentrateOracle.edge_count,
+          ConcentrateOracle.accepted, ConcentrateOracle.rejected);
+}
+
+static int edge_rank_span(edge_t *edge) {
+  return abs(ND_rank(agtail(edge)) - ND_rank(aghead(edge)));
+}
+
+static int oracle_plan_score(int visible_lanes, int shared_length,
+                             int junction_count) {
+  return visible_lanes * 100 - shared_length * 4 + junction_count * 9;
+}
+
+static void choose_plan(const char *name, int score, char best_name[32],
+                        int *best_score) {
+  if (score < *best_score) {
+    snprintf(best_name, 32, "%s", name);
+    *best_score = score;
+  }
+}
+
+static void trace_concentrate_oracle(edge_t *edge, edge_t *representative,
+                                     const char *heuristic, bool accepted) {
+  if (!ConcentrateOracle.enabled) {
+    return;
+  }
+
+  if (accepted) {
+    ConcentrateOracle.accepted++;
+  } else {
+    ConcentrateOracle.rejected++;
+  }
+
+  const int span = MAX(edge_rank_span(edge), edge_rank_span(representative));
+  char best_name[32] = "no-merge";
+  int best_score = oracle_plan_score(1, 0, 0);
+
+  choose_plan("full-trunk", oracle_plan_score(0, span, span > 0 ? 1 : 0),
+              best_name, &best_score);
+  if (span > 1) {
+    choose_plan("join-at-rank", oracle_plan_score(1, span - 1, 1), best_name,
+                &best_score);
+  }
+  if (span > 2) {
+    choose_plan("sub-bundles", oracle_plan_score(1, span / 2, 2), best_name,
+                &best_score);
+  }
+
+  fprintf(stderr,
+          "concentrate-oracle: edge=%s->%s representative=%s->%s "
+          "heuristic=%s best=%s accepted=%s variants=no-merge,join-at-rank,"
+          "sub-bundles,full-trunk rank_span=%d score=%d\n",
+          agnameof(agtail(edge)), agnameof(aghead(edge)),
+          agnameof(agtail(representative)), agnameof(aghead(representative)),
+          heuristic, best_name, accepted ? "true" : "false", span, best_score);
+}
+
 /*
  * Suppression is a state transition, not merely an equivalence query. Keep the
  * decision and the IGNORED assignment together so callers cannot accidentally
@@ -276,6 +406,8 @@ static bool route_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
   edge_t *const concentrated_representative =
       find_prior_concentrated_representative(graph, edge);
   if (concentrated_representative != NULL) {
+    trace_concentrate_oracle(edge, concentrated_representative,
+                             "suppress-duplicate", true);
     fold_concentrated_edge_arrow_decorations(concentrated_representative, edge,
                                              false);
     ED_edge_type(edge) = IGNORED;
@@ -289,9 +421,12 @@ static bool route_concentrated_parallel_edge(graph_t *graph, edge_t *edge) {
 
   if (!nonconstraint_edge(edge) &&
       abs(ND_rank(agtail(edge)) - ND_rank(aghead(edge))) > 1) {
+    trace_concentrate_oracle(edge, representative_edge,
+                             "reject-long-constrained-route", false);
     return false;
   }
 
+  trace_concentrate_oracle(edge, representative_edge, "share-route", true);
   merge_chain(graph, edge, ED_to_virt(representative_edge), false);
   other_edge(edge);
   return true;
@@ -336,6 +471,8 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
                                                   opposite_edge) &&
             opposite_direction_edge_arrow_decorations_are_mergeable(
                 opposite_edge, backward_edge)) {
+          trace_concentrate_oracle(backward_edge, opposite_edge,
+                                   "suppress-opposite", true);
           /*
            * Materialize only the selected representative ahead of its normal
            * turn. Creating chains for every candidate while scanning would
@@ -376,6 +513,8 @@ static bool merge_backward_edge_with_opposite(graph_t *graph,
     opposite_edge = agnxtout(graph, opposite_edge);
   }
   if (fallback_route_edge != NULL) {
+    trace_concentrate_oracle(backward_edge, fallback_route_edge,
+                             "share-opposite-route", true);
     if (ED_to_virt(fallback_route_edge) == NULL) {
       make_virtual_edge_chain(graph, agtail(fallback_route_edge),
                               aghead(fallback_route_edge), fallback_route_edge);
@@ -419,6 +558,7 @@ static bool suppress_concentrated_cluster_edge_with_opposite(edge_t *edge) {
 
 void build_edge_chains(graph_t *graph) {
   GD_nlist(graph) = NULL;
+  concentrate_oracle_begin(graph);
 
   /* Cluster skeletons stand in for collapsed cluster contents in this pass. */
   mark_clusters(graph);
@@ -573,4 +713,5 @@ void build_edge_chains(graph_t *graph) {
     GD_comp(graph).list = gv_alloc(sizeof(node_t *));
     GD_comp(graph).list[0] = GD_nlist(graph);
   }
+  concentrate_oracle_end(graph);
 }
