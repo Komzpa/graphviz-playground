@@ -38,7 +38,10 @@ After ranking, `dot_mincross()` calls `build_edge_chains()`. That creates
 virtual chains for rank-spanning edges, records same-rank and self-edge
 representations, and decides which earlier route a later edge may share. In
 concentrate mode, this is also the first place where a semantically identical
-edge may be marked `IGNORED`.
+edge may be marked `IGNORED`. `IGNORED` is the edge type used for a concentrated
+multi-edge whose own output is suppressed; chain building, dot's rank-list
+concentrator, and common straight-edge folding can set it, and emission skips
+edges that carry it.
 
 During `dot_position()`, `dot_concentrate()` runs after vertical coordinates
 have been assigned and before leaf expansion. At that point the rank lists and
@@ -65,9 +68,15 @@ build dot rank/mincross virtual chains. They still observe the global
 
 In neato spline routing, self-edges and multi-edge splines treat
 `Concentrate` as "draw only the representative route" where the surrounding
-code has already counted or chained parallel edges. `neatosplines.c` uses this
-for self-arcs and for the main `spline_edges_()` loop. `multispline.c` makes
-the same representative-only choice in its obstacle route builder.
+code has already counted or chained parallel edges. `equivEdge()` groups edges
+by endpoints and resolved port points; the main `splineEdges()` path and
+`spline_edges_()` then route only the representative under `Concentrate`.
+`multispline.c` makes the same representative-only choice in its obstacle
+route builder. These curved-route paths are legacy representative-only behavior:
+they do not yet compare the full rendered-identity contract before suppressing
+parallel edge geometry. The common straight-edge path is narrower and already
+uses rendered-identity and arrow-merge checks before marking candidates
+`IGNORED`.
 
 The shared common routing and emission code is also part of this contract.
 `routespl.c` folds straight-edge duplicates with the same rendered identity
@@ -228,9 +237,26 @@ ordinary concentration on attributes that have no visible effect without
 compound clipping, while still keeping cluster-clipping differences distinct
 when they matter.
 
-## The Two Questions
+## Three Independent Decisions
 
-Concentration answers two questions for each candidate edge.
+Concentration has three independent decisions.
+
+Semantic suppression asks whether an edge may disappear from output. This
+requires rendered identity and arrow-fold compatibility with the retained
+representative.
+
+Geometric compatibility asks whether two edges may share a route segment. This
+can be true even when both edges must remain drawn because their labels, ports,
+arrows, clipping, or other rendered semantics differ.
+
+Layout selection asks whether the shared segment improves the layout objective
+compared with distinct routes. Compatibility does not imply selection: the
+unconcentrated representation remains a valid candidate when it gives better
+crossing, ordering, or positioning pressure.
+
+## Suppression Questions
+
+Semantic suppression answers two questions for each candidate edge.
 
 The first question is: would the non-arrow part of the rendered edge be the
 same if this candidate disappeared into that representative?
@@ -308,13 +334,21 @@ suppression misleading.
 
 Virtual chains are the spine of rank-spanning routing. `make_virtual_edge_chain()`
 creates one virtual edge per rank step. `merge_chain()` lets another edge reuse
-that chain and adjusts counts, crossing penalties, node width, and endpoint
-weights according to whether the reused route should still affect mincross.
+that chain. With `update_count=true`, it adds `ED_count()` and `ED_xpenalty()`
+to every reused virtual segment, widens interior virtual nodes, and adds
+`ED_weight()` only to terminal segments. With `update_count=false`, it records
+the reused chain but transfers no count, crossing penalty, or weight pressure.
 
 Mincross sees the retained virtual segments, not the suppressed original
-parallel edges. That means concentrated edges must carry enough count, weight,
-and penalty information for the rank ordering to behave like the original
-graph's visible edge pressure.
+parallel edges. The current aggregation is therefore deliberately partial, not
+a pressure-preservation invariant. `route_concentrated_parallel_edge()` marks
+semantic duplicates `IGNORED` directly, and route-sharing through that helper
+uses `merge_chain(..., false)`. `mergevirtual_pair()` in dot's rank-list
+concentrator sums `ED_weight()` along matching representative segments, but it
+does not update `ED_count()` or `ED_xpenalty()`. `merge_chain(..., true)` is the
+path that sums count and crossing penalty. Crossing minimization consumes
+`ED_xpenalty()` for crossing cost, while positioning consumes `ED_weight()` in
+the auxiliary edges and constraints it creates.
 
 Spline routing then turns chains into geometry. For hub fans, distinct edges
 can use common corridors and trunks but receive separate terminal arms and
@@ -399,6 +433,17 @@ but it breaks when rankdir, label size, self-edges, ports, and fan shape change
 the available side. The current code keeps labels attached to the route that
 survives, dedupes only matching labels, and otherwise lets routing context
 choose or adjust placement.
+
+## Future Directions
+
+Bundle load algebra would make aggregation flow-conserving by defining how
+counts, crossing penalties, and weights move through every shared segment.
+Plan/apply separation would let the code compare unconcentrated, shared, and
+suppressed candidates before mutating graph state. Bundle-aware crossing
+minimization would score shared corridors directly instead of approximating
+them through retained virtual edges. Tangent-constrained junction routing would
+make concentrated trunks and fan arms meet smoothly as part of route
+construction rather than as a late repair.
 
 ## Contributor Checklist
 
