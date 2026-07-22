@@ -7345,6 +7345,28 @@ def test_concentrate_html_img_identity_uses_effective_imagescale():
     assert len(_drawn_edges(source)) == 2
 
 
+def test_concentrate_html_img_scale_identity_uses_rendered_mode():
+    """HTML IMG scale spellings compare by rendered mode."""
+
+    image = Path(__file__).parent / "../cmd/gvedit/images/save.png"
+    assert image.exists(), "missing test data"
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                1,
+                f'a -> b [headlabel=<<TABLE><TR><TD><IMG SCALE="TRUE" SRC="{image}"/></TD></TR></TABLE>>]',
+                f'a -> b [headlabel=<<TABLE><TR><TD><IMG SCALE="true" SRC="{image}"/></TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                1,
+                f'c -> d [imagescale=TRUE headlabel=<<TABLE><TR><TD><IMG SRC="{image}"/></TD></TR></TABLE>>]',
+                f'c -> d [imagescale=true headlabel=<<TABLE><TR><TD><IMG SRC="{image}"/></TD></TR></TABLE>>]',
+            ),
+        ),
+    )
+
+
 def test_concentrate_html_label_numeric_color_without_colorscheme_does_not_crash():
     """Missing colorscheme defaults must not dereference NULL in identity slots."""
 

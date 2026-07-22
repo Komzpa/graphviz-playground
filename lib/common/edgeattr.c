@@ -454,9 +454,21 @@ static void append_html_image_identity_slots(agxbuf *signature,
 
   agxbclear(&field);
   agxbprint(&field, "%s:scale", slot_prefix);
-  append_plain_signature_slot(signature, agxbuse(&field),
-                              image->scale != NULL ? image->scale
-                                                   : fallback_imagescale);
+  const char *const scale = image->scale != NULL ? image->scale
+                                                 : fallback_imagescale;
+  const char *canonical_scale = "false";
+  if (scale != NULL) {
+    if (strcasecmp(scale, "width") == 0) {
+      canonical_scale = "width";
+    } else if (strcasecmp(scale, "height") == 0) {
+      canonical_scale = "height";
+    } else if (strcasecmp(scale, "both") == 0) {
+      canonical_scale = "both";
+    } else if (mapbool(scale)) {
+      canonical_scale = "true";
+    }
+  }
+  append_plain_signature_slot(signature, agxbuse(&field), canonical_scale);
   agxbfree(&field);
 }
 
