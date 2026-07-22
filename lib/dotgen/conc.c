@@ -198,6 +198,12 @@ static bool isolated_long_minlen_fan(edge_t *edge)
     return head_count > 2;
 }
 
+static bool undirected_unlabeled_same_tail_fan(edge_t *e, edge_t *f)
+{
+    return !agisdirected(agraphof(e)) && ED_label(e) == NULL &&
+	   ED_label(f) == NULL && ED_xlabel(e) == NULL && ED_xlabel(f) == NULL;
+}
+
 static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
 {
     edge_t *e0 = original_normal_edge(e);
@@ -208,9 +214,10 @@ static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f)
     if (agtail(e0) == agtail(f0) && aghead(e0) == aghead(f0))
 	return true;
     if (agtail(e0) == agtail(f0))
-	return (unique_original_head_count(e0) <= 2 ||
-		isolated_long_minlen_fan(e0)) &&
-	       (has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0));
+	return undirected_unlabeled_same_tail_fan(e0, f0) ||
+	       ((unique_original_head_count(e0) <= 2 ||
+		 isolated_long_minlen_fan(e0)) &&
+		(has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0)));
     if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
 	dense_same_head_labeled_fan(e0, f0)) {
 	if (strchr(ED_label(e0)->text, ' ') != NULL &&
