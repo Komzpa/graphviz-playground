@@ -1376,12 +1376,6 @@ int place_portlabel(edge_t * e, bool head_p)
 
     if (ED_edge_type(e) == IGNORED)
 	return 0;
-    /* add label here only if labelangle or labeldistance is defined; else, use external label */
-    if ((!E_labelangle || streq(agxget(e, E_labelangle), "")) &&
-	(!E_labeldistance || streq(agxget(e, E_labeldistance), ""))) {
-	return 0;
-    }
-
     textlabel_t *const l = head_p ? ED_head_label(e) : ED_tail_label(e);
     if ((spl = getsplinepoints(e)) == NULL) return 0;
     if (!head_p) {

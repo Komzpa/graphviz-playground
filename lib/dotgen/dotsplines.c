@@ -95,12 +95,6 @@ static boxf label_box(const graph_t *graph, const textlabel_t *label) {
                        .y = label->pos.y + dimen.y / 2.0}};
 }
 
-static double label_gap(boxf a, boxf b) {
-  const double dx = MAX(MAX(a.LL.x - b.UR.x, b.LL.x - a.UR.x), 0.0);
-  const double dy = MAX(MAX(a.LL.y - b.UR.y, b.LL.y - a.UR.y), 0.0);
-  return hypot(dx, dy);
-}
-
 static bool label_boxes_overlap_or_touch(boxf a, boxf b) {
   return MAX(a.LL.x - ENDPOINT_LABEL_GAP, b.LL.x - ENDPOINT_LABEL_GAP) <=
              MIN(a.UR.x + ENDPOINT_LABEL_GAP, b.UR.x + ENDPOINT_LABEL_GAP) &&
@@ -178,36 +172,40 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
 
 static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
                                      size_t label_count) {
-  if (!Concentrate || label_count < 2) {
+  if (label_count < 2) {
     return;
   }
 
   for (size_t pass = 0; pass < label_count; pass++) {
     bool moved = false;
     for (size_t i = 0; i < label_count; i++) {
-      const boxf first_box = label_box(graph, labels[i].label);
       for (size_t j = i + 1; j < label_count; j++) {
-        boxf second_box = label_box(graph, labels[j].label);
+        const boxf first_box = label_box(graph, labels[i].label);
+        const boxf second_box = label_box(graph, labels[j].label);
         if (!label_boxes_overlap_or_touch(first_box, second_box)) {
           continue;
         }
 
-        pointf delta = sub_pointf(labels[j].label->pos, labels[i].label->pos);
-        double length = hypot(delta.x, delta.y);
-        if (length < MILLIPOINT) {
-          const int direction = (int)(j - i) % 2 == 0 ? 1 : -1;
-          delta = (pointf){.x = 0.0, .y = (double)direction};
-          length = 1.0;
-        }
-        delta.x /= length;
-        delta.y /= length;
+        const int x_direction =
+            labels[i].label->pos.x <= labels[j].label->pos.x ? -1 : 1;
+        const int y_direction =
+            labels[i].label->pos.y <= labels[j].label->pos.y ? -1 : 1;
+        const double x_push =
+            x_direction < 0
+                ? (first_box.UR.x + ENDPOINT_LABEL_GAP - second_box.LL.x) / 2.0
+                : (second_box.UR.x + ENDPOINT_LABEL_GAP - first_box.LL.x) / 2.0;
+        const double y_push =
+            y_direction < 0
+                ? (first_box.UR.y + ENDPOINT_LABEL_GAP - second_box.LL.y) / 2.0
+                : (second_box.UR.y + ENDPOINT_LABEL_GAP - first_box.LL.y) / 2.0;
 
-        const double gap = label_gap(first_box, second_box);
-        const double push = (ENDPOINT_LABEL_GAP - gap + 0.01) / 2.0;
-        labels[i].label->pos.x -= delta.x * push;
-        labels[i].label->pos.y -= delta.y * push;
-        labels[j].label->pos.x += delta.x * push;
-        labels[j].label->pos.y += delta.y * push;
+        if (x_push <= y_push) {
+          labels[i].label->pos.x += (double)x_direction * x_push;
+          labels[j].label->pos.x -= (double)x_direction * x_push;
+        } else {
+          labels[i].label->pos.y += (double)y_direction * y_push;
+          labels[j].label->pos.y -= (double)y_direction * y_push;
+        }
         updateBB(graph, labels[i].label);
         updateBB(graph, labels[j].label);
         moved = true;
@@ -768,26 +766,29 @@ finish:
 
   /* place port labels */
   /* FIX: head and tail labels are not part of cluster bbox */
-  if ((E_headlabel || E_taillabel) && (E_labelangle || E_labeldistance)) {
+  if (E_headlabel || E_taillabel) {
     endpoint_label_t *const endpoint_labels =
         gv_calloc((size_t)agnedges(g) * 2, sizeof(endpoint_label_t));
     size_t endpoint_label_count = 0;
 
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
       if (E_headlabel) {
-        for (e = agfstin(g, n); e; e = agnxtin(g, e))
-          if (ED_head_label(AGMKOUT(e))) {
-            if (place_portlabel(AGMKOUT(e), true)) {
-              updateBB(g, ED_head_label(AGMKOUT(e)));
+        for (e = agfstin(g, n); e; e = agnxtin(g, e)) {
+          edge_t *const out_edge = AGMKOUT(e);
+          if (ED_head_label(out_edge)) {
+            if (ED_head_label(out_edge)->set ||
+                place_portlabel(out_edge, true)) {
+              updateBB(g, ED_head_label(out_edge));
               endpoint_labels[endpoint_label_count++] =
-                  (endpoint_label_t){.label = ED_head_label(AGMKOUT(e))};
+                  (endpoint_label_t){.label = ED_head_label(out_edge)};
             }
           }
+        }
       }
       if (E_taillabel) {
         for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
           if (ED_tail_label(e)) {
-            if (place_portlabel(e, false)) {
+            if (ED_tail_label(e)->set || place_portlabel(e, false)) {
               updateBB(g, ED_tail_label(e));
               endpoint_labels[endpoint_label_count++] =
                   (endpoint_label_t){.label = ED_tail_label(e)};

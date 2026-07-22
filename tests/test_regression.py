@@ -4420,6 +4420,33 @@ def test_2814():
     assert '"n.2" -> "n.19"' in output
     assert '"n.2" -> "n.20"' in output
 
+    layout = json.loads(dot("json", input))
+    labels = {}
+    for edge in layout["edges"]:
+        for stream in ("_hldraw_", "_tldraw_"):
+            font_size = 14.0
+            for operation in edge.get(stream, []):
+                if operation["op"] == "F":
+                    font_size = float(operation.get("size", font_size))
+                if operation["op"] != "T" or operation["text"] not in {
+                    "Edg2",
+                    "Edg3",
+                    "Edg4",
+                    "Edg5",
+                }:
+                    continue
+                x, y = operation["pt"]
+                width = float(operation.get("width", 0.0))
+                labels[operation["text"]] = (
+                    x - width / 2,
+                    y - 0.3 * font_size,
+                    x + width / 2,
+                    y + 0.9 * font_size,
+                )
+    assert set(labels) == {"Edg2", "Edg3", "Edg4", "Edg5"}
+    for first, second in itertools.combinations(labels.values(), 2):
+        assert _box_gap(first, second) >= 2.0
+
 
 @pytest.mark.xfail(
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2471",
