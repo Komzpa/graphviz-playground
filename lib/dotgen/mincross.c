@@ -584,20 +584,24 @@ static bool left2right(graph_t *g, node_t *v, node_t *w) {
   return matrix_get(M, (size_t)flatindex(v), (size_t)flatindex(w));
 }
 
+static int mincross_penalty(edge_t *e) {
+  return MAX(ED_xpenalty(e), 1);
+}
+
 static int64_t in_cross(node_t *v, node_t *w) {
   edge_t **e1, **e2;
   int inv, t;
   int64_t cross = 0;
 
   for (e2 = ND_in(w).list; *e2; e2++) {
-    int cnt = ED_xpenalty(*e2);
+    int cnt = mincross_penalty(*e2);
 
     inv = ND_order(agtail(*e2));
 
     for (e1 = ND_in(v).list; *e1; e1++) {
       t = ND_order(agtail(*e1)) - inv;
       if (t > 0 || (t == 0 && ED_tail_port(*e1).p.x > ED_tail_port(*e2).p.x))
-        cross += ED_xpenalty(*e1) * cnt;
+        cross += mincross_penalty(*e1) * cnt;
     }
   }
   return cross;
@@ -608,13 +612,13 @@ static int out_cross(node_t *v, node_t *w) {
   int inv, cross = 0, t;
 
   for (e2 = ND_out(w).list; *e2; e2++) {
-    int cnt = ED_xpenalty(*e2);
+    int cnt = mincross_penalty(*e2);
     inv = ND_order(aghead(*e2));
 
     for (e1 = ND_out(v).list; *e1; e1++) {
       t = ND_order(aghead(*e1)) - inv;
       if (t > 0 || (t == 0 && ED_head_port(*e1).p.x > ED_head_port(*e2).p.x))
-        cross += ED_xpenalty(*e1) * cnt;
+        cross += mincross_penalty(*e1) * cnt;
     }
   }
   return cross;
@@ -1481,14 +1485,14 @@ static int local_cross(elist l, int dir) {
         if ((ND_order(aghead(f)) - ND_order(aghead(e))) *
                 (ED_tail_port(f).p.x - ED_tail_port(e).p.x) <
             0)
-          cross += ED_xpenalty(e) * ED_xpenalty(f);
+          cross += mincross_penalty(e) * mincross_penalty(f);
       }
     else
       for (j = i + 1; (f = l.list[j]); j++) {
         if ((ND_order(agtail(f)) - ND_order(agtail(e))) *
                 (ED_head_port(f).p.x - ED_head_port(e).p.x) <
             0)
-          cross += ED_xpenalty(e) * ED_xpenalty(f);
+          cross += mincross_penalty(e) * mincross_penalty(f);
       }
   }
   return cross;
@@ -1509,14 +1513,14 @@ static int64_t rcross(graph_t *g, int r) {
     if (max > 0) {
       for (i = 0; (e = ND_out(rtop[top]).list[i]); i++) {
         for (k = ND_order(aghead(e)) + 1; k <= max; k++)
-          cross += Count[k] * ED_xpenalty(e);
+          cross += Count[k] * mincross_penalty(e);
       }
     }
     for (i = 0; (e = ND_out(rtop[top]).list[i]); i++) {
       int inv = ND_order(aghead(e));
       if (inv > max)
         max = inv;
-      Count[inv] += ED_xpenalty(e);
+      Count[inv] += mincross_penalty(e);
     }
   }
   for (top = 0; top < GD_rank(g)[r].n; top++) {
@@ -1615,13 +1619,11 @@ static bool medians(graph_t *g, int r0, int r1) {
     size_t j = 0;
     if (r1 > r0)
       for (j0 = 0; (e = ND_out(n).list[j0]); j0++) {
-        if (ED_xpenalty(e) > 0)
-          list[j++] = VAL(aghead(e), ED_head_port(e));
+        list[j++] = VAL(aghead(e), ED_head_port(e));
       }
     else
       for (j0 = 0; (e = ND_in(n).list[j0]); j0++) {
-        if (ED_xpenalty(e) > 0)
-          list[j++] = VAL(agtail(e), ED_tail_port(e));
+        list[j++] = VAL(agtail(e), ED_tail_port(e));
       }
     switch (j) {
     case 0:
