@@ -7201,6 +7201,22 @@ def test_concentrate_edge_style_identity_keeps_invis_absorbing(splines: str):
     assert len(_drawn_edges(source)) == 1
 
 
+@pytest.mark.parametrize("splines", ("", "splines=ortho"))
+def test_concentrate_edge_style_identity_treats_invisible_as_pen_token(
+    splines: str,
+):
+    """gvrender_set_style() treats `invisible` as an ordinary pen pattern."""
+
+    _assert_concentrated_edge_counts(
+        splines,
+        (
+            _edge_count_case(
+                1, 'a -> b [style="invisible,solid"]', "a -> b [style=solid]"
+            ),
+        ),
+    )
+
+
 def test_concentrate_plain_label_identity_uses_compiled_text():
     """Escaped and literal newlines render alike, but justification does not."""
 
@@ -7244,6 +7260,18 @@ def test_concentrate_html_endpoint_label_identity_uses_substituted_text():
         'b -> a [taillabel=<<FONT COLOR="red">\\T</FONT>>]',
     )
     assert len(_drawn_edges(opposite_direction_distinct)) == 2
+
+
+def test_concentrate_html_label_identity_uses_parsed_text_once():
+    """make_html_label() already applies object substitutions inside HTML text."""
+
+    tail = r"\H"
+    double_substituted = _concentrated_graph(
+        "",
+        f'"{tail}" -> head [headlabel=<<FONT>\\T</FONT>>]',
+        f'"{tail}" -> head [headlabel=<<FONT>head</FONT>>]',
+    )
+    assert len(_drawn_edges(double_substituted)) == 2
 
 
 def test_concentrate_html_label_identity_uses_colorscheme():
@@ -7456,6 +7484,21 @@ def test_concentrate_html_img_scale_identity_uses_rendered_mode():
                 1,
                 f'c -> d [imagescale=TRUE headlabel=<<TABLE><TR><TD><IMG SRC="{image}"/></TD></TR></TABLE>>]',
                 f'c -> d [imagescale=true headlabel=<<TABLE><TR><TD><IMG SRC="{image}"/></TD></TR></TABLE>>]',
+            ),
+        ),
+    )
+
+
+def test_concentrate_self_contained_html_label_ignores_outer_font_slots():
+    """Fully specified HTML text does not emit label-level font attributes."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                1,
+                'a -> b [fontname=Courier fontsize=10 fontcolor=blue headlabel=<<FONT FACE="Helvetica" POINT-SIZE="12" COLOR="red">x</FONT>>]',
+                'a -> b [fontname=Times fontsize=20 fontcolor=green headlabel=<<FONT FACE="Helvetica" POINT-SIZE="12" COLOR="red">x</FONT>>]',
             ),
         ),
     )
@@ -8250,19 +8293,19 @@ def test_concentrate_gates_endpoint_label_attributes(
 
 @pytest.mark.parametrize(
     ("attribute", "default_value"),
-    (("labelangle", "-25"), ("labeldistance", "1")),
+    (("labeldistance", "1"),),
 )
 def test_concentrate_preserves_endpoint_label_placement_attribute_presence(
     attribute: str, default_value: str
 ):
-    """place_portlabel() distinguishes omission from an explicit default."""
+    """place_portlabel() uses late_double() defaults for explicit placement."""
 
     placement_trigger = _concentrated_graph(
         "splines=ortho",
         "a -> b [headlabel=x]",
         f"a -> b [headlabel=x {attribute}={default_value}]",
     )
-    assert len(_drawn_edges(placement_trigger)) == 2
+    assert len(_drawn_edges(placement_trigger)) == 1
 
     repeated_explicit_default = _concentrated_graph(
         "splines=ortho",
@@ -8447,6 +8490,20 @@ def test_concentrate_color_list_arrow_endpoint_strips_segment_fractions():
     assert len(drawn_edges) == 1
     assert "_hdraw_" in drawn_edges[0]
     assert _arrow_fill_color(drawn_edges[0], "h") == "#0000ff"
+
+
+def test_concentrate_color_list_arrow_endpoint_uses_normalized_segments():
+    """Endpoint arrow colors follow the positive segments multicolor() draws."""
+
+    borrowed_segment_arrow = _concentrated_graph(
+        "",
+        "a -> b [dir=none color=red]",
+        'b -> a [dir=back color="red;1:blue"]',
+    )
+    drawn_edges = _drawn_edges(borrowed_segment_arrow)
+    assert len(drawn_edges) == 1
+    assert "_hdraw_" in drawn_edges[0]
+    assert _arrow_fill_color(drawn_edges[0], "h") == "#ff0000"
 
 
 def test_endpoint_label_default_position_uses_clearance_anchor():

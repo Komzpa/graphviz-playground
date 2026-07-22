@@ -149,12 +149,10 @@ static const edge_attribute_exception_t edge_attribute_exceptions[] = {
     /* place_portlabel() reads these only for headlabel/taillabel. */
     {.name = "labelangle",
      .facts = {.default_kind = ATTRIBUTE_DEFAULT_LABEL_ANGLE,
-               .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
-               .presence_affects_rendering = true}},
+               .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL}},
     {.name = "labeldistance",
      .facts = {.default_kind = ATTRIBUTE_DEFAULT_ONE,
-               .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL,
-               .presence_affects_rendering = true}},
+               .render_scope = ATTRIBUTE_RENDER_ENDPOINT_LABEL}},
     {.name = "layer", .facts = {.render_scope = ATTRIBUTE_RENDER_GRAPH_LAYERS}},
     {.name = "lhead",
      .facts = {.compound_only = true},
@@ -276,17 +274,6 @@ static void append_substituted_signature_slot(agxbuf *signature,
                                               Agedge_t *edge) {
   char *const substituted = strdup_and_subst_obj((char *)value, edge);
   append_plain_signature_slot(signature, slot_name, substituted);
-  free(substituted);
-}
-
-static void append_substituted_html_signature_slot(agxbuf *signature,
-                                                   const char *slot_name,
-                                                   const char *value,
-                                                   Agedge_t *edge) {
-  char *const substituted = strdup_and_subst_obj((char *)value, edge);
-  append_signature_slot(
-      signature, slot_name,
-      (comparable_attribute_value_t){.text = substituted, .is_html = true});
   free(substituted);
 }
 
@@ -424,8 +411,9 @@ static void append_html_text_identity_slots(agxbuf *signature, Agedge_t *edge,
       const textspan_t *item = &span->items[j];
       agxbclear(&field);
       agxbprint(&field, "%s:%zu:%zu:text", slot_prefix, i, j);
-      append_substituted_signature_slot(signature, agxbuse(&field), item->str,
-                                        edge);
+      append_signature_slot(
+          signature, agxbuse(&field),
+          (comparable_attribute_value_t){.text = item->str, .is_html = true});
       if (item->font != NULL) {
         agxbclear(&field);
         agxbprint(&field, "%s:%zu:%zu:font", slot_prefix, i, j);
@@ -990,6 +978,11 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
     agxbfree(&rendered_label);
   }
 
+  if (label->html) {
+    agxbfree(&slot_name);
+    return;
+  }
+
   agxbclear(&slot_name);
   agxbprint(&slot_name, "%s:fontname", slot_prefix);
   append_plain_signature_slot(signature, agxbuse(&slot_name), label->fontname);
@@ -1129,7 +1122,12 @@ static bool graph_uses_ortho_edges(Agraph_t *root_graph) {
 
 static bool edge_style_token_sets_pen_pattern(const char *style) {
   return strcmp(style, "solid") == 0 || strcmp(style, "dashed") == 0 ||
-         strcmp(style, "dotted") == 0 || strcmp(style, "invis") == 0;
+         strcmp(style, "dotted") == 0 || strcmp(style, "invis") == 0 ||
+         strcmp(style, "invisible") == 0;
+}
+
+static const char *canonical_edge_style_pen_pattern(const char *style) {
+  return strcmp(style, "invisible") == 0 ? "invis" : style;
 }
 
 static void append_style_value(agxbuf *signature, const char *slot_name,
@@ -1153,7 +1151,7 @@ static void append_style_value(agxbuf *signature, const char *slot_name,
       continue;
     }
     if (edge_style_token_sets_pen_pattern(*item)) {
-      pen_pattern = *item;
+      pen_pattern = canonical_edge_style_pen_pattern(*item);
       continue;
     }
     if (agxblen(&rendered_style) > 0) {

@@ -23,6 +23,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <util/startswith.h>
 #include <util/streq.h>
 
@@ -181,11 +182,29 @@ static bool explicit_edge_fillcolor(Agedge_t *edge) {
   return agxget(edge, fillcolor_attribute)[0] != '\0';
 }
 
+static bool strip_color_segment_fraction(char *segment, double *fraction) {
+  char *const separator = segment == NULL ? NULL : strchr(segment, ';');
+  if (separator == NULL) {
+    *fraction = 0.0;
+    return false;
+  }
+
+  char *end = NULL;
+  const double parsed = strtod(separator + 1, &end);
+  if (end == separator + 1 || parsed < 0.0) {
+    return false;
+  }
+  *separator = '\0';
+  *fraction = parsed;
+  return true;
+}
+
 static char *color_list_endpoint_color(char *color_list,
                                        edge_arrow_endpoint_t endpoint) {
   char *const colors = gv_strdup(color_list);
   char *first = NULL;
   char *second = NULL;
+  double first_fraction = 0.0;
   size_t index = 0;
   for (char *color = strtok(colors, ":"); color != NULL;
        color = strtok(NULL, ":"), index++) {
@@ -196,13 +215,16 @@ static char *color_list_endpoint_color(char *color_list,
       break;
     }
   }
+  if (strip_color_segment_fraction(first, &first_fraction) &&
+      first_fraction >= 1.0 - EPSILON) {
+    second = NULL;
+  } else {
+    double second_fraction = 0.0;
+    strip_color_segment_fraction(second, &second_fraction);
+  }
 
   char *const endpoint_color =
       endpoint == EDGE_ARROW_START && second != NULL ? second : first;
-  char *separator = endpoint_color == NULL ? NULL : strchr(endpoint_color, ';');
-  if (separator != NULL) {
-    *separator = '\0';
-  }
   char *const result =
       endpoint_color == NULL || endpoint_color[0] == '\0'
           ? gv_strdup(DEFAULT_COLOR)
