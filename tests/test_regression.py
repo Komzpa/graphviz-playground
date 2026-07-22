@@ -7183,6 +7183,11 @@ def test_concentrate_html_label_bgcolor_identity_uses_colorscheme():
                 'a -> b [colorscheme=accent3 label=<<TABLE><TR><TD BGCOLOR="1">x</TD></TR></TABLE>>]',
                 'a -> b [colorscheme=paired3 label=<<TABLE><TR><TD BGCOLOR="1">x</TD></TR></TABLE>>]',
             ),
+            _edge_count_case(
+                2,
+                'c -> d [colorscheme=accent3 headlabel=<<TABLE><TR><TD BGCOLOR="1">x</TD></TR></TABLE>>]',
+                'd -> c [colorscheme=paired3 taillabel=<<TABLE><TR><TD BGCOLOR="1">x</TD></TR></TABLE>>]',
+            ),
         ),
     )
 

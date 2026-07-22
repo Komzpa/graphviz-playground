@@ -522,33 +522,56 @@ static void append_html_label_identity_slots(agxbuf *signature, Agedge_t *edge,
   }
 }
 
-static bool html_label_may_use_colorscheme(const char *text) {
-  for (const char *attribute = text; *attribute != '\0'; attribute++) {
-    size_t name_size = strlen("COLOR");
-    if (strncasecmp(attribute, "COLOR", name_size) != 0) {
-      name_size = strlen("BGCOLOR");
-      if (strncasecmp(attribute, "BGCOLOR", name_size) != 0) {
-        continue;
+static bool color_may_use_colorscheme(const char *color) {
+  return color != NULL && color[0] >= '0' && color[0] <= '9';
+}
+
+static bool html_data_may_use_colorscheme(const htmldata_t *data) {
+  return color_may_use_colorscheme(data->pencolor) ||
+         color_may_use_colorscheme(data->bgcolor);
+}
+
+static bool html_label_may_use_colorscheme(const htmllabel_t *label);
+
+static bool html_text_may_use_colorscheme(const htmltxt_t *text) {
+  for (size_t i = 0; i < text->nspans; i++) {
+    const htextspan_t *span = &text->spans[i];
+    for (size_t j = 0; j < span->nitems; j++) {
+      const textspan_t *item = &span->items[j];
+      if (item->font != NULL && color_may_use_colorscheme(item->font->color)) {
+        return true;
       }
     }
-    const char *value = attribute + name_size;
-    while (isspace((unsigned char)value[0])) {
-      value++;
-    }
-    if (value[0] != '=') {
-      continue;
-    }
-    value++;
-    while (isspace((unsigned char)value[0])) {
-      value++;
-    }
-    if (value[0] != '"' && value[0] != '\'') {
-      continue;
-    }
-    value++;
-    if (value[0] >= '0' && value[0] <= '9') {
+  }
+  return false;
+}
+
+static bool html_table_may_use_colorscheme(const htmltbl_t *table) {
+  if (html_data_may_use_colorscheme(&table->data) ||
+      (table->font != NULL && color_may_use_colorscheme(table->font->color))) {
+    return true;
+  }
+  if (table->cells == NULL) {
+    return false;
+  }
+  for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+    if (html_data_may_use_colorscheme(&(*cell)->data) ||
+        html_label_may_use_colorscheme(&(*cell)->child)) {
       return true;
     }
+  }
+  return false;
+}
+
+static bool html_label_may_use_colorscheme(const htmllabel_t *label) {
+  switch (label->kind) {
+  case HTML_TBL:
+    return html_table_may_use_colorscheme(label->u.tbl);
+  case HTML_TEXT:
+    return html_text_may_use_colorscheme(label->u.txt);
+  case HTML_IMAGE:
+  case HTML_UNSET:
+    return false;
   }
   return false;
 }
@@ -895,7 +918,7 @@ static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
     }
     append_html_label_identity_slots(signature, edge, agxbuse(&slot_name),
                                      label->u.html, imagescale);
-    if (html_label_may_use_colorscheme(label->text)) {
+    if (html_label_may_use_colorscheme(label->u.html)) {
       agxbclear(&slot_name);
       agxbprint(&slot_name, "%s:colorscheme", slot_prefix);
       const char *colorscheme = agget(edge, "colorscheme");
