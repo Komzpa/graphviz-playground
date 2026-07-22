@@ -2889,9 +2889,9 @@ static void align_arrow_tangents(graph_t *g, edge_t *edge) {
 
   // Multi-edge offsets are applied before clipping. Realign the final control
   // arms afterward, when clipping has established the visible arrow axes.
-  if (spline->sflag != ARR_NONE)
+  if (spline->sflag != ARR_NONE && !spline->suppress_sflag)
     align_arrow_arm(spline, spline->sp, 0.0);
-  if (spline->eflag != ARR_NONE)
+  if (spline->eflag != ARR_NONE && !spline->suppress_eflag)
     align_arrow_arm(spline, spline->ep, 0.0);
 
   const bool grouped_head =
