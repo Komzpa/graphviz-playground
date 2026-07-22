@@ -2470,8 +2470,7 @@ static void smooth_alternating_concentrated_controls(bezier *spline) {
   for (size_t i = 0; i + 3 < spline->size; i += 3) {
     const double angle1 =
         turn_angle(spline->list[i], spline->list[i + 1], spline->list[i + 2]);
-    const double angle2 = turn_angle(spline->list[i + 1],
-                                     spline->list[i + 2],
+    const double angle2 = turn_angle(spline->list[i + 1], spline->list[i + 2],
                                      spline->list[i + 3]);
     const int sign1 = turn_sign(angle1);
     const int sign2 = turn_sign(angle2);
@@ -2506,10 +2505,10 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
     return;
 
   edge_t *const main_edge = getmainedge(edge);
-  if (Concentrate && (ED_label(main_edge) != NULL ||
-                      ED_head_label(main_edge) != NULL ||
-                      ED_tail_label(main_edge) != NULL ||
-                      has_grouped_flat_endpoint(main_edge)))
+  if (Concentrate &&
+      (ED_label(main_edge) != NULL || ED_head_label(main_edge) != NULL ||
+       ED_tail_label(main_edge) != NULL ||
+       has_grouped_flat_endpoint(main_edge)))
     smooth_alternating_concentrated_controls(spline);
 
   const bool bidirectional_concentration =

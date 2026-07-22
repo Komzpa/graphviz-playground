@@ -584,9 +584,7 @@ static bool left2right(graph_t *g, node_t *v, node_t *w) {
   return matrix_get(M, (size_t)flatindex(v), (size_t)flatindex(w));
 }
 
-static int mincross_penalty(edge_t *e) {
-  return MAX(ED_xpenalty(e), 1);
-}
+static int mincross_penalty(edge_t *e) { return MAX(ED_xpenalty(e), 1); }
 
 static int64_t in_cross(node_t *v, node_t *w) {
   edge_t **e1, **e2;
