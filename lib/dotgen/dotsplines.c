@@ -2362,6 +2362,48 @@ static void point_control_arm_at(pointf *control, pointf endpoint,
   *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
 }
 
+static bool unit_vector(pointf vector, pointf *unit) {
+  const double length = hypot(vector.x, vector.y);
+  if (length <= MILLIPOINT)
+    return false;
+
+  unit->x = vector.x / length;
+  unit->y = vector.y / length;
+  return true;
+}
+
+static void smooth_consecutive_spline_joints(splines *spline) {
+  for (size_t i = 0; i + 1 < spline->size; i++) {
+    bezier *const left = &spline->list[i];
+    bezier *const right = &spline->list[i + 1];
+    if (left->size < 4 || right->size < 4)
+      continue;
+
+    const size_t left_last = left->size - 1;
+    if (DIST(left->list[left_last], right->list[0]) > MILLIPOINT)
+      continue;
+
+    pointf incoming;
+    pointf outgoing;
+    if (!unit_vector(
+            sub_pointf(left->list[left_last], left->list[left_last - 1]),
+            &incoming) ||
+        !unit_vector(sub_pointf(right->list[1], right->list[0]), &outgoing))
+      continue;
+
+    pointf tangent = add_pointf(incoming, outgoing);
+    if (!unit_vector(tangent, &tangent))
+      continue;
+
+    const double left_length =
+        DIST(left->list[left_last], left->list[left_last - 1]);
+    const double right_length = DIST(right->list[1], right->list[0]);
+    left->list[left_last - 1] =
+        sub_pointf(left->list[left_last], scale(left_length, tangent));
+    right->list[1] = add_pointf(right->list[0], scale(right_length, tangent));
+  }
+}
+
 static void align_arrow_arm(bezier *spline, pointf arrow_tip,
                             double min_control_length) {
   const bool at_start = DIST(spline->list[0], arrow_tip) <=
@@ -2584,11 +2626,11 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
        ED_conc_opp_flag(edge)) &&
       ND_rank(agtail(edge)) == ND_rank(aghead(edge));
   if (Concentrate &&
-      (bidirectional_concentration || ED_label(main_edge) != NULL ||
-       ED_head_label(main_edge) != NULL || ED_tail_label(main_edge) != NULL ||
+      (merged_tail || merged_head || bidirectional_concentration ||
+       ED_label(main_edge) != NULL || ED_head_label(main_edge) != NULL ||
+       ED_tail_label(main_edge) != NULL ||
        has_grouped_flat_endpoint(main_edge)))
     smooth_alternating_concentrated_controls(spline);
-
   if (!merged_tail && !merged_head && !bidirectional_concentration)
     return;
 
@@ -2600,6 +2642,8 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
     point_control_arm_at(&spline->list[first + 1], start, end);
   if (merged_head || bidirectional_concentration)
     point_control_arm_at(&spline->list[last - 1], end, start);
+  if (Concentrate && (merged_tail || merged_head) && ED_spl(edge)->size > 1)
+    smooth_consecutive_spline_joints(ED_spl(edge));
 
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
