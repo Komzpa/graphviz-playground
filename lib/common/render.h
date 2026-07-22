@@ -161,7 +161,20 @@ RENDER_API textlabel_t *make_label(void *obj, char *str, bool is_html,
     RENDER_API void round_corners(GVJ_t *job, pointf *AF, size_t sides,
                                   graphviz_polygon_style_t style, int filled);
     RENDER_API int routesplinesinit(void);
+    typedef struct {
+      Pedge_t *barriers;
+      size_t barrier_count;
+      boxf *corridor;
+      size_t corridor_count;
+      Pedge_t *portals;
+      size_t portal_count;
+      Ppoint_t *template_points;
+      size_t template_point_count;
+    } route_spline_metadata_t;
+    RENDER_API void route_spline_metadata_free(route_spline_metadata_t *);
     RENDER_API pointf *routesplines(path *, size_t *);
+    RENDER_API pointf *routesplines_with_metadata(path *, size_t *,
+                                                  route_spline_metadata_t *);
     RENDER_API void routesplinesterm(void);
     RENDER_API pointf* simpleSplineRoute(pointf, pointf, Ppoly_t, size_t *, int);
     RENDER_API pointf *routepolylines(path* pp, size_t* npoints);

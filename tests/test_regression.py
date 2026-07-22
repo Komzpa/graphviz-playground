@@ -4810,10 +4810,57 @@ def _drawn_edge_piece_end_gaps(edge: dict) -> list[float]:
         for operation in edge.get("_draw_", [])
         if operation["op"] in {"B", "b", "L"} and len(operation["points"]) >= 2
     ]
-    return [
-        math.dist(left[-1], right[0])
-        for left, right in zip(pieces, pieces[1:])
-    ]
+    return [math.dist(left[-1], right[0]) for left, right in zip(pieces, pieces[1:])]
+
+
+def _assert_regular_g1_piece_join(
+    left_points: list[list[float]], right_points: list[list[float]]
+) -> None:
+    """Assert a rendered cubic seam is C0, regular, and forward G1."""
+
+    assert len(left_points) >= 4 and len(left_points) % 3 == 1
+    assert len(right_points) >= 4 and len(right_points) % 3 == 1
+    assert math.dist(left_points[-1], right_points[0]) <= 0.01
+    incoming = (
+        left_points[-1][0] - left_points[-2][0],
+        left_points[-1][1] - left_points[-2][1],
+    )
+    outgoing = (
+        right_points[1][0] - right_points[0][0],
+        right_points[1][1] - right_points[0][1],
+    )
+    incoming_length = math.hypot(*incoming)
+    outgoing_length = math.hypot(*outgoing)
+    assert incoming_length > 1e-6
+    assert outgoing_length > 1e-6
+    dot_product = incoming[0] * outgoing[0] + incoming[1] * outgoing[1]
+    assert dot_product > 0
+    residual = abs(incoming[0] * outgoing[1] - incoming[1] * outgoing[0])
+    # JSON control points are rounded to 0.01 pt, so allow the corresponding
+    # sub-degree cross-product drift while still rejecting a visible kink.
+    assert residual <= 2e-3 * incoming_length * outgoing_length
+
+
+def _named_drawn_cubic_geometry(
+    source: str, tails: set[str], head: str
+) -> list[tuple[str, str, tuple]]:
+    """Canonicalize rendered cubics by endpoint name, independent of edge order."""
+
+    layout = json.loads(dot("json", source=source))
+    names = {node["_gvid"]: node["name"] for node in layout["objects"]}
+    geometry = []
+    for edge in layout["edges"]:
+        tail_name = names[edge["tail"]]
+        head_name = names[edge["head"]]
+        if tail_name not in tails or head_name != head or "_draw_" not in edge:
+            continue
+        cubics = tuple(
+            tuple(tuple(point) for point in operation["points"])
+            for operation in edge["_draw_"]
+            if operation["op"] == "b"
+        )
+        geometry.append((tail_name, head_name, cubics))
+    return sorted(geometry)
 
 
 def _concentrated_graph(splines: str, *body: str) -> str:
@@ -7772,17 +7819,53 @@ def test_concentrate_shared_trunk_routes_meet_at_junction():
     short_edge = min(edges, key=_drawn_edge_spline_point_count)
     long_edge = max(edges, key=_drawn_edge_spline_point_count)
     short_bezier = next(
-        operation
-        for operation in short_edge["_draw_"]
-        if operation["op"] == "b"
+        operation for operation in short_edge["_draw_"] if operation["op"] == "b"
     )
     long_beziers = [
-        operation
-        for operation in long_edge["_draw_"]
-        if operation["op"] == "b"
+        operation for operation in long_edge["_draw_"] if operation["op"] == "b"
     ]
 
+    assert len(long_beziers) == 2
+    _assert_regular_g1_piece_join(long_beziers[0]["points"], long_beziers[1]["points"])
     assert math.dist(short_bezier["points"][-1], long_beziers[1]["points"][0]) <= 0.01
+
+
+def test_concentrate_shared_trunk_repair_is_edge_order_deterministic():
+    """Tagged-junction controls are independent of input edge iteration order."""
+
+    first = _shared_trunk_source("a -> d", "b -> d")
+    reversed_order = _shared_trunk_source("b -> d", "a -> d")
+    assert _named_drawn_cubic_geometry(first, {"a", "b"}, "d") == (
+        _named_drawn_cubic_geometry(reversed_order, {"a", "b"}, "d")
+    )
+
+
+def test_concentrate_trunk_alignment_preserves_better_piece_g1():
+    """A topology-neutral trunk adjustment cannot worsen an existing G1 seam."""
+
+    source = _concentrated_graph(
+        "",
+        'Diskless -> Inconsistent [label="ioctl_set_disk()"]',
+        'Diskless -> Consistent [label="ioctl_set_disk()"]',
+        'Diskless -> Outdated [label="ioctl_set_disk()"]',
+        'Consistent -> Outdated [label="receive_param()"]',
+        'Consistent -> UpToDate [label="receive_param()"]',
+        'Consistent -> Inconsistent [label="start resync"]',
+        'Outdated -> Inconsistent [label="start resync"]',
+        'UpToDate -> Inconsistent [label="ioctl_replicate"]',
+        'Inconsistent -> UpToDate [label="resync completed"]',
+        'Consistent -> Failed [label="io completion error"]',
+        'Outdated -> Failed [label="io completion error"]',
+        'UpToDate -> Failed [label="io completion error"]',
+        'Inconsistent -> Failed [label="io completion error"]',
+        'Failed -> Diskless [label="sending notify to peer"]',
+    )
+    edge = _drawn_edges_between(source, {"Outdated"}, "Failed")[0]
+    pieces = [
+        operation["points"] for operation in edge["_draw_"] if operation["op"] == "b"
+    ]
+    assert len(pieces) == 2
+    _assert_regular_g1_piece_join(pieces[0], pieces[1])
 
 
 def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
@@ -7818,6 +7901,7 @@ def test_concentrate_same_tail_fanout_routes_share_initial_trunk():
     ]
     assert len(first_segments) == 2
     assert len(second_segments) == 1
+    _assert_regular_g1_piece_join(first_segments[0], first_segments[1])
     assert math.dist(first_segments[0][-1], second_segments[0][0]) <= 1.01
 
 
