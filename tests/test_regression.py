@@ -6492,6 +6492,16 @@ def _assert_concentrated_edge_counts(
                 "a -> b [URL=u target=<\\T>]",
                 "b -> a [URL=u edgetarget=<\\T>]",
             ),
+            _edge_count_case(
+                1,
+                "a -> b [headlabel=x headtarget=one]",
+                "a -> b [headlabel=x headtarget=two]",
+            ),
+            _edge_count_case(
+                1,
+                "a -> b [headlabel=x headtarget=one]",
+                "b -> a [taillabel=x tailtarget=two]",
+            ),
         ),
         _named_edge_count_cases(
             "substituted-ids",
