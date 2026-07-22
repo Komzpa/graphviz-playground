@@ -377,10 +377,11 @@ static Agnode_t *neighbor(graph_t *, Agnode_t *, Agedge_t *, Agedge_t *, int);
 static void place_vnlabel(Agnode_t *);
 static boxf rank_box(spline_info_t *sp, Agraph_t *, int);
 static void recover_slack(Agedge_t *, path *);
+static void regularize_straight_bridge(points_t *, size_t *);
 static void resize_vn(Agnode_t *, double, double, double);
 static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
-static Agedge_t *straight_path(Agedge_t *, int, points_t *);
+static Agedge_t *straight_path(Agedge_t *, int, points_t *, size_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
 static void align_concentrated_route_tangents(graph_t *, edge_t *);
 static void align_arrow_tangents(graph_t *, edge_t *);
@@ -3092,6 +3093,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   } else {
     bool is_spline = et == EDGETYPE_SPLINE;
     boxes_t boxes = {0};
+    size_t pending_straight_bridge = SIZE_MAX;
     segfirst = e;
     tn = agtail(e);
     hn = aghead(e);
@@ -3151,8 +3153,10 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
       for (size_t i = 0; i < pn; i++) {
         LIST_APPEND(&pointfs, ps[i]);
       }
+      regularize_straight_bridge(&pointfs, &pending_straight_bridge);
       free(ps);
-      e = straight_path(ND_out(hn).list[0], sl, &pointfs);
+      e = straight_path(ND_out(hn).list[0], sl, &pointfs,
+                        &pending_straight_bridge);
       recover_slack(segfirst, P);
       segfirst = e;
       tn = agtail(e);
@@ -3202,7 +3206,9 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     for (size_t i = 0; i < pn; i++) {
       LIST_APPEND(&pointfs, ps[i]);
     }
+    regularize_straight_bridge(&pointfs, &pending_straight_bridge);
     free(ps);
+    assert(pending_straight_bridge == SIZE_MAX);
     recover_slack(segfirst, P);
     hn = hackflag ? aghead(&fwdedgeb.out) : aghead(e);
   }
@@ -3380,12 +3386,52 @@ static int straight_len(node_t *n) {
   return cnt;
 }
 
-static edge_t *straight_path(edge_t *e, int cnt, points_t *plist) {
+static void erase_points(points_t *points, size_t first, size_t count) {
+  const size_t size = LIST_SIZE(points);
+  assert(first <= size && count <= size - first);
+
+  for (size_t i = first; i + count < size; i++) {
+    LIST_SET(points, i, LIST_GET(points, i + count));
+  }
+  for (size_t i = 0; i < count; i++) {
+    LIST_DROP_BACK(points);
+  }
+}
+
+static void regularize_straight_bridge(points_t *points,
+                                       size_t *pending_straight_bridge) {
+  if (*pending_straight_bridge == SIZE_MAX) {
+    return;
+  }
+
+  const size_t bridge = *pending_straight_bridge;
+  assert(bridge + 3 < LIST_SIZE(points));
+  const pointf j = LIST_GET(points, bridge);
+  const pointf k = LIST_GET(points, bridge + 3);
+  if (j.x == k.x && j.y == k.y) {
+    // Drop the two placeholders and the next partial's duplicate start.
+    erase_points(points, bridge + 1, 3);
+  } else {
+    const pointf delta = {.x = k.x - j.x, .y = k.y - j.y};
+    LIST_SET(points, bridge + 1,
+             ((pointf){.x = j.x + delta.x / 3.0, .y = j.y + delta.y / 3.0}));
+    LIST_SET(points, bridge + 2,
+             ((pointf){.x = j.x + 2.0 * delta.x / 3.0,
+                       .y = j.y + 2.0 * delta.y / 3.0}));
+  }
+  *pending_straight_bridge = SIZE_MAX;
+  assert(LIST_SIZE(points) % 3 == 1);
+}
+
+static edge_t *straight_path(edge_t *e, int cnt, points_t *plist,
+                             size_t *pending_straight_bridge) {
   edge_t *f = e;
 
   while (cnt--)
     f = ND_out(aghead(f)).list[0];
   assert(!LIST_IS_EMPTY(plist));
+  assert(*pending_straight_bridge == SIZE_MAX);
+  *pending_straight_bridge = LIST_SIZE(plist) - 1;
   LIST_APPEND(plist, LIST_GET(plist, LIST_SIZE(plist) - 1));
   LIST_APPEND(plist, LIST_GET(plist, LIST_SIZE(plist) - 1));
 
