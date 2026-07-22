@@ -520,7 +520,7 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
 
-  if (table->cells != NULL) {
+  if (!table->data.style.invisible && table->cells != NULL) {
     for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
       agxbclear(&field);
       agxbprint(&field, "%s:cell:%u:%u", slot_prefix, (*cell)->row,
