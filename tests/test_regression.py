@@ -8923,6 +8923,28 @@ def test_concentrate_implicit_tooltip_fallback_uses_textlabel_text(tmp_path: Pat
     )
 
 
+def test_route_certificate_unit_fixtures(tmp_path: Path):
+    """Post-routing portal and crossing certificates preserve topology."""
+
+    source_lib = Path(__file__).parent.parent / "lib"
+    exe = tmp_path / "routecert"
+    compile_c(
+        Path(__file__).parent / "routecert.c",
+        cflags=[
+            "-std=c17",
+            f"-I{source_lib}",
+            f"-I{source_lib / 'cdt'}",
+            f"-I{source_lib / 'cgraph'}",
+            f"-I{source_lib / 'common'}",
+            f"-I{source_lib / 'gvc'}",
+            f"-I{source_lib / 'pathplan'}",
+            *(["-lm"] if platform.system() != "Windows" else []),
+        ],
+        dst=exe,
+    )
+    subprocess.run((exe,), capture_output=True, check=True)
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
