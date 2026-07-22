@@ -79,7 +79,28 @@ extern "C" {
                                            edge_arrow_endpoint_t endpoint);
     RENDER_API char *edge_arrow_fillcolor(Agedge_t *edge,
                                           edge_arrow_endpoint_t endpoint);
+    typedef enum {
+      ARROW_PRIMITIVE_POLYGON,
+      ARROW_PRIMITIVE_POLYLINE,
+      ARROW_PRIMITIVE_ELLIPSE,
+      ARROW_PRIMITIVE_BEZIERCURVE,
+    } arrow_primitive_kind_t;
+    typedef struct {
+      arrow_primitive_kind_t kind;
+      pointf points[9];
+      size_t npoints;
+      bool filled;
+    } arrow_primitive_t;
+    typedef struct {
+      arrow_primitive_t primitives[8];
+      size_t nprimitives;
+      boxf bbox;
+      double max_extent;
+    } arrow_geometry_t;
     RENDER_API boxf arrow_bb(pointf p, pointf u, double arrowsize);
+    RENDER_API void arrow_geometry(pointf p, pointf u, double arrowsize,
+                                   double penwidth, uint32_t flag,
+                                   arrow_geometry_t *geometry);
     RENDER_API void arrow_gen(GVJ_t * job, emit_state_t emit_state, pointf p, pointf u,
                               double arrowsize, double penwidth, uint32_t flag);
     RENDER_API size_t arrowEndClip(edge_t*, pointf*, size_t, size_t, bezier*,

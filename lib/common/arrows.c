@@ -543,22 +543,22 @@ static const arrowname_t Arrownames[] = {
 typedef struct {
     uint32_t type;
     double lenfact;		/* ratio of length of this arrow type to standard arrow */
-    pointf (*gen)(GVJ_t *job, pointf p, pointf u, double arrowsize,
-                  double penwidth, uint32_t flag); ///< generator function for
-                                                   ///< type
+    pointf (*gen)(arrow_geometry_t *geometry, pointf p, pointf u,
+                  double arrowsize, double penwidth,
+                  uint32_t flag); ///< geometry generator function for type
     double (*len)(double lenfact, double arrowsize, double penwidth,
                   uint32_t flag); ///< penwidth dependent length
 } arrowtype_t;
 
 /* forward declaration of functions used in Arrowtypes[] */
-static pointf arrow_type_normal(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
-static pointf arrow_type_crow(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
-static pointf arrow_type_tee(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
-static pointf arrow_type_box(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
-static pointf arrow_type_diamond(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
-static pointf arrow_type_dot(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
-static pointf arrow_type_curve(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
-static pointf arrow_type_gap(GVJ_t * job, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_normal(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_crow(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_tee(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_box(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_diamond(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_dot(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_curve(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
+static pointf arrow_type_gap(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize, double penwidth, uint32_t flag);
 
 static double arrow_length_generic(double lenfact, double arrowsize, double penwidth, uint32_t flag);
 static double arrow_length_crow(double lenfact, double arrowsize, double penwidth, uint32_t flag);
@@ -871,6 +871,49 @@ typedef struct {
   pointf points[3];
 } triangle;
 
+static void arrow_geometry_add_primitive(arrow_geometry_t *geometry,
+                                         arrow_primitive_kind_t kind,
+                                         const pointf *points, size_t npoints,
+                                         bool filled) {
+  if (geometry->nprimitives >= sizeof(geometry->primitives) /
+                                  sizeof(geometry->primitives[0])) {
+    return;
+  }
+
+  arrow_primitive_t *const primitive =
+      &geometry->primitives[geometry->nprimitives++];
+  primitive->kind = kind;
+  primitive->npoints = npoints;
+  primitive->filled = filled;
+  memcpy(primitive->points, points, npoints * sizeof(points[0]));
+}
+
+static void arrow_geometry_add_polygon(arrow_geometry_t *geometry,
+                                       const pointf *points, size_t npoints,
+                                       bool filled) {
+  arrow_geometry_add_primitive(geometry, ARROW_PRIMITIVE_POLYGON, points,
+                               npoints, filled);
+}
+
+static void arrow_geometry_add_polyline(arrow_geometry_t *geometry,
+                                        const pointf *points, size_t npoints) {
+  arrow_geometry_add_primitive(geometry, ARROW_PRIMITIVE_POLYLINE, points,
+                               npoints, false);
+}
+
+static void arrow_geometry_add_ellipse(arrow_geometry_t *geometry,
+                                       const pointf *points, bool filled) {
+  arrow_geometry_add_primitive(geometry, ARROW_PRIMITIVE_ELLIPSE, points, 2,
+                               filled);
+}
+
+static void arrow_geometry_add_beziercurve(arrow_geometry_t *geometry,
+                                           const pointf *points,
+                                           size_t npoints) {
+  arrow_geometry_add_primitive(geometry, ARROW_PRIMITIVE_BEZIERCURVE, points,
+                               npoints, false);
+}
+
 static triangle
 miter_shape(pointf base_left, pointf P, pointf base_right, double penwidth) {
   if ((base_left.x == P.x && base_left.y == P.y) ||
@@ -1035,7 +1078,7 @@ static pointf arrow_type_normal0(pointf p, pointf u, double penwidth,
     return q;
 }
 
-static pointf arrow_type_normal(GVJ_t *job, pointf p, pointf u,
+static pointf arrow_type_normal(arrow_geometry_t *geometry, pointf p, pointf u,
                                 double arrowsize, double penwidth,
                                 uint32_t flag) {
     (void)arrowsize;
@@ -1045,11 +1088,11 @@ static pointf arrow_type_normal(GVJ_t *job, pointf p, pointf u,
     pointf q = arrow_type_normal0(p, u, penwidth, flag, a);
 
     if (flag & ARR_MOD_LEFT)
-	gvrender_polygon(job, a, 3, !(flag & ARR_MOD_OPEN));
+	arrow_geometry_add_polygon(geometry, a, 3, !(flag & ARR_MOD_OPEN));
     else if (flag & ARR_MOD_RIGHT)
-	gvrender_polygon(job, &a[2], 3, !(flag & ARR_MOD_OPEN));
+	arrow_geometry_add_polygon(geometry, &a[2], 3, !(flag & ARR_MOD_OPEN));
     else
-	gvrender_polygon(job, &a[1], 3, !(flag & ARR_MOD_OPEN));
+	arrow_geometry_add_polygon(geometry, &a[1], 3, !(flag & ARR_MOD_OPEN));
 
     return q;
 }
@@ -1198,7 +1241,7 @@ static pointf arrow_type_crow0(pointf p, pointf u, double arrowsize,
     return q;
 }
 
-static pointf arrow_type_crow(GVJ_t *job, pointf p, pointf u, double arrowsize,
+static pointf arrow_type_crow(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize,
 		      double penwidth, uint32_t flag) {
     (void)arrowsize;
 
@@ -1206,16 +1249,16 @@ static pointf arrow_type_crow(GVJ_t *job, pointf p, pointf u, double arrowsize,
 
     pointf q = arrow_type_crow0(p, u, arrowsize, penwidth, flag, a);
     if (flag & ARR_MOD_LEFT)
-	gvrender_polygon(job, a, 5, 1);
+	arrow_geometry_add_polygon(geometry, a, 5, 1);
     else if (flag & ARR_MOD_RIGHT)
-	gvrender_polygon(job, &a[4], 5, 1);
+	arrow_geometry_add_polygon(geometry, &a[4], 5, 1);
     else
-	gvrender_polygon(job, a, 8, 1);
+	arrow_geometry_add_polygon(geometry, a, 8, 1);
 
     return q;
 }
 
-static pointf arrow_type_gap(GVJ_t *job, pointf p, pointf u, double arrowsize,
+static pointf arrow_type_gap(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize,
                              double penwidth, uint32_t flag) {
     (void)arrowsize;
     (void)penwidth;
@@ -1227,12 +1270,12 @@ static pointf arrow_type_gap(GVJ_t *job, pointf p, pointf u, double arrowsize,
     q.y = p.y + u.y;
     a[0] = p;
     a[1] = q;
-    gvrender_polyline(job, a, 2);
+    arrow_geometry_add_polyline(geometry, a, 2);
 
     return q;
 }
 
-static pointf arrow_type_tee(GVJ_t *job, pointf p, pointf u, double arrowsize,
+static pointf arrow_type_tee(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize,
                              double penwidth, uint32_t flag) {
     (void)arrowsize;
 
@@ -1281,10 +1324,10 @@ static pointf arrow_type_tee(GVJ_t *job, pointf p, pointf u, double arrowsize,
 	a[1] = m;
 	a[2] = n;
     }
-    gvrender_polygon(job, a, 4, 1);
+    arrow_geometry_add_polygon(geometry, a, 4, 1);
     a[0] = p;
     a[1] = q;
-    gvrender_polyline(job, a, 2);
+    arrow_geometry_add_polyline(geometry, a, 2);
 
     // A polyline doesn't extend visually beyond its starting point, so we
     // return the starting point as it is, without taking penwidth into account
@@ -1292,7 +1335,7 @@ static pointf arrow_type_tee(GVJ_t *job, pointf p, pointf u, double arrowsize,
     return q;
 }
 
-static pointf arrow_type_box(GVJ_t *job, pointf p, pointf u, double arrowsize,
+static pointf arrow_type_box(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize,
                              double penwidth, uint32_t flag) {
     (void)arrowsize;
     (void)penwidth;
@@ -1339,10 +1382,10 @@ static pointf arrow_type_box(GVJ_t *job, pointf p, pointf u, double arrowsize,
 	a[1] = p;
 	a[2] = m;
     }
-    gvrender_polygon(job, a, 4, !(flag & ARR_MOD_OPEN));
+    arrow_geometry_add_polygon(geometry, a, 4, !(flag & ARR_MOD_OPEN));
     a[0] = m;
     a[1] = q;
-    gvrender_polyline(job, a, 2);
+    arrow_geometry_add_polyline(geometry, a, 2);
 
     // A polyline doesn't extend visually beyond its starting point, so we
     // return the starting point as it is, without taking penwidth into account
@@ -1392,7 +1435,7 @@ static pointf arrow_type_diamond0(pointf p, pointf u, double penwidth,
     return q;
 }
 
-static pointf arrow_type_diamond(GVJ_t *job, pointf p, pointf u,
+static pointf arrow_type_diamond(arrow_geometry_t *geometry, pointf p, pointf u,
                                  double arrowsize, double penwidth,
                                  uint32_t flag) {
     (void)arrowsize;
@@ -1402,16 +1445,16 @@ static pointf arrow_type_diamond(GVJ_t *job, pointf p, pointf u,
     pointf q = arrow_type_diamond0(p, u, penwidth, flag, a);
 
     if (flag & ARR_MOD_LEFT)
-	gvrender_polygon(job, &a[2], 3, !(flag & ARR_MOD_OPEN));
+	arrow_geometry_add_polygon(geometry, &a[2], 3, !(flag & ARR_MOD_OPEN));
     else if (flag & ARR_MOD_RIGHT)
-	gvrender_polygon(job, a, 3, !(flag & ARR_MOD_OPEN));
+	arrow_geometry_add_polygon(geometry, a, 3, !(flag & ARR_MOD_OPEN));
     else
-	gvrender_polygon(job, a, 4, !(flag & ARR_MOD_OPEN));
+	arrow_geometry_add_polygon(geometry, a, 4, !(flag & ARR_MOD_OPEN));
 
     return q;
 }
 
-static pointf arrow_type_dot(GVJ_t *job, pointf p, pointf u, double arrowsize,
+static pointf arrow_type_dot(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize,
                              double penwidth, uint32_t flag) {
     (void)arrowsize;
     (void)penwidth;
@@ -1440,7 +1483,7 @@ static pointf arrow_type_dot(GVJ_t *job, pointf p, pointf u, double arrowsize,
     AF[0].y = p.y + u.y / 2. - r;
     AF[1].x = p.x + u.x / 2. + r;
     AF[1].y = p.y + u.y / 2. + r;
-    gvrender_ellipse(job, AF, !(flag & ARR_MOD_OPEN));
+    arrow_geometry_add_ellipse(geometry, AF, !(flag & ARR_MOD_OPEN));
 
     pointf q = {p.x + u.x, p.y + u.y};
 
@@ -1455,7 +1498,7 @@ static pointf arrow_type_dot(GVJ_t *job, pointf p, pointf u, double arrowsize,
 /* Draw a concave semicircle using a single cubic Bézier curve that touches p at its midpoint.
  * See http://digerati-illuminatus.blogspot.com.au/2008/05/approximating-semicircle-with-cubic.html for details.
  */
-static pointf arrow_type_curve(GVJ_t *job, pointf p, pointf u, double arrowsize,
+static pointf arrow_type_curve(arrow_geometry_t *geometry, pointf p, pointf u, double arrowsize,
                                double penwidth, uint32_t flag) {
     (void)arrowsize;
 
@@ -1505,30 +1548,83 @@ static pointf arrow_type_curve(GVJ_t *job, pointf p, pointf u, double arrowsize,
         AF[2].y = AF[3].y - w.y * 4.0 / 3.0;
     }
 
-    gvrender_polyline(job, a, 2);
+    arrow_geometry_add_polyline(geometry, a, 2);
     if (flag & ARR_MOD_LEFT)
 	Bezier(AF, 0.5, NULL, AF);
     else if (flag & ARR_MOD_RIGHT)
 	Bezier(AF, 0.5, AF, NULL);
-    gvrender_beziercurve(job, AF, sizeof(AF) / sizeof(pointf), 0);
+    arrow_geometry_add_beziercurve(geometry, AF, sizeof(AF) / sizeof(pointf));
 
     return q;
 }
 
 
-static pointf arrow_gen_type(GVJ_t *job, pointf p, pointf u, double arrowsize,
-                             double penwidth, uint32_t flag) {
+static pointf arrow_gen_type(arrow_geometry_t *geometry, pointf p, pointf u,
+                             double arrowsize, double penwidth,
+                             uint32_t flag) {
     uint32_t f = flag & ((1 << BITS_PER_ARROW_TYPE) - 1);
     for (size_t i = 0; i < Arrowtypes_size; ++i) {
 	const arrowtype_t *arrowtype = &Arrowtypes[i];
 	if (f == arrowtype->type) {
 	    u.x *= arrowtype->lenfact * arrowsize;
 	    u.y *= arrowtype->lenfact * arrowsize;
-	    p = arrowtype->gen(job, p, u, arrowsize, penwidth, flag);
+	    p = arrowtype->gen(geometry, p, u, arrowsize, penwidth, flag);
 	    break;
 	}
     }
     return p;
+}
+
+static void arrow_geometry_include_point(arrow_geometry_t *geometry,
+                                         pointf point, pointf tip) {
+  geometry->bbox.LL.x = fmin(geometry->bbox.LL.x, point.x);
+  geometry->bbox.LL.y = fmin(geometry->bbox.LL.y, point.y);
+  geometry->bbox.UR.x = fmax(geometry->bbox.UR.x, point.x);
+  geometry->bbox.UR.y = fmax(geometry->bbox.UR.y, point.y);
+  geometry->max_extent =
+      fmax(geometry->max_extent, DIST(point, tip));
+}
+
+static void arrow_geometry_finish(arrow_geometry_t *geometry, pointf tip) {
+  const size_t nprimitives = geometry->nprimitives;
+  geometry->nprimitives = 0;
+  geometry->bbox.LL = geometry->bbox.UR = tip;
+  geometry->max_extent = 0.0;
+  for (size_t i = 0; i < nprimitives; i++) {
+    const arrow_primitive_t *const primitive = &geometry->primitives[i];
+    for (size_t j = 0; j < primitive->npoints; j++) {
+      arrow_geometry_include_point(geometry, primitive->points[j], tip);
+    }
+  }
+  geometry->nprimitives = nprimitives;
+}
+
+void arrow_geometry(pointf p, pointf u, double arrowsize, double penwidth,
+                    uint32_t flag, arrow_geometry_t *geometry) {
+    memset(geometry, 0, sizeof(*geometry));
+    const pointf tip = p;
+    double s;
+    int i;
+
+    /* generate arrowhead vector */
+    u.x -= p.x;
+    u.y -= p.y;
+    /* the EPSILONs are to keep this stable as length of u approaches 0.0 */
+    s = ARROW_LENGTH / (hypot(u.x, u.y) + EPSILON);
+    u.x += (u.x >= 0.0) ? EPSILON : -EPSILON;
+    u.y += (u.y >= 0.0) ? EPSILON : -EPSILON;
+    u.x *= s;
+    u.y *= s;
+
+    /* the first arrow head - closest to node */
+    for (i = 0; i < NUMB_OF_ARROW_HEADS; i++) {
+        uint32_t f = (flag >> (i * BITS_PER_ARROW)) & ((1 << BITS_PER_ARROW) - 1);
+	if (f == ARR_TYPE_NONE)
+	    break;
+        p = arrow_gen_type(geometry, p, u, arrowsize, penwidth, f);
+    }
+
+    arrow_geometry_finish(geometry, tip);
 }
 
 boxf arrow_bb(pointf p, pointf u, double arrowsize)
@@ -1572,9 +1668,8 @@ boxf arrow_bb(pointf p, pointf u, double arrowsize)
 void arrow_gen(GVJ_t *job, emit_state_t emit_state, pointf p, pointf u,
                double arrowsize, double penwidth, uint32_t flag) {
     obj_state_t *obj = job->obj;
-    double s;
-    int i;
     emit_state_t old_emit_state;
+    arrow_geometry_t geometry;
 
     old_emit_state = obj->emit_state;
     obj->emit_state = emit_state;
@@ -1585,22 +1680,24 @@ void arrow_gen(GVJ_t *job, emit_state_t emit_state, pointf p, pointf u,
 
     gvrender_set_penwidth(job, penwidth);
 
-    /* generate arrowhead vector */
-    u.x -= p.x;
-    u.y -= p.y;
-    /* the EPSILONs are to keep this stable as length of u approaches 0.0 */
-    s = ARROW_LENGTH / (hypot(u.x, u.y) + EPSILON);
-    u.x += (u.x >= 0.0) ? EPSILON : -EPSILON;
-    u.y += (u.y >= 0.0) ? EPSILON : -EPSILON;
-    u.x *= s;
-    u.y *= s;
-
-    /* the first arrow head - closest to node */
-    for (i = 0; i < NUMB_OF_ARROW_HEADS; i++) {
-        uint32_t f = (flag >> (i * BITS_PER_ARROW)) & ((1 << BITS_PER_ARROW) - 1);
-	if (f == ARR_TYPE_NONE)
+    arrow_geometry(p, u, arrowsize, penwidth, flag, &geometry);
+    for (size_t i = 0; i < geometry.nprimitives; i++) {
+	arrow_primitive_t *const primitive = &geometry.primitives[i];
+	switch (primitive->kind) {
+	case ARROW_PRIMITIVE_POLYGON:
+	    gvrender_polygon(job, primitive->points, primitive->npoints,
+	                     primitive->filled);
 	    break;
-        p = arrow_gen_type(job, p, u, arrowsize, penwidth, f);
+	case ARROW_PRIMITIVE_POLYLINE:
+	    gvrender_polyline(job, primitive->points, primitive->npoints);
+	    break;
+	case ARROW_PRIMITIVE_ELLIPSE:
+	    gvrender_ellipse(job, primitive->points, primitive->filled);
+	    break;
+	case ARROW_PRIMITIVE_BEZIERCURVE:
+	    gvrender_beziercurve(job, primitive->points, primitive->npoints, 0);
+	    break;
+	}
     }
 
     obj->emit_state = old_emit_state;
