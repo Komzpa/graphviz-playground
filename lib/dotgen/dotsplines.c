@@ -2496,6 +2496,51 @@ static void smooth_alternating_concentrated_controls(bezier *spline) {
     return;
 
   bool alternating = false;
+  bool repeated_interior_corner = false;
+  pointf repeated_peak = {0};
+  for (size_t i = 1; i + 1 < spline->size; i++) {
+    if (DIST(spline->list[i], spline->list[i + 1]) > MILLIPOINT)
+      continue;
+
+    size_t previous = i;
+    while (previous > 0 &&
+           DIST(spline->list[previous], spline->list[i]) <= MILLIPOINT) {
+      previous--;
+    }
+
+    size_t next = i + 1;
+    while (next + 1 < spline->size &&
+           DIST(spline->list[next], spline->list[i]) <= MILLIPOINT) {
+      next++;
+    }
+
+    if (previous == i || next == i + 1)
+      continue;
+
+    if (fabs(turn_angle(spline->list[previous], spline->list[i],
+                        spline->list[next])) >= M_PI / 6.0) {
+      repeated_interior_corner = true;
+      repeated_peak = spline->list[i];
+      break;
+    }
+  }
+
+  if (repeated_interior_corner) {
+    const pointf start = spline->list[0];
+    const pointf end = spline->list[spline->size - 1];
+    const pointf chord = sub_pointf(end, start);
+    const pointf midpoint = {.x = (start.x + end.x) / 2.0,
+                             .y = (start.y + end.y) / 2.0};
+    const pointf peak_offset = sub_pointf(repeated_peak, midpoint);
+    for (size_t i = 1; i + 1 < spline->size; i++) {
+      const double t = (double)i / (double)(spline->size - 1);
+      const pointf chord_point = add_pointf(start, scale(t, chord));
+      spline->list[i] =
+          add_pointf(chord_point, scale(sin(M_PI * t), peak_offset));
+    }
+    return;
+  }
+
   for (size_t i = 0; i + 3 < spline->size; i += 3) {
     const double angle1 =
         turn_angle(spline->list[i], spline->list[i + 1], spline->list[i + 2]);
@@ -2534,16 +2579,16 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
     return;
 
   edge_t *const main_edge = getmainedge(edge);
-  if (Concentrate &&
-      (ED_label(main_edge) != NULL || ED_head_label(main_edge) != NULL ||
-       ED_tail_label(main_edge) != NULL ||
-       has_grouped_flat_endpoint(main_edge)))
-    smooth_alternating_concentrated_controls(spline);
-
   const bool bidirectional_concentration =
       (edge_has_concentrated_arrow_decorations(edge) ||
        ED_conc_opp_flag(edge)) &&
       ND_rank(agtail(edge)) == ND_rank(aghead(edge));
+  if (Concentrate &&
+      (bidirectional_concentration || ED_label(main_edge) != NULL ||
+       ED_head_label(main_edge) != NULL || ED_tail_label(main_edge) != NULL ||
+       has_grouped_flat_endpoint(main_edge)))
+    smooth_alternating_concentrated_controls(spline);
+
   if (!merged_tail && !merged_head && !bidirectional_concentration)
     return;
 
