@@ -3268,6 +3268,51 @@ static void restore_worsened_spline_units_locally(graph_t *g, edge_t *edge,
   assert(crossings <= crossings_before);
 }
 
+static void match_restored_spline_joint_derivatives(graph_t *g, edge_t *edge,
+                                                    splines *edge_splines,
+                                                    size_t target_crossings) {
+  for (size_t i = 0; i + 1 < edge_splines->size; i++) {
+    bezier *const left = &edge_splines->list[i];
+    bezier *const right = &edge_splines->list[i + 1];
+    if (left->size < 4 || right->size < 4)
+      continue;
+
+    const size_t left_last = left->size - 1;
+    if (DIST(left->list[left_last], right->list[0]) > MILLIPOINT)
+      continue;
+
+    pointf *const left_control = &left->list[left_last - 1];
+    pointf *const right_control = &right->list[1];
+    const pointf saved_left = *left_control;
+    const pointf saved_right = *right_control;
+    const pointf joint = left->list[left_last];
+    const pointf candidate_left = sub_pointf(scale(2.0, joint), saved_right);
+    const pointf candidate_right = sub_pointf(scale(2.0, joint), saved_left);
+
+    const bool try_left_first =
+        DIST(saved_left, candidate_left) <= DIST(saved_right, candidate_right);
+    if (try_left_first) {
+      *left_control = candidate_left;
+      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
+        continue;
+      *left_control = saved_left;
+      *right_control = candidate_right;
+      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
+        continue;
+      *right_control = saved_right;
+    } else {
+      *right_control = candidate_right;
+      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
+        continue;
+      *right_control = saved_right;
+      *left_control = candidate_left;
+      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
+        continue;
+      *left_control = saved_left;
+    }
+  }
+}
+
 static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
   const bool merged_tail = spline_merge(agtail(edge));
   const bool merged_head = spline_merge(aghead(edge));
@@ -3321,9 +3366,12 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
     smooth_consecutive_spline_joints(edge_splines);
 
   if (edge_route_node_crossings(g, main_edge, edge_splines) >
-      node_crossings_before)
+      node_crossings_before) {
     restore_worsened_spline_units_locally(g, main_edge, edge_splines,
                                           saved_points, node_crossings_before);
+    match_restored_spline_joint_derivatives(g, main_edge, edge_splines,
+                                            node_crossings_before);
+  }
   free(saved_points);
   for (size_t i = 0; i + 3 < spline->size; i += 3)
     update_bb_bz(&GD_bb(g), &spline->list[i]);
