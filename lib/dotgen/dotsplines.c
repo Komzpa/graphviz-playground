@@ -2657,13 +2657,13 @@ typedef struct {
 } junction_arm_t;
 
 static bool terminal_spline_arm(edge_t *edge, pointf junction,
-                                double max_distance, junction_arm_t *arm) {
+                                junction_arm_t *arm) {
   while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
     edge = ED_to_orig(edge);
   if (ED_spl(edge) == NULL)
     return false;
 
-  double best = max_distance;
+  double best = 1.0;
   bool found = false;
   for (size_t i = 0; i < ED_spl(edge)->size; i++) {
     bezier *const spline = &ED_spl(edge)->list[i];
@@ -2711,11 +2711,10 @@ static bool same_junction_arm(const junction_arm_t *a,
 }
 
 static size_t collect_junction_arms(edge_t **edges, int count, pointf junction,
-                                    double max_distance, junction_arm_t *arms,
-                                    size_t arm_count) {
+                                    junction_arm_t *arms, size_t arm_count) {
   for (int i = 0; i < count; i++) {
     junction_arm_t arm;
-    if (!terminal_spline_arm(edges[i], junction, max_distance, &arm))
+    if (!terminal_spline_arm(edges[i], junction, &arm))
       continue;
 
     bool seen = false;
@@ -2760,43 +2759,22 @@ static void align_trunk_to_arms(graph_t *g, junction_arm_t *trunk,
     update_bb_bz(&GD_bb(g), &trunk->spline->list[i]);
 }
 
-static void align_junction_fan_arms(graph_t *g, junction_arm_t *arms,
-                                    size_t arm_count) {
-  pointf mean;
-  if (!mean_unit_vector(arms, arm_count, &mean))
-    return;
-
-  for (size_t i = 0; i < arm_count; i++) {
-    arms[i].spline->list[arms[i].control] = add_pointf(
-        arms[i].spline->list[arms[i].endpoint], scale(arms[i].length, mean));
-    for (size_t j = 0; j + 3 < arms[i].spline->size; j += 3)
-      update_bb_bz(&GD_bb(g), &arms[i].spline->list[j]);
-  }
-}
-
 static void align_concentrated_junction_trunk(graph_t *g, node_t *node) {
   const int incoming_count = ND_in(node).size;
   const int outgoing_count = ND_out(node).size;
-  if (incoming_count + outgoing_count < 3)
+  if (!((incoming_count == 1 && outgoing_count >= 2) ||
+        (outgoing_count == 1 && incoming_count >= 2)))
     return;
 
   const size_t max_arms = (size_t)incoming_count + (size_t)outgoing_count;
   junction_arm_t *const incoming = gv_calloc(max_arms, sizeof(junction_arm_t));
   junction_arm_t *const outgoing = gv_calloc(max_arms, sizeof(junction_arm_t));
   const pointf junction = ND_coord(node);
-  const double max_distance =
-      spline_merge(node)
-          ? 1.0
-          : MAX(ND_lw(node) + ND_rw(node), ND_ht(node)) + 10.0;
   const size_t incoming_arms = collect_junction_arms(
-      ND_in(node).list, incoming_count, junction, max_distance, incoming, 0);
+      ND_in(node).list, incoming_count, junction, incoming, 0);
   const size_t outgoing_arms = collect_junction_arms(
-      ND_out(node).list, outgoing_count, junction, max_distance, outgoing, 0);
+      ND_out(node).list, outgoing_count, junction, outgoing, 0);
 
-  if (incoming_arms >= 3)
-    align_junction_fan_arms(g, incoming, incoming_arms);
-  if (outgoing_arms >= 3)
-    align_junction_fan_arms(g, outgoing, outgoing_arms);
   if (incoming_arms == 1 && outgoing_arms >= 2)
     align_trunk_to_arms(g, &incoming[0], outgoing, outgoing_arms);
   else if (outgoing_arms == 1 && incoming_arms >= 2)
@@ -2813,8 +2791,7 @@ static void align_concentrated_junction_trunks(graph_t *g) {
   for (int rank = GD_minrank(g); rank <= GD_maxrank(g); rank++) {
     for (int i = 0; i < GD_rank(g)[rank].n; i++) {
       node_t *const node = GD_rank(g)[rank].v[i];
-      if (spline_merge(node) || ND_in(node).size >= 5 ||
-          ND_out(node).size >= 5)
+      if (spline_merge(node))
         align_concentrated_junction_trunk(g, node);
     }
   }
