@@ -130,8 +130,8 @@ void merge_chain(graph_t *graph, edge_t *original_edge,
     if (update_count) {
       ED_count(representative_edge) += ED_count(original_edge);
       ED_xpenalty(representative_edge) += ED_xpenalty(original_edge);
+      ED_weight(representative_edge) += ED_weight(original_edge);
     }
-    ED_weight(representative_edge) += ED_weight(original_edge);
     if (ND_rank(aghead(representative_edge)) == last_rank) {
       break;
     }
