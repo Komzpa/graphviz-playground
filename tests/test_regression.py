@@ -4972,6 +4972,34 @@ def _box_gap(
     return math.hypot(dx, dy)
 
 
+def _boxes_overlap(
+    first: tuple[float, float, float, float],
+    second: tuple[float, float, float, float],
+) -> bool:
+    """Return whether two axis-aligned boxes overlap or touch."""
+
+    return max(first[0], second[0]) <= min(first[2], second[2]) and max(
+        first[1], second[1]
+    ) <= min(first[3], second[3])
+
+
+def _node_boxes(layout: dict) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """Read node boxes from dot JSON coordinates."""
+
+    boxes = []
+    for node in layout["objects"]:
+        x, y = (float(value) for value in node["pos"].split(","))
+        width = float(node["width"]) * 72.0
+        height = float(node["height"]) * 72.0
+        boxes.append(
+            (
+                node["name"],
+                (x - width / 2, y - height / 2, x + width / 2, y + height / 2),
+            )
+        )
+    return boxes
+
+
 @pytest.mark.parametrize("fixture", ("sb_box_dbl.gv", "sb_circle_dbl.gv"))
 def test_concentrated_duplicate_self_edge_labels_do_not_overlap(fixture: str):
     """
@@ -4986,6 +5014,31 @@ def test_concentrated_duplicate_self_edge_labels_do_not_overlap(fixture: str):
     assert len(boxes) == 2
     for (_, first), (_, second) in itertools.combinations(boxes, 2):
         assert _box_gap(first, second) >= 4.0
+
+
+@pytest.mark.parametrize("fixture", ("sb_box_dbl.gv", "sb_circle_dbl.gv"))
+def test_concentrated_duplicate_self_edge_labels_sit_clear_of_drawing(fixture: str):
+    """
+    Deduped self-edge labels should sit beside their loop, not on nodes or
+    routed strokes.
+    """
+
+    source = (Path(__file__).parent / "graphs" / fixture).read_text().replace(
+        "{", "{\n  graph [concentrate=true];", 1
+    )
+    layout = json.loads(dot("json", source=source))
+    boxes = _edge_label_boxes(source)
+    assert len(boxes) == 2
+
+    for text, box in boxes:
+        for node_name, node_box in _node_boxes(layout):
+            assert not _boxes_overlap(box, node_box), (text, node_name)
+        for edge in layout["edges"]:
+            route = _drawn_edge_polyline(edge)
+            for start, end in zip(route, route[1:]):
+                assert _point_segment_distance(
+                    ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2), start, end
+                ) > min(box[2] - box[0], box[3] - box[1]) / 2
 
 
 def _arrow_polygon_point_count(edge: dict, endpoint: str) -> int:

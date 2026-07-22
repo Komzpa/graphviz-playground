@@ -108,6 +108,74 @@ static bool label_boxes_overlap_or_touch(boxf a, boxf b) {
              MIN(a.UR.y + ENDPOINT_LABEL_GAP, b.UR.y + ENDPOINT_LABEL_GAP);
 }
 
+static bool edge_spline_bounds(const edge_t *edge, boxf *bounds) {
+  const splines *const edge_splines = ED_spl(edge);
+  if (edge_splines == NULL || edge_splines->size == 0) {
+    return false;
+  }
+
+  bool found = false;
+  for (size_t spline_index = 0; spline_index < edge_splines->size;
+       spline_index++) {
+    const bezier *const curve = &edge_splines->list[spline_index];
+    for (size_t point_index = 0; point_index < curve->size; point_index++) {
+      const pointf curve_point = curve->list[point_index];
+      if (!found) {
+        *bounds = (boxf){.LL = curve_point, .UR = curve_point};
+        found = true;
+      } else {
+        bounds->LL.x = MIN(bounds->LL.x, curve_point.x);
+        bounds->LL.y = MIN(bounds->LL.y, curve_point.y);
+        bounds->UR.x = MAX(bounds->UR.x, curve_point.x);
+        bounds->UR.y = MAX(bounds->UR.y, curve_point.y);
+      }
+    }
+  }
+  return found;
+}
+
+static double graph_node_right_bound(graph_t *graph) {
+  bool found = false;
+  double right = 0.0;
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    const pointf coord = ND_coord(node);
+    const double node_right = coord.x + ND_rw(node);
+    if (!found || node_right > right) {
+      right = node_right;
+      found = true;
+    }
+  }
+  return right;
+}
+
+static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
+                                                      edge_t *retained,
+                                                      edge_t *duplicate) {
+  if (agtail(retained) != aghead(retained) ||
+      agtail(duplicate) != aghead(duplicate)) {
+    return;
+  }
+
+  boxf retained_bounds, duplicate_bounds;
+  if (!edge_spline_bounds(retained, &retained_bounds)) {
+    return;
+  }
+  if (edge_spline_bounds(duplicate, &duplicate_bounds)) {
+    retained_bounds.LL.x = MIN(retained_bounds.LL.x, duplicate_bounds.LL.x);
+    retained_bounds.LL.y = MIN(retained_bounds.LL.y, duplicate_bounds.LL.y);
+    retained_bounds.UR.x = MAX(retained_bounds.UR.x, duplicate_bounds.UR.x);
+    retained_bounds.UR.y = MAX(retained_bounds.UR.y, duplicate_bounds.UR.y);
+  }
+
+  textlabel_t *const label = ED_label(retained);
+  const double width = GD_flip(graph) ? label->dimen.y : label->dimen.x;
+  const double right_bound =
+      MAX(retained_bounds.UR.x, graph_node_right_bound(graph));
+  label->pos.x = right_bound + ENDPOINT_LABEL_GAP + width / 2.0;
+  updateBB(graph, label);
+}
+
 static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
                                      size_t label_count) {
   if (!Concentrate || label_count < 2) {
@@ -175,6 +243,7 @@ static void dedupe_concentrated_edge_labels(graph_t *graph) {
             goto next_edge;
           }
           if (concentrated_label_dedupe_match(edge, prior_edge)) {
+            place_deduped_self_edge_label_beside_loop(graph, prior_edge, edge);
             label->set = false;
             goto next_edge;
           }
