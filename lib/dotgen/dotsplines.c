@@ -501,8 +501,8 @@ static double edge_penwidth(edge_t *edge) {
   return late_double(edge, E_penwidth, 1.0, 0.0);
 }
 
-static bool concentrated_routes_join_near_head(edge_t *edge,
-                                               edge_t *prior_edge) {
+static bool concentrated_routes_share_visible_trunk(edge_t *edge,
+                                                    edge_t *prior_edge) {
   if (aghead(edge) != aghead(prior_edge))
     return false;
 
@@ -513,23 +513,31 @@ static bool concentrated_routes_join_near_head(edge_t *edge,
 
   const double threshold =
       3.0 * MAX(edge_penwidth(edge), edge_penwidth(prior_edge));
+  const double min_shared_trunk = 30.0;
   for (size_t i = 0; i < edge_spl->size; i++) {
     const bezier *const edge_bz = &edge_spl->list[i];
-    if (edge_bz->size < 1)
+    if (edge_bz->size < 4)
       continue;
-    const pointf edge_points[] = {edge_bz->list[0],
-                                  edge_bz->list[edge_bz->size - 1]};
+    const size_t edge_cubics = (edge_bz->size - 1) / 3;
     for (size_t j = 0; j < prior_spl->size; j++) {
       const bezier *const prior_bz = &prior_spl->list[j];
-      if (prior_bz->size < 1)
+      if (prior_bz->size < 4)
         continue;
-      const pointf prior_points[] = {prior_bz->list[0],
-                                     prior_bz->list[prior_bz->size - 1]};
-      for (size_t a = 0; a < sizeof(edge_points) / sizeof(edge_points[0]);
-           a++) {
-        for (size_t b = 0; b < sizeof(prior_points) / sizeof(prior_points[0]);
-             b++) {
-          if (DIST(edge_points[a], prior_points[b]) <= threshold)
+      const size_t prior_cubics = (prior_bz->size - 1) / 3;
+      for (size_t a = 0; a < edge_cubics; a++) {
+        const pointf *const edge_cubic = &edge_bz->list[3 * a];
+        if (DIST(edge_cubic[0], edge_cubic[3]) < min_shared_trunk)
+          continue;
+        for (size_t b = 0; b < prior_cubics; b++) {
+          const pointf *const prior_cubic = &prior_bz->list[3 * b];
+          if ((APPROXEQPT(edge_cubic[0], prior_cubic[0], threshold) &&
+               APPROXEQPT(edge_cubic[1], prior_cubic[1], threshold) &&
+               APPROXEQPT(edge_cubic[2], prior_cubic[2], threshold) &&
+               APPROXEQPT(edge_cubic[3], prior_cubic[3], threshold)) ||
+              (APPROXEQPT(edge_cubic[0], prior_cubic[3], threshold) &&
+               APPROXEQPT(edge_cubic[1], prior_cubic[2], threshold) &&
+               APPROXEQPT(edge_cubic[2], prior_cubic[1], threshold) &&
+               APPROXEQPT(edge_cubic[3], prior_cubic[0], threshold)))
             return true;
         }
       }
@@ -556,7 +564,7 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   if (aghead(edge) != aghead(prior_edge)) {
     return false;
   }
-  if (!concentrated_routes_join_near_head(edge, prior_edge)) {
+  if (!concentrated_routes_share_visible_trunk(edge, prior_edge)) {
     return false;
   }
 
@@ -567,7 +575,7 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
     if (candidate_label != NULL &&
         gv_edge_attributes_are_equal(edge, candidate) &&
         strcmp(label->text, candidate_label->text) == 0 &&
-        concentrated_routes_join_near_head(edge, candidate)) {
+        concentrated_routes_share_visible_trunk(edge, candidate)) {
       matching_labels++;
     }
   }
