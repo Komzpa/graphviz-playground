@@ -400,6 +400,49 @@ static bool edge_has_no_labels(edge_t *edge) {
   return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
 }
 
+static double edge_penwidth(edge_t *edge) {
+  if (E_penwidth == NULL)
+    return 1.0;
+  return late_double(edge, E_penwidth, 1.0, 0.0);
+}
+
+static bool concentrated_routes_join_near_head(edge_t *edge,
+                                               edge_t *prior_edge) {
+  if (aghead(edge) != aghead(prior_edge))
+    return false;
+
+  const splines *const edge_spl = ED_spl(edge);
+  const splines *const prior_spl = ED_spl(prior_edge);
+  if (edge_spl == NULL || prior_spl == NULL)
+    return false;
+
+  const double threshold =
+      3.0 * MAX(edge_penwidth(edge), edge_penwidth(prior_edge));
+  for (size_t i = 0; i < edge_spl->size; i++) {
+    const bezier *const edge_bz = &edge_spl->list[i];
+    if (edge_bz->size < 1)
+      continue;
+    const pointf edge_points[] = {edge_bz->list[0],
+                                  edge_bz->list[edge_bz->size - 1]};
+    for (size_t j = 0; j < prior_spl->size; j++) {
+      const bezier *const prior_bz = &prior_spl->list[j];
+      if (prior_bz->size < 1)
+        continue;
+      const pointf prior_points[] = {prior_bz->list[0],
+                                     prior_bz->list[prior_bz->size - 1]};
+      for (size_t a = 0; a < sizeof(edge_points) / sizeof(edge_points[0]);
+           a++) {
+        for (size_t b = 0; b < sizeof(prior_points) / sizeof(prior_points[0]);
+             b++) {
+          if (DIST(edge_points[a], prior_points[b]) <= threshold)
+            return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   const textlabel_t *const label = ED_label(edge);
   const textlabel_t *const prior_label = ED_label(prior_edge);
@@ -414,6 +457,9 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   if (aghead(edge) != aghead(prior_edge)) {
     return false;
   }
+  if (!concentrated_routes_join_near_head(edge, prior_edge)) {
+    return false;
+  }
 
   size_t matching_labels = 0;
   for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
@@ -421,7 +467,8 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
     const textlabel_t *const candidate_label = ED_label(candidate);
     if (candidate_label != NULL &&
         gv_edge_attributes_are_equal(edge, candidate) &&
-        strcmp(label->text, candidate_label->text) == 0) {
+        strcmp(label->text, candidate_label->text) == 0 &&
+        concentrated_routes_join_near_head(edge, candidate)) {
       matching_labels++;
     }
   }

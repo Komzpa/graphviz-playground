@@ -80,6 +80,26 @@ static bool dense_same_head_labeled_fan(edge_t *edge, edge_t *other)
     return equivalent_labeled_edges >= 4;
 }
 
+static bool dense_same_head_labeled_fan_can_join_at(edge_t *edge, edge_t *other,
+						    node_t *join)
+{
+    if (!dense_same_head_labeled_fan(edge, other))
+	return true;
+    if (strchr(ED_label(edge)->text, ' ') == NULL ||
+	strchr(ED_label(other)->text, ' ') == NULL)
+	return true;
+
+    double lowest_tail_y = HUGE_VAL;
+    for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
+	 candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
+	if (ED_edge_type(candidate) == NORMAL && ED_label(candidate) != NULL &&
+	    rendered_edges_are_equal(candidate, edge))
+	    lowest_tail_y = MIN(lowest_tail_y, ND_coord(agtail(candidate)).y);
+    }
+    return lowest_tail_y == HUGE_VAL ||
+	   ND_coord(join).y < lowest_tail_y - MILLIPOINT;
+}
+
 static bool other_list_contains(edge_t *edge)
 {
     if (ND_other(agtail(edge)).list == NULL)
@@ -230,6 +250,7 @@ static bool bothdowncandidates(node_t * u, node_t * v)
 	    && rendered_edges_are_equal(f0, e0)
 	    && gv_edge_ports_are_equal(e, f)
 	    && original_tails_are_same_or_adjacent(e, f)
+	    && dense_same_head_labeled_fan_can_join_at(e0, f0, u)
 	    && e0 != NULL && f0 != NULL
 	    && gv_edge_ports_are_equal(e0, f0);
     }
@@ -254,6 +275,7 @@ static bool bothupcandidates(node_t * u, node_t * v)
 	    && rendered_edges_are_equal(f0, e0)
 	    && gv_edge_ports_are_equal(e, f)
 	    && original_tails_are_same_or_adjacent(e, f)
+	    && dense_same_head_labeled_fan_can_join_at(e0, f0, u)
 	    && (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
     }
     return false;
