@@ -58,7 +58,10 @@
 
 typedef struct {
   textlabel_t *label;
+  node_t *shared_anchor;
 } endpoint_label_t;
+
+static bool has_grouped_flat_endpoint(edge_t *);
 
 static void makefwdedge(edge_t *new, edge_t *old) {
   Agedgeinfo_t *const info =
@@ -95,11 +98,26 @@ static boxf label_box(const graph_t *graph, const textlabel_t *label) {
                        .y = label->pos.y + dimen.y / 2.0}};
 }
 
+static boxf node_box(const node_t *node) {
+  const pointf coord = ND_coord(node);
+  return (boxf){
+      .LL = {.x = coord.x - ND_lw(node), .y = coord.y - ND_ht(node) / 2.0},
+      .UR = {.x = coord.x + ND_rw(node), .y = coord.y + ND_ht(node) / 2.0}};
+}
+
 static bool label_boxes_overlap_or_touch(boxf a, boxf b) {
   return MAX(a.LL.x - ENDPOINT_LABEL_GAP, b.LL.x - ENDPOINT_LABEL_GAP) <=
              MIN(a.UR.x + ENDPOINT_LABEL_GAP, b.UR.x + ENDPOINT_LABEL_GAP) &&
          MAX(a.LL.y - ENDPOINT_LABEL_GAP, b.LL.y - ENDPOINT_LABEL_GAP) <=
              MIN(a.UR.y + ENDPOINT_LABEL_GAP, b.UR.y + ENDPOINT_LABEL_GAP);
+}
+
+static bool has_shared_endpoint_anchor(edge_t *edge, bool head_p) {
+  if (Concentrate && has_grouped_flat_endpoint(edge))
+    return false;
+
+  attrsym_t *const attr = head_p ? E_samehead : E_sametail;
+  return attr != NULL && agxget(edge, attr)[0] != '\0';
 }
 
 static bool edge_spline_bounds(const edge_t *edge, boxf *bounds) {
@@ -176,7 +194,7 @@ static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
     return;
   }
 
-  for (size_t pass = 0; pass < label_count; pass++) {
+  for (size_t pass = 0; pass < label_count * 10; pass++) {
     bool moved = false;
     for (size_t i = 0; i < label_count; i++) {
       for (size_t j = i + 1; j < label_count; j++) {
@@ -210,6 +228,37 @@ static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
         updateBB(graph, labels[j].label);
         moved = true;
       }
+    }
+
+    for (size_t i = 0; i < label_count; i++) {
+      node_t *const anchor = labels[i].shared_anchor;
+      if (anchor == NULL)
+        continue;
+
+      const boxf lbl_box = label_box(graph, labels[i].label);
+      const boxf n_box = node_box(anchor);
+      if (!label_boxes_overlap_or_touch(lbl_box, n_box))
+        continue;
+
+      const int x_direction =
+          labels[i].label->pos.x <= ND_coord(anchor).x ? -1 : 1;
+      const int y_direction =
+          labels[i].label->pos.y <= ND_coord(anchor).y ? -1 : 1;
+      const double anchor_gap = 2.0 * ENDPOINT_LABEL_GAP;
+      const double x_push = x_direction < 0
+                                ? lbl_box.UR.x + anchor_gap - n_box.LL.x
+                                : n_box.UR.x + anchor_gap - lbl_box.LL.x;
+      const double y_push = y_direction < 0
+                                ? lbl_box.UR.y + anchor_gap - n_box.LL.y
+                                : n_box.UR.y + anchor_gap - lbl_box.LL.y;
+
+      if (x_push <= y_push) {
+        labels[i].label->pos.x += (double)x_direction * x_push;
+      } else {
+        labels[i].label->pos.y += (double)y_direction * y_push;
+      }
+      updateBB(graph, labels[i].label);
+      moved = true;
     }
     if (!moved) {
       break;
@@ -800,8 +849,10 @@ finish:
             if (ED_head_label(out_edge)->set ||
                 place_portlabel(out_edge, true)) {
               updateBB(g, ED_head_label(out_edge));
-              endpoint_labels[endpoint_label_count++] =
-                  (endpoint_label_t){.label = ED_head_label(out_edge)};
+              endpoint_labels[endpoint_label_count++] = (endpoint_label_t){
+                  .label = ED_head_label(out_edge),
+                  .shared_anchor =
+                      has_shared_endpoint_anchor(out_edge, true) ? n : NULL};
             }
           }
         }
@@ -811,8 +862,10 @@ finish:
           if (ED_tail_label(e)) {
             if (ED_tail_label(e)->set || place_portlabel(e, false)) {
               updateBB(g, ED_tail_label(e));
-              endpoint_labels[endpoint_label_count++] =
-                  (endpoint_label_t){.label = ED_tail_label(e)};
+              endpoint_labels[endpoint_label_count++] = (endpoint_label_t){
+                  .label = ED_tail_label(e),
+                  .shared_anchor =
+                      has_shared_endpoint_anchor(e, false) ? n : NULL};
             }
           }
         }
