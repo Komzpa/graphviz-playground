@@ -8270,6 +8270,26 @@ def test_concentrate_preserves_reverse_arrow_after_no_arrow_duplicate(splines: s
     assert _arrow_polygon_point_count(drawn_edges[0], "t") == 3
 
 
+def test_neato_concentrate_straight_opposite_edge_keeps_borrowed_arrow():
+    """Straight neato folds compare opposite physical endpoints."""
+
+    source = """
+        digraph {
+          graph [concentrate=true splines=false]
+          node [shape=circle]
+          a [pos="0,0!"]
+          b [pos="1,0!"]
+          a -> b [dir=none color=red]
+          b -> a [arrowhead=normal color=red]
+        }
+    """
+    layout = json.loads(run("dot", "-Kneato", "-Tjson", input=source))
+    positioned_edges = [edge for edge in layout["edges"] if edge.get("pos")]
+    assert len(positioned_edges) == 1
+    assert "_tdraw_" in positioned_edges[0]
+    assert "_hdraw_" not in positioned_edges[0]
+
+
 @pytest.mark.parametrize(
     ("retained_attributes", "candidate_attributes"),
     (

@@ -996,18 +996,34 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
 		    continue;
 		edge_t *const retained_attribute_edge =
 		    rendered_attribute_edge(retained);
-		edge_t *const candidate_attribute_edge =
-		    rendered_attribute_edge(candidate);
-		if (retained_attribute_edge != NULL &&
-		    candidate_attribute_edge != NULL &&
-		    gv_edge_attributes_are_equal(retained_attribute_edge,
-		                                 candidate_attribute_edge) &&
-		    same_direction_edge_arrow_decorations_are_mergeable(
-			retained_attribute_edge, candidate_attribute_edge)) {
-			    fold_concentrated_edge_arrow_decorations(
-				retained_attribute_edge, candidate_attribute_edge, false);
-		    ED_edge_type(candidate) = IGNORED;
-		}
+			edge_t *const candidate_attribute_edge =
+			    rendered_attribute_edge(candidate);
+			if (retained_attribute_edge == NULL ||
+			    candidate_attribute_edge == NULL)
+			    continue;
+			const bool candidate_is_opposite_direction =
+			    agtail(retained_attribute_edge) ==
+			        aghead(candidate_attribute_edge) &&
+			    aghead(retained_attribute_edge) ==
+			        agtail(candidate_attribute_edge);
+			const bool attributes_are_mergeable =
+			    candidate_is_opposite_direction
+			        ? gv_opposite_edge_attributes_are_equal(
+			              retained_attribute_edge, candidate_attribute_edge)
+			        : gv_edge_attributes_are_equal(retained_attribute_edge,
+			                                       candidate_attribute_edge);
+			const bool arrows_are_mergeable =
+			    candidate_is_opposite_direction
+			        ? opposite_direction_edge_arrow_decorations_are_mergeable(
+			              retained_attribute_edge, candidate_attribute_edge)
+			        : same_direction_edge_arrow_decorations_are_mergeable(
+			              retained_attribute_edge, candidate_attribute_edge);
+			if (attributes_are_mergeable && arrows_are_mergeable) {
+				    fold_concentrated_edge_arrow_decorations(
+					retained_attribute_edge, candidate_attribute_edge,
+					candidate_is_opposite_direction);
+			    ED_edge_type(candidate) = IGNORED;
+			}
 	    }
 	}
 	size_t kept = 0;
