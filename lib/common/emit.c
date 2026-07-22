@@ -3019,7 +3019,7 @@ static void emit_end_edge(GVJ_t * job)
 
 	/* process intersection with tail node */
 	bz = ED_spl(e)->list[0];
-	if (bz.sflag) /* Arrow at start of splines */
+	if (bz.sflag && !bz.suppress_sflag) /* Arrow at start of splines */
 	    p = bz.sp;
 	else /* No arrow at start of splines */
 	    p = bz.list[0];
@@ -3028,7 +3028,7 @@ static void emit_end_edge(GVJ_t * job)
         
 	/* process intersection with head node */
 	bz = ED_spl(e)->list[ED_spl(e)->size - 1];
-	if (bz.eflag) /* Arrow at end of splines */
+	if (bz.eflag && !bz.suppress_eflag) /* Arrow at end of splines */
 	    p = bz.ep;
 	else /* No arrow at end of splines */
 	    p = bz.list[bz.size - 1];
@@ -4141,11 +4141,11 @@ static void init_splines_bb(splines *spl)
             b = bezier_bb(bz);
             EXPANDBB(&bb, b);
         }
-        if (bz.sflag) {
+        if (bz.sflag && !bz.suppress_sflag) {
             b = arrow_bb(bz.sp, bz.list[0], 1);
             EXPANDBB(&bb, b);
         }
-        if (bz.eflag) {
+        if (bz.eflag && !bz.suppress_eflag) {
             b = arrow_bb(bz.ep, bz.list[bz.size - 1], 1);
             EXPANDBB(&bb, b);
         }

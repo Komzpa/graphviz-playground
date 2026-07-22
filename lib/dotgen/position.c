@@ -814,13 +814,15 @@ static void set_ycoords(graph_t * g)
 		r--;
 	    if (r < GD_minrank(g))
 		return;
+	    int last_nonempty_rank = r;
 	    double d0 = ND_coord(rank[r].v[0]).y;
 	    while (--r >= GD_minrank(g)) {
 		if (rank[r].n == 0 || rank[r].v[0] == NULL)
 		    continue;
 		const double d1 = ND_coord(rank[r].v[0]).y;
-		const double delta = d1 - d0;
+		const double delta = (d1 - d0) / (last_nonempty_rank - r);
 		maxht = fmax(maxht, delta);
+		last_nonempty_rank = r;
 		d0 = d1;
 	    }
 	}
@@ -1029,7 +1031,9 @@ static void make_leafslots(graph_t * g)
 
 int ports_eq(edge_t * e, edge_t * f)
 {
-    return gv_edge_ports_are_equal(e, f);
+    edge_t *const e0 = ED_to_orig(e) != NULL ? ED_to_orig(e) : e;
+    edge_t *const f0 = ED_to_orig(f) != NULL ? ED_to_orig(f) : f;
+    return gv_edge_ports_are_equal(e0, f0);
 }
 
 static void expand_leaves(graph_t * g)

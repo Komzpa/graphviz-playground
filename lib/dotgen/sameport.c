@@ -38,8 +38,6 @@ static void free_same(same_t s) {
 typedef LIST(same_t) same_list_t;
 
 static void sameedge(same_list_t *same, edge_t *e, char *id);
-static void same_labeled_head_edge(same_list_t *same, edge_t *e);
-static void same_labeled_head_port(node_t *u, edge_list_t l);
 static void sameport(node_t *u, edge_list_t l);
 
 void dot_sameports(graph_t * g)
@@ -49,12 +47,11 @@ void dot_sameports(graph_t * g)
     edge_t *e;
     char *id;
     same_list_t samehead = {.dtor = free_same};
-    same_list_t implicit_samehead = {.dtor = free_same};
     same_list_t sametail = {.dtor = free_same};
 
     E_samehead = agattr_text(g, AGEDGE, "samehead", NULL);
     E_sametail = agattr_text(g, AGEDGE, "sametail", NULL);
-    if (!Concentrate && !(E_samehead || E_sametail))
+    if (!(E_samehead || E_sametail))
 	return;
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	for (e = agfstedge(g, n); e; e = agnxtedge(g, e, n)) {
@@ -62,8 +59,6 @@ void dot_sameports(graph_t * g)
 	    if (aghead(e) == n && E_samehead &&
 	        (id = agxget(e, E_samehead))[0])
 		sameedge(&samehead, e, id);
-	    else if (Concentrate && aghead(e) == n && ED_label(e) != NULL)
-		same_labeled_head_edge(&implicit_samehead, e);
 	    else if (agtail(e) == n && E_sametail &&
 	        (id = agxget(e, E_sametail))[0])
 		sameedge(&sametail, e, id);
@@ -73,11 +68,6 @@ void dot_sameports(graph_t * g)
 		sameport(n, LIST_GET(&samehead, i).l);
 	}
 	LIST_CLEAR(&samehead);
-	for (size_t i = 0; i < LIST_SIZE(&implicit_samehead); i++) {
-	    if (LIST_SIZE(&LIST_AT(&implicit_samehead, i)->l) >= 3)
-		same_labeled_head_port(n, LIST_GET(&implicit_samehead, i).l);
-	}
-	LIST_CLEAR(&implicit_samehead);
 	for (size_t i = 0; i < LIST_SIZE(&sametail); i++) {
 	    if (LIST_SIZE(&LIST_AT(&sametail, i)->l) > 1)
 		sameport(n, LIST_GET(&sametail, i).l);
@@ -86,7 +76,6 @@ void dot_sameports(graph_t * g)
     }
 
     LIST_FREE(&samehead);
-    LIST_FREE(&implicit_samehead);
     LIST_FREE(&sametail);
 }
 
@@ -99,27 +88,6 @@ static void sameedge(same_list_t *same, edge_t *e, char *id) {
 	}
 
     same_t to_append = {.id = id};
-    LIST_APPEND(&to_append.l, e);
-    LIST_APPEND(same, to_append);
-}
-
-static void same_labeled_head_edge(same_list_t *same, edge_t *e) {
-    const textlabel_t *const label = ED_label(e);
-    if (label == NULL || label->text == NULL)
-	return;
-    if (strchr(label->text, ' ') == NULL)
-	return;
-
-    for (size_t i = 0; i < LIST_SIZE(same); i++) {
-	edge_t *const representative = LIST_GET(&LIST_AT(same, i)->l, 0);
-	if (streq(LIST_GET(same, i).id, label->text) &&
-	    gv_edge_attributes_are_equal(representative, e)) {
-	    LIST_APPEND(&LIST_AT(same, i)->l, e);
-	    return;
-	}
-    }
-
-    same_t to_append = {.id = label->text};
     LIST_APPEND(&to_append.l, e);
     LIST_APPEND(same, to_append);
 }
@@ -154,21 +122,6 @@ static void apply_same_port(node_t *u, edge_list_t l, port prt) {
     }
 
     ND_has_port(u) = true;	/* kinda pointless, because mincross is already done */
-}
-
-static void same_labeled_head_port(node_t *u, edge_list_t l) {
-    port prt = {.p = {.x = -18, .y = round(ND_ht(u) / 2)}};
-    prt.bp = 0;
-    prt.order = 0;
-    prt.constrained = false;
-    prt.defined = true;
-    prt.clip = false;
-    prt.dyna = false;
-    prt.theta = 0;
-    prt.side = 0;
-    prt.name = NULL;
-
-    apply_same_port(u, l, prt);
 }
 
 static void sameport(node_t *u, edge_list_t l)
