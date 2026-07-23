@@ -136,6 +136,7 @@ int dot_position(graph_t *g) {
 	    return rc;
 	}
     }
+    dot_bundle_load_dump(g, "after-concentrate");
     expand_leaves(g);
     if (flat_edges(g))
 	set_ycoords(g);

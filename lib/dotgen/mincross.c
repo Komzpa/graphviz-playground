@@ -1712,14 +1712,8 @@ void virtual_weight(edge_t *e) {
   int t;
   t = table[endpoint_class(agtail(e))][endpoint_class(aghead(e))];
 
-  /* check whether the upcoming computation will overflow */
   assert(t >= 0);
-  if (INT_MAX / t < ED_weight(e)) {
-    agerrorf("overflow when calculating virtual weight of edge\n");
-    graphviz_exit(EXIT_FAILURE);
-  }
-
-  ED_weight(e) *= t;
+  dot_bundle_load_set_position_scale(e, (uint64_t)t);
 }
 
 #ifdef DEBUG

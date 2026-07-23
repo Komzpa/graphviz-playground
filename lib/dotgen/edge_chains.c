@@ -134,7 +134,7 @@ static void make_virtual_edge_chain(graph_t *graph, node_t *first_node,
 static void transactional_merge_chain(gv_concentration_transaction_t *handle,
                                       graph_t *graph, edge_t *original_edge,
                                       edge_t *first_virtual_edge,
-                                      bool update_count);
+                                      dot_bundle_merge_t merge);
 
 static void
 represent_intercluster_edge(graph_t *graph, edge_t *original_edge,
@@ -148,10 +148,10 @@ represent_intercluster_edge(graph_t *graph, edge_t *original_edge,
     edge_t *virtual_edge = find_fast_edge(tail_leader, head_leader);
     if (virtual_edge != NULL) {
       if (handle == NULL) {
-        merge_chain(graph, original_edge, virtual_edge, true);
+        merge_chain(graph, original_edge, virtual_edge, DOT_BUNDLE_ACCUMULATE);
       } else {
         transactional_merge_chain(handle, graph, original_edge, virtual_edge,
-                                  true);
+                                  DOT_BUNDLE_ACCUMULATE);
       }
       return;
     }
@@ -181,35 +181,53 @@ static bool is_cluster_edge(edge_t *edge) {
          ND_ranktype(aghead(edge)) == CLUSTER;
 }
 
-void merge_chain(graph_t *graph, edge_t *original_edge,
-                 edge_t *first_virtual_edge, bool update_count) {
+static void merge_bundle_load_chain(graph_t *graph, edge_t *original_edge,
+                                    edge_t *first_virtual_edge,
+                                    dot_bundle_merge_t merge) {
+  assert(first_virtual_edge != NULL);
+  if (first_virtual_edge == NULL) {
+    return;
+  }
+
   const int last_rank =
       MAX(ND_rank(agtail(original_edge)), ND_rank(aghead(original_edge)));
 
-  assert(ED_to_virt(original_edge) == NULL);
-  ED_to_virt(original_edge) = first_virtual_edge;
   edge_t *representative_edge = first_virtual_edge;
   bool is_endpoint_segment = true;
   do {
-    /* interclust multi-edges are not counted now */
-    if (update_count) {
-      ED_count(representative_edge) += ED_count(original_edge);
-      ED_xpenalty(representative_edge) += ED_xpenalty(original_edge);
-      const bool reaches_original_endpoint =
-          ND_rank(aghead(representative_edge)) == last_rank;
-      if (is_endpoint_segment || reaches_original_endpoint) {
-        ED_weight(representative_edge) += ED_weight(original_edge);
-      }
+    const bool add_legacy_load = merge == DOT_BUNDLE_ACCUMULATE;
+    const int legacy_count = ED_count(representative_edge) +
+                             (add_legacy_load ? ED_count(original_edge) : 0);
+    const int legacy_xpenalty =
+        ED_xpenalty(representative_edge) +
+        (add_legacy_load ? ED_xpenalty(original_edge) : 0);
+    int legacy_position = ED_weight(representative_edge);
+    const bool reaches_original_endpoint =
+        ND_rank(aghead(representative_edge)) == last_rank;
+    if (add_legacy_load &&
+        (is_endpoint_segment || reaches_original_endpoint)) {
+      legacy_position += ED_weight(original_edge);
     }
+    dot_bundle_load_merge(representative_edge, original_edge, merge);
+    dot_bundle_load_set_legacy_count(representative_edge, legacy_count);
+    dot_bundle_load_set_legacy_xpenalty(representative_edge, legacy_xpenalty);
+    dot_bundle_load_set_legacy_position(representative_edge, legacy_position);
     if (ND_rank(aghead(representative_edge)) == last_rank) {
       break;
     }
-    if (update_count) {
+    if (merge == DOT_BUNDLE_ACCUMULATE) {
       widen_virtual_node(graph, aghead(representative_edge));
     }
     representative_edge = ND_out(aghead(representative_edge)).list[0];
     is_endpoint_segment = false;
   } while (representative_edge != NULL);
+}
+
+void merge_chain(graph_t *graph, edge_t *original_edge,
+                 edge_t *first_virtual_edge, dot_bundle_merge_t merge) {
+  assert(ED_to_virt(original_edge) == NULL);
+  ED_to_virt(original_edge) = first_virtual_edge;
+  merge_bundle_load_chain(graph, original_edge, first_virtual_edge, merge);
 }
 
 bool mergeable(edge_t *first_edge, edge_t *second_edge) {
@@ -244,59 +262,81 @@ typedef struct {
   bool opposite_direction;
   bool materialize_representative;
   bool update_previous_edge;
+  dot_bundle_merge_t merge;
 } edge_chain_candidate_payload_t;
+
+static void transactional_record_edge_info(
+    gv_concentration_transaction_t *handle, edge_t *edge) {
+  gv_concentration_transaction_record(handle, AGDATA(edge),
+                                      sizeof(Agedgeinfo_t));
+}
 
 static void transactional_merge_chain(gv_concentration_transaction_t *handle,
                                       graph_t *graph, edge_t *original_edge,
                                       edge_t *first_virtual_edge,
-                                      bool update_count) {
+                                      dot_bundle_merge_t merge) {
   gv_concentration_transaction_record(handle, &ED_to_virt(original_edge),
                                       sizeof(ED_to_virt(original_edge)));
-  if (update_count) {
+  if (merge == DOT_BUNDLE_ACCUMULATE || merge == DOT_BUNDLE_COALESCE) {
     const int last_rank =
         MAX(ND_rank(agtail(original_edge)), ND_rank(aghead(original_edge)));
-    bool is_endpoint_segment = true;
     for (edge_t *representative = first_virtual_edge; representative != NULL;
          representative = ND_out(aghead(representative)).list[0]) {
-      gv_concentration_transaction_record(handle, &ED_count(representative),
-                                          sizeof(ED_count(representative)));
-      gv_concentration_transaction_record(handle, &ED_xpenalty(representative),
-                                          sizeof(ED_xpenalty(representative)));
-      if (is_endpoint_segment || ND_rank(aghead(representative)) == last_rank) {
-        gv_concentration_transaction_record(handle, &ED_weight(representative),
-                                            sizeof(ED_weight(representative)));
-      }
+      transactional_record_edge_info(handle, representative);
       if (ND_rank(aghead(representative)) == last_rank) {
         break;
       }
-      gv_concentration_transaction_record(
-          handle, &ND_lw(aghead(representative)),
-          sizeof(ND_lw(aghead(representative))));
-      gv_concentration_transaction_record(
-          handle, &ND_rw(aghead(representative)),
-          sizeof(ND_rw(aghead(representative))));
-      is_endpoint_segment = false;
+      if (merge == DOT_BUNDLE_ACCUMULATE) {
+        gv_concentration_transaction_record(
+            handle, &ND_lw(aghead(representative)),
+            sizeof(ND_lw(aghead(representative))));
+        gv_concentration_transaction_record(
+            handle, &ND_rw(aghead(representative)),
+            sizeof(ND_rw(aghead(representative))));
+      }
     }
   }
-  merge_chain(graph, original_edge, first_virtual_edge, update_count);
+  merge_chain(graph, original_edge, first_virtual_edge, merge);
 }
 
 static void transactional_merge_oneway(gv_concentration_transaction_t *handle,
-                                       edge_t *edge, edge_t *representative) {
+                                       edge_t *edge, edge_t *representative,
+                                       dot_bundle_merge_t merge) {
   gv_concentration_transaction_record(handle, &ED_to_virt(edge),
                                       sizeof(ED_to_virt(edge)));
-  gv_concentration_transaction_record(handle, &ED_minlen(representative),
-                                      sizeof(ED_minlen(representative)));
   for (edge_t *segment = representative; segment != NULL;
        segment = ED_to_virt(segment)) {
-    gv_concentration_transaction_record(handle, &ED_count(segment),
-                                        sizeof(ED_count(segment)));
-    gv_concentration_transaction_record(handle, &ED_xpenalty(segment),
-                                        sizeof(ED_xpenalty(segment)));
-    gv_concentration_transaction_record(handle, &ED_weight(segment),
-                                        sizeof(ED_weight(segment)));
+    transactional_record_edge_info(handle, segment);
   }
-  merge_oneway(edge, representative);
+  merge_oneway_with_bundle(edge, representative, merge);
+}
+
+static void merge_concentrated_edge_load(graph_t *graph, edge_t *edge,
+                                         edge_t *representative,
+                                         dot_bundle_merge_t merge) {
+  if (ED_to_virt(representative) != NULL) {
+    merge_bundle_load_chain(graph, edge, ED_to_virt(representative), merge);
+  } else {
+    dot_bundle_load_merge(representative, edge, merge);
+  }
+}
+
+static void transactional_merge_concentrated_edge_load(
+    gv_concentration_transaction_t *handle, graph_t *graph, edge_t *edge,
+    edge_t *representative, dot_bundle_merge_t merge) {
+  if (ED_to_virt(representative) != NULL) {
+    const int last_rank = MAX(ND_rank(agtail(edge)), ND_rank(aghead(edge)));
+    for (edge_t *segment = ED_to_virt(representative); segment != NULL;
+         segment = ND_out(aghead(segment)).list[0]) {
+      transactional_record_edge_info(handle, segment);
+      if (ND_rank(aghead(segment)) == last_rank) {
+        break;
+      }
+    }
+  } else {
+    transactional_record_edge_info(handle, representative);
+  }
+  merge_concentrated_edge_load(graph, edge, representative, merge);
 }
 
 static void transactional_other_edge(gv_concentration_transaction_t *handle,
@@ -333,18 +373,25 @@ execute_edge_chain_candidate(const gv_concentration_candidate_t *candidate,
   case GV_CONCENTRATION_SUPPRESS_PARALLEL:
     transactional_fold_arrows(handle, payload->representative, payload->edge,
                               false);
+    transactional_merge_concentrated_edge_load(
+        handle, payload->graph, payload->edge, payload->representative,
+        DOT_BUNDLE_COALESCE);
     gv_concentration_transaction_record(handle, &ED_edge_type(payload->edge),
                                         sizeof(ED_edge_type(payload->edge)));
     ED_edge_type(payload->edge) = IGNORED;
     break;
   case GV_CONCENTRATION_SHARE_ROUTE:
     transactional_merge_chain(handle, payload->graph, payload->edge,
-                              ED_to_virt(payload->representative), false);
+                              ED_to_virt(payload->representative),
+                              payload->merge);
     transactional_other_edge(handle, payload->edge);
     break;
   case GV_CONCENTRATION_SUPPRESS_OPPOSITE:
     transactional_fold_arrows(handle, payload->representative, payload->edge,
                               payload->opposite_direction);
+    transactional_merge_concentrated_edge_load(
+        handle, payload->graph, payload->edge, payload->representative,
+        DOT_BUNDLE_COALESCE);
     gv_concentration_transaction_record(handle, &ED_edge_type(payload->edge),
                                         sizeof(ED_edge_type(payload->edge)));
     ED_edge_type(payload->edge) = IGNORED;
@@ -356,7 +403,8 @@ execute_edge_chain_candidate(const gv_concentration_candidate_t *candidate,
         payload->graph, payload->representative, handle);
     break;
   case GV_CONCENTRATION_SHARE_FLAT_ROUTE:
-    transactional_merge_oneway(handle, payload->edge, payload->representative);
+    transactional_merge_oneway(handle, payload->edge, payload->representative,
+                               payload->merge);
     transactional_other_edge(handle, payload->edge);
     break;
   case GV_CONCENTRATION_REPRESENT_CLUSTER:
@@ -433,6 +481,9 @@ static void transactional_suppress_later_same_direction_duplicates(
         same_direction_edge_arrow_decorations_are_mergeable(representative,
                                                             edge)) {
       transactional_fold_arrows(handle, representative, edge, false);
+      transactional_merge_concentrated_edge_load(handle, graph, edge,
+                                                 representative,
+                                                 DOT_BUNDLE_COALESCE);
       gv_concentration_transaction_record(handle, &ED_edge_type(edge),
                                           sizeof(ED_edge_type(edge)));
       ED_edge_type(edge) = IGNORED;
@@ -625,6 +676,8 @@ generate_parallel_candidate(gv_concentration_plan_context_t *context,
       .graph = graph,
       .edge = edge,
       .representative = representative,
+      .merge = action == GV_CONCENTRATION_SHARE_ROUTE ? DOT_BUNDLE_SHARE_ROUTE
+                                                       : DOT_BUNDLE_COALESCE,
   };
   gv_concentration_candidate_set_init(context, set, "edge-chains-parallel",
                                       action, legacy_accepts, reasons,
@@ -671,6 +724,7 @@ generate_backward_candidate(gv_concentration_plan_context_t *context,
         .graph = graph,
         .edge = backward_edge,
         .representative = representative,
+        .merge = DOT_BUNDLE_COALESCE,
     };
     gv_concentration_candidate_set_init(
         context, set, "edge-chains-backward-parallel",
@@ -719,6 +773,7 @@ generate_backward_candidate(gv_concentration_plan_context_t *context,
       .opposite_direction = true,
       .materialize_representative =
           representative != NULL && ED_to_virt(representative) == NULL,
+      .merge = suppress ? DOT_BUNDLE_COALESCE : DOT_BUNDLE_SHARE_ROUTE,
   };
   gv_concentration_candidate_set_init(
       context, set, "edge-chains-backward", action, legacy_accepts,
@@ -749,7 +804,8 @@ merge_backward_edge_with_opposite(gv_concentration_plan_context_t *context,
                                   aghead(opposite_edge), opposite_edge);
         }
         other_edge(backward_edge);
-        merge_chain(graph, backward_edge, ED_to_virt(opposite_edge), true);
+        merge_chain(graph, backward_edge, ED_to_virt(opposite_edge),
+                    DOT_BUNDLE_ACCUMULATE);
         return true;
       }
     }
@@ -804,6 +860,7 @@ generate_cluster_opposite_candidate(gv_concentration_plan_context_t *context,
       .edge = edge,
       .representative = representative,
       .opposite_direction = true,
+      .merge = DOT_BUNDLE_COALESCE,
   };
   gv_concentration_candidate_set_init(
       context, set, "edge-chains-cluster-opposite",
@@ -841,12 +898,15 @@ static void generate_cluster_fallback_candidate(
   } else if (shares_flat_route) {
     action = GV_CONCENTRATION_SHARE_FLAT_ROUTE;
   }
+  const dot_bundle_merge_t merge =
+      shares_chain ? DOT_BUNDLE_ALIAS : DOT_BUNDLE_ACCUMULATE;
 
   *payload = (edge_chain_candidate_payload_t){
       .graph = graph,
       .edge = edge,
       .representative = previous_edge,
       .update_previous_edge = represents_edge,
+      .merge = merge,
   };
   const bool legacy_accepts =
       shares_chain || shares_flat_route || represents_edge;
@@ -863,7 +923,7 @@ route_cluster_edge_fallback(gv_concentration_plan_context_t *context,
   if (!Concentrate) {
     if (mergeable(previous_edge, edge)) {
       if (ED_to_virt(previous_edge) != NULL) {
-        merge_chain(graph, edge, ED_to_virt(previous_edge), false);
+        merge_chain(graph, edge, ED_to_virt(previous_edge), DOT_BUNDLE_ALIAS);
         other_edge(edge);
       } else if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
         merge_oneway(edge, previous_edge);
@@ -887,12 +947,14 @@ static void
 generate_flat_route_candidate(gv_concentration_plan_context_t *context,
                               graph_t *graph, edge_t *edge,
                               edge_t *representative, bool legacy_accepts,
+                              dot_bundle_merge_t merge,
                               gv_concentration_candidate_set_t *set,
                               edge_chain_candidate_payload_t *payload) {
   *payload = (edge_chain_candidate_payload_t){
       .graph = graph,
       .edge = edge,
       .representative = representative,
+      .merge = merge,
   };
   gv_concentration_candidate_set_init(
       context, set, "edge-chains-flat-route", GV_CONCENTRATION_SHARE_FLAT_ROUTE,
@@ -905,11 +967,12 @@ generate_flat_route_candidate(gv_concentration_plan_context_t *context,
 static bool
 route_concentrated_flat_edge(gv_concentration_plan_context_t *context,
                              graph_t *graph, edge_t *edge,
-                             edge_t *representative, bool legacy_accepts) {
+                             edge_t *representative, bool legacy_accepts,
+                             dot_bundle_merge_t merge) {
   gv_concentration_candidate_set_t set;
   edge_chain_candidate_payload_t payload;
   generate_flat_route_candidate(context, graph, edge, representative,
-                                legacy_accepts, &set, &payload);
+                                legacy_accepts, merge, &set, &payload);
   return gv_concentration_apply(context, &set);
 }
 
@@ -985,11 +1048,13 @@ void build_edge_chains(graph_t *graph) {
           aghead(edge) == aghead(previous_edge)) {
         if (ND_rank(agtail(edge)) == ND_rank(aghead(edge))) {
           edge_t *representative_edge = previous_edge;
+          dot_bundle_merge_t merge = DOT_BUNDLE_ACCUMULATE;
           if (Concentrate) {
             edge_t *const equivalent_edge =
                 find_prior_flat_concentrated_equivalent(graph, edge);
             if (equivalent_edge != NULL) {
               representative_edge = equivalent_edge;
+              merge = DOT_BUNDLE_COALESCE;
             }
           }
           const bool flat_edges_are_mergeable =
@@ -998,7 +1063,8 @@ void build_edge_chains(graph_t *graph) {
           if (Concentrate) {
             if (route_concentrated_flat_edge(&concentration_context, graph,
                                              edge, representative_edge,
-                                             flat_edges_are_mergeable)) {
+                                             flat_edges_are_mergeable,
+                                             merge)) {
               continue;
             }
           } else if (flat_edges_are_mergeable) {
@@ -1016,7 +1082,8 @@ void build_edge_chains(graph_t *graph) {
               continue;
             }
           } else {
-            merge_chain(graph, edge, ED_to_virt(previous_edge), true);
+            merge_chain(graph, edge, ED_to_virt(previous_edge),
+                        DOT_BUNDLE_ACCUMULATE);
             other_edge(edge);
             continue;
           }

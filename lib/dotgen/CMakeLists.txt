@@ -1,6 +1,7 @@
 add_library(dotgen STATIC
   aspect.c
   acyclic.c
+  bundle_load.c
   class1.c
   edge_chains.c
   cluster.c

@@ -568,12 +568,18 @@ typedef enum {NATIVEFONTS,PSFONTS,SVGFONTS} fontname_kind;
 #endif
 #ifndef NEATO_ONLY
 	unsigned char showboxes;
+	unsigned char bundle_position_scale;
+	bool bundle_capture_legacy_bias;
 	bool conc_opp_flag;
 	short xpenalty;
 	int weight;
 	int cutvalue;
 	int tree_index;
 	short count;
+	/* Storage for dot_bundle_load_t without exposing dotgen internals here. */
+	uint64_t bundle_load[7];
+	/* Non-bundle load already present on synthetic dot segments. */
+	int bundle_legacy_bias[3];
 	int minlen;
 	edge_t *to_virt;
 #endif
