@@ -32,6 +32,7 @@ static pointf Offset;
 static void place_flip_graph_label(graph_t * g);
 static void bow_labeled_long_return_routes(graph_t *g);
 static void gather_unlabeled_same_tail_fans(graph_t *g);
+static void replace_stale_main_edge_labels(graph_t *g);
 
 #define M1 \
 "/pathbox {\n\
@@ -677,6 +678,7 @@ void gv_postprocess(Agraph_t * g, int allowTranslation)
 	translate_drawing(g);
 	bow_labeled_long_return_routes(g);
 	gather_unlabeled_same_tail_fans(g);
+	replace_stale_main_edge_labels(g);
     }
     if (GD_label(g) && !GD_label(g)->set)
 	place_root_label(g, dimen);
@@ -702,6 +704,284 @@ void dotneato_postprocess(Agraph_t * g)
 static bool edge_has_any_label(edge_t *e)
 {
     return ED_label(e) || ED_head_label(e) || ED_tail_label(e);
+}
+
+static double point_distance(pointf a, pointf b)
+{
+    return hypot(a.x - b.x, a.y - b.y);
+}
+
+static double point_segment_distance(pointf p, pointf a, pointf b)
+{
+    const double dx = b.x - a.x;
+    const double dy = b.y - a.y;
+    const double length2 = dx * dx + dy * dy;
+    if (length2 <= 0.0)
+	return point_distance(p, a);
+
+    const double t =
+	fmax(0.0, fmin(1.0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2));
+    return point_distance(p, (pointf){a.x + dx * t, a.y + dy * t});
+}
+
+static double label_route_distance(edge_t *e, textlabel_t *label)
+{
+    const splines *const spl = ED_spl(e);
+    if (spl == NULL)
+	return DBL_MAX;
+
+    double best = DBL_MAX;
+    for (size_t i = 0; i < spl->size; i++) {
+	const bezier curve = spl->list[i];
+	if (curve.size < 4) {
+	    for (size_t j = 1; j < curve.size; j++)
+		best = fmin(best, point_segment_distance(label->pos,
+							 curve.list[j - 1],
+							 curve.list[j]));
+	    continue;
+	}
+	for (size_t j = 0; j + 3 < curve.size; j += 3) {
+	    pointf a = Bezier(&curve.list[j], 0.0, NULL, NULL);
+	    for (size_t step = 1; step <= 24; step++) {
+		const pointf b =
+		    Bezier(&curve.list[j], (double)step / 24.0, NULL, NULL);
+		best = fmin(best, point_segment_distance(label->pos, a, b));
+		a = b;
+	    }
+	}
+    }
+    return best;
+}
+
+static bool edge_route_point(edge_t *e, double fraction, pointf *route_point,
+			     pointf *tangent)
+{
+    const splines *const spl = ED_spl(e);
+    if (spl == NULL)
+	return false;
+
+    double total = 0.0;
+    for (size_t i = 0; i < spl->size; i++) {
+	const bezier curve = spl->list[i];
+	if (curve.size < 4) {
+	    for (size_t j = 1; j < curve.size; j++)
+		total += point_distance(curve.list[j - 1], curve.list[j]);
+	    continue;
+	}
+	for (size_t j = 0; j + 3 < curve.size; j += 3) {
+	    pointf a = Bezier(&curve.list[j], 0.0, NULL, NULL);
+	    for (size_t step = 1; step <= 24; step++) {
+		const pointf b =
+		    Bezier(&curve.list[j], (double)step / 24.0, NULL, NULL);
+		total += point_distance(a, b);
+		a = b;
+	    }
+	}
+    }
+    if (total <= 0.0)
+	return false;
+
+    const double target = total * fraction;
+    double walked = 0.0;
+    for (size_t i = 0; i < spl->size; i++) {
+	const bezier curve = spl->list[i];
+	if (curve.size < 4) {
+	    for (size_t j = 1; j < curve.size; j++) {
+		const pointf a = curve.list[j - 1];
+		const pointf b = curve.list[j];
+		const double segment = point_distance(a, b);
+		if (segment <= 0.0)
+		    continue;
+		if (walked + segment >= target) {
+		    const double t = (target - walked) / segment;
+		    *route_point = (pointf){a.x + (b.x - a.x) * t,
+					    a.y + (b.y - a.y) * t};
+		    *tangent = (pointf){(b.x - a.x) / segment,
+					(b.y - a.y) / segment};
+		    return true;
+		}
+		walked += segment;
+	    }
+	    continue;
+	}
+	for (size_t j = 0; j + 3 < curve.size; j += 3) {
+	    pointf a = Bezier(&curve.list[j], 0.0, NULL, NULL);
+	    for (size_t step = 1; step <= 24; step++) {
+		const pointf b =
+		    Bezier(&curve.list[j], (double)step / 24.0, NULL, NULL);
+		const double segment = point_distance(a, b);
+		if (segment <= 0.0) {
+		    a = b;
+		    continue;
+		}
+		if (walked + segment >= target) {
+		    const double t = (target - walked) / segment;
+		    *route_point = (pointf){a.x + (b.x - a.x) * t,
+					    a.y + (b.y - a.y) * t};
+		    *tangent = (pointf){(b.x - a.x) / segment,
+					(b.y - a.y) / segment};
+		    return true;
+		}
+		walked += segment;
+		a = b;
+	    }
+	}
+    }
+    return false;
+}
+
+static boxf label_box_at(textlabel_t *label, pointf pos)
+{
+    pointf dimen = label->dimen;
+    if (Flip) {
+	const double x = dimen.x;
+	dimen.x = dimen.y;
+	dimen.y = x;
+    }
+    return (boxf){.LL = {.x = pos.x - dimen.x / 2.0,
+			 .y = pos.y - dimen.y / 2.0},
+		  .UR = {.x = pos.x + dimen.x / 2.0,
+			 .y = pos.y + dimen.y / 2.0}};
+}
+
+static double segment_box_overlap_length(pointf a, pointf b, boxf bounds)
+{
+    const double dx = b.x - a.x;
+    const double dy = b.y - a.y;
+    double t0 = 0.0;
+    double t1 = 1.0;
+    const double p[4] = {-dx, dx, -dy, dy};
+    const double q[4] = {a.x - bounds.LL.x, bounds.UR.x - a.x,
+			 a.y - bounds.LL.y, bounds.UR.y - a.y};
+
+    for (size_t i = 0; i < 4; i++) {
+	if (p[i] == 0.0) {
+	    if (q[i] < 0.0)
+		return 0.0;
+	    continue;
+	}
+	const double r = q[i] / p[i];
+	if (p[i] < 0.0) {
+	    if (r > t1)
+		return 0.0;
+	    t0 = fmax(t0, r);
+	} else {
+	    if (r < t0)
+		return 0.0;
+	    t1 = fmin(t1, r);
+	}
+    }
+    return fmax(0.0, t1 - t0) * point_distance(a, b);
+}
+
+static size_t label_foreign_route_intersections(graph_t *g, edge_t *e,
+						textlabel_t *label,
+						pointf pos)
+{
+    const boxf lbl_box = label_box_at(label, pos);
+    size_t intersections = 0;
+    for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+	for (edge_t *other = agfstout(g, n); other; other = agnxtout(g, other)) {
+	    if (other == e || ED_spl(other) == NULL)
+		continue;
+	    const splines *const spl = ED_spl(other);
+	    bool hit = false;
+	    for (size_t i = 0; !hit && i < spl->size; i++) {
+		const bezier curve = spl->list[i];
+		if (curve.size < 4) {
+		    for (size_t j = 1; j < curve.size; j++) {
+			if (segment_box_overlap_length(curve.list[j - 1],
+						       curve.list[j],
+						       lbl_box) >= 3.0) {
+			    intersections++;
+			    hit = true;
+			    break;
+			}
+		    }
+		    continue;
+		}
+		for (size_t j = 0; !hit && j + 3 < curve.size; j += 3) {
+		    pointf a = Bezier(&curve.list[j], 0.0, NULL, NULL);
+		    for (size_t step = 1; step <= 24; step++) {
+			const pointf b =
+			    Bezier(&curve.list[j], (double)step / 24.0, NULL,
+				   NULL);
+			if (segment_box_overlap_length(a, b, lbl_box) >= 3.0) {
+			    intersections++;
+			    hit = true;
+			    break;
+			}
+			a = b;
+		    }
+		}
+	    }
+	}
+    }
+    return intersections;
+}
+
+static bool final_route_label_position(edge_t *e, textlabel_t *label,
+				       pointf *best)
+{
+    static const double fractions[] = {0.05, 0.10, 0.15, 0.20, 0.25,
+				       0.30, 0.35, 0.40, 0.45, 0.50,
+				       0.55, 0.60, 0.65, 0.70, 0.75,
+				       0.80, 0.85, 0.90, 0.95};
+    static const int offsets[] = {0, -1, 1, -2, 2, -3, 3, -4, 4};
+    const double step = fmax(12.0, label->dimen.y / 2.0 + 5.0);
+    size_t best_hits = (size_t)-1;
+    double best_distance = 0.0;
+    bool found = false;
+
+    for (size_t i = 0; i < sizeof(fractions) / sizeof(fractions[0]); i++) {
+	pointf route_point;
+	pointf tangent;
+	if (!edge_route_point(e, fractions[i], &route_point, &tangent))
+	    continue;
+	const pointf normal = {-tangent.y, tangent.x};
+	for (size_t j = 0; j < sizeof(offsets) / sizeof(offsets[0]); j++) {
+	    const double distance = fabs((double)offsets[j]) * step;
+	    if (distance > 120.0)
+		continue;
+	    const pointf candidate = {
+		route_point.x + normal.x * step * offsets[j],
+		route_point.y + normal.y * step * offsets[j]};
+	    const size_t hits =
+		label_foreign_route_intersections(agraphof(e), e, label,
+						  candidate);
+	    if (!found || hits < best_hits ||
+		(hits == best_hits && distance < best_distance)) {
+		*best = candidate;
+		best_hits = hits;
+		best_distance = distance;
+		found = true;
+	    }
+	    if (hits == 0 && distance == 0.0)
+		return true;
+	}
+    }
+    return found;
+}
+
+static void replace_stale_main_edge_labels(graph_t *g)
+{
+    for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+	for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+	    textlabel_t *const label = ED_label(e);
+	    if (label == NULL || !label->set || ED_spl(e) == NULL)
+		continue;
+	    const bool self_loop = agtail(e) == aghead(e);
+	    const bool intersects_route =
+		label_foreign_route_intersections(g, e, label, label->pos) > 0;
+	    const bool detached =
+		!self_loop && label_route_distance(e, label) > 60.0;
+	    if (!detached && !intersects_route)
+		continue;
+	    pointf pos;
+	    if (final_route_label_position(e, label, &pos))
+		label->pos = pos;
+	}
+    }
 }
 
 static bool long_backward_edge(edge_t *e)
