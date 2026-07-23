@@ -10,6 +10,7 @@
 
 #include "config.h"
 
+#include <common/concentrate_plan.h>
 #include <assert.h>
 #include <limits.h>
 #include <time.h>
@@ -301,6 +302,7 @@ static int dotLayout(Agraph_t *g) {
 
     dot_init_subg(g,g);
     dot_init_node_edge(g);
+    gv_concentration_plan_diagnose_if_enabled(g);
 
     GV_INFO("Starting phase 1 [dot_rank]");
     dot_rank(g);

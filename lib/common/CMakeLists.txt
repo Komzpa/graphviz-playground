@@ -40,6 +40,7 @@ add_library(common_obj OBJECT
   arrows.c
   attrname.c
   colxlate.c
+  concentrate_plan.c
   edgeattr.c
   ellipse.c
   emit.c

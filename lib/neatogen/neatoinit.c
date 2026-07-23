@@ -18,6 +18,7 @@
 
 #include "config.h"
 
+#include <common/concentrate_plan.h>
 #include <time.h>
 #include <neatogen/neato.h>
 #include <pack/pack.h>
@@ -599,6 +600,7 @@ static void neato_init_graph (Agraph_t * g)
     Ndim = GD_ndim(g->root) = MIN(GD_ndim(g->root), MAXDIM);
     GD_odim(g->root) = MIN(outdim, Ndim);
     neato_init_node_edge(g);
+    gv_concentration_plan_diagnose_if_enabled(g);
 }
 
 static int neatoModel(graph_t * g)
