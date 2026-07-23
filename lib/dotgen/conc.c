@@ -15,6 +15,7 @@
 #include "config.h"
 
 #include <common/edgeattr.h>
+#include <dotgen/concentrate_plan.h>
 #include <dotgen/dot.h>
 #include <stdbool.h>
 #include <string.h>
@@ -103,14 +104,19 @@ static bool other_list_contains(edge_t *edge) {
   return false;
 }
 
-static void keep_distinct_original_drawn(edge_t *edge, edge_t *representative) {
+static void
+keep_distinct_original_drawn(edge_t *edge, edge_t *representative,
+                             gv_concentration_transaction_t *handle) {
   edge_t *const original_edge = original_normal_edge(edge);
   edge_t *const representative_edge = original_normal_edge(representative);
 
   if (original_edge != NULL && ED_edge_type(original_edge) == NORMAL &&
       !rendered_edges_are_equal(original_edge, representative_edge) &&
-      !other_list_contains(original_edge))
+      !other_list_contains(original_edge)) {
+    gv_concentration_transaction_record_elist(handle,
+                                              &ND_other(agtail(original_edge)));
     other_edge(original_edge);
+  }
 }
 
 static bool downcandidate(node_t *v) {
@@ -291,9 +297,65 @@ static bool bothupcandidates(node_t *u, node_t *v) {
   return false;
 }
 
-static void add_concentrated_segment_weight(edge_t *edge,
-                                            edge_t *representative) {
+static edge_t *
+transactional_virtual_edge(node_t *tail, node_t *head, edge_t *original_edge,
+                           gv_concentration_transaction_t *handle) {
+  gv_concentration_transaction_record_elist(handle, &ND_out(tail));
+  gv_concentration_transaction_record_elist(handle, &ND_in(head));
+  if (original_edge != NULL)
+    gv_concentration_transaction_record(handle, &ED_to_virt(original_edge),
+                                        sizeof(ED_to_virt(original_edge)));
+  edge_t *const edge = virtual_edge(tail, head, original_edge);
+  gv_concentration_transaction_track_virtual_edge(handle, edge);
+  return edge;
+}
+
+static void
+transactional_delete_fast_edge(gv_concentration_transaction_t *handle,
+                               edge_t *edge) {
+  gv_concentration_transaction_record_elist(handle, &ND_out(agtail(edge)));
+  gv_concentration_transaction_record_elist(handle, &ND_in(aghead(edge)));
+  delete_fast_edge(edge);
+}
+
+static void
+transactional_delete_fast_node(gv_concentration_transaction_t *handle,
+                               graph_t *graph, node_t *node) {
+  gv_concentration_transaction_record(handle, &GD_nlist(graph),
+                                      sizeof(GD_nlist(graph)));
+  if (ND_next(node) != NULL)
+    gv_concentration_transaction_record(handle, &ND_prev(ND_next(node)),
+                                        sizeof(ND_prev(ND_next(node))));
+  if (ND_prev(node) != NULL)
+    gv_concentration_transaction_record(handle, &ND_next(ND_prev(node)),
+                                        sizeof(ND_next(ND_prev(node))));
+  delete_fast_node(graph, node);
+}
+
+static void transactional_merge_oneway(gv_concentration_transaction_t *handle,
+                                       edge_t *edge, edge_t *representative) {
+  gv_concentration_transaction_record(handle, &ED_to_virt(edge),
+                                      sizeof(ED_to_virt(edge)));
+  gv_concentration_transaction_record(handle, &ED_minlen(representative),
+                                      sizeof(ED_minlen(representative)));
+  for (edge_t *segment = representative; segment != NULL;
+       segment = ED_to_virt(segment)) {
+    gv_concentration_transaction_record(handle, &ED_count(segment),
+                                        sizeof(ED_count(segment)));
+    gv_concentration_transaction_record(handle, &ED_xpenalty(segment),
+                                        sizeof(ED_xpenalty(segment)));
+    gv_concentration_transaction_record(handle, &ED_weight(segment),
+                                        sizeof(ED_weight(segment)));
+  }
+  merge_oneway(edge, representative);
+}
+
+static void
+add_concentrated_segment_weight(edge_t *edge, edge_t *representative,
+                                gv_concentration_transaction_t *handle) {
   while (representative != NULL) {
+    gv_concentration_transaction_record(handle, &ED_weight(representative),
+                                        sizeof(ED_weight(representative)));
     ED_weight(representative) += ED_weight(edge);
     representative = ED_to_virt(representative);
   }
@@ -304,7 +366,8 @@ static bool concentrated_junction(node_t *n) {
          (ND_in(n).size > 1 || ND_out(n).size > 1);
 }
 
-static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir) {
+static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir,
+                              gv_concentration_transaction_t *handle) {
   node_t *left;
   edge_t *e, *f, *e0;
 
@@ -317,24 +380,39 @@ static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir) {
         if (aghead(f) == aghead(e))
           break;
       if (f == NULL)
-        f = virtual_edge(left, aghead(e), e);
+        f = transactional_virtual_edge(left, aghead(e), e, handle);
       else
-        add_concentrated_segment_weight(e, f);
+        add_concentrated_segment_weight(e, f, handle);
+      gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(e),
+                                          sizeof(ED_conc_suppressed_tail(e)));
       ED_conc_suppressed_tail(e) = true;
+      gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(f),
+                                          sizeof(ED_conc_suppressed_tail(f)));
       ED_conc_suppressed_tail(f) = true;
       if (concentrated_junction(aghead(e))) {
+        gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(e),
+                                            sizeof(ED_conc_suppressed_head(e)));
         ED_conc_suppressed_head(e) = true;
+        gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(f),
+                                            sizeof(ED_conc_suppressed_head(f)));
         ED_conc_suppressed_head(f) = true;
       }
       while ((e0 = ND_in(right).list[0])) {
-        keep_distinct_original_drawn(e0, f);
-        if (concentrated_junction(agtail(e0)))
+        keep_distinct_original_drawn(e0, f, handle);
+        if (concentrated_junction(agtail(e0))) {
+          gv_concentration_transaction_record(
+              handle, &ED_conc_suppressed_tail(e0),
+              sizeof(ED_conc_suppressed_tail(e0)));
           ED_conc_suppressed_tail(e0) = true;
+        }
+        gv_concentration_transaction_record(
+            handle, &ED_conc_suppressed_head(e0),
+            sizeof(ED_conc_suppressed_head(e0)));
         ED_conc_suppressed_head(e0) = true;
-        merge_oneway(e0, f);
-        delete_fast_edge(e0);
+        transactional_merge_oneway(handle, e0, f);
+        transactional_delete_fast_edge(handle, e0);
       }
-      delete_fast_edge(e);
+      transactional_delete_fast_edge(handle, e);
     }
   } else {
     while ((e = ND_in(right).list[0])) {
@@ -343,32 +421,54 @@ static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir) {
         if (agtail(f) == agtail(e))
           break;
       if (f == NULL)
-        f = virtual_edge(agtail(e), left, e);
+        f = transactional_virtual_edge(agtail(e), left, e, handle);
       else
-        add_concentrated_segment_weight(e, f);
+        add_concentrated_segment_weight(e, f, handle);
       if (concentrated_junction(agtail(e))) {
+        gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(e),
+                                            sizeof(ED_conc_suppressed_tail(e)));
         ED_conc_suppressed_tail(e) = true;
+        gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(f),
+                                            sizeof(ED_conc_suppressed_tail(f)));
         ED_conc_suppressed_tail(f) = true;
       }
+      gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(e),
+                                          sizeof(ED_conc_suppressed_head(e)));
       ED_conc_suppressed_head(e) = true;
+      gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(f),
+                                          sizeof(ED_conc_suppressed_head(f)));
       ED_conc_suppressed_head(f) = true;
       while ((e0 = ND_out(right).list[0])) {
-        keep_distinct_original_drawn(e0, f);
+        keep_distinct_original_drawn(e0, f, handle);
+        gv_concentration_transaction_record(
+            handle, &ED_conc_suppressed_tail(e0),
+            sizeof(ED_conc_suppressed_tail(e0)));
         ED_conc_suppressed_tail(e0) = true;
-        if (concentrated_junction(aghead(e0)))
+        if (concentrated_junction(aghead(e0))) {
+          gv_concentration_transaction_record(
+              handle, &ED_conc_suppressed_head(e0),
+              sizeof(ED_conc_suppressed_head(e0)));
           ED_conc_suppressed_head(e0) = true;
-        merge_oneway(e0, f);
-        delete_fast_edge(e0);
+        }
+        transactional_merge_oneway(handle, e0, f);
+        transactional_delete_fast_edge(handle, e0);
       }
-      delete_fast_edge(e);
+      transactional_delete_fast_edge(handle, e);
     }
   }
   assert(ND_in(right).size + ND_out(right).size == 0);
-  delete_fast_node(g, right);
+  transactional_delete_fast_node(handle, g, right);
 
+  gv_concentration_transaction_record(handle, GD_rank(g)[r].v,
+                                      ((size_t)GD_rank(g)[r].n + 1) *
+                                          sizeof(*GD_rank(g)[r].v));
+  gv_concentration_transaction_record(handle, &GD_rank(g)[r].n,
+                                      sizeof(GD_rank(g)[r].n));
   int k = rpos;
   for (int i = rpos + 1; i < GD_rank(g)[r].n; ++i) {
     node_t *const n = GD_rank(g)[r].v[k] = GD_rank(g)[r].v[i];
+    gv_concentration_transaction_record(handle, &ND_order(n),
+                                        sizeof(ND_order(n)));
     ND_order(n) = k;
     k++;
   }
@@ -500,7 +600,108 @@ static bool flat_edges_are_equivalent(edge_t *edge,
              representative_edge, edge);
 }
 
-static void concentrate_flat_edges(graph_t *graph) {
+typedef struct {
+  graph_t *graph;
+  edge_t *edge;
+  edge_t *representative;
+  int rank;
+  int left_position;
+  int right_position;
+  int direction;
+} concentration_candidate_payload_t;
+
+static void record_rebuild_vlists_state(gv_concentration_transaction_t *handle,
+                                        graph_t *graph) {
+  gv_concentration_transaction_record(handle, &GD_minrank(graph),
+                                      sizeof(GD_minrank(graph)));
+  gv_concentration_transaction_record(handle, &GD_maxrank(graph),
+                                      sizeof(GD_maxrank(graph)));
+  gv_concentration_transaction_record(handle, &GD_leader(graph),
+                                      sizeof(GD_leader(graph)));
+  if (GD_rankleader(graph) != NULL) {
+    gv_concentration_transaction_record(handle, GD_rankleader(graph),
+                                        ((size_t)GD_maxrank(graph) + 2) *
+                                            sizeof(*GD_rankleader(graph)));
+  }
+  if (GD_rank(graph) != NULL) {
+    for (int rank = GD_minrank(graph); rank <= GD_maxrank(graph); rank++) {
+      gv_concentration_transaction_record(handle, &GD_rank(graph)[rank].v,
+                                          sizeof(GD_rank(graph)[rank].v));
+      gv_concentration_transaction_record(handle, &GD_rank(graph)[rank].n,
+                                          sizeof(GD_rank(graph)[rank].n));
+    }
+  }
+  for (int cluster = 1; cluster <= GD_n_cluster(graph); cluster++) {
+    record_rebuild_vlists_state(handle, GD_clust(graph)[cluster]);
+  }
+}
+
+static bool
+execute_concentration_candidate(const gv_concentration_candidate_t *candidate,
+                                gv_concentration_transaction_t *handle) {
+  concentration_candidate_payload_t *const payload = candidate->payload;
+
+  switch (candidate->action) {
+  case GV_CONCENTRATION_SUPPRESS_FLAT: {
+    gv_concentration_transaction_record_arrow(handle, payload->representative);
+    const bool opposite_direction = edges_run_in_opposite_directions(
+        payload->edge, payload->representative);
+    fold_concentrated_edge_arrow_decorations(payload->representative,
+                                             payload->edge, opposite_direction);
+    if (opposite_direction) {
+      gv_concentration_transaction_record(
+          handle, &ED_conc_opp_flag(payload->representative),
+          sizeof(ED_conc_opp_flag(payload->representative)));
+      ED_conc_opp_flag(payload->representative) = true;
+    }
+    gv_concentration_transaction_record_elist(handle,
+                                              &ND_other(agtail(payload->edge)));
+    zapinlist(&ND_other(agtail(payload->edge)), payload->edge);
+    gv_concentration_transaction_record(handle, &ED_edge_type(payload->edge),
+                                        sizeof(ED_edge_type(payload->edge)));
+    ED_edge_type(payload->edge) = IGNORED;
+    break;
+  }
+  case GV_CONCENTRATION_MERGE_VIRTUAL_PAIR:
+    mergevirtual_pair(payload->graph, payload->rank, payload->left_position,
+                      payload->right_position, payload->direction, handle);
+    break;
+  case GV_CONCENTRATION_FINALIZE_RANKS:
+    record_rebuild_vlists_state(handle, payload->graph);
+    return rebuild_vlists(payload->graph) == 0;
+  case GV_CONCENTRATION_NO_MERGE:
+  case GV_CONCENTRATION_SUPPRESS_PARALLEL:
+  case GV_CONCENTRATION_SHARE_ROUTE:
+  case GV_CONCENTRATION_SUPPRESS_OPPOSITE:
+  case GV_CONCENTRATION_SHARE_FLAT_ROUTE:
+  case GV_CONCENTRATION_REPRESENT_CLUSTER:
+    assert(false);
+    return false;
+  }
+  return true;
+}
+
+static void
+generate_flat_candidate(gv_concentration_plan_context_t *context,
+                        graph_t *graph, edge_t *edge, edge_t *representative,
+                        gv_concentration_candidate_set_t *set,
+                        concentration_candidate_payload_t *payload) {
+  const bool legacy_accepts = flat_edges_are_equivalent(edge, representative);
+  *payload = (concentration_candidate_payload_t){
+      .graph = graph,
+      .edge = edge,
+      .representative = representative,
+  };
+  gv_concentration_candidate_set_init(
+      context, set, "concentrate-flat", GV_CONCENTRATION_SUPPRESS_FLAT,
+      legacy_accepts,
+      legacy_accepts ? GV_CONCENTRATION_REASON_NONE
+                     : GV_CONCENTRATION_REASON_INCOMPATIBLE_ATTRIBUTES,
+      execute_concentration_candidate, payload);
+}
+
+static void concentrate_flat_edges(gv_concentration_plan_context_t *context,
+                                   graph_t *graph) {
   /*
    * The virtual-node passes below require an intermediate rank, so they never
    * visit same-rank edges. flat_breakcycles() and build_edge_chains() have
@@ -519,16 +720,11 @@ static void concentrate_flat_edges(graph_t *graph) {
       edge_t *const edge = ND_other(node).list[edge_index];
       edge_t *const representative_edge = ED_to_virt(edge);
 
-      if (flat_edges_are_equivalent(edge, representative_edge)) {
-        const bool opposite_direction =
-            edges_run_in_opposite_directions(edge, representative_edge);
-        fold_concentrated_edge_arrow_decorations(representative_edge, edge,
-                                                 opposite_direction);
-        if (opposite_direction) {
-          ED_conc_opp_flag(representative_edge) = true;
-        }
-        zapinlist(&ND_other(node), edge);
-        ED_edge_type(edge) = IGNORED;
+      gv_concentration_candidate_set_t set;
+      concentration_candidate_payload_t payload;
+      generate_flat_candidate(context, graph, edge, representative_edge, &set,
+                              &payload);
+      if (gv_concentration_apply(context, &set)) {
         continue;
       }
       edge_index++;
@@ -536,11 +732,65 @@ static void concentrate_flat_edges(graph_t *graph) {
   }
 }
 
+static void
+generate_virtual_pair_candidate(gv_concentration_plan_context_t *context,
+                                graph_t *graph, int rank, int left_position,
+                                int right_position, int direction,
+                                gv_concentration_candidate_set_t *set,
+                                concentration_candidate_payload_t *payload) {
+  node_t *const left = GD_rank(graph)[rank].v[left_position];
+  node_t *const right = GD_rank(graph)[rank].v[right_position];
+  const bool legacy_accepts = direction == DOWN
+                                  ? bothdowncandidates(left, right)
+                                  : bothupcandidates(left, right);
+  *payload = (concentration_candidate_payload_t){
+      .graph = graph,
+      .rank = rank,
+      .left_position = left_position,
+      .right_position = right_position,
+      .direction = direction,
+  };
+  gv_concentration_candidate_set_init(
+      context, set,
+      direction == DOWN ? "concentrate-virtual-down" : "concentrate-virtual-up",
+      GV_CONCENTRATION_MERGE_VIRTUAL_PAIR, legacy_accepts,
+      legacy_accepts ? GV_CONCENTRATION_REASON_NONE
+                     : GV_CONCENTRATION_REASON_LEGACY_REJECTED,
+      execute_concentration_candidate, payload);
+}
+
+static bool try_virtual_pair_candidate(gv_concentration_plan_context_t *context,
+                                       graph_t *graph, int rank,
+                                       int left_position, int right_position,
+                                       int direction) {
+  gv_concentration_candidate_set_t set;
+  concentration_candidate_payload_t payload;
+  generate_virtual_pair_candidate(context, graph, rank, left_position,
+                                  right_position, direction, &set, &payload);
+  return gv_concentration_apply(context, &set);
+}
+
+static void
+generate_finalize_candidate(gv_concentration_plan_context_t *context,
+                            graph_t *graph,
+                            gv_concentration_candidate_set_t *set,
+                            concentration_candidate_payload_t *payload) {
+  *payload = (concentration_candidate_payload_t){
+      .graph = graph,
+  };
+  gv_concentration_candidate_set_init(
+      context, set, "concentrate-finalize-ranks",
+      GV_CONCENTRATION_FINALIZE_RANKS, true, GV_CONCENTRATION_REASON_NONE,
+      execute_concentration_candidate, payload);
+}
+
 int dot_concentrate(graph_t *g) {
   int c, r, leftpos, rightpos;
-  node_t *left, *right;
+  node_t *left;
 
-  concentrate_flat_edges(g);
+  gv_concentration_plan_context_t concentration_context;
+  gv_concentration_plan_context_init(&concentration_context);
+  concentrate_flat_edges(&concentration_context, g);
   if (GD_maxrank(g) - GD_minrank(g) <= 1) {
     return 0;
   }
@@ -551,14 +801,13 @@ int dot_concentrate(graph_t *g) {
       if (!downcandidate(left))
         continue;
       for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;) {
-        right = GD_rank(g)[r].v[rightpos];
-        if (!bothdowncandidates(left, right)) {
+        if (!try_virtual_pair_candidate(&concentration_context, g, r, leftpos,
+                                        rightpos, DOWN)) {
           if (!agisdirected(g))
             break;
           rightpos++;
           continue;
         }
-        mergevirtual_pair(g, r, leftpos, rightpos, DOWN);
       }
     }
   }
@@ -569,20 +818,23 @@ int dot_concentrate(graph_t *g) {
       if (!upcandidate(left))
         continue;
       for (rightpos = leftpos + 1; rightpos < GD_rank(g)[r].n;) {
-        right = GD_rank(g)[r].v[rightpos];
-        if (!bothupcandidates(left, right)) {
+        if (!try_virtual_pair_candidate(&concentration_context, g, r, leftpos,
+                                        rightpos, UP)) {
           if (!agisdirected(g))
             break;
           rightpos++;
           continue;
         }
-        mergevirtual_pair(g, r, leftpos, rightpos, UP);
       }
     }
     r--;
   }
   for (c = 1; c <= GD_n_cluster(g); c++) {
-    if (rebuild_vlists(GD_clust(g)[c]) != 0) {
+    gv_concentration_candidate_set_t set;
+    concentration_candidate_payload_t payload;
+    generate_finalize_candidate(&concentration_context, GD_clust(g)[c], &set,
+                                &payload);
+    if (!gv_concentration_apply(&concentration_context, &set)) {
       agerr(AGPREV, "concentrate=true may not work correctly.\n");
       return -1;
     }

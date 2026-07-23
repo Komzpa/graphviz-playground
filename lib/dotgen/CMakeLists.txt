@@ -6,6 +6,7 @@ add_library(dotgen STATIC
   cluster.c
   compound.c
   conc.c
+  concentrate_plan.c
   decomp.c
   dotinit.c
   dotsplines.c
