@@ -374,10 +374,19 @@ typedef struct {
 } route_endpoint_metadata_t;
 
 typedef struct {
+  route_spline_metadata_t route;
+  size_t first_control;
+  size_t control_count;
+} route_local_plan_t;
+
+typedef LIST(route_local_plan_t) route_local_plans_t;
+
+typedef struct {
   edge_t *edge;
   size_t spline_index;
   route_endpoint_metadata_t start;
   route_endpoint_metadata_t end;
+  route_local_plans_t local_plans;
 } route_piece_metadata_t;
 
 typedef LIST(route_piece_metadata_t) route_pieces_t;
@@ -682,14 +691,40 @@ static void copy_route_spline_metadata(route_spline_metadata_t *destination,
   destination->template_point_count = source->template_point_count;
 }
 
-static void capture_route_spline_metadata(route_spline_metadata_t *first,
-                                          route_spline_metadata_t *last,
-                                          route_spline_metadata_t *current) {
-  if (!route_spline_metadata_valid(first))
-    copy_route_spline_metadata(first, current);
-  route_spline_metadata_free(last);
-  *last = *current;
+static void capture_route_spline_metadata(route_local_plans_t *plans,
+                                          route_spline_metadata_t *current,
+                                          size_t first_control,
+                                          size_t control_count) {
+  if (!route_spline_metadata_valid(current)) {
+    route_spline_metadata_free(current);
+    return;
+  }
+  LIST_APPEND(plans, ((route_local_plan_t){
+                         .route = *current,
+                         .first_control = first_control,
+                         .control_count = control_count,
+                     }));
   *current = (route_spline_metadata_t){0};
+}
+
+static void free_route_local_plans(route_local_plans_t *plans) {
+  for (size_t i = 0; i < LIST_SIZE(plans); i++)
+    route_spline_metadata_free(&LIST_AT(plans, i)->route);
+  LIST_FREE(plans);
+}
+
+static void copy_route_local_plans(route_local_plans_t *destination,
+                                   const route_local_plans_t *source) {
+  *destination = (route_local_plans_t){0};
+  for (size_t i = 0; i < LIST_SIZE(source); i++) {
+    const route_local_plan_t *const plan = LIST_AT(source, i);
+    route_local_plan_t copy = {
+        .first_control = plan->first_control,
+        .control_count = plan->control_count,
+    };
+    copy_route_spline_metadata(&copy.route, &plan->route);
+    LIST_APPEND(destination, copy);
+  }
 }
 
 static void free_route_piece_metadata(route_pieces_t *pieces) {
@@ -697,6 +732,7 @@ static void free_route_piece_metadata(route_pieces_t *pieces) {
     route_piece_metadata_t *const piece = LIST_AT(pieces, i);
     route_spline_metadata_free(&piece->start.route);
     route_spline_metadata_free(&piece->end.route);
+    free_route_local_plans(&piece->local_plans);
   }
   LIST_FREE(pieces);
 }
@@ -744,10 +780,12 @@ static void record_route_piece(route_pieces_t *pieces,
                                route_junctions_t *junctions,
                                edge_t *routed_edge, size_t prior_spline_count,
                                route_endpoint_metadata_t start,
-                               route_endpoint_metadata_t end, double offset) {
+                               route_endpoint_metadata_t end,
+                               const route_local_plans_t *local_plans,
+                               double offset) {
   if (!Concentrate || fabs(offset) > MILLIPOINT ||
       !route_spline_metadata_valid(&start.route) ||
-      !route_spline_metadata_valid(&end.route))
+      !route_spline_metadata_valid(&end.route) || LIST_IS_EMPTY(local_plans))
     return;
   edge_t *const owner = route_spline_owner(routed_edge);
   splines *const edge_splines = ED_spl(owner);
@@ -760,12 +798,13 @@ static void record_route_piece(route_pieces_t *pieces,
   copy_route_spline_metadata(&end_copy, &end.route);
   start.route = start_copy;
   end.route = end_copy;
-  const route_piece_metadata_t piece = {
+  route_piece_metadata_t piece = {
       .edge = owner,
       .spline_index = prior_spline_count,
       .start = start,
       .end = end,
   };
+  copy_route_local_plans(&piece.local_plans, local_plans);
 
   if (prior_spline_count > 0) {
     size_t prior_piece_index = 0;
@@ -4656,8 +4695,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   points_t pointfs2 = {0};
   route_endpoint_metadata_t route_start = {0};
   route_endpoint_metadata_t route_end = {0};
-  route_spline_metadata_t first_route = {0};
-  route_spline_metadata_t last_route = {0};
+  route_local_plans_t local_plans = {0};
 
   fwdedgea.out.base.data = &fwdedgeai.hdr;
   fwdedgeb.out.base.data = &fwdedgebi.hdr;
@@ -4757,11 +4795,9 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
       completeregularpath(P, segfirst, e, &tend, &hend, &boxes);
       pointf *ps = NULL;
       size_t pn = 0;
+      route_spline_metadata_t current_route = {0};
       if (is_spline) {
-        route_spline_metadata_t current_route = {0};
         ps = routesplines_with_metadata(P, &pn, &current_route);
-        capture_route_spline_metadata(&first_route, &last_route,
-                                      &current_route);
       } else {
         ps = routepolylines(P, &pn);
         if (et == EDGETYPE_LINE && pn > 4) {
@@ -4775,15 +4811,22 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
         LIST_FREE(&boxes);
         LIST_FREE(&pointfs);
         LIST_FREE(&pointfs2);
-        route_spline_metadata_free(&first_route);
-        route_spline_metadata_free(&last_route);
+        route_spline_metadata_free(&current_route);
+        free_route_local_plans(&local_plans);
         return;
       }
 
+      size_t first_control = LIST_SIZE(&pointfs);
       for (size_t i = 0; i < pn; i++) {
         LIST_APPEND(&pointfs, ps[i]);
       }
+      const size_t unregularized_size = LIST_SIZE(&pointfs);
       regularize_straight_bridge(&pointfs, &pending_straight_bridge);
+      if (LIST_SIZE(&pointfs) < unregularized_size)
+        first_control -= unregularized_size - LIST_SIZE(&pointfs);
+      if (is_spline)
+        capture_route_spline_metadata(&local_plans, &current_route,
+                                      first_control, pn);
       free(ps);
       e = straight_path(ND_out(hn).list[0], sl, &pointfs,
                         &pending_straight_bridge);
@@ -4824,10 +4867,9 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_FREE(&boxes);
     pointf *ps = NULL;
     size_t pn = 0;
+    route_spline_metadata_t current_route = {0};
     if (is_spline) {
-      route_spline_metadata_t current_route = {0};
       ps = routesplines_with_metadata(P, &pn, &current_route);
-      capture_route_spline_metadata(&first_route, &last_route, &current_route);
     } else
       ps = routepolylines(P, &pn);
     if (et == EDGETYPE_LINE && pn > 4) {
@@ -4843,22 +4885,33 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
       free(ps);
       LIST_FREE(&pointfs);
       LIST_FREE(&pointfs2);
-      route_spline_metadata_free(&first_route);
-      route_spline_metadata_free(&last_route);
+      route_spline_metadata_free(&current_route);
+      free_route_local_plans(&local_plans);
       return;
     }
+    size_t first_control = LIST_SIZE(&pointfs);
     for (size_t i = 0; i < pn; i++) {
       LIST_APPEND(&pointfs, ps[i]);
     }
+    const size_t unregularized_size = LIST_SIZE(&pointfs);
     regularize_straight_bridge(&pointfs, &pending_straight_bridge);
+    if (LIST_SIZE(&pointfs) < unregularized_size)
+      first_control -= unregularized_size - LIST_SIZE(&pointfs);
+    if (is_spline)
+      capture_route_spline_metadata(&local_plans, &current_route, first_control,
+                                    pn);
     free(ps);
     assert(pending_straight_bridge == SIZE_MAX);
     recover_slack(segfirst, P);
     hn = hackflag ? aghead(&fwdedgeb.out) : aghead(e);
   }
 
-  route_start.route = first_route;
-  route_end.route = last_route;
+  if (!LIST_IS_EMPTY(&local_plans)) {
+    copy_route_spline_metadata(&route_start.route,
+                               &LIST_FRONT(&local_plans)->route);
+    copy_route_spline_metadata(&route_end.route,
+                               &LIST_BACK(&local_plans)->route);
+  }
   if (route_spline_metadata_valid(&route_start.route))
     route_start.local_barrier = route_start.route.corridor[0];
   if (route_spline_metadata_valid(&route_end.route))
@@ -4876,13 +4929,14 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     align_concentrated_route_tangents(g, fe);
     if (et == EDGETYPE_SPLINE)
       record_route_piece(route_pieces, route_junctions, fe, prior_spline_count,
-                         route_start, route_end, 0.0);
+                         route_start, route_end, &local_plans, 0.0);
     if (Concentrate)
       align_arrow_tangents(g, fe);
     LIST_FREE(&pointfs);
     LIST_FREE(&pointfs2);
-    route_spline_metadata_free(&first_route);
-    route_spline_metadata_free(&last_route);
+    route_spline_metadata_free(&route_start.route);
+    route_spline_metadata_free(&route_end.route);
+    free_route_local_plans(&local_plans);
     return;
   }
   const double dx = sp->Multisep * (cnt - 1) / 2;
@@ -4917,13 +4971,14 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     align_concentrated_route_tangents(g, e);
     if (et == EDGETYPE_SPLINE)
       record_route_piece(route_pieces, route_junctions, e, prior_spline_count,
-                         route_start, route_end, offset);
+                         route_start, route_end, &local_plans, offset);
     align_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);
   LIST_FREE(&pointfs2);
-  route_spline_metadata_free(&first_route);
-  route_spline_metadata_free(&last_route);
+  route_spline_metadata_free(&route_start.route);
+  route_spline_metadata_free(&route_end.route);
+  free_route_local_plans(&local_plans);
 }
 
 /* regular edges */
