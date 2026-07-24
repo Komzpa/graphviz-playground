@@ -403,7 +403,8 @@ static void dedupe_concentrated_edge_labels(graph_t *graph) {
                 gv_edge_ports_are_equal(edge, prior_edge)) {
               gv_free_splines(edge);
             }
-            label->set = false;
+            free_label(label);
+            ED_label(edge) = NULL;
             goto next_edge;
           }
         }

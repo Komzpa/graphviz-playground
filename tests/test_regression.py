@@ -5304,6 +5304,27 @@ def test_concentrated_duplicate_self_edge_routes_merge_with_one_label():
     assert len(labeled_edges) == 1
 
 
+def test_concentrated_duplicate_self_edge_label_is_not_replaced_as_xlabel():
+    """A deduped duplicate label must not be placed again by addXLabels()."""
+
+    label = "tailport=n headport=n"
+    source = _concentrated_graph(
+        "",
+        "node [shape=circle]",
+        f'a -> a [label="{label}" tailport=n headport=n]',
+        f'a -> a [label="{label}" tailport=n headport=n]',
+    )
+    layout = json.loads(dot("json", source=source))
+    label_draws = [
+        operation["text"]
+        for edge in layout["edges"]
+        for operation in edge.get("_ldraw_", [])
+        if operation["op"] == "T"
+    ]
+
+    assert label_draws == [label]
+
+
 def test_2814_grouped_endpoint_labels_sit_clear_of_nodes():
     """Grouped flat endpoint labels should not be separated into node boxes."""
 
