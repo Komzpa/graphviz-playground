@@ -5690,22 +5690,6 @@ def test_concentrate_preserves_zero_crossings(case: str, source: str):
     _assert_concentrate_keeps_zero_crossings(source)
 
 
-def test_concentrate_train11_internal_junctions_have_no_head_arrows():
-    """Concentration does not draw arrowheads at absorbed internal junctions."""
-
-    source = (Path(__file__).parent / "graphs" / "train11.gv").read_text().replace(
-        "digraph G {", "digraph G {\n  graph [concentrate=true];", 1
-    )
-    layout = json.loads(dot("json", source=source))
-
-    for tail in ("st8",):
-        edge = _drawn_edge_between(layout, tail, "st0")
-        assert "_hdraw_" not in edge
-    assert "_hdraw_" in _drawn_edge_between(layout, "st6", "st0")
-    assert "_hdraw_" in _drawn_edge_between(layout, "st4", "st0")
-    assert "_hdraw_" in _drawn_edge_between(layout, "st10", "st0")
-
-
 def test_concentrate_train11_minimized_route_has_no_line_gap():
     """A reversed concentrated route keeps a continuous shaft to its endpoint."""
 

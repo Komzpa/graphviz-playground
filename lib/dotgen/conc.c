@@ -225,11 +225,6 @@ add_concentrated_segment_weight(edge_t *edge, edge_t *representative,
   }
 }
 
-static bool concentrated_junction(node_t *n) {
-  return ND_node_type(n) == VIRTUAL &&
-         (ND_in(n).size > 1 || ND_out(n).size > 1);
-}
-
 static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir,
                               gv_concentration_transaction_t *handle) {
   node_t *left;
@@ -247,32 +242,8 @@ static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir,
         f = transactional_virtual_edge(left, aghead(e), e, handle);
       else
         add_concentrated_segment_weight(e, f, handle);
-      gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(e),
-                                          sizeof(ED_conc_suppressed_tail(e)));
-      ED_conc_suppressed_tail(e) = true;
-      gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(f),
-                                          sizeof(ED_conc_suppressed_tail(f)));
-      ED_conc_suppressed_tail(f) = true;
-      if (concentrated_junction(aghead(e))) {
-        gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(e),
-                                            sizeof(ED_conc_suppressed_head(e)));
-        ED_conc_suppressed_head(e) = true;
-        gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(f),
-                                            sizeof(ED_conc_suppressed_head(f)));
-        ED_conc_suppressed_head(f) = true;
-      }
       while ((e0 = ND_in(right).list[0])) {
         keep_distinct_original_drawn(e0, f, handle);
-        if (concentrated_junction(agtail(e0))) {
-          gv_concentration_transaction_record(
-              handle, &ED_conc_suppressed_tail(e0),
-              sizeof(ED_conc_suppressed_tail(e0)));
-          ED_conc_suppressed_tail(e0) = true;
-        }
-        gv_concentration_transaction_record(
-            handle, &ED_conc_suppressed_head(e0),
-            sizeof(ED_conc_suppressed_head(e0)));
-        ED_conc_suppressed_head(e0) = true;
         transactional_merge_oneway(handle, e0, f);
         transactional_delete_fast_edge(handle, e0);
       }
@@ -288,32 +259,8 @@ static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir,
         f = transactional_virtual_edge(agtail(e), left, e, handle);
       else
         add_concentrated_segment_weight(e, f, handle);
-      if (concentrated_junction(agtail(e))) {
-        gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(e),
-                                            sizeof(ED_conc_suppressed_tail(e)));
-        ED_conc_suppressed_tail(e) = true;
-        gv_concentration_transaction_record(handle, &ED_conc_suppressed_tail(f),
-                                            sizeof(ED_conc_suppressed_tail(f)));
-        ED_conc_suppressed_tail(f) = true;
-      }
-      gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(e),
-                                          sizeof(ED_conc_suppressed_head(e)));
-      ED_conc_suppressed_head(e) = true;
-      gv_concentration_transaction_record(handle, &ED_conc_suppressed_head(f),
-                                          sizeof(ED_conc_suppressed_head(f)));
-      ED_conc_suppressed_head(f) = true;
       while ((e0 = ND_out(right).list[0])) {
         keep_distinct_original_drawn(e0, f, handle);
-        gv_concentration_transaction_record(
-            handle, &ED_conc_suppressed_tail(e0),
-            sizeof(ED_conc_suppressed_tail(e0)));
-        ED_conc_suppressed_tail(e0) = true;
-        if (concentrated_junction(aghead(e0))) {
-          gv_concentration_transaction_record(
-              handle, &ED_conc_suppressed_head(e0),
-              sizeof(ED_conc_suppressed_head(e0)));
-          ED_conc_suppressed_head(e0) = true;
-        }
         transactional_merge_oneway(handle, e0, f);
         transactional_delete_fast_edge(handle, e0);
       }

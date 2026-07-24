@@ -355,12 +355,12 @@ double attach_attrs_and_arrows(graph_t *g, bool *sp, bool *ep) {
 		    const bezier *bz = &ED_spl(e)->list[i];
 		    if (i > 0)
 			agxbputc(&xb, ';');
-		    if (bz->sflag && !bz->suppress_sflag) {
+		    if (bz->sflag) {
 			s_arrows = true;
 			agxbprint(&xb, "s,%.5g,%.5g ",
 				bz->sp.x, yDir(bz->sp.y, offsets.Y));
 		    }
-		    if (bz->eflag && !bz->suppress_eflag) {
+		    if (bz->eflag) {
 			e_arrows = true;
 			agxbprint(&xb, "e,%.5g,%.5g ",
 				bz->ep.x, yDir(bz->ep.y, offsets.Y));

@@ -295,8 +295,6 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
     bezier nbez = {0}; // new Bézier for `e`
     nbez.eflag = bez->eflag;
     nbez.sflag = bez->sflag;
-    nbez.suppress_eflag = bez->suppress_eflag;
-    nbez.suppress_sflag = bez->suppress_sflag;
 
     /* if Bézier has four points, almost collinear,
      * make line - unimplemented optimization?
@@ -436,8 +434,7 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 	    nbez.sp = bez->sp;
     }
 
-    if (lt && lh && nbez.sflag && !nbez.suppress_sflag && nbez.eflag &&
-	!nbez.suppress_eflag) {
+    if (lt && lh && nbez.sflag && nbez.eflag) {
 	const double tail_arrow =
 	    NOMINAL_ARROW_LENGTH * edge_arrow_arrowsize(e, EDGE_ARROW_START);
 	const double head_arrow =

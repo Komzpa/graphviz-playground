@@ -72,12 +72,7 @@ static void arrow_clip(edge_t *fe, node_t *hn, pointf *ps, size_t *startp,
   arrow_flags(e, &sflag, &eflag);
   double start_arrowsize = edge_arrow_arrowsize(e, EDGE_ARROW_START);
   double end_arrowsize = edge_arrow_arrowsize(e, EDGE_ARROW_END);
-  bool suppress_sflag = ED_conc_suppressed_tail(fe);
-  bool suppress_eflag = ED_conc_suppressed_head(fe);
-  const bool clip_absorbed_reversed_endpoint =
-      j && (ED_conc_suppressed_tail(fe) || ED_conc_suppressed_head(fe));
-  if (info->splineMerge(agtail(fe)) && hn == agtail(e) &&
-      !clip_absorbed_reversed_endpoint)
+  if (info->splineMerge(agtail(fe)) && hn == agtail(e))
     eflag = ARR_NONE;
   if (info->splineMerge(hn))
     eflag = ARR_NONE;
@@ -86,17 +81,8 @@ static void arrow_clip(edge_t *fe, node_t *hn, pointf *ps, size_t *startp,
   /* swap the two ends */
   if (j) {
     SWAP(&sflag, &eflag);
-    SWAP(&suppress_sflag, &suppress_eflag);
     SWAP(&start_arrowsize, &end_arrowsize);
   }
-  if (j && suppress_sflag && suppress_eflag) {
-    if (hn == agtail(e))
-      suppress_sflag = false;
-    else if (hn == aghead(e))
-      suppress_eflag = false;
-  }
-  spl->suppress_sflag = suppress_sflag;
-  spl->suppress_eflag = suppress_eflag;
   if (info->isOrtho) {
     if (eflag || sflag)
       arrowOrthoClip(e, ps, *startp, *endp, spl, sflag, eflag, start_arrowsize,

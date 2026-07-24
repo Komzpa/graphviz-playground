@@ -439,8 +439,6 @@ typedef struct {
   pointf end;
   uint32_t sflag;
   uint32_t eflag;
-  bool suppress_sflag;
-  bool suppress_eflag;
   pointf sp;
   pointf ep;
 } route_bezier_invariants_t;
@@ -899,7 +897,6 @@ static void swap_bezier(bezier *b) {
   }
 
   SWAP(&b->sflag, &b->eflag);
-  SWAP(&b->suppress_sflag, &b->suppress_eflag);
   SWAP(&b->sp, &b->ep);
 }
 
@@ -2368,10 +2365,8 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     auxbz = auxspl->list;
     bz = new_spline(e, auxbz->size);
     bz->sflag = auxbz->sflag;
-    bz->suppress_sflag = auxbz->suppress_sflag;
     bz->sp = transformf(auxbz->sp, del, GD_flip(g));
     bz->eflag = auxbz->eflag;
-    bz->suppress_eflag = auxbz->suppress_eflag;
     bz->ep = transformf(auxbz->ep, del, GD_flip(g));
     for (size_t j = 0; j < auxbz->size; ++j)
       bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
@@ -2926,9 +2921,9 @@ static void align_arrow_tangents(graph_t *g, edge_t *edge) {
 
   // Multi-edge offsets are applied before clipping. Realign the final control
   // arms afterward, when clipping has established the visible arrow axes.
-  if (spline->sflag != ARR_NONE && !spline->suppress_sflag)
+  if (spline->sflag != ARR_NONE)
     align_arrow_arm(spline, spline->sp, 0.0);
-  if (spline->eflag != ARR_NONE && !spline->suppress_eflag)
+  if (spline->eflag != ARR_NONE)
     align_arrow_arm(spline, spline->ep, 0.0);
 
   const bool grouped_head =
@@ -3808,8 +3803,6 @@ static route_bezier_invariants_t route_bezier_invariants(const bezier *spline) {
       .end = spline->list[spline->size - 1],
       .sflag = spline->sflag,
       .eflag = spline->eflag,
-      .suppress_sflag = spline->suppress_sflag,
-      .suppress_eflag = spline->suppress_eflag,
       .sp = spline->sp,
       .ep = spline->ep,
   };
@@ -3822,8 +3815,6 @@ static bool route_bezier_invariants_equal(route_bezier_invariants_t expected,
          memcmp(&expected.end, &actual->list[actual->size - 1],
                 sizeof(pointf)) == 0 &&
          expected.sflag == actual->sflag && expected.eflag == actual->eflag &&
-         expected.suppress_sflag == actual->suppress_sflag &&
-         expected.suppress_eflag == actual->suppress_eflag &&
          memcmp(&expected.sp, &actual->sp, sizeof(pointf)) == 0 &&
          memcmp(&expected.ep, &actual->ep, sizeof(pointf)) == 0;
 }

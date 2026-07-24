@@ -2034,13 +2034,13 @@ static int multicolor(GVJ_t *job, edge_t *e, char **styles, const char *colors,
                  * If we have more splines to do, restore the old one.
                  * Use local copy of penwidth to work around reset.
                  */
-	if (bz.sflag && !bz.suppress_sflag) {
+	if (bz.sflag) {
     	    gvrender_set_pencolor(job, LIST_FRONT(&segs)->color);
     	    gvrender_set_fillcolor(job, LIST_FRONT(&segs)->color);
 	    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], start_arrowsize,
 	              penwidth, bz.sflag);
 	}
-	if (bz.eflag && !bz.suppress_eflag) {
+	if (bz.eflag) {
     	    gvrender_set_pencolor(job, endcolor);
     	    gvrender_set_fillcolor(job, endcolor);
 	    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], end_arrowsize,
@@ -2441,14 +2441,14 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
     	    gvrender_set_pencolor(job, color);
 	    if (fillcolor != color)
 		gvrender_set_fillcolor(job, fillcolor);
-	    if (bz.sflag && !bz.suppress_sflag) {
+	    if (bz.sflag) {
 		if (use_edge_arrow_fillcolor)
 		    gvrender_set_fillcolor(
 		        job, edge_arrow_fillcolor(e, EDGE_ARROW_START));
 		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], start_arrowsize,
 		          penwidth, bz.sflag);
 	    }
-	    if (bz.eflag && !bz.suppress_eflag) {
+	    if (bz.eflag) {
 		if (use_edge_arrow_fillcolor)
 		    gvrender_set_fillcolor(
 		        job, edge_arrow_fillcolor(e, EDGE_ARROW_END));
@@ -2522,7 +2522,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    gvrender_beziercurve(job, tmplist, tmpspl.list[i].size, 0);
 		}
 		    }
-		    if (bz.sflag && !bz.suppress_sflag) {
+		    if (bz.sflag) {
 			if (use_edge_arrow_fillcolor &&
 			    edge_has_concentrated_arrow_decorations(e))
 			    tailcolor = edge_arrow_fillcolor(e, EDGE_ARROW_START);
@@ -2536,7 +2536,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
 			start_arrowsize, penwidth, bz.sflag);
 		    }
-		    if (bz.eflag && !bz.suppress_eflag) {
+		    if (bz.eflag) {
 			if (use_edge_arrow_fillcolor &&
 			    edge_has_concentrated_arrow_decorations(e))
 			    headcolor = edge_arrow_fillcolor(e, EDGE_ARROW_END);
@@ -2688,14 +2688,14 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    gvrender_beziercurve(job, bz.list, bz.size, 0);
 		}
 
-		if (bz.sflag && !bz.suppress_sflag) {
+		if (bz.sflag) {
 		    if (use_edge_arrow_fillcolor)
 			gvrender_set_fillcolor(
 			    job, edge_arrow_fillcolor(e, EDGE_ARROW_START));
 		    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
 		              start_arrowsize, penwidth, bz.sflag);
 		}
-		if (bz.eflag && !bz.suppress_eflag) {
+		if (bz.eflag) {
 		    if (use_edge_arrow_fillcolor)
 			gvrender_set_fillcolor(
 			    job, edge_arrow_fillcolor(e, EDGE_ARROW_END));
@@ -3019,7 +3019,7 @@ static void emit_end_edge(GVJ_t * job)
 
 	/* process intersection with tail node */
 	bz = ED_spl(e)->list[0];
-	if (bz.sflag && !bz.suppress_sflag) /* Arrow at start of splines */
+	if (bz.sflag) /* Arrow at start of splines */
 	    p = bz.sp;
 	else /* No arrow at start of splines */
 	    p = bz.list[0];
@@ -3028,7 +3028,7 @@ static void emit_end_edge(GVJ_t * job)
         
 	/* process intersection with head node */
 	bz = ED_spl(e)->list[ED_spl(e)->size - 1];
-	if (bz.eflag && !bz.suppress_eflag) /* Arrow at end of splines */
+	if (bz.eflag) /* Arrow at end of splines */
 	    p = bz.ep;
 	else /* No arrow at end of splines */
 	    p = bz.list[bz.size - 1];
@@ -4141,11 +4141,11 @@ static void init_splines_bb(splines *spl)
             b = bezier_bb(bz);
             EXPANDBB(&bb, b);
         }
-        if (bz.sflag && !bz.suppress_sflag) {
+        if (bz.sflag) {
             b = arrow_bb(bz.sp, bz.list[0], 1);
             EXPANDBB(&bb, b);
         }
-        if (bz.eflag && !bz.suppress_eflag) {
+        if (bz.eflag) {
             b = arrow_bb(bz.ep, bz.list[bz.size - 1], 1);
             EXPANDBB(&bb, b);
         }
