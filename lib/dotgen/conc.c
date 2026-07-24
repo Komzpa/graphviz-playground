@@ -647,6 +647,7 @@ int dot_concentrate(graph_t *g) {
                                 &payload);
     if (!gv_concentration_apply(&concentration_context, &set)) {
       agwarningf("concentrate=true fell back to an unconcentrated layout.\n");
+      gv_concentration_plan_context_commit(&concentration_context);
       return 0;
     }
   }

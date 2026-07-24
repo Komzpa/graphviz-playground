@@ -1138,5 +1138,6 @@ void build_edge_chains(graph_t *graph) {
     GD_comp(graph).list = gv_alloc(sizeof(node_t *));
     GD_comp(graph).list[0] = GD_nlist(graph);
   }
+  gv_concentration_plan_context_commit(&concentration_context);
   concentrate_oracle_end(graph);
 }
