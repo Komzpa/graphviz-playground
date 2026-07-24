@@ -24,6 +24,7 @@
 /* uses PRIVATE interface */
 #define FDP_PRIVATE 1
 
+#include <common/concentrate_plan.h>
 #include <cgraph/cgraph.h>
 #include <fdpgen/tlayout.h>
 #include <neatogen/neatoprocs.h>
@@ -108,6 +109,7 @@ void fdp_init_node_edge(graph_t *g) {
     }
   }
   initialPositions(g);
+  gv_concentration_plan_diagnose_if_enabled(g);
 }
 
 static void cleanup_subgs(graph_t *g) {
