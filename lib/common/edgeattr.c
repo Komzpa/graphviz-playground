@@ -317,6 +317,9 @@ static unsigned short html_table_identity_flags(const htmltbl_t *table) {
 
 static unsigned short html_data_effective_flags(const htmldata_t *data) {
   unsigned short flags = data->flags;
+  if (data->pad == DEFAULT_HTML_CELLPADDING) {
+    flags &= (unsigned short)~PAD_SET;
+  }
   if (data->border == DEFAULT_HTML_BORDER) {
     flags &= (unsigned short)~BORDER_SET;
   }
@@ -342,25 +345,30 @@ static void append_html_data_identity_slots(
 
   agxbclear(&field);
   agxbprint(&field, "%s:pencolor", slot_prefix);
+  const bool paint_visible = !data->style.invisible;
   append_edge_color_value(
       signature, edge, agxbuse(&field),
-      plain_attribute_value(
-          !pencolor_visible || data->pencolor == NULL ? "" : data->pencolor),
+      plain_attribute_value(!paint_visible || !pencolor_visible ||
+                                    data->pencolor == NULL
+                                ? ""
+                                : data->pencolor),
       false, false);
 
   agxbclear(&field);
   agxbprint(&field, "%s:bgcolor", slot_prefix);
   append_edge_color_value(
       signature, edge, agxbuse(&field),
-      plain_attribute_value(data->bgcolor == NULL ? "" : data->bgcolor), false,
-      false);
+      plain_attribute_value(!paint_visible || data->bgcolor == NULL
+                                ? ""
+                                : data->bgcolor),
+      false, false);
 
   agxbclear(&field);
   agxbprint(&field, "%s:gradientangle", slot_prefix);
-  agxbprint(&rendered_number, "%d",
-            data->bgcolor == NULL || data->bgcolor[0] == '\0'
-                ? 0
-                : data->gradientangle);
+  agxbprint(&rendered_number, "%d", !paint_visible || data->bgcolor == NULL ||
+                                      data->bgcolor[0] == '\0'
+                                  ? 0
+                                  : data->gradientangle);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
   agxbclear(&rendered_number);
@@ -391,10 +399,14 @@ static void append_html_data_identity_slots(
   agxbclear(&field);
   agxbprint(&field, "%s:style", slot_prefix);
   const bool border_style_visible = data->border > 0 && !data->style.invisible;
+  const bool fill_style_visible = data->bgcolor != NULL &&
+                                  data->bgcolor[0] != '\0' &&
+                                  !data->style.invisible;
   agxbprint(&rendered_number, "%d:%d:%d:%d:%d",
-            data->bgcolor != NULL && data->bgcolor[0] != '\0' &&
-                data->style.radial,
-            data->style.rounded, data->style.invisible,
+            fill_style_visible && data->style.radial,
+            data->style.rounded &&
+                (border_style_visible || fill_style_visible),
+            data->style.invisible,
             border_style_visible && data->style.dotted,
             border_style_visible && data->style.dashed);
   append_plain_signature_slot(signature, agxbuse(&field),
@@ -1276,12 +1288,11 @@ static bool graph_uses_ortho_edges(Agraph_t *root_graph) {
 
 static bool edge_style_token_sets_pen_pattern(const char *style) {
   return strcmp(style, "solid") == 0 || strcmp(style, "dashed") == 0 ||
-         strcmp(style, "dotted") == 0 || strcmp(style, "invis") == 0 ||
-         strcmp(style, "invisible") == 0;
+         strcmp(style, "dotted") == 0 || strcmp(style, "invis") == 0;
 }
 
 static const char *canonical_edge_style_pen_pattern(const char *style) {
-  return strcmp(style, "invisible") == 0 ? "invis" : style;
+  return style;
 }
 
 static void append_style_value(agxbuf *signature, const char *slot_name,

@@ -713,6 +713,8 @@ static bool unlabeled_leaf_fan_arm(edge_t *e)
     bezier *const bz = &ED_spl(e)->list[0];
     if (bz->size != 4)
 	return false;
+    if (bz->sflag || bz->eflag)
+	return false;
 
     node_t *const head = aghead(e);
     size_t incident = 0;

@@ -2035,14 +2035,21 @@ static int multicolor(GVJ_t *job, edge_t *e, char **styles, const char *colors,
                  * Use local copy of penwidth to work around reset.
                  */
 	if (bz.sflag) {
-    	    gvrender_set_pencolor(job, LIST_FRONT(&segs)->color);
-    	    gvrender_set_fillcolor(job, LIST_FRONT(&segs)->color);
+	    char *const start_color = edge_has_concentrated_arrow_decorations(e)
+	                                  ? edge_arrow_fillcolor(e, EDGE_ARROW_START)
+	                                  : LIST_FRONT(&segs)->color;
+	    gvrender_set_pencolor(job, start_color);
+	    gvrender_set_fillcolor(job, start_color);
 	    arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], start_arrowsize,
 	              penwidth, bz.sflag);
 	}
 	if (bz.eflag) {
-    	    gvrender_set_pencolor(job, endcolor);
-    	    gvrender_set_fillcolor(job, endcolor);
+	    char *const end_arrow_color =
+	        edge_has_concentrated_arrow_decorations(e)
+	            ? edge_arrow_fillcolor(e, EDGE_ARROW_END)
+	            : endcolor;
+	    gvrender_set_pencolor(job, end_arrow_color);
+	    gvrender_set_fillcolor(job, end_arrow_color);
 	    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], end_arrowsize,
 	              penwidth, bz.eflag);
 	}
@@ -4127,10 +4134,13 @@ static boxf bezier_bb(bezier bz)
     return bb;
 }
 
-static void init_splines_bb(splines *spl)
+static void init_splines_bb(edge_t *e)
 {
     bezier bz;
     boxf bb, b;
+    splines *const spl = ED_spl(e);
+    const double start_arrowsize = edge_arrow_arrowsize(e, EDGE_ARROW_START);
+    const double end_arrowsize = edge_arrow_arrowsize(e, EDGE_ARROW_END);
 
     assert(spl->size > 0);
     bz = spl->list[0];
@@ -4142,11 +4152,11 @@ static void init_splines_bb(splines *spl)
             EXPANDBB(&bb, b);
         }
         if (bz.sflag) {
-            b = arrow_bb(bz.sp, bz.list[0], 1);
+            b = arrow_bb(bz.sp, bz.list[0], start_arrowsize);
             EXPANDBB(&bb, b);
         }
         if (bz.eflag) {
-            b = arrow_bb(bz.ep, bz.list[bz.size - 1], 1);
+            b = arrow_bb(bz.ep, bz.list[bz.size - 1], end_arrowsize);
             EXPANDBB(&bb, b);
         }
     }
@@ -4159,7 +4169,7 @@ static void init_bb_edge(edge_t *e)
 
     spl = ED_spl(e);
     if (spl)
-        init_splines_bb(spl);
+        init_splines_bb(e);
 }
 
 static void init_bb_node(graph_t *g, node_t *n)
