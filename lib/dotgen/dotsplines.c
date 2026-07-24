@@ -477,7 +477,6 @@ static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
 static Agedge_t *straight_path(Agedge_t *, int, points_t *, size_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
-static void align_concentrated_route_tangents(graph_t *, edge_t *);
 static void align_arrow_tangents(graph_t *, edge_t *);
 static void align_flat_arrow_tangents_in_graph(graph_t *);
 static void repair_route_junctions(graph_t *, const route_pieces_t *,
@@ -2051,7 +2050,6 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
   points[pointn++] = hp;
   points[pointn++] = hp;
   clip_and_install(e, aghead(e), points, pointn, &sinfo);
-  align_concentrated_route_tangents(agraphof(tn), e);
   if (Concentrate)
     align_arrow_tangents(agraphof(tn), e);
   ED_label(e)->pos.x = ctrx;
@@ -2106,7 +2104,6 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
     ED_label(e)->pos.y = ctry;
     ED_label(e)->set = true;
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
-    align_concentrated_route_tangents(agraphof(tn), e);
     if (Concentrate)
       align_arrow_tangents(agraphof(tn), e);
     free(ps);
@@ -2150,7 +2147,6 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
-    align_concentrated_route_tangents(agraphof(tn), e);
     if (Concentrate)
       align_arrow_tangents(agraphof(tn), e);
     free(ps);
@@ -2209,7 +2205,6 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     dy += stepy;
     clip_and_install(e, aghead(e), points, pointn, &sinfo);
     if (Concentrate) {
-      align_concentrated_route_tangents(agraphof(tn), e);
       align_arrow_tangents(agraphof(tn), e);
     }
   }
@@ -2517,7 +2512,6 @@ static void make_flat_labeled_edge(graph_t *g, const spline_info_t sp, path *P,
     }
   }
   clip_and_install(e, aghead(e), ps, pn, &sinfo);
-  align_concentrated_route_tangents(g, e);
   if (Concentrate)
     align_arrow_tangents(g, e);
   if (ps_needs_free)
@@ -2593,7 +2587,6 @@ static void make_flat_bottom_edges(graph_t *g, const spline_info_t sp, path *P,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
-    align_concentrated_route_tangents(g, e);
     if (Concentrate)
       align_arrow_tangents(g, e);
     free(ps);
@@ -2719,7 +2712,6 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
       return 0;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
-    align_concentrated_route_tangents(g, e);
     if (Concentrate)
       align_arrow_tangents(g, e);
     free(ps);
@@ -2821,59 +2813,6 @@ static void align_control_arm(pointf *control, pointf endpoint,
     return;
 
   *control = sub_pointf(endpoint, scale(control_length / axis_length, axis));
-}
-
-static void point_control_arm_at(pointf *control, pointf endpoint,
-                                 pointf target) {
-  const pointf axis = sub_pointf(target, endpoint);
-  const double axis_length = hypot(axis.x, axis.y);
-  const double control_length = DIST(*control, endpoint);
-  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
-    return;
-
-  *control = add_pointf(endpoint, scale(control_length / axis_length, axis));
-}
-
-static bool unit_vector(pointf vector, pointf *unit) {
-  const double length = hypot(vector.x, vector.y);
-  if (length <= MILLIPOINT)
-    return false;
-
-  unit->x = vector.x / length;
-  unit->y = vector.y / length;
-  return true;
-}
-
-static void smooth_consecutive_spline_joints(splines *spline) {
-  for (size_t i = 0; i + 1 < spline->size; i++) {
-    bezier *const left = &spline->list[i];
-    bezier *const right = &spline->list[i + 1];
-    if (left->size < 4 || right->size < 4)
-      continue;
-
-    const size_t left_last = left->size - 1;
-    if (DIST(left->list[left_last], right->list[0]) > MILLIPOINT)
-      continue;
-
-    pointf incoming;
-    pointf outgoing;
-    if (!unit_vector(
-            sub_pointf(left->list[left_last], left->list[left_last - 1]),
-            &incoming) ||
-        !unit_vector(sub_pointf(right->list[1], right->list[0]), &outgoing))
-      continue;
-
-    pointf tangent = add_pointf(incoming, outgoing);
-    if (!unit_vector(tangent, &tangent))
-      continue;
-
-    const double left_length =
-        DIST(left->list[left_last], left->list[left_last - 1]);
-    const double right_length = DIST(right->list[1], right->list[0]);
-    left->list[left_last - 1] =
-        sub_pointf(left->list[left_last], scale(left_length, tangent));
-    right->list[1] = add_pointf(right->list[0], scale(right_length, tangent));
-  }
 }
 
 static void align_arrow_arm(bezier *spline, pointf arrow_tip,
@@ -2991,275 +2930,6 @@ static void align_flat_arrow_tangents_in_graph(graph_t *g) {
       align_installed_flat_arrow_tangents(g, edge);
     }
   }
-}
-
-static size_t count_spline_points(const splines *edge_splines) {
-  size_t point_count = 0;
-  for (size_t i = 0; i < edge_splines->size; i++)
-    point_count += edge_splines->list[i].size;
-  return point_count;
-}
-
-static pointf *copy_spline_points(const splines *edge_splines) {
-  pointf *const points =
-      gv_calloc(count_spline_points(edge_splines), sizeof(pointf));
-  size_t point_index = 0;
-  for (size_t i = 0; i < edge_splines->size; i++) {
-    const bezier *const curve = &edge_splines->list[i];
-    for (size_t j = 0; j < curve->size; j++)
-      points[point_index++] = curve->list[j];
-  }
-  return points;
-}
-
-static bool node_shape_contains(node_t *node, pointf sample_point) {
-  if (ND_shape(node) == NULL || ND_shape(node)->fns == NULL ||
-      ND_shape(node)->fns->insidefn == NULL)
-    return false;
-
-  inside_t inside_context = {.s = {.n = node}};
-  const pointf local = sub_pointf(sample_point, ND_coord(node));
-  const double saved_right_width = ND_rw(node);
-  const bool inside = ND_shape(node)->fns->insidefn(&inside_context, local);
-  ND_rw(node) = saved_right_width;
-  return inside;
-}
-
-static size_t edge_route_node_crossings(graph_t *g, edge_t *edge,
-                                        const splines *edge_splines) {
-  edge = getmainedge(edge);
-  const node_t *const tail = agtail(edge);
-  const node_t *const head = aghead(edge);
-  size_t crossings = 0;
-  for (node_t *node = agfstnode(g); node != NULL; node = agnxtnode(g, node)) {
-    if (node == tail || node == head || ND_node_type(node) != NORMAL)
-      continue;
-
-    for (size_t spline_index = 0; spline_index < edge_splines->size;
-         spline_index++) {
-      const bezier *const spline = &edge_splines->list[spline_index];
-      for (size_t start = 0; start + 3 < spline->size; start += 3) {
-        pointf control[4];
-        for (size_t i = 0; i < 4; i++)
-          control[i] = spline->list[start + i];
-        for (size_t sample = 0; sample <= 12; sample++) {
-          if (node_shape_contains(node, cubic_point(control, sample / 12.0))) {
-            crossings++;
-            goto next_node;
-          }
-        }
-      }
-    }
-  next_node:;
-  }
-  return crossings;
-}
-
-static size_t partially_restore_spline_point(graph_t *g, edge_t *edge,
-                                             splines *edge_splines,
-                                             pointf *point, pointf old_point,
-                                             size_t target_crossings) {
-  const pointf candidate = *point;
-  double bad_fraction = 0.0;
-  double good_fraction = 1.0;
-  for (size_t i = 0; i < 12; i++) {
-    const double fraction = (bad_fraction + good_fraction) / 2.0;
-    point->x = candidate.x + fraction * (old_point.x - candidate.x);
-    point->y = candidate.y + fraction * (old_point.y - candidate.y);
-    if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
-      good_fraction = fraction;
-    else
-      bad_fraction = fraction;
-  }
-
-  // Move halfway from the sampled boundary toward the known-safe old point.
-  const double safe_fraction = (good_fraction + 1.0) / 2.0;
-  point->x = candidate.x + safe_fraction * (old_point.x - candidate.x);
-  point->y = candidate.y + safe_fraction * (old_point.y - candidate.y);
-  size_t crossings = edge_route_node_crossings(g, edge, edge_splines);
-  if (crossings > target_crossings) {
-    *point = old_point;
-    crossings = edge_route_node_crossings(g, edge, edge_splines);
-  }
-  assert(crossings <= target_crossings);
-  return crossings;
-}
-
-static void restore_worsened_spline_units_locally(graph_t *g, edge_t *edge,
-                                                  splines *edge_splines,
-                                                  const pointf *old_points,
-                                                  size_t crossings_before) {
-  size_t crossings = edge_route_node_crossings(g, edge, edge_splines);
-  bool *const restored =
-      gv_calloc(count_spline_points(edge_splines), sizeof(*restored));
-
-  while (crossings > crossings_before) {
-    size_t best_spline = SIZE_MAX;
-    size_t best_point = SIZE_MAX;
-    size_t best_flat_point = SIZE_MAX;
-    size_t best_crossings = crossings;
-    double best_distance = HUGE_VAL;
-    size_t fallback_spline = SIZE_MAX;
-    size_t fallback_point = SIZE_MAX;
-    size_t fallback_flat_point = SIZE_MAX;
-    double fallback_distance = HUGE_VAL;
-    size_t point_offset = 0;
-
-    for (size_t i = 0; i < edge_splines->size; i++) {
-      bezier *const spline = &edge_splines->list[i];
-      for (size_t point_index = 1; point_index + 1 < spline->size;
-           point_index++) {
-        const size_t flat_point = point_offset + point_index;
-        if (restored[flat_point])
-          continue;
-
-        const pointf candidate = spline->list[point_index];
-        const pointf old = old_points[flat_point];
-        if (candidate.x == old.x && candidate.y == old.y) {
-          restored[flat_point] = true;
-          continue;
-        }
-
-        const double distance = DIST(candidate, old);
-        spline->list[point_index] = old;
-        const size_t trial = edge_route_node_crossings(g, edge, edge_splines);
-        spline->list[point_index] = candidate;
-
-        if (trial < crossings &&
-            (best_spline == SIZE_MAX || trial < best_crossings ||
-             (trial == best_crossings && distance < best_distance))) {
-          best_spline = i;
-          best_point = point_index;
-          best_flat_point = flat_point;
-          best_crossings = trial;
-          best_distance = distance;
-        }
-        if (distance < fallback_distance) {
-          fallback_spline = i;
-          fallback_point = point_index;
-          fallback_flat_point = flat_point;
-          fallback_distance = distance;
-        }
-      }
-      point_offset += spline->size;
-    }
-
-    // If no point helps alone, take the smallest rollback; another point can
-    // then complete the local combination on the next iteration.
-    const bool have_improvement = best_spline != SIZE_MAX;
-    const size_t chosen_spline =
-        have_improvement ? best_spline : fallback_spline;
-    const size_t chosen_point = have_improvement ? best_point : fallback_point;
-    const size_t chosen_flat_point =
-        have_improvement ? best_flat_point : fallback_flat_point;
-    assert(chosen_spline != SIZE_MAX && chosen_point != SIZE_MAX &&
-           chosen_flat_point != SIZE_MAX);
-    pointf *const chosen =
-        &edge_splines->list[chosen_spline].list[chosen_point];
-    if (have_improvement) {
-      crossings = partially_restore_spline_point(g, edge, edge_splines, chosen,
-                                                 old_points[chosen_flat_point],
-                                                 best_crossings);
-    } else {
-      *chosen = old_points[chosen_flat_point];
-      restored[chosen_flat_point] = true;
-      crossings = edge_route_node_crossings(g, edge, edge_splines);
-    }
-  }
-  free(restored);
-  assert(crossings <= crossings_before);
-}
-
-static void match_restored_spline_joint_derivatives(graph_t *g, edge_t *edge,
-                                                    splines *edge_splines,
-                                                    size_t target_crossings) {
-  for (size_t i = 0; i + 1 < edge_splines->size; i++) {
-    bezier *const left = &edge_splines->list[i];
-    bezier *const right = &edge_splines->list[i + 1];
-    if (left->size < 4 || right->size < 4)
-      continue;
-
-    const size_t left_last = left->size - 1;
-    if (DIST(left->list[left_last], right->list[0]) > MILLIPOINT)
-      continue;
-
-    pointf *const left_control = &left->list[left_last - 1];
-    pointf *const right_control = &right->list[1];
-    const pointf saved_left = *left_control;
-    const pointf saved_right = *right_control;
-    const pointf joint = left->list[left_last];
-    const pointf candidate_left = sub_pointf(scale(2.0, joint), saved_right);
-    const pointf candidate_right = sub_pointf(scale(2.0, joint), saved_left);
-
-    const bool try_left_first =
-        DIST(saved_left, candidate_left) <= DIST(saved_right, candidate_right);
-    if (try_left_first) {
-      *left_control = candidate_left;
-      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
-        continue;
-      *left_control = saved_left;
-      *right_control = candidate_right;
-      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
-        continue;
-      *right_control = saved_right;
-    } else {
-      *right_control = candidate_right;
-      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
-        continue;
-      *right_control = saved_right;
-      *left_control = candidate_left;
-      if (edge_route_node_crossings(g, edge, edge_splines) <= target_crossings)
-        continue;
-      *left_control = saved_left;
-    }
-  }
-}
-
-static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
-  const bool merged_tail = spline_merge(agtail(edge));
-  const bool merged_head = spline_merge(aghead(edge));
-  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
-    edge = ED_to_orig(edge);
-
-  splines *const edge_splines = ED_spl(edge);
-  assert(edge_splines != NULL && edge_splines->size > 0);
-  bezier *const spline = &edge_splines->list[edge_splines->size - 1];
-  if (spline->size < 4)
-    return;
-
-  edge_t *const main_edge = getmainedge(edge);
-  const bool bidirectional_concentration =
-      (edge_has_concentrated_arrow_decorations(edge) ||
-       ED_conc_opp_flag(edge)) &&
-      ND_rank(agtail(edge)) == ND_rank(aghead(edge));
-  if (!merged_tail && !merged_head && !bidirectional_concentration)
-    return;
-
-  pointf *const saved_points = copy_spline_points(edge_splines);
-  const size_t node_crossings_before =
-      edge_route_node_crossings(g, main_edge, edge_splines);
-
-  const size_t first = 0;
-  const size_t last = spline->size - 1;
-  const pointf start = spline->list[first];
-  const pointf end = spline->list[last];
-  if (merged_tail || bidirectional_concentration)
-    point_control_arm_at(&spline->list[first + 1], start, end);
-  if (merged_head || bidirectional_concentration)
-    point_control_arm_at(&spline->list[last - 1], end, start);
-  if (Concentrate && (merged_tail || merged_head) && edge_splines->size > 1)
-    smooth_consecutive_spline_joints(edge_splines);
-
-  if (edge_route_node_crossings(g, main_edge, edge_splines) >
-      node_crossings_before) {
-    restore_worsened_spline_units_locally(g, main_edge, edge_splines,
-                                          saved_points, node_crossings_before);
-    match_restored_spline_joint_derivatives(g, main_edge, edge_splines,
-                                            node_crossings_before);
-  }
-  free(saved_points);
-  for (size_t i = 0; i + 3 < spline->size; i += 3)
-    update_bb_bz(&GD_bb(g), &spline->list[i]);
 }
 
 static bool bezier_intersects_box(const pointf control[4], boxf obstacle) {
@@ -4502,7 +4172,6 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     const size_t prior_spline_count =
         ED_spl(owner) == NULL ? 0 : ED_spl(owner)->size;
     clip_and_install(fe, hn, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs), &sinfo);
-    align_concentrated_route_tangents(g, fe);
     if (et == EDGETYPE_SPLINE)
       record_route_piece(route_pieces, route_junctions, fe, prior_spline_count,
                          route_start, route_end, &local_plans, 0.0);
@@ -4544,7 +4213,6 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
         ED_spl(owner) == NULL ? 0 : ED_spl(owner)->size;
     clip_and_install(e, install_head, LIST_FRONT(&pointfs2),
                      LIST_SIZE(&pointfs2), &sinfo);
-    align_concentrated_route_tangents(g, e);
     if (et == EDGETYPE_SPLINE)
       record_route_piece(route_pieces, route_junctions, e, prior_spline_count,
                          route_start, route_end, &local_plans, offset);

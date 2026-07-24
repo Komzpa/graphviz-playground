@@ -7964,28 +7964,6 @@ def test_concentrate_same_tail_fanout_routes_share_initial_trunk():
     assert math.dist(first_segments[0][-1], second_segments[0][0]) <= 1.01
 
 
-def test_concentrate_same_rank_reverse_route_uses_balanced_tangent():
-    """A merged bidirectional same-rank route stays visually straight."""
-
-    source = """
-        strict digraph {
-          graph [concentrate=true, nodesep=0.8]
-          node [shape=circle, width=0.45, fixedsize=true]
-          edge [arrowsize=0.9, penwidth=3]
-          { rank=same; a; b }
-          a -> b [penwidth=2]
-          b -> a [penwidth=2]
-        }
-    """
-    drawn_edges = _drawn_edges(source)
-    assert len(drawn_edges) == 1
-    edge = drawn_edges[0]
-    assert "_hdraw_" in edge
-    assert "_tdraw_" in edge
-
-    assert _max_bezier_deviation_from_chord(_edge_bezier_points(edge)) < 1
-
-
 def test_concentrate_short_bidirectional_flat_edge_bows_to_three_arrows():
     """A short folded same-rank reverse edge has a visible middle shaft."""
 
