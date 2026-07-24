@@ -30,7 +30,6 @@ static bool Flip;
 static pointf Offset;
 
 static void place_flip_graph_label(graph_t * g);
-static void bow_labeled_long_return_routes(graph_t *g);
 static void gather_unlabeled_same_tail_fans(graph_t *g);
 
 #define M1 \
@@ -675,7 +674,6 @@ void gv_postprocess(Agraph_t * g, int allowTranslation)
 	    UNREACHABLE();
 	}
 	translate_drawing(g);
-	bow_labeled_long_return_routes(g);
 	gather_unlabeled_same_tail_fans(g);
     }
     if (GD_label(g) && !GD_label(g)->set)
@@ -702,80 +700,6 @@ void dotneato_postprocess(Agraph_t * g)
 static bool edge_has_any_label(edge_t *e)
 {
     return ED_label(e) || ED_head_label(e) || ED_tail_label(e);
-}
-
-static bool long_backward_edge(edge_t *e)
-{
-    const double dx = ND_coord(agtail(e)).x - ND_coord(aghead(e)).x;
-    if (Rankdir == RANKDIR_LR)
-	return dx > 3.0 * (ND_lw(agtail(e)) + ND_rw(aghead(e)));
-    if (Rankdir == RANKDIR_RL)
-	return dx < -3.0 * (ND_lw(aghead(e)) + ND_rw(agtail(e)));
-    return false;
-}
-
-static bool doublecircle_endpoint(edge_t *e)
-{
-    return ND_shape(agtail(e)) != NULL && ND_shape(aghead(e)) != NULL &&
-	   strcmp(ND_shape(agtail(e))->name, "doublecircle") == 0 &&
-	   strcmp(ND_shape(aghead(e))->name, "doublecircle") == 0;
-}
-
-static void bow_labeled_long_return_route(graph_t *g, edge_t *e)
-{
-    splines *const spl = ED_spl(e);
-    if (spl == NULL || spl->size != 1)
-	return;
-    bezier *const bz = &spl->list[0];
-    if (bz->size < 4)
-	return;
-
-    const pointf start = bz->list[0];
-    const pointf end = bz->list[bz->size - 1];
-    double outer;
-    bool move_y = false;
-    if (Rankdir == RANKDIR_LR || Rankdir == RANKDIR_RL) {
-	if (!edge_has_any_label(e))
-	    return;
-	if (!long_backward_edge(e))
-	    return;
-	if (fabs(start.y - end.y) >
-	    1.5 * (ND_ht(agtail(e)) + ND_ht(aghead(e))))
-	    return;
-
-	const double center_y = (GD_bb(g).LL.y + GD_bb(g).UR.y) / 2.0;
-	const bool above_center = (start.y + end.y) / 2.0 >= center_y;
-	outer = above_center ? GD_bb(g).UR.y : GD_bb(g).LL.y;
-	move_y = true;
-    } else {
-	if (!doublecircle_endpoint(e))
-	    return;
-	const double width = ND_lw(agtail(e)) + ND_rw(agtail(e)) +
-			     ND_lw(aghead(e)) + ND_rw(aghead(e));
-	const double height = ND_ht(agtail(e)) + ND_ht(aghead(e));
-	if (fabs(start.x - end.x) > 0.25 * width ||
-	    fabs(start.y - end.y) < 2.5 * height)
-	    return;
-
-	const double center_x = (GD_bb(g).LL.x + GD_bb(g).UR.x) / 2.0;
-	const bool left_of_center = (start.x + end.x) / 2.0 <= center_x;
-	outer = left_of_center ? GD_bb(g).LL.x : GD_bb(g).UR.x;
-    }
-
-    for (size_t i = 1; i + 1 < bz->size; i++) {
-	if (move_y)
-	    bz->list[i].y = outer;
-	else
-	    bz->list[i].x = outer;
-    }
-}
-
-static void bow_labeled_long_return_routes(graph_t *g)
-{
-    for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
-	for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e))
-	    bow_labeled_long_return_route(g, e);
-    }
 }
 
 static bool unlabeled_leaf_fan_arm(edge_t *e)
