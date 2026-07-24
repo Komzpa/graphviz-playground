@@ -69,6 +69,13 @@ keeps its own rendered edge record.
 Gate this stage with the crossing gate, kink fixtures, curl census, and
 candidate-vs-head xdot parity for fixtures outside the changed route class.
 
+### Trunk-and-Junction Fan-In
+
+The planned fan-in design is to collect member edges into a port, draw one
+shared trunk segment about one rank length, end that trunk at a virtual junction
+node, and then fan out from that virtual junction to the member nodes around it.
+This is a future concentration apply-phase design, not current behavior.
+
 ### fdp Stress Coverage
 
 fdp currently exposes planner diagnostics but still needs apply-phase work.
