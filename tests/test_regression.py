@@ -5279,6 +5279,31 @@ def test_concentrated_duplicate_self_edge_labels_sit_clear_of_drawing(fixture: s
                 ) > min(box[2] - box[0], box[3] - box[1]) / 2
 
 
+def test_concentrated_duplicate_self_edge_routes_merge_with_one_label():
+    """Exact duplicate labeled self-loops render as one loop and one label."""
+
+    source = _concentrated_graph(
+        "",
+        'node [shape=circle]',
+        'a -> a [label="tailport=n headport=n" tailport=n headport=n]',
+        'a -> a [label="tailport=n headport=n" tailport=n headport=n]',
+    )
+    layout = json.loads(dot("json", source=source))
+    drawn_self_edges = [
+        edge
+        for edge in layout["edges"]
+        if edge["tail"] == edge["head"] and "_draw_" in edge
+    ]
+    labeled_edges = [
+        edge
+        for edge in drawn_self_edges
+        if any(stream.get("op") == "T" for stream in edge.get("_ldraw_", []))
+    ]
+
+    assert len(drawn_self_edges) == 1
+    assert len(labeled_edges) == 1
+
+
 def test_2814_grouped_endpoint_labels_sit_clear_of_nodes():
     """Grouped flat endpoint labels should not be separated into node boxes."""
 

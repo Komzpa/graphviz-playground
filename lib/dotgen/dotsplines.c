@@ -399,6 +399,10 @@ static void dedupe_concentrated_edge_labels(graph_t *graph) {
           }
           if (concentrated_label_dedupe_match(edge, prior_edge)) {
             place_deduped_self_edge_label_beside_loop(graph, prior_edge, edge);
+            if (same_self_edge_node_pair(edge, prior_edge) &&
+                gv_edge_ports_are_equal(edge, prior_edge)) {
+              gv_free_splines(edge);
+            }
             label->set = false;
             goto next_edge;
           }
@@ -642,9 +646,13 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
 static bool
 same_direction_edges_are_concentrated_duplicates(edge_t *retained,
                                                  edge_t *candidate) {
+  const bool same_self_loop =
+      same_self_edge_node_pair(retained, candidate) &&
+      agtail(retained) == aghead(retained);
   return retained != candidate && agtail(retained) == agtail(candidate) &&
          aghead(retained) == aghead(candidate) &&
-         edge_has_no_labels(retained) && edge_has_no_labels(candidate) &&
+         ((edge_has_no_labels(retained) && edge_has_no_labels(candidate)) ||
+          same_self_loop) &&
          gv_edge_ports_are_equal(retained, candidate) &&
          gv_edge_attributes_are_equal(retained, candidate) &&
          same_direction_edge_arrow_decorations_are_mergeable(retained,
@@ -684,8 +692,13 @@ suppress_and_compact_concentrated_duplicate_routes(edge_t **edges,
   }
 
   unsigned kept = 0;
+  edge_t *const first = cnt == 0 ? NULL : getmainedge(edges[0]);
   for (unsigned i = 0; i < cnt; i++) {
-    if (ED_edge_type(edges[i]) != IGNORED) {
+    edge_t *const edge = getmainedge(edges[i]);
+    const bool ignored_self_loop_context =
+        edge != NULL && first != NULL && ED_edge_type(edge) == IGNORED &&
+        same_self_edge_node_pair(first, edge) && ED_label(edge) != NULL;
+    if (ED_edge_type(edges[i]) != IGNORED || ignored_self_loop_context) {
       edges[kept++] = edges[i];
     }
   }
