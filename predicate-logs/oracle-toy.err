@@ -1,4 +1,0 @@
-concentrate-oracle: begin graph=%1 edges=4 limit=12 mode=developer
-concentrate-oracle: edge=a->b representative=a->b heuristic=suppress-duplicate best=full-trunk accepted=true variants=no-merge,join-at-rank,sub-bundles,full-trunk rank_span=1 score=5
-concentrate-oracle: edge=a->b representative=a->b heuristic=share-route best=full-trunk accepted=true variants=no-merge,join-at-rank,sub-bundles,full-trunk rank_span=1 score=5
-concentrate-oracle: end graph=%1 edges=4 candidates_accepted=2 candidates_rejected=0 metrics=mincross_logical:NA crossings_visible:NA bundle_shared_length:rank-span-proxy visible_ink:NA junction_count:rank-span-proxy max_junction_angle:NA max_tangent_discontinuity:NA bbox:NA label_overlap:NA node_obstacle_intersections:NA
