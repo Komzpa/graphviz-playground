@@ -616,8 +616,7 @@ int dot_concentrate(graph_t *g) {
                                         rightpos, DOWN)) {
           if (!agisdirected(g))
             break;
-          rightpos++;
-          continue;
+          break;
         }
       }
     }
@@ -633,8 +632,7 @@ int dot_concentrate(graph_t *g) {
                                         rightpos, UP)) {
           if (!agisdirected(g))
             break;
-          rightpos++;
-          continue;
+          break;
         }
       }
     }
