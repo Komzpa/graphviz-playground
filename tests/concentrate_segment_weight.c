@@ -1,5 +1,5 @@
 /// @file
-/// @brief Check that concentration preserves suppressed duplicate weights.
+/// @brief Check that concentration preserves deleted segment weights.
 
 #define _GNU_SOURCE
 

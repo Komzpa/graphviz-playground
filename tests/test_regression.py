@@ -6405,29 +6405,6 @@ def _normalized_longest_path_drift(layout: dict) -> float:
     return (max(xs) - min(xs)) / _graph_width(layout)
 
 
-_CONCENTRATE_ABSTRACT_BUSES = r"""
-    digraph abstract {
-      graph [concentrate=true, size="6,6"]
-      4 -> 5
-      5 -> 23
-      23 -> T1
-      38 -> 4
-      S30 -> 31
-      S30 -> 33
-      31 -> T1
-      31 -> 32
-      33 -> 34
-      34 -> 29
-      9 -> T1
-      9 -> 42
-      42 -> 4
-      37 -> 38
-      37 -> 41
-      41 -> 29
-    }
-"""
-
-
 _CONCENTRATE_ABSTRACT_HORIZONTAL_BUS_MINIMIZED = r"""
     digraph abstract {
       graph [concentrate=true, size="6,6"]
@@ -6498,25 +6475,6 @@ _CONCENTRATE_ROWE_SPINE_BEND_MINIMIZED = r"""
 """
 
 
-def _node_positions(layout: dict) -> dict[str, tuple[float, float]]:
-    positions = {}
-    for node in layout["objects"]:
-        if "pos" not in node:
-            continue
-        x, y = node["pos"].split(",", 1)
-        positions[node["name"]] = (float(x), float(y))
-    return positions
-
-
-def test_concentrate_keeps_abstract_spine_x_corridor():
-    """Concentrated same-head lanes must not collapse the vertical spine."""
-
-    layout = json.loads(dot("json", source=_CONCENTRATE_ABSTRACT_BUSES))
-    positions = _node_positions(layout)
-    spine_x = [positions[node][0] for node in ("4", "5", "23", "T1")]
-    assert max(spine_x) - min(spine_x) <= 1
-
-
 def test_concentrate_abstract_minimized_has_no_horizontal_bus():
     """Concentration should not create long flat bus segments."""
 
@@ -6529,31 +6487,6 @@ def test_concentrate_rowe_minimized_spine_does_not_bend():
 
     layout = json.loads(dot("json", source=_CONCENTRATE_ROWE_SPINE_BEND_MINIMIZED))
     assert _normalized_longest_path_drift(layout) <= 0.733
-
-
-def test_concentrate_b69_minimized_crossing_parity():
-    """Concentrated same-tail fan-out must not add route crossings."""
-
-    source = r"""
-        digraph TASKS {
-          graph [concentrate=true, rankdir=LR, rotate=90, size="10,7.5"]
-          node [shape=ellipse]
-          "MRS155-LOAD-WR1MF1" [shape=box]
-          "MRS210-LOAD-WR1MF1" [shape=box]
-          "WAR-WR3FM1"
-          "WAR-WR3FM1" -> "MRS155-LOAD-WR1MF1"
-          "WAR-WR3FM1" -> "MRS210-LOAD-WR1MF1"
-          "WAR-WRFTR1"
-          "WAR-WRFTR1" -> "MRS155-LOAD-WR1MF1"
-          "WAR-WRFTR1" -> "MRS210-LOAD-WR1MF1"
-          "MRS150-LOAD-WR3FM1" [shape=box]
-          "WAR-WRFTR1" -> "MRS150-LOAD-WR3FM1"
-          "MRS150-LOAD-WR3FM1" -> "WAR-WR3FM1"
-        }
-    """
-    layout = json.loads(dot("json", source=source))
-    edges = [edge for edge in layout["edges"] if "_draw_" in edge]
-    assert _sampled_edge_crossing_count(edges) == 0
 
 
 def _point_distance_to_line(

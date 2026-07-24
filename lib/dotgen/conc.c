@@ -124,142 +124,6 @@ static bool downcandidate(node_t *v) {
          ND_out(v).size == 1 && ND_label(v) == NULL;
 }
 
-static size_t unique_original_head_count(edge_t *edge) {
-  size_t count = 0;
-  size_t i = 0;
-  for (edge_t *candidate = agfstout(agraphof(edge), agtail(edge));
-       candidate != NULL;
-       candidate = agnxtout(agraphof(edge), candidate), ++i) {
-    bool seen = false;
-    size_t j = 0;
-    for (edge_t *prior = agfstout(agraphof(edge), agtail(edge)); j < i;
-         prior = agnxtout(agraphof(edge), prior), ++j) {
-      if (aghead(prior) == aghead(candidate)) {
-        seen = true;
-        break;
-      }
-    }
-    if (!seen)
-      count++;
-  }
-  return count;
-}
-
-static bool has_explicit_long_minlen(edge_t *edge) {
-  if (E_minlen == NULL)
-    return false;
-  const char *const value = agxget(edge, E_minlen);
-  return value[0] != '\0' && atoi(value) > 1;
-}
-
-static size_t normal_in_count(node_t *node) {
-  size_t count = 0;
-  for (edge_t *edge = agfstin(agraphof(node), node); edge != NULL;
-       edge = agnxtin(agraphof(node), edge)) {
-    if (ED_edge_type(edge) == NORMAL)
-      count++;
-  }
-  return count;
-}
-
-static bool has_normal_out(edge_t *edge) {
-  node_t *const node = aghead(edge);
-  for (edge_t *candidate = agfstout(agraphof(node), node); candidate != NULL;
-       candidate = agnxtout(agraphof(node), candidate)) {
-    if (ED_edge_type(candidate) == NORMAL)
-      return true;
-  }
-  return false;
-}
-
-static bool isolated_long_minlen_fan(edge_t *edge) {
-  node_t *const tail = agtail(edge);
-  if (normal_in_count(tail) != 0)
-    return false;
-
-  size_t head_count = 0;
-  for (edge_t *candidate = agfstout(agraphof(edge), tail); candidate != NULL;
-       candidate = agnxtout(agraphof(edge), candidate)) {
-    if (ED_edge_type(candidate) != NORMAL)
-      continue;
-    if (!has_explicit_long_minlen(candidate) || has_normal_out(candidate) ||
-        normal_in_count(aghead(candidate)) != 1)
-      return false;
-    head_count++;
-  }
-  return head_count > 2;
-}
-
-static bool tail_has_intermediate_normal_out(edge_t *edge) {
-  edge_t *const original = original_normal_edge(edge);
-  if (original == NULL)
-    return false;
-
-  node_t *const tail = agtail(original);
-  node_t *const head = aghead(original);
-  const int low_rank = MIN(ND_rank(tail), ND_rank(head));
-  const int high_rank = MAX(ND_rank(tail), ND_rank(head));
-  for (edge_t *candidate = agfstout(agraphof(original), tail);
-       candidate != NULL; candidate = agnxtout(agraphof(original), candidate)) {
-    if (candidate == original || ED_edge_type(candidate) != NORMAL)
-      continue;
-    node_t *const candidate_head = aghead(candidate);
-    if (candidate_head == head)
-      continue;
-    if (ND_rank(candidate_head) > low_rank &&
-        ND_rank(candidate_head) < high_rank)
-      return true;
-  }
-  return false;
-}
-
-static bool undirected_unlabeled_same_tail_fan(edge_t *e, edge_t *f) {
-  return !agisdirected(agraphof(e)) && ED_label(e) == NULL &&
-         ED_label(f) == NULL && ED_xlabel(e) == NULL && ED_xlabel(f) == NULL;
-}
-
-static bool original_tails_are_same_or_adjacent(edge_t *e, edge_t *f) {
-  edge_t *e0 = original_normal_edge(e);
-  edge_t *f0 = original_normal_edge(f);
-
-  if (e0 == NULL || f0 == NULL)
-    return false;
-  if (agtail(e0) == agtail(f0) && aghead(e0) == aghead(f0))
-    return true;
-  if (agtail(e0) == agtail(f0))
-    return undirected_unlabeled_same_tail_fan(e0, f0) ||
-           ((unique_original_head_count(e0) <= 2 ||
-             isolated_long_minlen_fan(e0)) &&
-            (has_explicit_long_minlen(e0) || has_explicit_long_minlen(f0)));
-  if ((ED_label(e0) != NULL || ED_label(f0) != NULL) &&
-      dense_same_head_labeled_fan(e0, f0)) {
-    if (!tail_has_intermediate_normal_out(e0) &&
-        !tail_has_intermediate_normal_out(f0) &&
-        strchr(ED_label(e0)->text, ' ') != NULL &&
-        strchr(ED_label(f0)->text, ' ') != NULL)
-      return true;
-    const bool adjacent_tails =
-        ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
-        ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
-    return adjacent_tails;
-  }
-  const size_t e0_head_count = unique_original_head_count(e0);
-  const size_t f0_head_count = unique_original_head_count(f0);
-  if (e0_head_count > 2 || f0_head_count > 2)
-    return false;
-  if (abs(ND_rank(agtail(e0)) - ND_rank(aghead(e0))) > 3 ||
-      abs(ND_rank(agtail(f0)) - ND_rank(aghead(f0))) > 3)
-    return false;
-  const bool adjacent_tails =
-      ND_order(agtail(e0)) + 1 == ND_order(agtail(f0)) ||
-      ND_order(agtail(f0)) + 1 == ND_order(agtail(e0));
-  if (!adjacent_tails)
-    return false;
-  if (ED_label(e0) != NULL || ED_label(f0) != NULL)
-    return false;
-  return true;
-}
-
 static bool bothdowncandidates(node_t *u, node_t *v) {
   edge_t *e, *f;
   e = ND_in(u).list[0];
@@ -269,9 +133,9 @@ static bool bothdowncandidates(node_t *u, node_t *v) {
     edge_t *f0 = original_normal_edge(f);
     return original_edges_have_same_rank_direction(e, f) &&
            rendered_edges_are_equal(f0, e0) && gv_edge_ports_are_equal(e, f) &&
-           original_tails_are_same_or_adjacent(e, f) &&
-           dense_same_head_labeled_fan_can_join_at(e0, f0, u) && e0 != NULL &&
-           f0 != NULL && gv_edge_ports_are_equal(e0, f0);
+           e0 != NULL && f0 != NULL &&
+           dense_same_head_labeled_fan_can_join_at(e0, f0, u) &&
+           gv_edge_ports_are_equal(e0, f0);
   }
   return false;
 }
@@ -290,7 +154,7 @@ static bool bothupcandidates(node_t *u, node_t *v) {
     edge_t *f0 = original_normal_edge(f);
     return original_edges_have_same_rank_direction(e, f) &&
            rendered_edges_are_equal(f0, e0) && gv_edge_ports_are_equal(e, f) &&
-           original_tails_are_same_or_adjacent(e, f) &&
+           e0 != NULL && f0 != NULL &&
            dense_same_head_labeled_fan_can_join_at(e0, f0, u) &&
            (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
   }
