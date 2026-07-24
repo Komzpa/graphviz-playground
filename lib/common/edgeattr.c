@@ -40,6 +40,7 @@
 #include <common/render.h>
 #include <common/utils.h>
 #include <ctype.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -289,6 +290,7 @@ static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
                                     comparable_attribute_value_t value,
                                     bool allow_color_list,
                                     bool reverse_orientation);
+static void append_color_segment(agxbuf *rendered_list, strview_t color_name);
 
 enum {
   DEFAULT_HTML_BORDER = 1,
@@ -312,6 +314,9 @@ static unsigned short html_table_identity_flags(const htmltbl_t *table) {
   if (table->data.border == DEFAULT_HTML_BORDER) {
     flags &= (unsigned short)~BORDER_SET;
   }
+  if (table->data.border == 0) {
+    flags &= (unsigned short)~BORDER_MASK;
+  }
   return flags;
 }
 
@@ -323,7 +328,48 @@ static unsigned short html_data_effective_flags(const htmldata_t *data) {
   if (data->border == DEFAULT_HTML_BORDER) {
     flags &= (unsigned short)~BORDER_SET;
   }
+  if (data->border == 0) {
+    flags &= (unsigned short)~BORDER_MASK;
+  }
   return flags;
+}
+
+static void append_html_bgcolor_identity_slot(agxbuf *signature,
+                                              const char *slot_name,
+                                              Agedge_t *edge,
+                                              const char *bgcolor) {
+  if (bgcolor == NULL || bgcolor[0] == '\0') {
+    append_plain_signature_slot(signature, slot_name, "");
+    return;
+  }
+
+  char *colors[2] = {0};
+  double fraction = 0.0;
+  if (findStopColor(bgcolor, colors, &fraction)) {
+    agxbuf rendered_gradient = {0};
+    char *const previous_color_scheme =
+        setColorScheme(agget(edge, "colorscheme"));
+    append_color_segment(
+        &rendered_gradient,
+        (strview_t){.data = colors[0], .size = strlen(colors[0])});
+    agxbputc(&rendered_gradient, ':');
+    const char *const stop = colors[1] != NULL ? colors[1] : DEFAULT_COLOR;
+    append_color_segment(&rendered_gradient,
+                         (strview_t){.data = stop, .size = strlen(stop)});
+    agxbprint(&rendered_gradient, ";%a", fraction);
+    char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+    free(previous_color_scheme);
+    free(restored_color_scheme);
+    append_plain_signature_slot(signature, slot_name,
+                                agxbuse(&rendered_gradient));
+    agxbfree(&rendered_gradient);
+    free(colors[0]);
+    free(colors[1]);
+    return;
+  }
+
+  append_edge_color_value(signature, edge, slot_name,
+                          plain_attribute_value(bgcolor), false, false);
 }
 
 static void append_html_data_identity_slots(
@@ -346,29 +392,26 @@ static void append_html_data_identity_slots(
   agxbclear(&field);
   agxbprint(&field, "%s:pencolor", slot_prefix);
   const bool paint_visible = !data->style.invisible;
-  append_edge_color_value(
-      signature, edge, agxbuse(&field),
-      plain_attribute_value(!paint_visible || !pencolor_visible ||
-                                    data->pencolor == NULL
-                                ? ""
-                                : data->pencolor),
-      false, false);
+  append_edge_color_value(signature, edge, agxbuse(&field),
+                          plain_attribute_value(!paint_visible ||
+                                                        !pencolor_visible ||
+                                                        data->pencolor == NULL
+                                                    ? ""
+                                                    : data->pencolor),
+                          false, false);
 
   agxbclear(&field);
   agxbprint(&field, "%s:bgcolor", slot_prefix);
-  append_edge_color_value(
-      signature, edge, agxbuse(&field),
-      plain_attribute_value(!paint_visible || data->bgcolor == NULL
-                                ? ""
-                                : data->bgcolor),
-      false, false);
+  append_html_bgcolor_identity_slot(
+      signature, agxbuse(&field), edge,
+      !paint_visible || data->bgcolor == NULL ? "" : data->bgcolor);
 
   agxbclear(&field);
   agxbprint(&field, "%s:gradientangle", slot_prefix);
-  agxbprint(&rendered_number, "%d", !paint_visible || data->bgcolor == NULL ||
-                                      data->bgcolor[0] == '\0'
-                                  ? 0
-                                  : data->gradientangle);
+  agxbprint(&rendered_number, "%d",
+            !paint_visible || data->bgcolor == NULL || data->bgcolor[0] == '\0'
+                ? 0
+                : data->gradientangle);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
   agxbclear(&rendered_number);
@@ -404,10 +447,8 @@ static void append_html_data_identity_slots(
                                   !data->style.invisible;
   agxbprint(&rendered_number, "%d:%d:%d:%d:%d",
             fill_style_visible && data->style.radial,
-            data->style.rounded &&
-                (border_style_visible || fill_style_visible),
-            data->style.invisible,
-            border_style_visible && data->style.dotted,
+            data->style.rounded && (border_style_visible || fill_style_visible),
+            data->style.invisible, border_style_visible && data->style.dotted,
             border_style_visible && data->style.dashed);
   append_plain_signature_slot(signature, agxbuse(&field),
                               agxbuse(&rendered_number));
@@ -1212,7 +1253,12 @@ static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
   char *end = NULL;
   const double parsed_value = strtod(value.text, &end);
   if (end == value.text) {
-    return false;
+    *number = default_value;
+    return true;
+  }
+  if (!isfinite(parsed_value)) {
+    *number = default_value;
+    return true;
   }
   *number = parsed_value < minimum ? minimum : parsed_value;
   return true;
@@ -1285,6 +1331,10 @@ static bool graph_uses_ortho_edges(Agraph_t *root_graph) {
   const char *const splines_value = agget(root_graph, "splines");
   return splines_value != NULL && strcmp(splines_value, "ortho") == 0;
 }
+
+static bool
+edge_uses_simple_color_ortho_branch(Agraph_t *root_graph, Agedge_t *edge,
+                                    comparable_attribute_value_t style);
 
 static bool edge_style_token_sets_pen_pattern(const char *style) {
   return strcmp(style, "solid") == 0 || strcmp(style, "dashed") == 0 ||
@@ -1461,7 +1511,7 @@ static void append_structured_port_slots(agxbuf *signature, Agedge_t *edge,
                                               : EDGE_HEAD_ENDPOINT)
             : endpoint;
     const port resolved_port = edge_endpoint_port(edge, source_endpoint);
-    if (!resolved_port.defined) {
+    if (!resolved_port.defined && !resolved_port.dyna) {
       continue;
     }
     node_t *const source_node =
@@ -1475,8 +1525,13 @@ static void append_structured_port_slots(agxbuf *signature, Agedge_t *edge,
       continue;
     }
 
-    agxbprint(&resolved_value, "|%a,%a,%d,%d", resolved_port.p.x,
-              resolved_port.p.y, resolved_port.constrained, resolved_port.dyna);
+    if (resolved_port.defined) {
+      agxbprint(&resolved_value, "|%a,%a,%d,%d", resolved_port.p.x,
+                resolved_port.p.y, resolved_port.constrained,
+                resolved_port.dyna);
+    } else {
+      agxbprint(&resolved_value, "|dynamic:%d", resolved_port.dyna);
+    }
     append_plain_signature_slot(
         signature, endpoint == EDGE_HEAD_ENDPOINT ? "headport" : "tailport",
         agxbuse(&resolved_value));
@@ -1537,16 +1592,17 @@ static void append_projected_attribute_value(agxbuf *signature,
 
   if (strcmp(classification.name, "radius") == 0 && !value.is_html) {
     char *end = NULL;
-    const double radius =
-        value.text[0] == '\0' ? 0.0 : strtod(value.text, &end);
-    if (value.text[0] == '\0' || end != value.text) {
-      agxbuf rendered_number = {0};
-      agxbprint(&rendered_number, "%a", radius);
-      append_plain_signature_slot(signature, slot_name,
-                                  agxbuse(&rendered_number));
-      agxbfree(&rendered_number);
-      return;
+    double radius = value.text[0] == '\0' ? 0.0 : strtod(value.text, &end);
+    if (value.text[0] != '\0' &&
+        (end == value.text || !isfinite(radius) || radius <= 0.0)) {
+      radius = 0.0;
     }
+    agxbuf rendered_number = {0};
+    agxbprint(&rendered_number, "%a", radius);
+    append_plain_signature_slot(signature, slot_name,
+                                agxbuse(&rendered_number));
+    agxbfree(&rendered_number);
+    return;
   }
 
   if (facts->style && !value.is_html && value.text[0] == '\0') {
@@ -1562,8 +1618,9 @@ static void append_projected_attribute_value(agxbuf *signature,
                                   agxbuse(&rendered_number));
       agxbfree(&rendered_number);
     }
-    append_style_value(signature, slot_name, value,
-                       graph_uses_ortho_edges(root_graph));
+    append_style_value(
+        signature, slot_name, value,
+        edge_uses_simple_color_ortho_branch(root_graph, edge, value));
     return;
   }
 
@@ -1607,6 +1664,27 @@ static bool edge_uses_tapered_style(Agedge_t *edge) {
     }
   }
   return false;
+}
+
+static bool edge_uses_tapered_style_value(comparable_attribute_value_t style) {
+  if (style.is_html || style.text[0] == '\0') {
+    return false;
+  }
+  for (char **item = parse_style((char *)style.text); *item != NULL; item++) {
+    if (strcmp(*item, "tapered") == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool
+edge_uses_simple_color_ortho_branch(Agraph_t *root_graph, Agedge_t *edge,
+                                    comparable_attribute_value_t style) {
+  const char *const color = agget(edge, "color");
+  return graph_uses_ortho_edges(root_graph) &&
+         !edge_uses_tapered_style_value(style) &&
+         (color == NULL || strchr(color, ':') == NULL);
 }
 
 static void append_taper_direction_slot(agxbuf *signature, Agedge_t *edge,
@@ -2207,7 +2285,7 @@ static char *project_endpoint_port_identity(Agedge_t *edge,
                                             edge_endpoint_t endpoint) {
   const port resolved_port = edge_endpoint_port(edge, endpoint);
   agxbuf identity = {0};
-  if (!resolved_port.defined) {
+  if (!resolved_port.defined && !resolved_port.dyna) {
     return gv_strdup("");
   }
 
@@ -2220,8 +2298,12 @@ static char *project_endpoint_port_identity(Agedge_t *edge,
     return gv_strdup("");
   }
 
-  agxbprint(&identity, "|%a,%a,%d,%d", resolved_port.p.x, resolved_port.p.y,
-            resolved_port.constrained, resolved_port.dyna);
+  if (resolved_port.defined) {
+    agxbprint(&identity, "|%a,%a,%d,%d", resolved_port.p.x, resolved_port.p.y,
+              resolved_port.constrained, resolved_port.dyna);
+  } else {
+    agxbprint(&identity, "|dynamic:%d", resolved_port.dyna);
+  }
   return agxbdisown(&identity);
 }
 

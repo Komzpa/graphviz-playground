@@ -6883,6 +6883,11 @@ def _assert_concentrated_edge_counts(
             ),
         ),
         _named_edge_count_cases(
+            "dynamic-compass-ports",
+            _edge_count_case(2, "a -> b:_", "a -> b"),
+            _edge_count_case(2, "a:_ -> b", "a -> b"),
+        ),
+        _named_edge_count_cases(
             "ignore-layout-only-attributes",
             _edge_count_case(
                 3,
@@ -6904,6 +6909,15 @@ def _assert_concentrated_edge_counts(
                 "b -> c",
                 "c -> d [tailclip=true]",
                 "c -> d",
+            ),
+        ),
+        _named_edge_count_cases(
+            "invalid-numeric-defaults",
+            _edge_count_case(1, "a -> b [penwidth=bogus]", "a -> b"),
+            _edge_count_case(
+                1,
+                "b -> c [headlabel=x labeldistance=bogus]",
+                "b -> c [headlabel=x]",
             ),
         ),
     ),
@@ -7192,7 +7206,31 @@ def test_concentrate_radius_identity_is_gated_on_ortho_edges():
         "splines=ortho",
         (
             _edge_count_case(2, "a -> b [radius=5]", "a -> b"),
+            _edge_count_case(1, "c -> d [radius=bogus]", "c -> d"),
+            _edge_count_case(1, "d -> e [radius=-5]", "d -> e"),
+            _edge_count_case(1, "e -> f [radius=NaN]", "e -> f"),
             _edge_count_case(2, "b -> c [style=rounded]", "b -> c"),
+        ),
+    )
+
+
+def test_concentrate_ortho_rounded_style_only_when_drawn():
+    """emit_edge_graphics() ignores rounded on non-simple ortho edge branches."""
+
+    _assert_concentrated_edge_counts(
+        "splines=ortho",
+        (
+            _edge_count_case(
+                1,
+                'a -> b [color="red:blue" style=rounded]',
+                'a -> b [color="red:blue"]',
+            ),
+            _edge_count_case(
+                1,
+                'b -> c [style="tapered,rounded"]',
+                "b -> c [style=tapered]",
+            ),
+            _edge_count_case(2, "c -> d [style=rounded]", "c -> d"),
         ),
     )
 
@@ -7212,6 +7250,22 @@ def test_concentrate_layer_identity_requires_declared_graph_layers():
         }
     """
     assert len(_drawn_edges(visible_layer)) == 1
+
+
+def test_compound_close_edge_preserves_ordinary_tail_arrow():
+    """Short non-concentrated compound edges keep explicit dir=both arrows."""
+
+    source = """
+        digraph {
+          graph [compound=true]
+          subgraph cluster_a { a }
+          subgraph cluster_b { b }
+          a -> b [ltail=cluster_a lhead=cluster_b dir=both minlen=0]
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    assert "_tdraw_" in layout["edges"][0]
+    assert "_hdraw_" in layout["edges"][0]
 
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -7559,6 +7613,26 @@ def test_concentrate_html_table_border_identity_uses_pencolor():
                 2,
                 'c -> d [colorscheme=accent3 pencolor=1 headlabel=<<TABLE><TR><TD>x</TD></TR></TABLE>>]',
                 'd -> c [colorscheme=paired3 pencolor=1 taillabel=<<TABLE><TR><TD>x</TD></TR></TABLE>>]',
+            ),
+        ),
+    )
+
+
+def test_concentrate_html_table_identity_uses_rendered_border_and_gradient():
+    """Borderless side flags and equivalent gradient colors do not render."""
+
+    _assert_concentrated_edge_counts(
+        "",
+        (
+            _edge_count_case(
+                1,
+                'a -> b [headlabel=<<TABLE BORDER="0"><TR><TD SIDES="L">x</TD></TR></TABLE>>]',
+                'a -> b [headlabel=<<TABLE BORDER="0"><TR><TD SIDES="R">x</TD></TR></TABLE>>]',
+            ),
+            _edge_count_case(
+                1,
+                'b -> c [headlabel=<<TABLE><TR><TD BGCOLOR="red:blue">x</TD></TR></TABLE>>]',
+                'b -> c [headlabel=<<TABLE><TR><TD BGCOLOR="#ff0000:#0000ff">x</TD></TR></TABLE>>]',
             ),
         ),
     )
