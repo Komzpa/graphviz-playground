@@ -2332,6 +2332,12 @@ bool gv_edge_ports_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
   return true;
 }
 
+bool gv_edge_head_ports_are_equal(Agedge_t *first_edge,
+                                  Agedge_t *second_edge) {
+  return edge_endpoint_ports_are_equal(first_edge, EDGE_HEAD_ENDPOINT,
+                                       second_edge, EDGE_HEAD_ENDPOINT);
+}
+
 bool gv_opposite_edge_ports_are_equal(Agedge_t *first_edge,
                                       Agedge_t *second_edge) {
   for (edge_endpoint_t first_endpoint = EDGE_TAIL_ENDPOINT;
