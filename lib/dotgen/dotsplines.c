@@ -2998,136 +2998,6 @@ static void align_flat_arrow_tangents_in_graph(graph_t *g) {
   }
 }
 
-static double turn_angle(pointf a, pointf b, pointf c) {
-  const pointf ab = sub_pointf(b, a);
-  const pointf bc = sub_pointf(c, b);
-  return atan2(ab.x * bc.y - ab.y * bc.x, ab.x * bc.x + ab.y * bc.y);
-}
-
-static int turn_sign(double angle) {
-  if (fabs(angle) < M_PI / 180.0)
-    return 0;
-  return angle < 0 ? -1 : 1;
-}
-
-static double terminal_departure(node_t *node, pointf endpoint,
-                                 pointf control) {
-  const pointf normal = sub_pointf(endpoint, ND_coord(node));
-  const pointf departure = sub_pointf(control, endpoint);
-  return normal.x * departure.x + normal.y * departure.y;
-}
-
-static node_t *node_nearest_spline_endpoint(edge_t *edge, pointf endpoint) {
-  edge = getmainedge(edge);
-  node_t *const tail = agtail(edge);
-  node_t *const head = aghead(edge);
-  return DIST(endpoint, ND_coord(tail)) <= DIST(endpoint, ND_coord(head))
-             ? tail
-             : head;
-}
-
-static void restore_outward_terminal_controls(bezier *spline, edge_t *edge,
-                                              pointf start_control,
-                                              pointf end_control) {
-  const size_t last = spline->size - 1;
-  node_t *const start_node =
-      node_nearest_spline_endpoint(edge, spline->list[0]);
-  node_t *const end_node =
-      node_nearest_spline_endpoint(edge, spline->list[last]);
-
-  // Smoothing may reshape an outward arm, but must not reverse it into its
-  // physical endpoint node. Restore only the arm whose sign was reversed.
-  if (terminal_departure(start_node, spline->list[0], start_control) > 0 &&
-      terminal_departure(start_node, spline->list[0], spline->list[1]) <= 0)
-    spline->list[1] = start_control;
-  if (terminal_departure(end_node, spline->list[last], end_control) > 0 &&
-      terminal_departure(end_node, spline->list[last],
-                         spline->list[last - 1]) <= 0)
-    spline->list[last - 1] = end_control;
-}
-
-static void smooth_alternating_concentrated_controls(bezier *spline,
-                                                     edge_t *edge) {
-  if (spline->size <= 4)
-    return;
-
-  const pointf start_control = spline->list[1];
-  const pointf end_control = spline->list[spline->size - 2];
-
-  bool alternating = false;
-  bool repeated_interior_corner = false;
-  pointf repeated_peak = {0};
-  for (size_t i = 1; i + 1 < spline->size; i++) {
-    if (DIST(spline->list[i], spline->list[i + 1]) > MILLIPOINT)
-      continue;
-
-    size_t previous = i;
-    while (previous > 0 &&
-           DIST(spline->list[previous], spline->list[i]) <= MILLIPOINT) {
-      previous--;
-    }
-
-    size_t next = i + 1;
-    while (next + 1 < spline->size &&
-           DIST(spline->list[next], spline->list[i]) <= MILLIPOINT) {
-      next++;
-    }
-
-    if (previous == i || next == i + 1)
-      continue;
-
-    if (fabs(turn_angle(spline->list[previous], spline->list[i],
-                        spline->list[next])) >= M_PI / 6.0) {
-      repeated_interior_corner = true;
-      repeated_peak = spline->list[i];
-      break;
-    }
-  }
-
-  if (repeated_interior_corner) {
-    const pointf start = spline->list[0];
-    const pointf end = spline->list[spline->size - 1];
-    const pointf chord = sub_pointf(end, start);
-    const pointf midpoint = {.x = (start.x + end.x) / 2.0,
-                             .y = (start.y + end.y) / 2.0};
-    const pointf peak_offset = sub_pointf(repeated_peak, midpoint);
-    for (size_t i = 1; i + 1 < spline->size; i++) {
-      const double t = (double)i / (double)(spline->size - 1);
-      const pointf chord_point = add_pointf(start, scale(t, chord));
-      spline->list[i] =
-          add_pointf(chord_point, scale(sin(M_PI * t), peak_offset));
-    }
-    restore_outward_terminal_controls(spline, edge, start_control, end_control);
-    return;
-  }
-
-  for (size_t i = 0; i + 3 < spline->size; i += 3) {
-    const double angle1 =
-        turn_angle(spline->list[i], spline->list[i + 1], spline->list[i + 2]);
-    const double angle2 = turn_angle(spline->list[i + 1], spline->list[i + 2],
-                                     spline->list[i + 3]);
-    const int sign1 = turn_sign(angle1);
-    const int sign2 = turn_sign(angle2);
-    if (sign1 == 0 || sign2 == 0 || sign1 == sign2)
-      continue;
-    if (fabs(angle1) < M_PI / 6.0 && fabs(angle2) < M_PI / 6.0)
-      continue;
-    alternating = true;
-    break;
-  }
-  if (!alternating)
-    return;
-
-  const pointf start = spline->list[0];
-  const pointf chord = sub_pointf(spline->list[spline->size - 1], start);
-  for (size_t i = 1; i + 1 < spline->size; i++) {
-    const double t = (double)i / (double)(spline->size - 1);
-    spline->list[i].x = start.x + chord.x * t;
-    spline->list[i].y = start.y + chord.y * t;
-  }
-  restore_outward_terminal_controls(spline, edge, start_control, end_control);
-}
-
 static size_t count_spline_points(const splines *edge_splines) {
   size_t point_count = 0;
   for (size_t i = 0; i < edge_splines->size; i++)
@@ -3367,29 +3237,12 @@ static void align_concentrated_route_tangents(graph_t *g, edge_t *edge) {
       (edge_has_concentrated_arrow_decorations(edge) ||
        ED_conc_opp_flag(edge)) &&
       ND_rank(agtail(edge)) == ND_rank(aghead(edge));
-  const bool smooth_route =
-      Concentrate &&
-      (merged_tail || merged_head || bidirectional_concentration ||
-       ED_label(main_edge) != NULL || ED_head_label(main_edge) != NULL ||
-       ED_tail_label(main_edge) != NULL ||
-       has_grouped_flat_endpoint(main_edge));
-  if (!smooth_route && !merged_tail && !merged_head &&
-      !bidirectional_concentration)
+  if (!merged_tail && !merged_head && !bidirectional_concentration)
     return;
 
   pointf *const saved_points = copy_spline_points(edge_splines);
   const size_t node_crossings_before =
       edge_route_node_crossings(g, main_edge, edge_splines);
-  if (smooth_route)
-    smooth_alternating_concentrated_controls(spline, main_edge);
-  if (!merged_tail && !merged_head && !bidirectional_concentration) {
-    if (edge_route_node_crossings(g, main_edge, edge_splines) >
-        node_crossings_before)
-      restore_worsened_spline_units_locally(
-          g, main_edge, edge_splines, saved_points, node_crossings_before);
-    free(saved_points);
-    return;
-  }
 
   const size_t first = 0;
   const size_t last = spline->size - 1;
