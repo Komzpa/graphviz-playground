@@ -7415,13 +7415,13 @@ def test_concentrate_edge_style_identity_keeps_invis_absorbing(splines: str):
 def test_concentrate_edge_style_identity_treats_invisible_as_pen_token(
     splines: str,
 ):
-    """gvrender_set_style() treats `invisible` as an ordinary pen pattern."""
+    """The renderer treats `invis` as absorbing, but not `invisible`."""
 
     _assert_concentrated_edge_counts(
         splines,
         (
             _edge_count_case(
-                1, 'a -> b [style="invisible,solid"]', "a -> b [style=solid]"
+                2, 'a -> b [style="invisible,solid"]', "a -> b [style=solid]"
             ),
         ),
     )
@@ -8706,7 +8706,7 @@ def test_concentrate_color_list_arrow_endpoint_overrides_explicit_fillcolor():
 
 
 def test_concentrate_color_list_arrow_endpoint_strips_segment_fractions():
-    """Endpoint arrow colors resolve color-list segments without fractions."""
+    """Borrowed endpoint arrow colors resolve normalized color-list segments."""
 
     borrowed_segment_arrow = _concentrated_graph(
         "",
@@ -8716,7 +8716,7 @@ def test_concentrate_color_list_arrow_endpoint_strips_segment_fractions():
     drawn_edges = _drawn_edges(borrowed_segment_arrow)
     assert len(drawn_edges) == 1
     assert "_hdraw_" in drawn_edges[0]
-    assert _arrow_fill_color(drawn_edges[0], "h") == "#0000ff"
+    assert _arrow_fill_color(drawn_edges[0], "h") == "#ff0000"
 
 
 def test_concentrate_color_list_arrow_endpoint_uses_normalized_segments():
