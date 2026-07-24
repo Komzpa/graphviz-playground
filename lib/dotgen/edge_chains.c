@@ -204,8 +204,7 @@ static void merge_bundle_load_chain(graph_t *graph, edge_t *original_edge,
     int legacy_position = ED_weight(representative_edge);
     const bool reaches_original_endpoint =
         ND_rank(aghead(representative_edge)) == last_rank;
-    if (add_legacy_load &&
-        (is_endpoint_segment || reaches_original_endpoint)) {
+    if (add_legacy_load && (is_endpoint_segment || reaches_original_endpoint)) {
       legacy_position += ED_weight(original_edge);
     }
     dot_bundle_load_merge(representative_edge, original_edge, merge);
@@ -265,8 +264,9 @@ typedef struct {
   dot_bundle_merge_t merge;
 } edge_chain_candidate_payload_t;
 
-static void transactional_record_edge_info(
-    gv_concentration_transaction_t *handle, edge_t *edge) {
+static void
+transactional_record_edge_info(gv_concentration_transaction_t *handle,
+                               edge_t *edge) {
   gv_concentration_transaction_record(handle, AGDATA(edge),
                                       sizeof(Agedgeinfo_t));
 }
@@ -481,9 +481,8 @@ static void transactional_suppress_later_same_direction_duplicates(
         same_direction_edge_arrow_decorations_are_mergeable(representative,
                                                             edge)) {
       transactional_fold_arrows(handle, representative, edge, false);
-      transactional_merge_concentrated_edge_load(handle, graph, edge,
-                                                 representative,
-                                                 DOT_BUNDLE_COALESCE);
+      transactional_merge_concentrated_edge_load(
+          handle, graph, edge, representative, DOT_BUNDLE_COALESCE);
       gv_concentration_transaction_record(handle, &ED_edge_type(edge),
                                           sizeof(ED_edge_type(edge)));
       ED_edge_type(edge) = IGNORED;
@@ -677,7 +676,7 @@ generate_parallel_candidate(gv_concentration_plan_context_t *context,
       .edge = edge,
       .representative = representative,
       .merge = action == GV_CONCENTRATION_SHARE_ROUTE ? DOT_BUNDLE_SHARE_ROUTE
-                                                       : DOT_BUNDLE_COALESCE,
+                                                      : DOT_BUNDLE_COALESCE,
   };
   gv_concentration_candidate_set_init(context, set, "edge-chains-parallel",
                                       action, legacy_accepts, reasons,
@@ -943,13 +942,11 @@ route_cluster_edge_fallback(gv_concentration_plan_context_t *context,
   return payload.update_previous_edge;
 }
 
-static void
-generate_flat_route_candidate(gv_concentration_plan_context_t *context,
-                              graph_t *graph, edge_t *edge,
-                              edge_t *representative, bool legacy_accepts,
-                              dot_bundle_merge_t merge,
-                              gv_concentration_candidate_set_t *set,
-                              edge_chain_candidate_payload_t *payload) {
+static void generate_flat_route_candidate(
+    gv_concentration_plan_context_t *context, graph_t *graph, edge_t *edge,
+    edge_t *representative, bool legacy_accepts, dot_bundle_merge_t merge,
+    gv_concentration_candidate_set_t *set,
+    edge_chain_candidate_payload_t *payload) {
   *payload = (edge_chain_candidate_payload_t){
       .graph = graph,
       .edge = edge,
@@ -964,11 +961,9 @@ generate_flat_route_candidate(gv_concentration_plan_context_t *context,
       execute_edge_chain_candidate, payload);
 }
 
-static bool
-route_concentrated_flat_edge(gv_concentration_plan_context_t *context,
-                             graph_t *graph, edge_t *edge,
-                             edge_t *representative, bool legacy_accepts,
-                             dot_bundle_merge_t merge) {
+static bool route_concentrated_flat_edge(
+    gv_concentration_plan_context_t *context, graph_t *graph, edge_t *edge,
+    edge_t *representative, bool legacy_accepts, dot_bundle_merge_t merge) {
   gv_concentration_candidate_set_t set;
   edge_chain_candidate_payload_t payload;
   generate_flat_route_candidate(context, graph, edge, representative,
@@ -1063,8 +1058,7 @@ void build_edge_chains(graph_t *graph) {
           if (Concentrate) {
             if (route_concentrated_flat_edge(&concentration_context, graph,
                                              edge, representative_edge,
-                                             flat_edges_are_mergeable,
-                                             merge)) {
+                                             flat_edges_are_mergeable, merge)) {
               continue;
             }
           } else if (flat_edges_are_mergeable) {

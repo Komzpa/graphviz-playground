@@ -11,8 +11,8 @@
 #include <string.h>
 #include <util/alloc.h>
 
-static gv_concentration_direction_t
-direction_from(Agedge_t *representative, Agedge_t *candidate) {
+static gv_concentration_direction_t direction_from(Agedge_t *representative,
+                                                   Agedge_t *candidate) {
   return agtail(representative) != aghead(representative) &&
                  agtail(representative) == aghead(candidate) &&
                  aghead(representative) == agtail(candidate)
@@ -20,8 +20,7 @@ direction_from(Agedge_t *representative, Agedge_t *candidate) {
              : GV_CONCENTRATION_SAME_DIRECTION;
 }
 
-static bool have_common_unordered_endpoints(Agedge_t *first,
-                                            Agedge_t *second) {
+static bool have_common_unordered_endpoints(Agedge_t *first, Agedge_t *second) {
   return (agtail(first) == agtail(second) && aghead(first) == aghead(second)) ||
          (agtail(first) == aghead(second) && aghead(first) == agtail(second));
 }
@@ -141,8 +140,9 @@ void gv_concentration_plan_diagnose_if_enabled(Agraph_t *graph) {
   gv_concentration_plan_t plan = gv_concentration_plan(graph);
   for (size_t i = 0; i < plan.group_count; ++i) {
     const gv_concentration_group_t *const group = &plan.groups[i];
-    fprintf(stderr, "concentrate-plan\tgroup=%zu\trepresentative=%zu:%s%s%s"
-                    "\tmembers=",
+    fprintf(stderr,
+            "concentrate-plan\tgroup=%zu\trepresentative=%zu:%s%s%s"
+            "\tmembers=",
             i, group->representative_index,
             agnameof(agtail(group->representative)),
             agisdirected(graph) ? "->" : "--",

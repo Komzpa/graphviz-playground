@@ -40,8 +40,7 @@ void dot_bundle_load_init_virtual(struct Agedge_s *edge,
 void dot_bundle_load_merge(struct Agedge_s *carrier,
                            const struct Agedge_s *member,
                            dot_bundle_merge_t merge);
-void dot_bundle_load_adjust_legacy_count(struct Agedge_s *edge,
-                                         int adjustment);
+void dot_bundle_load_adjust_legacy_count(struct Agedge_s *edge, int adjustment);
 void dot_bundle_load_set_legacy_count(struct Agedge_s *edge, int count);
 void dot_bundle_load_set_legacy_xpenalty(struct Agedge_s *edge, int xpenalty);
 void dot_bundle_load_set_legacy_position(struct Agedge_s *edge, int position);

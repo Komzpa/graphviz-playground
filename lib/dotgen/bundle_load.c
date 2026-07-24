@@ -157,7 +157,8 @@ static int scaled_bias(int bias, uint64_t old_scale, uint64_t new_scale) {
   if (bias == 0 || old_scale == new_scale) {
     return bias;
   }
-  const int64_t scaled = (int64_t)bias * (int64_t)new_scale / (int64_t)old_scale;
+  const int64_t scaled =
+      (int64_t)bias * (int64_t)new_scale / (int64_t)old_scale;
   return (int)MIN(MAX(scaled, (int64_t)INT_MIN), (int64_t)INT_MAX);
 }
 
@@ -284,14 +285,18 @@ void dot_bundle_load_merge(edge_t *carrier, const edge_t *member,
   refresh_bundle_id(&destination);
   set_edge_load(carrier, &destination);
   if (merge == DOT_BUNDLE_COALESCE) {
-    set_legacy_count_bias(carrier_info, destination.logical_count, legacy_count);
+    set_legacy_count_bias(carrier_info, destination.logical_count,
+                          legacy_count);
     carrier_info->bundle_legacy_bias[LEGACY_XPENALTY_BIAS] =
-        legacy_xpenalty - (int)MIN(destination.cross_pressure, (uint64_t)INT_MAX);
+        legacy_xpenalty -
+        (int)MIN(destination.cross_pressure, (uint64_t)INT_MAX);
     set_legacy_position_bias(carrier_info, &destination, legacy_position);
   } else if (merge == DOT_BUNDLE_SHARE_ROUTE) {
-    set_legacy_count_bias(carrier_info, destination.logical_count, legacy_count);
+    set_legacy_count_bias(carrier_info, destination.logical_count,
+                          legacy_count);
     carrier_info->bundle_legacy_bias[LEGACY_XPENALTY_BIAS] =
-        legacy_xpenalty - (int)MIN(destination.cross_pressure, (uint64_t)INT_MAX);
+        legacy_xpenalty -
+        (int)MIN(destination.cross_pressure, (uint64_t)INT_MAX);
     set_legacy_position_bias(carrier_info, &destination, legacy_position);
   } else if (preserve_legacy_count) {
     set_legacy_count_bias(carrier_info, destination.logical_count,
@@ -337,8 +342,7 @@ void dot_bundle_load_set_legacy_xpenalty(edge_t *edge, int xpenalty) {
 
   Agedgeinfo_t *const info = (Agedgeinfo_t *)AGDATA(edge);
   info->bundle_legacy_bias[LEGACY_XPENALTY_BIAS] =
-      bounded_xpenalty -
-      (int)MIN(load.cross_pressure, (uint64_t)INT_MAX);
+      bounded_xpenalty - (int)MIN(load.cross_pressure, (uint64_t)INT_MAX);
   ED_xpenalty(edge) = (short)bounded_xpenalty;
 }
 
@@ -352,7 +356,8 @@ void dot_bundle_load_set_legacy_position(edge_t *edge, int position) {
 
   Agedgeinfo_t *const info = (Agedgeinfo_t *)AGDATA(edge);
   set_legacy_position_bias(info, &load, bounded_position);
-  ED_weight(edge) = (int)MIN(projected_position(&load, info), (uint64_t)INT_MAX);
+  ED_weight(edge) =
+      (int)MIN(projected_position(&load, info), (uint64_t)INT_MAX);
 }
 
 void dot_bundle_load_set_position_scale(edge_t *edge, uint64_t scale) {
