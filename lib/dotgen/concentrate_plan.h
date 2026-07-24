@@ -60,6 +60,7 @@ typedef struct {
 typedef struct {
   uint64_t next_candidate_id;
   bool rollback_probe;
+  gv_concentration_transaction_t *transaction;
 } gv_concentration_plan_context_t;
 
 void gv_concentration_plan_context_init(gv_concentration_plan_context_t *ctx);
@@ -74,6 +75,7 @@ void gv_concentration_candidate_set_free(gv_concentration_candidate_set_t *set);
 
 bool gv_concentration_apply(gv_concentration_plan_context_t *ctx,
                             gv_concentration_candidate_set_t *set);
+void gv_concentration_plan_context_commit(gv_concentration_plan_context_t *ctx);
 
 void gv_concentration_transaction_record(
     gv_concentration_transaction_t *transaction, void *address, size_t size);

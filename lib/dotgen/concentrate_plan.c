@@ -52,6 +52,7 @@ void gv_concentration_plan_context_init(gv_concentration_plan_context_t *ctx) {
   *ctx = (gv_concentration_plan_context_t){
       .next_candidate_id = 1,
       .rollback_probe = getenv("GV_CONCENTRATE_ROLLBACK") != NULL,
+      .transaction = gv_alloc(sizeof(*ctx->transaction)),
   };
 }
 
@@ -252,14 +253,18 @@ bool gv_concentration_apply(gv_concentration_plan_context_t *ctx,
     return false;
   }
 
-  gv_concentration_transaction_t *transaction = begin_transaction(selected);
+  gv_concentration_transaction_t *transaction = ctx->transaction;
+  if (transaction == NULL)
+    transaction = begin_transaction(selected);
   if (!selected->execute(selected, transaction)) {
     rollback_transaction(transaction);
+    if (transaction == ctx->transaction)
+      ctx->transaction = NULL;
     gv_concentration_candidate_set_free(set);
     return false;
   }
 
-  if (ctx->rollback_probe) {
+  if (ctx->rollback_probe && transaction != ctx->transaction) {
     rollback_transaction(transaction);
     transaction = begin_transaction(selected);
     if (!selected->execute(selected, transaction)) {
@@ -269,7 +274,15 @@ bool gv_concentration_apply(gv_concentration_plan_context_t *ctx,
     }
   }
 
-  commit_transaction(transaction);
+  if (transaction != ctx->transaction)
+    commit_transaction(transaction);
   gv_concentration_candidate_set_free(set);
   return true;
+}
+
+void gv_concentration_plan_context_commit(gv_concentration_plan_context_t *ctx) {
+  if (ctx->transaction != NULL) {
+    commit_transaction(ctx->transaction);
+    ctx->transaction = NULL;
+  }
 }

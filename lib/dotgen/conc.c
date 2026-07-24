@@ -318,11 +318,11 @@ static int rebuild_vlists(graph_t *g) {
   for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
     lead = GD_rankleader(g)[r];
     if (lead == NULL) {
-      agerrorf("rebuild_vlists: lead is null for rank %d\n", r);
+      agwarningf("rebuild_vlists: lead is null for rank %d\n", r);
       return -1;
     } else if (GD_rank(dot_root(g))[r].v[ND_order(lead)] != lead) {
-      agerrorf("rebuild_vlists: rank lead %s not in order %d of rank %d\n",
-               agnameof(lead), ND_order(lead), r);
+      agwarningf("rebuild_vlists: rank lead %s not in order %d of rank %d\n",
+                 agnameof(lead), ND_order(lead), r);
       return -1;
     }
     GD_rank(g)[r].v = GD_rank(dot_root(g))[r].v + ND_order(GD_rankleader(g)[r]);
@@ -601,8 +601,10 @@ int dot_concentrate(graph_t *g) {
 
   gv_concentration_plan_context_t concentration_context;
   gv_concentration_plan_context_init(&concentration_context);
+  record_rebuild_vlists_state(concentration_context.transaction, g);
   concentrate_flat_edges(&concentration_context, g);
   if (GD_maxrank(g) - GD_minrank(g) <= 1) {
+    gv_concentration_plan_context_commit(&concentration_context);
     return 0;
   }
   /* this is the downward looking pass. r is a candidate rank. */
@@ -644,9 +646,10 @@ int dot_concentrate(graph_t *g) {
     generate_finalize_candidate(&concentration_context, GD_clust(g)[c], &set,
                                 &payload);
     if (!gv_concentration_apply(&concentration_context, &set)) {
-      agerr(AGPREV, "concentrate=true may not work correctly.\n");
-      return -1;
+      agwarningf("concentrate=true fell back to an unconcentrated layout.\n");
+      return 0;
     }
   }
+  gv_concentration_plan_context_commit(&concentration_context);
   return 0;
 }
