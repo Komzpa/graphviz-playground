@@ -12,6 +12,8 @@
 
 #include <assert.h>
 #include <cgraph/cgraph.h>
+#include <common/concentrate_plan.h>
+#include <common/edgeattr.h>
 #include <limits.h>
 #include <math.h>
 #include <neatogen/neato.h>
@@ -44,6 +46,19 @@ static bool swap_ends_p(edge_t * e)
 
 static splineInfo sinfo = {.swapEnds = swap_ends_p,
                            .splineMerge = spline_merge};
+
+static bool concentrated_self_edges_are_suppressible(edge_t *e, size_t cnt) {
+    edge_t *const representative = e;
+    for (size_t i = 1; i < cnt; i++) {
+	e = ED_to_virt(e);
+	if (!gv_edge_ports_are_equal(representative, e) ||
+	    !gv_concentration_edges_have_equal_rendered_identity(
+		representative, e, GV_CONCENTRATION_SAME_DIRECTION)) {
+	    return false;
+	}
+    }
+    return true;
+}
 
 static void make_barriers(Ppoly_t **poly, int npoly, int pp, int qp,
                           Pedge_t **barriers, size_t *n_barriers) {
@@ -219,8 +234,10 @@ void makeSelfArcs(edge_t * e, int stepx)
 {
     assert(ED_count(e) >= 0);
     const size_t cnt = (size_t)ED_count(e);
+    const bool suppress_concentrated_group =
+	Concentrate && concentrated_self_edges_are_suppressible(e, cnt);
 
-    if (cnt == 1 || Concentrate) {
+    if (cnt == 1 || suppress_concentrated_group) {
 	edge_t *edges1[1];
 	edges1[0] = e;
 	makeSelfEdge(edges1, 1, stepx, stepx, &sinfo);
@@ -1121,4 +1138,3 @@ bool neato_set_aspect(graph_t * g)
     }
     return moved;
 }
-
