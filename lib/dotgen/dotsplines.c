@@ -147,21 +147,6 @@ static bool edge_spline_bounds(const edge_t *edge, boxf *bounds) {
   return found;
 }
 
-static double graph_node_right_bound(graph_t *graph) {
-  bool found = false;
-  double right = 0.0;
-  for (node_t *node = agfstnode(graph); node != NULL;
-       node = agnxtnode(graph, node)) {
-    const pointf coord = ND_coord(node);
-    const double node_right = coord.x + ND_rw(node);
-    if (!found || node_right > right) {
-      right = node_right;
-      found = true;
-    }
-  }
-  return right;
-}
-
 static void place_grouped_endpoint_label_outside_node(graph_t *graph,
                                                       edge_t *edge,
                                                       bool head_p) {
@@ -214,6 +199,52 @@ static bool endpoint_label_uses_default_placement(edge_t *edge) {
          (E_labeldistance == NULL || agxget(edge, E_labeldistance)[0] == '\0');
 }
 
+static double side_protrusion(int side, boxf loop_bounds, boxf n_box) {
+  switch (side) {
+  case RIGHT:
+    return MAX(0.0, loop_bounds.UR.x - n_box.UR.x);
+  case LEFT:
+    return MAX(0.0, n_box.LL.x - loop_bounds.LL.x);
+  case TOP:
+    return MAX(0.0, loop_bounds.UR.y - n_box.UR.y);
+  case BOTTOM:
+    return MAX(0.0, n_box.LL.y - loop_bounds.LL.y);
+  default:
+    return 0.0;
+  }
+}
+
+static int self_loop_label_side(const edge_t *edge, boxf loop_bounds,
+                                boxf n_box) {
+  const int port_sides = ED_tail_port(edge).side | ED_head_port(edge).side;
+  if (port_sides & RIGHT) {
+    return RIGHT;
+  }
+  if (port_sides & LEFT) {
+    return LEFT;
+  }
+  if (port_sides & BOTTOM) {
+    return BOTTOM;
+  }
+  if (port_sides & TOP) {
+    return TOP;
+  }
+
+  const int preferred_sides[] = {RIGHT, LEFT, BOTTOM, TOP};
+  int side = RIGHT;
+  double protrusion = side_protrusion(side, loop_bounds, n_box);
+  for (size_t i = 1; i < sizeof(preferred_sides) / sizeof(preferred_sides[0]);
+       i++) {
+    const double candidate =
+        side_protrusion(preferred_sides[i], loop_bounds, n_box);
+    if (candidate > protrusion) {
+      side = preferred_sides[i];
+      protrusion = candidate;
+    }
+  }
+  return side;
+}
+
 static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
                                                       edge_t *retained,
                                                       edge_t *duplicate) {
@@ -234,10 +265,31 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
   }
 
   textlabel_t *const label = ED_label(retained);
-  const double width = GD_flip(graph) ? label->dimen.y : label->dimen.x;
-  const double right_bound =
-      MAX(retained_bounds.UR.x, graph_node_right_bound(graph));
-  label->pos.x = right_bound + ENDPOINT_LABEL_GAP + width / 2.0;
+  pointf dimen = label->dimen;
+  if (GD_flip(graph)) {
+    SWAP(&dimen.x, &dimen.y);
+  }
+
+  const boxf n_box = node_box(agtail(retained));
+  switch (self_loop_label_side(retained, retained_bounds, n_box)) {
+  case LEFT:
+    label->pos.x = retained_bounds.LL.x - ENDPOINT_LABEL_GAP - dimen.x / 2.0;
+    label->pos.y = (retained_bounds.LL.y + retained_bounds.UR.y) / 2.0;
+    break;
+  case TOP:
+    label->pos.x = (retained_bounds.LL.x + retained_bounds.UR.x) / 2.0;
+    label->pos.y = retained_bounds.UR.y + ENDPOINT_LABEL_GAP + dimen.y / 2.0;
+    break;
+  case BOTTOM:
+    label->pos.x = (retained_bounds.LL.x + retained_bounds.UR.x) / 2.0;
+    label->pos.y = retained_bounds.LL.y - ENDPOINT_LABEL_GAP - dimen.y / 2.0;
+    break;
+  case RIGHT:
+  default:
+    label->pos.x = retained_bounds.UR.x + ENDPOINT_LABEL_GAP + dimen.x / 2.0;
+    label->pos.y = (retained_bounds.LL.y + retained_bounds.UR.y) / 2.0;
+    break;
+  }
   updateBB(graph, label);
 }
 
