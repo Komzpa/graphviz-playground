@@ -538,6 +538,7 @@ static void align_arrow_tangents(graph_t *, edge_t *);
 static void align_flat_arrow_tangents_in_graph(graph_t *);
 static void repair_route_junctions(graph_t *, const route_pieces_t *,
                                    const route_junctions_t *);
+static void repair_near_g1_spline_joins(graph_t *);
 static bool route_cubic_clears_nodes(graph_t *, edge_t *, const pointf[4]);
 static bool route_crossing_signatures_equal(const route_crossings_t *,
                                             const route_crossings_t *);
@@ -1310,6 +1311,7 @@ static int dot_splines_(graph_t *g, int normalize) {
   /* normalize splines so they always go from tail to head */
   /* place_portlabel relies on this being done first */
   repair_route_junctions(g, &route_pieces, &route_junctions);
+  repair_near_g1_spline_joins(g);
   if (normalize)
     edge_normalize(g);
 
@@ -3684,6 +3686,37 @@ static bool fixed_template_g1_valid(const route_junction_t *junction,
          incoming.x * outgoing.x + incoming.y * outgoing.y > 0.0;
 }
 
+static bool averaged_existing_g1_candidate(const route_junction_t *junction,
+                                           pointf left_control,
+                                           pointf right_control,
+                                           pointf *candidate_left,
+                                           pointf *candidate_right) {
+  const pointf incoming = sub_pointf(junction->joint, left_control);
+  const pointf outgoing = sub_pointf(right_control, junction->joint);
+  const double incoming_length = hypot(incoming.x, incoming.y);
+  const double outgoing_length = hypot(outgoing.x, outgoing.y);
+  if (!isfinite(incoming_length) || !isfinite(outgoing_length) ||
+      incoming_length <= MILLIPOINT || outgoing_length <= MILLIPOINT ||
+      incoming.x * outgoing.x + incoming.y * outgoing.y <= 0.0)
+    return false;
+
+  pointf direction = {
+      .x = incoming.x / incoming_length + outgoing.x / outgoing_length,
+      .y = incoming.y / incoming_length + outgoing.y / outgoing_length,
+  };
+  const double direction_length = hypot(direction.x, direction.y);
+  if (!isfinite(direction_length) || direction_length <= MILLIPOINT)
+    return false;
+  direction.x /= direction_length;
+  direction.y /= direction_length;
+
+  *candidate_left =
+      sub_pointf(junction->joint, scale(incoming_length, direction));
+  *candidate_right =
+      add_pointf(junction->joint, scale(outgoing_length, direction));
+  return fixed_template_g1_valid(junction, *candidate_left, *candidate_right);
+}
+
 static double route_g1_angular_residual(const route_junction_t *junction,
                                         pointf left_control,
                                         pointf right_control) {
@@ -3699,6 +3732,15 @@ static double route_g1_angular_residual(const route_junction_t *junction,
   const double product = incoming.x * outgoing.x + incoming.y * outgoing.y;
   if (!isfinite(cross) || !isfinite(product))
     return INFINITY;
+  return atan2(cross, product);
+}
+
+static double controls_angular_residual(pointf joint, pointf left_control,
+                                        pointf right_control) {
+  const pointf incoming = sub_pointf(joint, left_control);
+  const pointf outgoing = sub_pointf(right_control, joint);
+  const double cross = fabs(route_cross_product(incoming, outgoing));
+  const double product = incoming.x * outgoing.x + incoming.y * outgoing.y;
   return atan2(cross, product);
 }
 
@@ -3837,12 +3879,17 @@ static bool repair_route_junction(graph_t *graph, const route_pieces_t *pieces,
   pointf candidate_right;
   pointf repeated_left;
   pointf repeated_right;
-  if (!fixed_template_g1_candidate(junction, &candidate_left,
-                                   &candidate_right) ||
-      !fixed_template_g1_candidate(junction, &repeated_left, &repeated_right) ||
-      DIST(candidate_left, repeated_left) > 1e-12 ||
-      DIST(candidate_right, repeated_right) > 1e-12 ||
-      !fixed_template_g1_valid(junction, candidate_left, candidate_right) ||
+  bool candidate_valid =
+      fixed_template_g1_candidate(junction, &candidate_left,
+                                  &candidate_right) &&
+      fixed_template_g1_candidate(junction, &repeated_left, &repeated_right) &&
+      DIST(candidate_left, repeated_left) <= 1e-12 &&
+      DIST(candidate_right, repeated_right) <= 1e-12 &&
+      fixed_template_g1_valid(junction, candidate_left, candidate_right);
+  if (!candidate_valid)
+    candidate_valid = averaged_existing_g1_candidate(
+        junction, saved_left, saved_right, &candidate_left, &candidate_right);
+  if (!candidate_valid ||
       !route_g1_residual_improves(
           saved_residual,
           route_g1_angular_residual(junction, candidate_left, candidate_right)))
@@ -3926,6 +3973,85 @@ static void repair_route_junctions(graph_t *graph, const route_pieces_t *pieces,
                                    const route_junctions_t *junctions) {
   for (size_t i = 0; i < LIST_SIZE(junctions); i++)
     repair_route_junction(graph, pieces, LIST_AT(junctions, i));
+}
+
+static bool near_g1_spline_join_candidate(bezier *left, bezier *right,
+                                          pointf *candidate_left,
+                                          pointf *candidate_right) {
+  if (left->size < 4 || right->size < 4 || left->size % 3 != 1 ||
+      right->size % 3 != 1)
+    return false;
+  const pointf joint = left->list[left->size - 1];
+  if (DIST(joint, right->list[0]) > MILLIPOINT)
+    return false;
+
+  const pointf saved_left = left->list[left->size - 2];
+  const pointf saved_right = right->list[1];
+  const pointf incoming = sub_pointf(joint, saved_left);
+  const pointf outgoing = sub_pointf(saved_right, joint);
+  const double incoming_length = hypot(incoming.x, incoming.y);
+  const double outgoing_length = hypot(outgoing.x, outgoing.y);
+  const double product = incoming.x * outgoing.x + incoming.y * outgoing.y;
+  if (!isfinite(incoming_length) || !isfinite(outgoing_length) ||
+      incoming_length <= MILLIPOINT || outgoing_length <= MILLIPOINT ||
+      product <= 0.0)
+    return false;
+
+  const double saved_residual =
+      controls_angular_residual(joint, saved_left, saved_right);
+  if (!isfinite(saved_residual) || saved_residual <= ROUTE_G1_RESIDUAL_TOLERANCE ||
+      saved_residual > 0.05)
+    return false;
+
+  pointf direction = {
+      .x = incoming.x / incoming_length + outgoing.x / outgoing_length,
+      .y = incoming.y / incoming_length + outgoing.y / outgoing_length,
+  };
+  const double direction_length = hypot(direction.x, direction.y);
+  if (!isfinite(direction_length) || direction_length <= MILLIPOINT)
+    return false;
+  direction.x /= direction_length;
+  direction.y /= direction_length;
+
+  *candidate_left = sub_pointf(joint, scale(incoming_length, direction));
+  *candidate_right = add_pointf(joint, scale(outgoing_length, direction));
+  return controls_angular_residual(joint, *candidate_left, *candidate_right) <=
+         ROUTE_G1_RESIDUAL_TOLERANCE;
+}
+
+static void repair_near_g1_spline_joins(graph_t *graph) {
+  if (!Concentrate)
+    return;
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    for (edge_t *edge = agfstout(graph, node); edge != NULL;
+         edge = agnxtout(graph, edge)) {
+      splines *const edge_splines = ED_spl(edge);
+      if (edge_splines == NULL)
+        continue;
+      for (size_t i = 0; i + 1 < edge_splines->size; i++) {
+        bezier *const left = &edge_splines->list[i];
+        bezier *const right = &edge_splines->list[i + 1];
+        pointf candidate_left;
+        pointf candidate_right;
+        if (!near_g1_spline_join_candidate(left, right, &candidate_left,
+                                           &candidate_right))
+          continue;
+        const pointf saved_left = left->list[left->size - 2];
+        const pointf saved_right = right->list[1];
+        left->list[left->size - 2] = candidate_left;
+        right->list[1] = candidate_right;
+        if (!route_cubic_clears_nodes(graph, edge, &left->list[left->size - 4]) ||
+            !route_cubic_clears_nodes(graph, edge, &right->list[0])) {
+          left->list[left->size - 2] = saved_left;
+          right->list[1] = saved_right;
+        } else {
+          update_bb_bz(&GD_bb(graph), &left->list[left->size - 4]);
+          update_bb_bz(&GD_bb(graph), &right->list[0]);
+        }
+      }
+    }
+  }
 }
 
 static bool shifted_route_intersects_box(const points_t *points, double offset,
