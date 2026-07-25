@@ -92,7 +92,7 @@ static node_t *rank_leader(node_t *node) {
   return GD_rankleader(cluster)[ND_rank(node)];
 }
 
-/// Create a rank-by-rank chain of virtual edges for an original edge.
+/* Create a rank-by-rank chain of virtual edges for an original edge. */
 static void
 make_virtual_edge_chain_impl(graph_t *graph, node_t *first_node,
                              node_t *last_node, edge_t *original_edge,
