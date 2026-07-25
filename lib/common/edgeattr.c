@@ -672,3 +672,475 @@ static bool html_label_may_use_fallback_font(const htmllabel_t *label) {
   return false;
 }
 
+static bool color_may_use_colorscheme(const char *color) {
+  if (color == NULL) {
+    return false;
+  }
+  for (const char *item = color; *item != '\0'; item++) {
+    if (item == color || item[-1] == ':') {
+      while (*item == ' ' || *item == '\t') {
+        item++;
+      }
+      if (*item >= '0' && *item <= '9') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool html_data_may_use_colorscheme(const htmldata_t *data) {
+  return color_may_use_colorscheme(data->pencolor) ||
+         color_may_use_colorscheme(data->bgcolor);
+}
+
+static bool html_label_may_use_colorscheme(const htmllabel_t *label);
+
+static bool html_text_may_use_colorscheme(const htmltxt_t *text) {
+  for (size_t i = 0; i < text->nspans; i++) {
+    const htextspan_t *span = &text->spans[i];
+    for (size_t j = 0; j < span->nitems; j++) {
+      const textspan_t *item = &span->items[j];
+      if (item->font != NULL && color_may_use_colorscheme(item->font->color)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool html_table_may_use_colorscheme(const htmltbl_t *table) {
+  if (html_data_may_use_colorscheme(&table->data) ||
+      (table->font != NULL && color_may_use_colorscheme(table->font->color))) {
+    return true;
+  }
+  if (table->cells == NULL) {
+    return false;
+  }
+  for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+    if (html_data_may_use_colorscheme(&(*cell)->data) ||
+        html_label_may_use_colorscheme(&(*cell)->child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool html_label_may_use_colorscheme(const htmllabel_t *label) {
+  switch (label->kind) {
+  case HTML_TBL:
+    return html_table_may_use_colorscheme(label->u.tbl);
+  case HTML_TEXT:
+    return html_text_may_use_colorscheme(label->u.txt);
+  case HTML_IMAGE:
+  case HTML_UNSET:
+    return false;
+  }
+  return false;
+}
+
+static bool html_data_has_visible_pen(const htmldata_t *data) {
+  return !data->style.invisible && data->border > 0;
+}
+
+static bool html_table_has_visible_pen(const htmltbl_t *table) {
+  if (html_data_has_visible_pen(&table->data)) {
+    return true;
+  }
+  if (table->cells == NULL) {
+    return false;
+  }
+  for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+    if (html_data_has_visible_pen(&(*cell)->data) ||
+        html_label_has_visible_pen(&(*cell)->child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool html_label_has_visible_pen(const htmllabel_t *label) {
+  switch (label->kind) {
+  case HTML_TBL:
+    return html_table_has_visible_pen(label->u.tbl);
+  case HTML_TEXT:
+  case HTML_IMAGE:
+  case HTML_UNSET:
+    return false;
+  }
+  return false;
+}
+
+static bool edge_has_main_label(Agedge_t *edge) {
+  return ED_label(edge) != NULL || ED_xlabel(edge) != NULL;
+}
+
+static bool edge_has_endpoint_label(Agedge_t *edge) {
+  return ED_head_label(edge) != NULL || ED_tail_label(edge) != NULL;
+}
+
+static void append_html_label_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
+                                              const char *slot_prefix,
+                                              const htmllabel_t *label,
+                                              bool parent_anchor_open,
+                                              size_t *anchor_index);
+
+static void append_html_data_hyperlink_field(agxbuf *signature, Agedge_t *edge,
+                                             const char *slot_prefix,
+                                             size_t anchor_index,
+                                             const char *field_name,
+                                             const char *value) {
+  if (value == NULL || value[0] == '\0') {
+    return;
+  }
+
+  agxbuf slot_name = {0};
+  agxbprint(&slot_name, "%s:html-anchor:%zu:%s", slot_prefix, anchor_index,
+            field_name);
+  append_substituted_signature_slot(signature, agxbuse(&slot_name), value,
+                                    edge);
+  agxbfree(&slot_name);
+}
+
+static void append_html_data_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
+                                             const char *slot_prefix,
+                                             const htmldata_t *data,
+                                             bool parent_anchor_open,
+                                             size_t *anchor_index) {
+  const bool has_url = data->href != NULL && data->href[0] != '\0';
+  const bool has_tooltip = data->title != NULL && data->title[0] != '\0';
+  const bool has_target = data->target != NULL && data->target[0] != '\0';
+  if (!has_url && !has_tooltip && (!parent_anchor_open || !has_target)) {
+    return;
+  }
+
+  const size_t current_anchor = (*anchor_index)++;
+  append_html_data_hyperlink_field(signature, edge, slot_prefix, current_anchor,
+                                   "HREF", data->href);
+  append_html_data_hyperlink_field(signature, edge, slot_prefix, current_anchor,
+                                   "TITLE", data->title);
+  append_html_data_hyperlink_field(signature, edge, slot_prefix, current_anchor,
+                                   "TARGET", data->target);
+  append_html_data_hyperlink_field(signature, edge, slot_prefix, current_anchor,
+                                   "ID", data->id);
+}
+
+static void append_html_table_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
+                                              const char *slot_prefix,
+                                              const htmltbl_t *table,
+                                              bool parent_anchor_open,
+                                              size_t *anchor_index) {
+  const bool table_anchor_open =
+      parent_anchor_open ||
+      (table->data.href != NULL && table->data.href[0] != '\0') ||
+      (table->data.title != NULL && table->data.title[0] != '\0');
+  append_html_data_hyperlink_slots(signature, edge, slot_prefix, &table->data,
+                                   parent_anchor_open, anchor_index);
+  if (table->cells == NULL) {
+    return;
+  }
+  agxbuf field = {0};
+  for (htmlcell_t **cell = table->cells; *cell != NULL; cell++) {
+    const bool cell_anchor_open =
+        table_anchor_open ||
+        ((*cell)->data.href != NULL && (*cell)->data.href[0] != '\0') ||
+        ((*cell)->data.title != NULL && (*cell)->data.title[0] != '\0');
+    agxbclear(&field);
+    agxbprint(&field, "%s:cell:%u:%u", slot_prefix, (*cell)->row, (*cell)->col);
+    append_html_data_hyperlink_slots(signature, edge, agxbuse(&field),
+                                     &(*cell)->data, table_anchor_open,
+                                     anchor_index);
+    agxbput(&field, ":child");
+    append_html_label_hyperlink_slots(signature, edge, agxbuse(&field),
+                                      &(*cell)->child, cell_anchor_open,
+                                      anchor_index);
+  }
+  agxbfree(&field);
+}
+
+static void append_html_label_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
+                                              const char *slot_prefix,
+                                              const htmllabel_t *label,
+                                              bool parent_anchor_open,
+                                              size_t *anchor_index) {
+  switch (label->kind) {
+  case HTML_TBL:
+    append_html_table_hyperlink_slots(signature, edge, slot_prefix,
+                                      label->u.tbl, parent_anchor_open,
+                                      anchor_index);
+    return;
+  case HTML_TEXT:
+  case HTML_IMAGE:
+  case HTML_UNSET:
+    return;
+  }
+}
+
+static bool
+edge_attribute_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
+                           edge_attribute_classification_t classification) {
+  const edge_attribute_facts_t *const facts = classification.facts;
+  if (facts->render_scope == ATTRIBUTE_RENDER_HYPERLINK ||
+      facts->render_scope == ATTRIBUTE_RENDER_LAYOUT_ONLY ||
+      facts->render_scope == ATTRIBUTE_RENDER_COLOR_TRANSLATOR) {
+    return false;
+  }
+  if (facts->render_scope == ATTRIBUTE_RENDER_MAIN_LABEL &&
+      !edge_has_main_label(edge)) {
+    return false;
+  }
+  if (facts->render_scope == ATTRIBUTE_RENDER_PLAIN_PRIMARY_LABEL) {
+    if (ED_label(edge) == NULL || ED_label(edge)->html) {
+      return false;
+    }
+  }
+  if (facts->render_scope == ATTRIBUTE_RENDER_ENDPOINT_LABEL &&
+      !edge_has_endpoint_label(edge)) {
+    return false;
+  }
+  if (facts->render_scope == ATTRIBUTE_RENDER_ORTHO_EDGE) {
+    const char *const splines_value = agget(root_graph, "splines");
+    if (splines_value == NULL || strcmp(splines_value, "ortho") != 0) {
+      return false;
+    }
+  }
+  if (facts->render_scope == ATTRIBUTE_RENDER_GRAPH_LAYERS) {
+    const char *const layers = agget(root_graph, "layers");
+    if (layers == NULL || layers[0] == '\0') {
+      return false;
+    }
+  }
+  /* dotLayout() calls dot_compoundEdges() only for a truthy compound graph. */
+  if (facts->compound_only && !mapbool(agget(root_graph, "compound"))) {
+    return false;
+  }
+  return true;
+}
+
+static bool edge_color_value(Agedge_t *edge, comparable_attribute_value_t value,
+                             gvcolor_t *color) {
+  if (value.is_html || value.text[0] == '\0' ||
+      strchr(value.text, ':') != NULL) {
+    return false;
+  }
+
+  char *const previous_color_scheme =
+      setColorScheme(agget(edge, "colorscheme"));
+  const int result = colorxlate(value.text, color, RGBA_BYTE);
+  char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+  free(previous_color_scheme);
+  free(restored_color_scheme);
+  return result == COLOR_OK;
+}
+
+static bool parse_color_segment_fraction(strview_t *segment, double *fraction) {
+  const char *const separator = memchr(segment->data, ';', segment->size);
+  if (separator == NULL) {
+    *fraction = 0.0;
+    return true;
+  }
+
+  char *end = NULL;
+  const double parsed = strtod(separator + 1, &end);
+  if (end == separator + 1 || parsed < 0.0) {
+    return false;
+  }
+  segment->size = (size_t)(separator - segment->data);
+  *fraction = parsed;
+  return true;
+}
+
+static normalized_color_segment_t *
+normalized_color_segments(const char *color_list, bool skip_empty_segments,
+                          size_t *segment_count) {
+  size_t capacity = 1;
+  for (const char *p = color_list; *p != '\0'; p++) {
+    if (*p == ':') {
+      capacity++;
+    }
+  }
+  normalized_color_segment_t *segments = gv_calloc(capacity, sizeof(*segments));
+  double left = 1.0;
+  size_t count = 0;
+  const char *segment_start = color_list;
+  for (size_t i = 0; i < capacity; i++) {
+    const char *const segment_end = strchr(segment_start, ':');
+    strview_t color = {
+        .data = segment_start,
+        .size = segment_end == NULL ? strlen(segment_start)
+                                    : (size_t)(segment_end - segment_start),
+    };
+    double fraction = 0.0;
+    if (!parse_color_segment_fraction(&color, &fraction)) {
+      free(segments);
+      *segment_count = 0;
+      return NULL;
+    }
+    if (skip_empty_segments && color.size == 0) {
+      if (segment_end == NULL) {
+        break;
+      }
+      segment_start = segment_end + 1;
+      continue;
+    }
+    if (fraction > left) {
+      fraction = left;
+    }
+    left -= fraction;
+    segments[count++] =
+        (normalized_color_segment_t){.color = color, .fraction = fraction};
+    if (left > -1E-5 && left < 1E-5) {
+      left = 0.0;
+      break;
+    }
+    if (segment_end == NULL) {
+      break;
+    }
+    segment_start = segment_end + 1;
+  }
+
+  if (left > 0.0) {
+    size_t empty_fraction_count = 0;
+    for (size_t i = 0; i < count; i++) {
+      if (segments[i].fraction <= 0.0) {
+        empty_fraction_count++;
+      }
+    }
+    if (empty_fraction_count > 0) {
+      const double delta = left / (double)empty_fraction_count;
+      for (size_t i = 0; i < count; i++) {
+        if (segments[i].fraction <= 0.0) {
+          segments[i].fraction = delta;
+        }
+      }
+    } else if (count > 0) {
+      segments[count - 1].fraction += left;
+    }
+  }
+
+  while (count > 0 && segments[count - 1].fraction <= 0.0) {
+    count--;
+  }
+  *segment_count = count;
+  return segments;
+}
+
+static void append_color_segment(agxbuf *rendered_list, strview_t color_name) {
+  agxbuf color_text = {0};
+  agxbput_n(&color_text, color_name.data, color_name.size);
+  gvcolor_t color;
+  if (colorxlate(agxbuse(&color_text), &color, RGBA_BYTE) == COLOR_OK) {
+    agxbprint(rendered_list, "#%02x%02x%02x%02x", color.u.rgba[0],
+              color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
+  } else {
+    agxbput_n(rendered_list, color_name.data, color_name.size);
+  }
+  agxbfree(&color_text);
+}
+
+static bool color_list_has_explicit_segments(const char *color_list) {
+  return strchr(color_list, ';') != NULL;
+}
+
+static size_t raw_color_lane_count(const char *color_list) {
+  size_t lane_count = 1;
+  for (const char *p = color_list; *p != '\0'; p++) {
+    if (*p == ':') {
+      lane_count++;
+    }
+  }
+  return lane_count;
+}
+
+static bool color_list_renders_as_segmented_multicolor(const char *color_list) {
+  return color_list != NULL && strchr(color_list, ';') != NULL &&
+         strchr(color_list, ':') != NULL;
+}
+
+static void append_edge_color_list_value(agxbuf *signature, Agedge_t *edge,
+                                         const char *slot_name,
+                                         const char *color_list,
+                                         bool reverse_orientation) {
+  const bool has_explicit_segments =
+      color_list_has_explicit_segments(color_list);
+  const size_t raw_lane_count =
+      has_explicit_segments ? 0 : raw_color_lane_count(color_list);
+  size_t segment_count = 0;
+  normalized_color_segment_t *const segments = normalized_color_segments(
+      color_list, !has_explicit_segments, &segment_count);
+  if (segments == NULL) {
+    append_plain_signature_slot(signature, slot_name, color_list);
+    return;
+  }
+
+  agxbuf rendered_list = {0};
+  char *const previous_color_scheme =
+      setColorScheme(agget(edge, "colorscheme"));
+
+  const bool renders_as_single_color = segment_count == 1 &&
+                                       segments[0].fraction > 1.0 - 1E-5 &&
+                                       segments[0].fraction < 1.0 + 1E-5;
+  if (renders_as_single_color) {
+    append_color_segment(&rendered_list, segments[0].color);
+  } else if (!has_explicit_segments) {
+    agxbput(&rendered_list, "parallel:");
+    for (size_t j = 0; j < segment_count; j++) {
+      const size_t i = reverse_orientation ? segment_count - j - 1 : j;
+      if (j > 0) {
+        agxbputc(&rendered_list, ':');
+      }
+      append_color_segment(&rendered_list, segments[i].color);
+    }
+  } else {
+    for (size_t j = 0; j < segment_count; j++) {
+      const size_t i = reverse_orientation ? segment_count - j - 1 : j;
+      if (j > 0) {
+        agxbputc(&rendered_list, ':');
+      }
+      append_color_segment(&rendered_list, segments[i].color);
+      agxbprint(&rendered_list, ";%a", segments[i].fraction);
+    }
+  }
+
+  char *const restored_color_scheme = setColorScheme(previous_color_scheme);
+  free(previous_color_scheme);
+  free(restored_color_scheme);
+  free(segments);
+  append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_list));
+  if (raw_lane_count > 1) {
+    agxbuf count_slot_name = {0};
+    agxbprint(&count_slot_name, "%s:lane-count", slot_name);
+    agxbuf rendered_count = {0};
+    agxbprint(&rendered_count, "%zu", raw_lane_count);
+    append_plain_signature_slot(signature, agxbuse(&count_slot_name),
+                                agxbuse(&rendered_count));
+    agxbfree(&rendered_count);
+    agxbfree(&count_slot_name);
+  }
+  agxbfree(&rendered_list);
+}
+
+static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
+                                    const char *slot_name,
+                                    comparable_attribute_value_t value,
+                                    bool allow_color_list,
+                                    bool reverse_orientation) {
+  if (allow_color_list && !value.is_html && strchr(value.text, ':') != NULL) {
+    append_edge_color_list_value(signature, edge, slot_name, value.text,
+                                 reverse_orientation);
+    return;
+  }
+
+  gvcolor_t color;
+  if (edge_color_value(edge, value, &color)) {
+    agxbuf rendered_color = {0};
+    agxbprint(&rendered_color, "#%02x%02x%02x%02x", color.u.rgba[0],
+              color.u.rgba[1], color.u.rgba[2], color.u.rgba[3]);
+    append_plain_signature_slot(signature, slot_name, agxbuse(&rendered_color));
+    agxbfree(&rendered_color);
+    return;
+  }
+
+  append_signature_slot(signature, slot_name, value);
+}
+
