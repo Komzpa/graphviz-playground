@@ -530,12 +530,13 @@ typedef struct {
 } arrowname_t;
 
 static const arrowname_t Arrowsynonyms[] = {
-    /* synonyms for deprecated arrow names - included for backward compatibility
+    /*
+     * Deprecated arrow-name synonyms are kept for backward compatibility.
+     * They are evaluated before primary names so "invempty" still means "oinv".
      */
-    /*  evaluated before primary names else "invempty" would give different
-       results */
-    {"invempty", (ARR_TYPE_NORM | ARR_MOD_INV | ARR_MOD_OPEN)}, /* oinv     */
-    {0}};
+    {"invempty", (ARR_TYPE_NORM | ARR_MOD_INV | ARR_MOD_OPEN)},
+    {0},
+};
 
 static const arrowname_t Arrowmods[] = {
     {"o", ARR_MOD_OPEN},
@@ -570,17 +571,20 @@ static const arrowname_t Arrownames[] = {
     {"icurve", (ARR_TYPE_CURVE | ARR_MOD_INV)},
     {0}};
 
+typedef pointf arrow_generator_fn(arrow_geometry_t *geometry, pointf p, pointf u,
+                                  double arrowsize, double penwidth,
+                                  uint32_t flag);
+typedef double arrow_length_fn(double lenfact, double arrowsize,
+                               double penwidth, uint32_t flag);
+
 typedef struct {
   uint32_t type;
   double lenfact; /* ratio of length of this arrow type to standard arrow */
-  pointf (*gen)(arrow_geometry_t *geometry, pointf p, pointf u,
-                double arrowsize, double penwidth,
-                uint32_t flag); ///< geometry generator function for type
-  double (*len)(double lenfact, double arrowsize, double penwidth,
-                uint32_t flag); ///< penwidth dependent length
+  arrow_generator_fn *gen;
+  arrow_length_fn *len;
 } arrowtype_t;
 
-/* forward declaration of functions used in Arrowtypes[] */
+/* Forward declarations for the Arrowtypes[] generator and length functions. */
 static pointf arrow_type_normal(arrow_geometry_t *geometry, pointf p, pointf u,
                                 double arrowsize, double penwidth,
                                 uint32_t flag);
