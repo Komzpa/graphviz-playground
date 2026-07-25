@@ -16,7 +16,13 @@
 
 #include <assert.h>
 #include <common/boxes.h>
+#include <common/edgeattr.h>
+#include <common/geomprocs.h>
+#include <common/globals.h>
+#include <common/render.h>
+#include <common/utils.h>
 #include <dotgen/dot.h>
+#include <float.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -38,12 +44,28 @@
 #define MINW 16 /* minimum width of a box in the edge path */
 #define HALFMINW 8
 
+#define MULTIEDGE_NODE_MARGIN 0.5
+#define MULTIEDGE_BEZIER_FLATNESS 0.01
+#define FLAT_PORT_NORMAL_ARM 36.0
+#define NOMINAL_ARROW_LENGTH 10.0
+
 #define FWDEDGE 16
 #define BWDEDGE 32
 
 #define MAINGRAPH 64
 #define AUXGRAPH 128
 #define GRAPHTYPEMASK 192 /* the OR of the above */
+#define ENDPOINT_LABEL_GAP 4.0
+#define ENDPOINT_LABEL_NODE_MIN 20.0
+
+typedef struct {
+  textlabel_t *label;
+  edge_t *edge;
+  bool head_p;
+  bool needs_node_clearance;
+} endpoint_label_t;
+
+static bool has_grouped_flat_endpoint(edge_t *);
 
 static void makefwdedge(edge_t *new, edge_t *old) {
   Agedgeinfo_t *const info =
@@ -69,7 +91,436 @@ typedef struct {
   boxf *Rank_box;
 } spline_info_t;
 
+static boxf label_box(const graph_t *graph, const textlabel_t *label) {
+  pointf dimen = label->dimen;
+  if (GD_flip(graph)) {
+    SWAP(&dimen.x, &dimen.y);
+  }
+  return (boxf){.LL = {.x = label->pos.x - dimen.x / 2.0,
+                       .y = label->pos.y - dimen.y / 2.0},
+                .UR = {.x = label->pos.x + dimen.x / 2.0,
+                       .y = label->pos.y + dimen.y / 2.0}};
+}
+
+static boxf node_box(const node_t *node) {
+  const pointf coord = ND_coord(node);
+  return (boxf){
+      .LL = {.x = coord.x - ND_lw(node), .y = coord.y - ND_ht(node) / 2.0},
+      .UR = {.x = coord.x + ND_rw(node), .y = coord.y + ND_ht(node) / 2.0}};
+}
+
+static bool label_boxes_overlap_or_touch(boxf a, boxf b) {
+  return MAX(a.LL.x - ENDPOINT_LABEL_GAP, b.LL.x - ENDPOINT_LABEL_GAP) <=
+             MIN(a.UR.x + ENDPOINT_LABEL_GAP, b.UR.x + ENDPOINT_LABEL_GAP) &&
+         MAX(a.LL.y - ENDPOINT_LABEL_GAP, b.LL.y - ENDPOINT_LABEL_GAP) <=
+             MIN(a.UR.y + ENDPOINT_LABEL_GAP, b.UR.y + ENDPOINT_LABEL_GAP);
+}
+
+static bool boxes_overlap(boxf a, boxf b) {
+  return MAX(a.LL.x, b.LL.x) <= MIN(a.UR.x, b.UR.x) &&
+         MAX(a.LL.y, b.LL.y) <= MIN(a.UR.y, b.UR.y);
+}
+
+static bool edge_spline_bounds(const edge_t *edge, boxf *bounds) {
+  const splines *const edge_splines = ED_spl(edge);
+  if (edge_splines == NULL || edge_splines->size == 0) {
+    return false;
+  }
+
+  bool found = false;
+  for (size_t spline_index = 0; spline_index < edge_splines->size;
+       spline_index++) {
+    const bezier *const curve = &edge_splines->list[spline_index];
+    for (size_t point_index = 0; point_index < curve->size; point_index++) {
+      const pointf curve_point = curve->list[point_index];
+      if (!found) {
+        *bounds = (boxf){.LL = curve_point, .UR = curve_point};
+        found = true;
+      } else {
+        bounds->LL.x = MIN(bounds->LL.x, curve_point.x);
+        bounds->LL.y = MIN(bounds->LL.y, curve_point.y);
+        bounds->UR.x = MAX(bounds->UR.x, curve_point.x);
+        bounds->UR.y = MAX(bounds->UR.y, curve_point.y);
+      }
+    }
+  }
+  return found;
+}
+
+static void place_grouped_endpoint_label_outside_node(graph_t *graph,
+                                                      edge_t *edge,
+                                                      bool head_p) {
+  node_t *const endpoint = head_p ? aghead(edge) : agtail(edge);
+  node_t *const opposite = head_p ? agtail(edge) : aghead(edge);
+  textlabel_t *const label = head_p ? ED_head_label(edge) : ED_tail_label(edge);
+  pointf direction = {.x = ND_coord(endpoint).x - ND_coord(opposite).x,
+                      .y = ND_coord(endpoint).y - ND_coord(opposite).y};
+  const double length = hypot(direction.x, direction.y);
+  if (length <= 0.0) {
+    return;
+  }
+  direction.x /= length;
+  direction.y /= length;
+
+  pointf dimen = label->dimen;
+  if (GD_flip(graph)) {
+    SWAP(&dimen.x, &dimen.y);
+  }
+  const double node_x_extent =
+      direction.x < 0.0 ? ND_lw(endpoint) : ND_rw(endpoint);
+  const double node_extent = fabs(direction.x) * node_x_extent +
+                             fabs(direction.y) * ND_ht(endpoint) / 2.0;
+  const double label_extent =
+      fabs(direction.x) * dimen.x / 2.0 + fabs(direction.y) * dimen.y / 2.0;
+  const double distance = node_extent + label_extent + ENDPOINT_LABEL_GAP;
+
+  label->pos.x = ND_coord(endpoint).x + direction.x * distance;
+  label->pos.y = ND_coord(endpoint).y + direction.y * distance;
+  if (fabs(direction.x) > 0.01) {
+    label->pos.x += copysign(2.0 * ENDPOINT_LABEL_GAP, direction.x);
+  }
+}
+
+static bool label_overlaps_any_node(graph_t *graph, const textlabel_t *label) {
+  const boxf lbl_box = label_box(graph, label);
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    if (ND_lw(node) + ND_rw(node) < ENDPOINT_LABEL_NODE_MIN ||
+        ND_ht(node) < ENDPOINT_LABEL_NODE_MIN)
+      continue;
+    if (boxes_overlap(lbl_box, node_box(node)))
+      return true;
+  }
+  return false;
+}
+
+static bool endpoint_label_uses_default_placement(edge_t *edge) {
+  return (E_labelangle == NULL || agxget(edge, E_labelangle)[0] == '\0') &&
+         (E_labeldistance == NULL || agxget(edge, E_labeldistance)[0] == '\0');
+}
+
+static double side_protrusion(int side, boxf loop_bounds, boxf n_box) {
+  switch (side) {
+  case RIGHT:
+    return MAX(0.0, loop_bounds.UR.x - n_box.UR.x);
+  case LEFT:
+    return MAX(0.0, n_box.LL.x - loop_bounds.LL.x);
+  case TOP:
+    return MAX(0.0, loop_bounds.UR.y - n_box.UR.y);
+  case BOTTOM:
+    return MAX(0.0, n_box.LL.y - loop_bounds.LL.y);
+  default:
+    return 0.0;
+  }
+}
+
+static int self_loop_label_side(const edge_t *edge, boxf loop_bounds,
+                                boxf n_box) {
+  const int port_sides = ED_tail_port(edge).side | ED_head_port(edge).side;
+  if (port_sides & RIGHT) {
+    return RIGHT;
+  }
+  if (port_sides & LEFT) {
+    return LEFT;
+  }
+  if (port_sides & BOTTOM) {
+    return BOTTOM;
+  }
+  if (port_sides & TOP) {
+    return TOP;
+  }
+
+  const int preferred_sides[] = {RIGHT, LEFT, BOTTOM, TOP};
+  int side = RIGHT;
+  double protrusion = side_protrusion(side, loop_bounds, n_box);
+  for (size_t i = 1; i < sizeof(preferred_sides) / sizeof(preferred_sides[0]);
+       i++) {
+    const double candidate =
+        side_protrusion(preferred_sides[i], loop_bounds, n_box);
+    if (candidate > protrusion) {
+      side = preferred_sides[i];
+      protrusion = candidate;
+    }
+  }
+  return side;
+}
+
+static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
+                                                      edge_t *retained,
+                                                      edge_t *duplicate) {
+  if (agtail(retained) != aghead(retained) ||
+      agtail(duplicate) != aghead(duplicate)) {
+    return;
+  }
+
+  boxf retained_bounds, duplicate_bounds;
+  if (!edge_spline_bounds(retained, &retained_bounds)) {
+    return;
+  }
+  const int retained_port_sides =
+      ED_tail_port(retained).side | ED_head_port(retained).side;
+  if ((retained_port_sides & LEFT) == 0 &&
+      edge_spline_bounds(duplicate, &duplicate_bounds)) {
+    retained_bounds.LL.x = MIN(retained_bounds.LL.x, duplicate_bounds.LL.x);
+    retained_bounds.LL.y = MIN(retained_bounds.LL.y, duplicate_bounds.LL.y);
+    retained_bounds.UR.x = MAX(retained_bounds.UR.x, duplicate_bounds.UR.x);
+    retained_bounds.UR.y = MAX(retained_bounds.UR.y, duplicate_bounds.UR.y);
+  }
+
+  textlabel_t *const label = ED_label(retained);
+  pointf dimen = label->dimen;
+  if (GD_flip(graph)) {
+    SWAP(&dimen.x, &dimen.y);
+  }
+
+  const boxf n_box = node_box(agtail(retained));
+  switch (self_loop_label_side(retained, retained_bounds, n_box)) {
+  case LEFT:
+    label->pos.x = retained_bounds.LL.x - ENDPOINT_LABEL_GAP - dimen.x / 2.0;
+    label->pos.y = (retained_bounds.LL.y + retained_bounds.UR.y) / 2.0;
+    break;
+  case TOP:
+    label->pos.x = (retained_bounds.LL.x + retained_bounds.UR.x) / 2.0;
+    label->pos.y = retained_bounds.UR.y + ENDPOINT_LABEL_GAP + dimen.y / 2.0;
+    break;
+  case BOTTOM:
+    label->pos.x = (retained_bounds.LL.x + retained_bounds.UR.x) / 2.0;
+    label->pos.y = retained_bounds.LL.y - ENDPOINT_LABEL_GAP - dimen.y / 2.0;
+    break;
+  case RIGHT:
+  default:
+    label->pos.x = retained_bounds.UR.x + ENDPOINT_LABEL_GAP + dimen.x / 2.0;
+    label->pos.y = (retained_bounds.LL.y + retained_bounds.UR.y) / 2.0;
+    break;
+  }
+  updateBB(graph, label);
+}
+
+static void center_self_edge_label_on_loop_height(graph_t *graph,
+                                                  edge_t *edge) {
+  boxf bounds;
+  if (!edge_spline_bounds(edge, &bounds)) {
+    return;
+  }
+
+  ED_label(edge)->pos.y = (bounds.LL.y + bounds.UR.y) / 2.0;
+  updateBB(graph, ED_label(edge));
+}
+
+static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
+                                     size_t label_count) {
+  if (label_count == 0) {
+    return;
+  }
+
+  for (size_t pass = 0; pass < label_count * 10; pass++) {
+    bool moved = false;
+    for (size_t i = 0; i < label_count; i++) {
+      for (size_t j = i + 1; j < label_count; j++) {
+        const boxf first_box = label_box(graph, labels[i].label);
+        const boxf second_box = label_box(graph, labels[j].label);
+        if (!label_boxes_overlap_or_touch(first_box, second_box)) {
+          continue;
+        }
+
+        const int x_direction =
+            labels[i].label->pos.x <= labels[j].label->pos.x ? -1 : 1;
+        const int y_direction =
+            labels[i].label->pos.y <= labels[j].label->pos.y ? -1 : 1;
+        const double x_push =
+            x_direction < 0
+                ? (first_box.UR.x + ENDPOINT_LABEL_GAP - second_box.LL.x) / 2.0
+                : (second_box.UR.x + ENDPOINT_LABEL_GAP - first_box.LL.x) / 2.0;
+        const double y_push =
+            y_direction < 0
+                ? (first_box.UR.y + ENDPOINT_LABEL_GAP - second_box.LL.y) / 2.0
+                : (second_box.UR.y + ENDPOINT_LABEL_GAP - first_box.LL.y) / 2.0;
+
+        if (x_push <= y_push) {
+          labels[i].label->pos.x += (double)x_direction * x_push;
+          labels[j].label->pos.x -= (double)x_direction * x_push;
+        } else {
+          labels[i].label->pos.y += (double)y_direction * y_push;
+          labels[j].label->pos.y -= (double)y_direction * y_push;
+        }
+        updateBB(graph, labels[i].label);
+        updateBB(graph, labels[j].label);
+        moved = true;
+      }
+    }
+
+    for (size_t i = 0; i < label_count; i++) {
+      if (!labels[i].needs_node_clearance)
+        continue;
+
+      for (node_t *node = agfstnode(graph); node != NULL;
+           node = agnxtnode(graph, node)) {
+        const boxf lbl_box = label_box(graph, labels[i].label);
+        const boxf n_box = node_box(node);
+        if (!label_boxes_overlap_or_touch(lbl_box, n_box))
+          continue;
+
+        const int x_direction =
+            labels[i].label->pos.x <= ND_coord(node).x ? -1 : 1;
+        const int y_direction =
+            labels[i].label->pos.y <= ND_coord(node).y ? -1 : 1;
+        const double anchor_gap = 2.0 * ENDPOINT_LABEL_GAP;
+        const double x_push = x_direction < 0
+                                  ? lbl_box.UR.x + anchor_gap - n_box.LL.x
+                                  : n_box.UR.x + anchor_gap - lbl_box.LL.x;
+        const double y_push = y_direction < 0
+                                  ? lbl_box.UR.y + anchor_gap - n_box.LL.y
+                                  : n_box.UR.y + anchor_gap - lbl_box.LL.y;
+
+        if (x_push <= y_push) {
+          labels[i].label->pos.x += (double)x_direction * x_push;
+        } else {
+          labels[i].label->pos.y += (double)y_direction * y_push;
+        }
+        updateBB(graph, labels[i].label);
+        moved = true;
+      }
+    }
+    if (!moved) {
+      break;
+    }
+  }
+}
+
+static edge_t *getmainedge(edge_t *);
+static bool concentrated_label_dedupe_match(edge_t *, edge_t *);
+static bool same_self_edge_node_pair(edge_t *, edge_t *);
+
+static void dedupe_concentrated_edge_labels(graph_t *graph) {
+  if (!Concentrate) {
+    return;
+  }
+
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    for (edge_t *edge = agfstout(graph, node); edge != NULL;
+         edge = agnxtout(graph, edge)) {
+      textlabel_t *const label = ED_label(edge);
+      if (label == NULL || !label->set) {
+        continue;
+      }
+      for (node_t *prior_node = agfstnode(graph); prior_node != NULL;
+           prior_node = agnxtnode(graph, prior_node)) {
+        for (edge_t *prior_edge = agfstout(graph, prior_node);
+             prior_edge != NULL; prior_edge = agnxtout(graph, prior_edge)) {
+          if (prior_edge == edge) {
+            goto next_edge;
+          }
+          if (concentrated_label_dedupe_match(edge, prior_edge)) {
+            place_deduped_self_edge_label_beside_loop(graph, prior_edge, edge);
+            if (same_self_edge_node_pair(edge, prior_edge) &&
+                gv_edge_ports_are_equal(edge, prior_edge)) {
+              gv_free_splines(edge);
+            }
+            free_label(label);
+            ED_label(edge) = NULL;
+            goto next_edge;
+          }
+        }
+      }
+    next_edge:;
+    }
+  }
+}
+
 typedef LIST(pointf) points_t;
+
+typedef enum {
+  ROUTE_JOIN_CONCENTRATED_PIECES,
+} route_join_kind_t;
+
+typedef struct {
+  node_t *portal;
+  pointf router_portal;
+  pointf installed_portal;
+  pointf tangent;
+  boxf local_barrier;
+  route_spline_metadata_t route;
+  bool constrained;
+} route_endpoint_metadata_t;
+
+typedef struct {
+  route_spline_metadata_t route;
+  size_t first_control;
+  size_t control_count;
+} route_local_plan_t;
+
+typedef LIST(route_local_plan_t) route_local_plans_t;
+
+typedef struct {
+  edge_t *edge;
+  size_t spline_index;
+  route_endpoint_metadata_t start;
+  route_endpoint_metadata_t end;
+  route_local_plans_t local_plans;
+} route_piece_metadata_t;
+
+typedef LIST(route_piece_metadata_t) route_pieces_t;
+
+typedef struct {
+  edge_t *edge;
+  route_join_kind_t kind;
+  pointf joint;
+  pointf left_router_portal;
+  pointf right_router_portal;
+  pointf left_installed_portal;
+  pointf right_installed_portal;
+  size_t left_spline;
+  size_t left_cubic;
+  size_t right_spline;
+  size_t right_cubic;
+  pointf t_ref;
+  size_t portal_id;
+  node_t *portal;
+  boxf local_barriers[2];
+  size_t left_piece;
+  size_t right_piece;
+} route_junction_t;
+
+typedef LIST(route_junction_t) route_junctions_t;
+
+typedef struct {
+  pointf point;
+  double t;
+  double error;
+} route_flat_point_t;
+
+typedef LIST(route_flat_point_t) route_flat_points_t;
+
+typedef struct {
+  size_t affected_cubic;
+  double affected_t;
+  size_t other_edge;
+  size_t other_spline;
+  size_t other_cubic;
+  double other_t;
+} route_crossing_t;
+
+typedef LIST(route_crossing_t) route_crossings_t;
+typedef LIST(int) route_sides_t;
+
+typedef struct {
+  size_t size;
+  pointf start;
+  pointf end;
+  uint32_t sflag;
+  uint32_t eflag;
+  pointf sp;
+  pointf ep;
+} route_bezier_invariants_t;
+
+typedef enum {
+  ROUTE_SEGMENT_DISJOINT,
+  ROUTE_SEGMENT_INTERSECTION,
+  ROUTE_SEGMENT_AMBIGUOUS,
+} route_segment_intersection_t;
+
+#define ROUTE_G1_RESIDUAL_TOLERANCE 1e-9
 
 static void adjustregularpath(path *, size_t, size_t);
 static Agedge_t *bot_bound(Agedge_t *, int);
@@ -82,7 +533,8 @@ static int edgecmp(const void *, const void *);
 static int make_flat_edge(graph_t *, const spline_info_t, path *, Agedge_t **,
                           unsigned, int);
 static void make_regular_edge(graph_t *g, spline_info_t *, path *, Agedge_t **,
-                              unsigned, int);
+                              unsigned, int, route_pieces_t *,
+                              route_junctions_t *);
 static boxf makeregularend(boxf, int, double);
 static boxf maximal_bbox(graph_t *g, const spline_info_t, Agnode_t *,
                          Agedge_t *, Agedge_t *);
@@ -90,11 +542,22 @@ static Agnode_t *neighbor(graph_t *, Agnode_t *, Agedge_t *, Agedge_t *, int);
 static void place_vnlabel(Agnode_t *);
 static boxf rank_box(spline_info_t *sp, Agraph_t *, int);
 static void recover_slack(Agedge_t *, path *);
+static void regularize_straight_bridge(points_t *, size_t *);
 static void resize_vn(Agnode_t *, double, double, double);
 static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
-static Agedge_t *straight_path(Agedge_t *, int, points_t *);
+static Agedge_t *straight_path(Agedge_t *, int, points_t *, size_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
+static void align_arrow_tangents(graph_t *, edge_t *);
+static void align_flat_arrow_tangents_in_graph(graph_t *);
+static void repair_route_junctions(graph_t *, const route_pieces_t *,
+                                   const route_junctions_t *);
+static void repair_near_g1_spline_joins(graph_t *);
+static bool route_cubic_clears_nodes(graph_t *, edge_t *, const pointf[4]);
+static bool route_crossing_signatures_equal(const route_crossings_t *,
+                                            const route_crossings_t *);
+static bool route_graph_crossing_signature(graph_t *, const route_junction_t *,
+                                           route_crossings_t *);
 
 static edge_t *getmainedge(edge_t *e) {
   edge_t *le = e;
@@ -105,9 +568,380 @@ static edge_t *getmainedge(edge_t *e) {
   return le;
 }
 
+static bool edge_has_no_labels(edge_t *edge) {
+  return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
+}
+
+static double edge_penwidth(edge_t *edge) {
+  if (E_penwidth == NULL)
+    return 1.0;
+  return late_double(edge, E_penwidth, 1.0, 0.0);
+}
+
+static bool concentrated_routes_share_visible_trunk(edge_t *edge,
+                                                    edge_t *prior_edge) {
+  if (aghead(edge) != aghead(prior_edge))
+    return false;
+
+  const splines *const edge_spl = ED_spl(edge);
+  const splines *const prior_spl = ED_spl(prior_edge);
+  if (edge_spl == NULL || prior_spl == NULL)
+    return false;
+
+  const double threshold =
+      3.0 * MAX(edge_penwidth(edge), edge_penwidth(prior_edge));
+  const double min_shared_trunk = 30.0;
+  for (size_t i = 0; i < edge_spl->size; i++) {
+    const bezier *const edge_bz = &edge_spl->list[i];
+    if (edge_bz->size < 4)
+      continue;
+    const size_t edge_cubics = (edge_bz->size - 1) / 3;
+    for (size_t j = 0; j < prior_spl->size; j++) {
+      const bezier *const prior_bz = &prior_spl->list[j];
+      if (prior_bz->size < 4)
+        continue;
+      const size_t prior_cubics = (prior_bz->size - 1) / 3;
+      for (size_t a = 0; a < edge_cubics; a++) {
+        const pointf *const edge_cubic = &edge_bz->list[3 * a];
+        if (DIST(edge_cubic[0], edge_cubic[3]) < min_shared_trunk)
+          continue;
+        for (size_t b = 0; b < prior_cubics; b++) {
+          const pointf *const prior_cubic = &prior_bz->list[3 * b];
+          if ((APPROXEQPT(edge_cubic[0], prior_cubic[0], threshold) &&
+               APPROXEQPT(edge_cubic[1], prior_cubic[1], threshold) &&
+               APPROXEQPT(edge_cubic[2], prior_cubic[2], threshold) &&
+               APPROXEQPT(edge_cubic[3], prior_cubic[3], threshold)) ||
+              (APPROXEQPT(edge_cubic[0], prior_cubic[3], threshold) &&
+               APPROXEQPT(edge_cubic[1], prior_cubic[2], threshold) &&
+               APPROXEQPT(edge_cubic[2], prior_cubic[1], threshold) &&
+               APPROXEQPT(edge_cubic[3], prior_cubic[0], threshold)))
+            return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
+  const textlabel_t *const label = ED_label(edge);
+  const textlabel_t *const prior_label = ED_label(prior_edge);
+  if (label == NULL || prior_label == NULL || !label->set ||
+      !prior_label->set || !gv_edge_attributes_are_equal(prior_edge, edge) ||
+      strcmp(label->text, prior_label->text) != 0) {
+    return false;
+  }
+  if (APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT)) {
+    return true;
+  }
+  if (same_self_edge_node_pair(edge, prior_edge) &&
+      gv_edge_ports_are_equal(edge, prior_edge)) {
+    return true;
+  }
+  if (aghead(edge) != aghead(prior_edge)) {
+    return false;
+  }
+  if (!concentrated_routes_share_visible_trunk(edge, prior_edge)) {
+    return false;
+  }
+
+  size_t matching_labels = 0;
+  for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
+       candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
+    const textlabel_t *const candidate_label = ED_label(candidate);
+    if (candidate_label != NULL &&
+        gv_edge_attributes_are_equal(edge, candidate) &&
+        strcmp(label->text, candidate_label->text) == 0 &&
+        concentrated_routes_share_visible_trunk(edge, candidate)) {
+      matching_labels++;
+    }
+  }
+  return matching_labels >= 3;
+}
+
+static bool
+same_direction_edges_are_concentrated_duplicates(edge_t *retained,
+                                                 edge_t *candidate) {
+  const bool same_self_loop = same_self_edge_node_pair(retained, candidate) &&
+                              agtail(retained) == aghead(retained);
+  return retained != candidate && agtail(retained) == agtail(candidate) &&
+         aghead(retained) == aghead(candidate) &&
+         ((edge_has_no_labels(retained) && edge_has_no_labels(candidate)) ||
+          same_self_loop) &&
+         gv_edge_ports_are_equal(retained, candidate) &&
+         gv_edge_attributes_are_equal(retained, candidate) &&
+         same_direction_edge_arrow_decorations_are_mergeable(retained,
+                                                             candidate);
+}
+
+static bool self_loop_uses_left_port(edge_t *edge) {
+  return agtail(edge) == aghead(edge) &&
+         ((ED_tail_port(edge).side | ED_head_port(edge).side) & LEFT) != 0;
+}
+
+static unsigned
+suppress_and_compact_concentrated_duplicate_routes(edge_t **edges,
+                                                   unsigned cnt) {
+  if (!Concentrate) {
+    return cnt;
+  }
+
+  for (unsigned i = 0; i < cnt; i++) {
+    edge_t *const retained_route = edges[i];
+    edge_t *const retained = getmainedge(retained_route);
+    if (ED_edge_type(retained) == IGNORED) {
+      ED_edge_type(retained_route) = IGNORED;
+      continue;
+    }
+
+    for (unsigned j = i + 1; j < cnt; j++) {
+      edge_t *const candidate_route = edges[j];
+      edge_t *const candidate = getmainedge(candidate_route);
+      if (ED_edge_type(candidate) == IGNORED) {
+        ED_edge_type(candidate_route) = IGNORED;
+        continue;
+      }
+
+      if (same_direction_edges_are_concentrated_duplicates(retained,
+                                                           candidate)) {
+        fold_concentrated_edge_arrow_decorations(retained, candidate, false);
+        ED_edge_type(candidate) = IGNORED;
+        ED_edge_type(candidate_route) = IGNORED;
+      }
+    }
+  }
+
+  unsigned kept = 0;
+  edge_t *const first = cnt == 0 ? NULL : getmainedge(edges[0]);
+  for (unsigned i = 0; i < cnt; i++) {
+    edge_t *const edge = getmainedge(edges[i]);
+    const bool ignored_self_loop_context =
+        edge != NULL && first != NULL && ED_edge_type(edge) == IGNORED &&
+        same_self_edge_node_pair(first, edge) && ED_label(edge) != NULL &&
+        !self_loop_uses_left_port(edge);
+    if (ED_edge_type(edges[i]) != IGNORED || ignored_self_loop_context) {
+      edges[kept++] = edges[i];
+    }
+  }
+  return kept;
+}
+
 static bool spline_merge(node_t *n) {
   return ND_node_type(n) == VIRTUAL &&
          (ND_in(n).size > 1 || ND_out(n).size > 1);
+}
+
+static edge_t *route_spline_owner(edge_t *edge) {
+  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+  return edge;
+}
+
+static bool
+route_spline_metadata_valid(const route_spline_metadata_t *metadata) {
+  return metadata->barriers != NULL && metadata->barrier_count >= 3 &&
+         metadata->corridor != NULL && metadata->corridor_count > 0 &&
+         metadata->portal_count + 1 == metadata->corridor_count &&
+         (metadata->portal_count == 0 || metadata->portals != NULL) &&
+         metadata->template_points != NULL &&
+         metadata->template_point_count >= 2;
+}
+
+static void copy_route_spline_metadata(route_spline_metadata_t *destination,
+                                       const route_spline_metadata_t *source) {
+  *destination = (route_spline_metadata_t){0};
+  if (!route_spline_metadata_valid(source))
+    return;
+  destination->barriers = gv_calloc(source->barrier_count, sizeof(Pedge_t));
+  memcpy(destination->barriers, source->barriers,
+         source->barrier_count * sizeof(Pedge_t));
+  destination->barrier_count = source->barrier_count;
+  destination->corridor = gv_calloc(source->corridor_count, sizeof(boxf));
+  memcpy(destination->corridor, source->corridor,
+         source->corridor_count * sizeof(boxf));
+  destination->corridor_count = source->corridor_count;
+  if (source->portal_count > 0) {
+    destination->portals = gv_calloc(source->portal_count, sizeof(Pedge_t));
+    memcpy(destination->portals, source->portals,
+           source->portal_count * sizeof(Pedge_t));
+    destination->portal_count = source->portal_count;
+  }
+  destination->template_points =
+      gv_calloc(source->template_point_count, sizeof(Ppoint_t));
+  memcpy(destination->template_points, source->template_points,
+         source->template_point_count * sizeof(Ppoint_t));
+  destination->template_point_count = source->template_point_count;
+}
+
+static void capture_route_spline_metadata(route_local_plans_t *plans,
+                                          route_spline_metadata_t *current,
+                                          size_t first_control,
+                                          size_t control_count) {
+  if (!route_spline_metadata_valid(current)) {
+    route_spline_metadata_free(current);
+    return;
+  }
+  LIST_APPEND(plans, ((route_local_plan_t){
+                         .route = *current,
+                         .first_control = first_control,
+                         .control_count = control_count,
+                     }));
+  *current = (route_spline_metadata_t){0};
+}
+
+static void free_route_local_plans(route_local_plans_t *plans) {
+  for (size_t i = 0; i < LIST_SIZE(plans); i++)
+    route_spline_metadata_free(&LIST_AT(plans, i)->route);
+  LIST_FREE(plans);
+}
+
+static void copy_route_local_plans(route_local_plans_t *destination,
+                                   const route_local_plans_t *source) {
+  *destination = (route_local_plans_t){0};
+  for (size_t i = 0; i < LIST_SIZE(source); i++) {
+    const route_local_plan_t *const plan = LIST_AT(source, i);
+    route_local_plan_t copy = {
+        .first_control = plan->first_control,
+        .control_count = plan->control_count,
+    };
+    copy_route_spline_metadata(&copy.route, &plan->route);
+    LIST_APPEND(destination, copy);
+  }
+}
+
+static void free_route_piece_metadata(route_pieces_t *pieces) {
+  for (size_t i = 0; i < LIST_SIZE(pieces); i++) {
+    route_piece_metadata_t *const piece = LIST_AT(pieces, i);
+    route_spline_metadata_free(&piece->start.route);
+    route_spline_metadata_free(&piece->end.route);
+    free_route_local_plans(&piece->local_plans);
+  }
+  LIST_FREE(pieces);
+}
+
+static const route_piece_metadata_t *
+find_route_piece(const route_pieces_t *pieces, edge_t *edge,
+                 size_t spline_index, size_t *piece_index) {
+  for (size_t i = 0; i < LIST_SIZE(pieces); i++) {
+    const route_piece_metadata_t *const piece = LIST_AT(pieces, i);
+    if (piece->edge == edge && piece->spline_index == spline_index) {
+      *piece_index = i;
+      return piece;
+    }
+  }
+  return NULL;
+}
+
+static bool route_junction_metadata_valid(const route_junction_t *junction) {
+  if (junction->edge == NULL || junction->portal == NULL ||
+      junction->kind != ROUTE_JOIN_CONCENTRATED_PIECES)
+    return false;
+  const splines *const edge_splines = ED_spl(junction->edge);
+  if (edge_splines == NULL || junction->left_spline >= edge_splines->size ||
+      junction->right_spline >= edge_splines->size ||
+      junction->left_spline + 1 != junction->right_spline)
+    return false;
+
+  const bezier *const left = &edge_splines->list[junction->left_spline];
+  const bezier *const right = &edge_splines->list[junction->right_spline];
+  if (left->size < 4 || right->size < 4 || left->size % 3 != 1 ||
+      right->size % 3 != 1 || junction->left_cubic != (left->size - 4) / 3 ||
+      junction->right_cubic != 0)
+    return false;
+
+  const pointf left_joint = left->list[left->size - 1];
+  const pointf right_joint = right->list[0];
+  if (DIST(left_joint, right_joint) > MILLIPOINT ||
+      DIST(left_joint, junction->joint) > MILLIPOINT)
+    return false;
+
+  return fabs(hypot(junction->t_ref.x, junction->t_ref.y) - 1.0) <= 1e-6;
+}
+
+static void record_route_piece(route_pieces_t *pieces,
+                               route_junctions_t *junctions,
+                               edge_t *routed_edge, size_t prior_spline_count,
+                               route_endpoint_metadata_t start,
+                               route_endpoint_metadata_t end,
+                               const route_local_plans_t *local_plans,
+                               double offset) {
+  if (!Concentrate || fabs(offset) > MILLIPOINT ||
+      !route_spline_metadata_valid(&start.route) ||
+      !route_spline_metadata_valid(&end.route) || LIST_IS_EMPTY(local_plans))
+    return;
+  edge_t *const owner = route_spline_owner(routed_edge);
+  splines *const edge_splines = ED_spl(owner);
+  if (edge_splines == NULL || edge_splines->size != prior_spline_count + 1)
+    return;
+
+  route_spline_metadata_t start_copy;
+  route_spline_metadata_t end_copy;
+  copy_route_spline_metadata(&start_copy, &start.route);
+  copy_route_spline_metadata(&end_copy, &end.route);
+  start.route = start_copy;
+  end.route = end_copy;
+  route_piece_metadata_t piece = {
+      .edge = owner,
+      .spline_index = prior_spline_count,
+      .start = start,
+      .end = end,
+  };
+  copy_route_local_plans(&piece.local_plans, local_plans);
+
+  if (prior_spline_count > 0) {
+    size_t prior_piece_index = 0;
+    const route_piece_metadata_t *const prior = find_route_piece(
+        pieces, owner, prior_spline_count - 1, &prior_piece_index);
+    bezier *const left = &edge_splines->list[prior_spline_count - 1];
+    bezier *const right = &edge_splines->list[prior_spline_count];
+    if (prior != NULL && prior->end.portal != NULL &&
+        prior->end.portal == start.portal && spline_merge(start.portal) &&
+        prior->end.constrained && start.constrained && left->size >= 4 &&
+        right->size >= 4 &&
+        DIST(left->list[left->size - 1], right->list[0]) <= MILLIPOINT &&
+        prior->end.tangent.x * start.tangent.x +
+                prior->end.tangent.y * start.tangent.y >
+            1.0 - 1e-6) {
+      const route_junction_t junction = {
+          .edge = owner,
+          .kind = ROUTE_JOIN_CONCENTRATED_PIECES,
+          .joint = left->list[left->size - 1],
+          .left_router_portal = prior->end.router_portal,
+          .right_router_portal = start.router_portal,
+          .left_installed_portal = prior->end.installed_portal,
+          .right_installed_portal = start.installed_portal,
+          .left_spline = prior_spline_count - 1,
+          .left_cubic = (left->size - 4) / 3,
+          .right_spline = prior_spline_count,
+          .right_cubic = 0,
+          .t_ref = start.tangent,
+          .portal_id = (size_t)AGSEQ(start.portal),
+          .portal = start.portal,
+          .local_barriers = {prior->end.local_barrier, start.local_barrier},
+          .left_piece = prior_piece_index,
+          .right_piece = LIST_SIZE(pieces),
+      };
+      if (route_junction_metadata_valid(&junction))
+        LIST_APPEND(junctions, junction);
+    }
+  }
+
+  LIST_APPEND(pieces, piece);
+}
+
+static bool has_grouped_flat_endpoint(edge_t *edge) {
+  edge = getmainedge(edge);
+  const char *const samehead =
+      E_samehead != NULL ? agxget(edge, E_samehead) : NULL;
+  const char *const sametail =
+      E_sametail != NULL ? agxget(edge, E_sametail) : NULL;
+  return (samehead != NULL && samehead[0] != '\0') ||
+         (sametail != NULL && sametail[0] != '\0');
+}
+
+static bool same_self_edge_node_pair(edge_t *edge, edge_t *other) {
+  return agtail(edge) == aghead(edge) && agtail(other) == aghead(other) &&
+         agtail(edge) == agtail(other);
 }
 
 static bool swap_ends_p(edge_t *e) {
@@ -151,6 +985,19 @@ static void swap_bezier(bezier *b) {
   SWAP(&b->sp, &b->ep);
 }
 
+static bool has_well_formed_bezier(const bezier *b) {
+  return b->list != NULL && b->size >= 4 && (b->size - 1) % 3 == 0;
+}
+
+static bool has_well_formed_spline(const splines *s) {
+  for (size_t i = 0; i < s->size; ++i) {
+    if (!has_well_formed_bezier(&s->list[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void swap_spline(splines *s) {
   const size_t sz = s->size;
 
@@ -171,10 +1018,20 @@ static void swap_spline(splines *s) {
  * we reverse them if necessary.
  */
 static void edge_normalize(graph_t *g) {
+  static atomic_flag warned;
+
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (sinfo.swapEnds(e) && ED_spl(e))
+      if (sinfo.swapEnds(e) && ED_spl(e)) {
+        if (!has_well_formed_spline(ED_spl(e))) {
+          if (!atomic_flag_test_and_set(&warned)) {
+            agwarningf("dropping malformed spline\n");
+          }
+          ED_spl(e) = NULL;
+          continue;
+        }
         swap_spline(ED_spl(e));
+      }
     }
   }
 }
@@ -247,6 +1104,8 @@ static int dot_splines_(graph_t *g, int normalize) {
   }
   spline_info_t sd = {0};
   LIST(edge_t *) edges = {0};
+  route_pieces_t route_pieces = {0};
+  route_junctions_t route_junctions = {0};
 #ifdef ORTHO
   if (et == EDGETYPE_ORTHO) {
     resetRW(g);
@@ -354,7 +1213,8 @@ static int dot_splines_(graph_t *g, int normalize) {
     }
     unsigned cnt;
     for (cnt = 1; l < LIST_SIZE(&edges); cnt++, l++) {
-      if (le0 != (le1 = getmainedge((e1 = LIST_GET(&edges, l)))))
+      le1 = getmainedge((e1 = LIST_GET(&edges, l)));
+      if (le0 != le1 && !same_self_edge_node_pair(le0, le1))
         break;
       if (ED_adjacent(e0))
         continue; /* all flat adjacent edges at once */
@@ -367,9 +1227,7 @@ static int dot_splines_(graph_t *g, int normalize) {
         makefwdedge(&fwdedgeb.out, eb);
         eb = &fwdedgeb.out;
       }
-      if (portcmp(ED_tail_port(ea), ED_tail_port(eb)))
-        break;
-      if (portcmp(ED_head_port(ea), ED_head_port(eb)))
+      if (!gv_edge_ports_are_equal(ea, eb))
         break;
       if ((ED_tree_index(e0) & EDGETYPEMASK) == FLATEDGE &&
           ED_label(e0) != ED_label(e1))
@@ -377,6 +1235,12 @@ static int dot_splines_(graph_t *g, int normalize) {
       if (ED_tree_index(LIST_GET(&edges, l)) & MAINGRAPH) /* Aha! -C is on */
         break;
     }
+
+    const unsigned original_cnt = cnt;
+    cnt = suppress_and_compact_concentrated_duplicate_routes(
+        LIST_AT(&edges, ind), cnt);
+    if (cnt == 0)
+      continue;
 
     if (et == EDGETYPE_CURVED) {
       edge_t **edgelist = gv_calloc(cnt, sizeof(edge_t *));
@@ -390,33 +1254,66 @@ static int dot_splines_(graph_t *g, int normalize) {
       n = agtail(e0);
       const int r = ND_rank(n);
       if (r == GD_maxrank(g)) {
-        if (r > 0)
-          sizey = ND_coord(GD_rank(g)[r - 1].v[0]).y - ND_coord(n).y;
+        int adj = r - 1;
+        while (adj >= GD_minrank(g) &&
+               (GD_rank(g)[adj].n == 0 || GD_rank(g)[adj].v[0] == NULL))
+          adj--;
+        if (adj >= GD_minrank(g))
+          sizey = ND_coord(GD_rank(g)[adj].v[0]).y - ND_coord(n).y;
         else
           sizey = ND_ht(n);
       } else if (r == GD_minrank(g)) {
-        sizey = ND_coord(n).y - ND_coord(GD_rank(g)[r + 1].v[0]).y;
+        int adj = r + 1;
+        while (adj <= GD_maxrank(g) &&
+               (GD_rank(g)[adj].n == 0 || GD_rank(g)[adj].v[0] == NULL))
+          adj++;
+        if (adj <= GD_maxrank(g))
+          sizey = ND_coord(n).y - ND_coord(GD_rank(g)[adj].v[0]).y;
+        else
+          sizey = ND_ht(n);
       } else {
-        double upy = ND_coord(GD_rank(g)[r - 1].v[0]).y - ND_coord(n).y;
-        double dwny = ND_coord(n).y - ND_coord(GD_rank(g)[r + 1].v[0]).y;
-        sizey = fmin(upy, dwny);
+        int up = r - 1;
+        while (up >= GD_minrank(g) &&
+               (GD_rank(g)[up].n == 0 || GD_rank(g)[up].v[0] == NULL))
+          up--;
+        int down = r + 1;
+        while (down <= GD_maxrank(g) &&
+               (GD_rank(g)[down].n == 0 || GD_rank(g)[down].v[0] == NULL))
+          down++;
+        if (up >= GD_minrank(g) && down <= GD_maxrank(g)) {
+          double upy = ND_coord(GD_rank(g)[up].v[0]).y - ND_coord(n).y;
+          double dwny = ND_coord(n).y - ND_coord(GD_rank(g)[down].v[0]).y;
+          sizey = fmin(upy, dwny);
+        } else if (up >= GD_minrank(g)) {
+          sizey = ND_coord(GD_rank(g)[up].v[0]).y - ND_coord(n).y;
+        } else if (down <= GD_maxrank(g)) {
+          sizey = ND_coord(n).y - ND_coord(GD_rank(g)[down].v[0]).y;
+        } else {
+          sizey = ND_ht(n);
+        }
       }
       makeSelfEdge(LIST_AT(&edges, ind), cnt, sd.Multisep, sizey / 2, &sinfo);
       for (unsigned b = 0; b < cnt; b++) {
         e = LIST_GET(&edges, ind + b);
-        if (ED_label(e))
+        if (ED_label(e)) {
+          if (Concentrate && original_cnt > cnt)
+            center_self_edge_label_on_loop_height(g, e);
           updateBB(g, ED_label(e));
+        }
       }
     } else if (ND_rank(agtail(e0)) == ND_rank(aghead(e0))) {
       const int rc = make_flat_edge(g, sd, &P, LIST_AT(&edges, ind), cnt, et);
       if (rc != 0) {
         free(sd.Rank_box);
         LIST_FREE(&edges);
+        free_route_piece_metadata(&route_pieces);
+        LIST_FREE(&route_junctions);
         free(P.boxes);
         return rc;
       }
     } else
-      make_regular_edge(g, &sd, &P, LIST_AT(&edges, ind), cnt, et);
+      make_regular_edge(g, &sd, &P, LIST_AT(&edges, ind), cnt, et,
+                        &route_pieces, &route_junctions);
   }
 
   /* place regular edge labels */
@@ -429,32 +1326,94 @@ static int dot_splines_(graph_t *g, int normalize) {
 
   /* normalize splines so they always go from tail to head */
   /* place_portlabel relies on this being done first */
+  repair_route_junctions(g, &route_pieces, &route_junctions);
+  repair_near_g1_spline_joins(g);
   if (normalize)
     edge_normalize(g);
 
 #ifdef ORTHO
 finish:
 #endif
+  align_flat_arrow_tangents_in_graph(g);
+  dedupe_concentrated_edge_labels(g);
+
   /* place port labels */
   /* FIX: head and tail labels are not part of cluster bbox */
-  if ((E_headlabel || E_taillabel) && (E_labelangle || E_labeldistance)) {
+  if (E_headlabel || E_taillabel) {
+    endpoint_label_t *const endpoint_labels =
+        gv_calloc((size_t)agnedges(g) * 2, sizeof(endpoint_label_t));
+    size_t endpoint_label_count = 0;
+
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
       if (E_headlabel) {
-        for (e = agfstin(g, n); e; e = agnxtin(g, e))
-          if (ED_head_label(AGMKOUT(e))) {
-            place_portlabel(AGMKOUT(e), true);
-            updateBB(g, ED_head_label(AGMKOUT(e)));
+        for (e = agfstin(g, n); e; e = agnxtin(g, e)) {
+          edge_t *const out_edge = AGMKOUT(e);
+          if (ED_head_label(out_edge)) {
+            if (ED_head_label(out_edge)->set ||
+                place_portlabel(out_edge, true)) {
+              const bool needs_node_clearance =
+                  has_grouped_flat_endpoint(out_edge) &&
+                  endpoint_label_uses_default_placement(out_edge) &&
+                  label_overlaps_any_node(g, ED_head_label(out_edge));
+              if (needs_node_clearance)
+                place_grouped_endpoint_label_outside_node(g, out_edge, true);
+              updateBB(g, ED_head_label(out_edge));
+              endpoint_labels[endpoint_label_count++] = (endpoint_label_t){
+                  .label = ED_head_label(out_edge),
+                  .edge = out_edge,
+                  .head_p = true,
+                  .needs_node_clearance = needs_node_clearance};
+            }
           }
+        }
       }
       if (E_taillabel) {
         for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
           if (ED_tail_label(e)) {
-            if (place_portlabel(e, false))
+            if (ED_tail_label(e)->set || place_portlabel(e, false)) {
+              const bool needs_node_clearance =
+                  has_grouped_flat_endpoint(e) &&
+                  endpoint_label_uses_default_placement(e) &&
+                  label_overlaps_any_node(g, ED_tail_label(e));
+              if (needs_node_clearance)
+                place_grouped_endpoint_label_outside_node(g, e, false);
               updateBB(g, ED_tail_label(e));
+              endpoint_labels[endpoint_label_count++] = (endpoint_label_t){
+                  .label = ED_tail_label(e),
+                  .edge = e,
+                  .head_p = false,
+                  .needs_node_clearance = needs_node_clearance};
+            }
           }
         }
       }
     }
+    for (size_t label_index = 0; label_index < endpoint_label_count;
+         label_index++) {
+      if (!endpoint_labels[label_index].needs_node_clearance)
+        continue;
+      node_t *const endpoint = endpoint_labels[label_index].head_p
+                                   ? aghead(endpoint_labels[label_index].edge)
+                                   : agtail(endpoint_labels[label_index].edge);
+      for (size_t sibling_index = 0; sibling_index < endpoint_label_count;
+           sibling_index++) {
+        if (endpoint_labels[sibling_index].needs_node_clearance)
+          continue;
+        node_t *const other_endpoint =
+            endpoint_labels[sibling_index].head_p
+                ? aghead(endpoint_labels[sibling_index].edge)
+                : agtail(endpoint_labels[sibling_index].edge);
+        if (other_endpoint != endpoint)
+          continue;
+        endpoint_labels[sibling_index].needs_node_clearance = true;
+        place_grouped_endpoint_label_outside_node(
+            g, endpoint_labels[sibling_index].edge,
+            endpoint_labels[sibling_index].head_p);
+        updateBB(g, endpoint_labels[sibling_index].label);
+      }
+    }
+    separate_endpoint_labels(g, endpoint_labels, endpoint_label_count);
+    free(endpoint_labels);
   }
 
 #ifdef ORTHO
@@ -466,6 +1425,8 @@ finish:
   }
   free(sd.Rank_box);
   LIST_FREE(&edges);
+  free_route_piece_metadata(&route_pieces);
+  LIST_FREE(&route_junctions);
   free(P.boxes);
   State = GVSPLINES;
   EdgeLabelsDone = 1;
@@ -601,10 +1562,12 @@ static int edgecmp(const void *p0, const void *p1) {
     makefwdedge(&fwdedgeb.out, eb);
     eb = &fwdedgeb.out;
   }
-  if ((rv = portcmp(ED_tail_port(ea), ED_tail_port(eb))))
-    return rv;
-  if ((rv = portcmp(ED_head_port(ea), ED_head_port(eb))))
-    return rv;
+  if (!gv_edge_ports_are_equal(ea, eb)) {
+    if ((rv = portcmp(ED_tail_port(ea), ED_tail_port(eb))))
+      return rv;
+    if ((rv = portcmp(ED_head_port(ea), ED_head_port(eb))))
+      return rv;
+  }
 
   et0 = ED_tree_index(e0) & GRAPHTYPEMASK;
   et1 = ED_tree_index(e1) & GRAPHTYPEMASK;
@@ -889,6 +1852,204 @@ static edge_t *cloneEdge(graph_t *g, node_t *tn, node_t *hn, edge_t *orig) {
   return e;
 }
 
+static void copy_grouped_ports(edge_t *clone, const edge_t *original,
+                               bool reversed) {
+  const port tail_port =
+      reversed ? ED_head_port(original) : ED_tail_port(original);
+  const port head_port =
+      reversed ? ED_tail_port(original) : ED_head_port(original);
+  const char *const tail_group =
+      agget((edge_t *)original, reversed ? "samehead" : "sametail");
+  const char *const head_group =
+      agget((edge_t *)original, reversed ? "sametail" : "samehead");
+
+  /* Explicit clipping ports are resolved correctly from the copied edge
+   * attributes in the rotated auxiliary graph. Only carry synthetic
+   * samehead/sametail anchors, whose non-clipping coordinates are otherwise
+   * lost when the auxiliary graph resolves its own ports. */
+  if (tail_group != NULL && tail_group[0] != '\0' && tail_port.defined &&
+      !tail_port.clip)
+    ED_tail_port(clone) = tail_port;
+  if (head_group != NULL && head_group[0] != '\0' && head_port.defined &&
+      !head_port.clip)
+    ED_head_port(clone) = head_port;
+}
+
+static void restore_flat_edge_ports(edge_t **edges, unsigned count,
+                                    node_t *tail) {
+  for (unsigned i = 0; i < count; ++i) {
+    edge_t *edge = edges[i];
+    while (ED_edge_type(edge) != NORMAL)
+      edge = ED_to_orig(edge);
+
+    edge_t *const clone = ED_alg(edge);
+    if (clone != NULL)
+      copy_grouped_ports(clone, edge, agtail(edge) != tail);
+  }
+}
+
+static double endpoint_node_clearance(node_t *node, pointf pt) {
+  const double rx = MAX(ND_lw(node), ND_rw(node)) + MULTIEDGE_NODE_MARGIN;
+  const double ry = ND_ht(node) / 2 + MULTIEDGE_NODE_MARGIN;
+  const pointf delta = sub_pointf(pt, ND_coord(node));
+  return (delta.x / rx) * (delta.x / rx) + (delta.y / ry) * (delta.y / ry);
+}
+
+static pointf cubic_point(const pointf control[4], double t) {
+  const double u = 1.0 - t;
+  pointf pt = {0};
+  pt.x = u * u * u * control[0].x + 3.0 * u * u * t * control[1].x +
+         3.0 * u * t * t * control[2].x + t * t * t * control[3].x;
+  pt.y = u * u * u * control[0].y + 3.0 * u * u * t * control[1].y +
+         3.0 * u * t * t * control[2].y + t * t * t * control[3].y;
+  return pt;
+}
+
+static bool terminal_reenters_node(node_t *node, const pointf control[4]) {
+  size_t clear = 0;
+  bool found_clearance = false;
+  double distances[NSUB + 2];
+  for (size_t i = 0; i < ARRAY_SIZE(distances); ++i) {
+    distances[i] =
+        endpoint_node_clearance(node, cubic_point(control, (double)i / NSUB));
+    if (!found_clearance && distances[i] >= 1.0) {
+      clear = i;
+      found_clearance = true;
+    }
+  }
+  for (size_t i = clear; i < ARRAY_SIZE(distances); ++i) {
+    if (distances[i] < 0.98)
+      return true;
+  }
+  return false;
+}
+
+static void bend_endpoint_control_outward(node_t *node, pointf endpoint,
+                                          pointf *control) {
+  const pointf normal = sub_pointf(endpoint, ND_coord(node));
+  const pointf departure = sub_pointf(*control, endpoint);
+  if (normal.x * departure.x + normal.y * departure.y > 0)
+    return;
+
+  const double normal_length = hypot(normal.x, normal.y);
+  const double control_length = DIST(*control, endpoint);
+  if (normal_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control =
+      add_pointf(endpoint, scale(control_length / normal_length, normal));
+}
+
+static void keep_terminal_cubic_outside_node(node_t *node, bezier *spline,
+                                             bool physical_start) {
+  if (spline->size < 4)
+    return;
+
+  const size_t endpoint = physical_start ? 0 : spline->size - 1;
+  const size_t near_control = physical_start ? 1 : spline->size - 2;
+  const size_t far_control = physical_start ? 2 : spline->size - 3;
+  const size_t far_endpoint = physical_start ? 3 : spline->size - 4;
+  pointf terminal[4] = {
+      spline->list[endpoint],
+      spline->list[near_control],
+      spline->list[far_control],
+      spline->list[far_endpoint],
+  };
+  if (!terminal_reenters_node(node, terminal))
+    return;
+
+  const pointf normal = sub_pointf(spline->list[endpoint], ND_coord(node));
+  const double normal_length = hypot(normal.x, normal.y);
+  if (normal_length <= MILLIPOINT)
+    return;
+
+  const double control_length =
+      MAX(DIST(spline->list[endpoint], spline->list[far_control]),
+          FLAT_PORT_NORMAL_ARM);
+  spline->list[far_control] = add_pointf(
+      spline->list[endpoint], scale(control_length / normal_length, normal));
+}
+
+static void restore_flat_endpoint(bezier *spline, bool physical_start,
+                                  pointf anchor, port resolved_port,
+                                  double min_control_length) {
+  const size_t endpoint = physical_start ? 0 : spline->size - 1;
+  const size_t control = physical_start ? 1 : spline->size - 2;
+  const int arrow = physical_start ? spline->sflag : spline->eflag;
+  pointf *const arrow_tip = physical_start ? &spline->sp : &spline->ep;
+  const double normal_length = hypot(resolved_port.p.x, resolved_port.p.y);
+  /* A repeated aux control point has no departure direction to preserve. */
+  const double control_length = MAX(
+      DIST(spline->list[control], spline->list[endpoint]), min_control_length);
+  const double arrow_gap = DIST(*arrow_tip, spline->list[endpoint]);
+
+  if (normal_length > MILLIPOINT) {
+    const pointf outward = scale(1.0 / normal_length, resolved_port.p);
+    spline->list[endpoint] =
+        add_pointf(anchor, scale(arrow == ARR_NONE ? 0.0 : arrow_gap, outward));
+    spline->list[control] =
+        add_pointf(spline->list[endpoint], scale(control_length, outward));
+    if (arrow != ARR_NONE)
+      *arrow_tip = anchor;
+    return;
+  }
+
+  if (arrow != ARR_NONE) {
+    const pointf offset = sub_pointf(anchor, *arrow_tip);
+    spline->list[endpoint] = add_pointf(spline->list[endpoint], offset);
+    spline->list[control] = add_pointf(spline->list[control], offset);
+    *arrow_tip = anchor;
+  } else {
+    const pointf offset = sub_pointf(anchor, spline->list[endpoint]);
+    spline->list[endpoint] = anchor;
+    spline->list[control] = add_pointf(spline->list[control], offset);
+  }
+}
+
+static void straighten_flat_port_progression(bezier *spline) {
+  if (spline->size <= 4)
+    return;
+
+  const pointf start = spline->list[0];
+  const pointf end = spline->list[spline->size - 1];
+  for (size_t i = 2; i + 2 < spline->size; ++i) {
+    const double fraction = (double)i / (double)(spline->size - 1);
+    spline->list[i].x = start.x + (end.x - start.x) * fraction;
+  }
+}
+
+static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
+  const pointf tail_center = ND_coord(agtail(edge));
+  const pointf head_center = ND_coord(aghead(edge));
+  const bool tail_at_start = DIST(spline->list[0], tail_center) <=
+                             DIST(spline->list[spline->size - 1], tail_center);
+  const bool head_at_start = DIST(spline->list[0], head_center) <=
+                             DIST(spline->list[spline->size - 1], head_center);
+
+  const bool grouped_tail =
+      E_sametail != NULL && agxget(edge, E_sametail)[0] != '\0';
+  const bool grouped_head =
+      E_samehead != NULL && agxget(edge, E_samehead)[0] != '\0';
+
+  if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip) {
+    const pointf anchor =
+        add_pointf(ND_coord(agtail(edge)), ED_tail_port(edge).p);
+    restore_flat_endpoint(spline, tail_at_start, anchor, ED_tail_port(edge),
+                          grouped_tail ? 6.0 : FLAT_PORT_NORMAL_ARM);
+  }
+  if (ED_head_port(edge).defined && !ED_head_port(edge).clip) {
+    const pointf anchor =
+        add_pointf(ND_coord(aghead(edge)), ED_head_port(edge).p);
+    restore_flat_endpoint(spline, head_at_start, anchor, ED_head_port(edge),
+                          grouped_head ? 6.0 : FLAT_PORT_NORMAL_ARM);
+  }
+  if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip &&
+      ED_head_port(edge).defined && !ED_head_port(edge).clip && !grouped_tail &&
+      !grouped_head) {
+    straighten_flat_port_progression(spline);
+  }
+}
+
 /// rotate, if necessary, then translate points
 static pointf transformf(pointf p, pointf del, int flip) {
   if (flip) {
@@ -973,6 +2134,8 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
   points[pointn++] = hp;
   points[pointn++] = hp;
   clip_and_install(e, aghead(e), points, pointn, &sinfo);
+  if (Concentrate)
+    align_arrow_tangents(agraphof(tn), e);
   ED_label(e)->pos.x = ctrx;
   ED_label(e)->pos.y = tp.y + (ED_label(e)->dimen.y + LBL_SPACE) / 2.0;
   ED_label(e)->set = true;
@@ -1025,6 +2188,8 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
     ED_label(e)->pos.y = ctry;
     ED_label(e)->set = true;
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    if (Concentrate)
+      align_arrow_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -1066,6 +2231,8 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    if (Concentrate)
+      align_arrow_tangents(agraphof(tn), e);
     free(ps);
   }
 
@@ -1089,8 +2256,23 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     size_t pointn = 0;
     if (et == EDGETYPE_SPLINE || et == EDGETYPE_LINE) {
       points[pointn++] = tp;
-      points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
-      points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
+      const double arrow_length = NOMINAL_ARROW_LENGTH;
+      const double clear_span = fabs(hp.x - tp.x) - ND_rw(tn) - ND_lw(hn);
+      if (et == EDGETYPE_SPLINE && cnt == 1 && ED_conc_opp_flag(e) &&
+          ((ED_head_label(e) != NULL || ED_tail_label(e) != NULL) ||
+           clear_span < 2 * arrow_length)) {
+        const double lift = MAX(2 * arrow_length, MAX(ND_ht(tn), ND_ht(hn)));
+        const double middle = (tp.x + hp.x) / 2;
+        const double arm = MAX(arrow_length, fabs(hp.x - tp.x) / 6);
+        points[pointn++] = (pointf){tp.x + arm, tp.y};
+        points[pointn++] = (pointf){middle, tp.y + lift};
+        points[pointn++] = (pointf){middle, tp.y + lift};
+        points[pointn++] = (pointf){middle, hp.y + lift};
+        points[pointn++] = (pointf){hp.x - arm, hp.y};
+      } else {
+        points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
+        points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
+      }
       points[pointn++] = hp;
     } else { /* EDGETYPE_PLINE */
       points[pointn++] = tp;
@@ -1106,6 +2288,9 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     }
     dy += stepy;
     clip_and_install(e, aghead(e), points, pointn, &sinfo);
+    if (Concentrate) {
+      align_arrow_tangents(agraphof(tn), e);
+    }
   }
 }
 
@@ -1134,6 +2319,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   static atomic_flag warned;
 
   tn = agtail(e0), hn = aghead(e0);
+  node_t *const physical_tail = tn;
   if (shapeOf(tn) == SH_RECORD || shapeOf(hn) == SH_RECORD) {
     if (!atomic_flag_test_and_set(&warned)) {
       agwarningf("flat edge between adjacent nodes one of which has a record "
@@ -1199,6 +2385,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   GD_dotroot(auxg) = auxg;
   setEdgeType(auxg, et);
   dot_init_node_edge(auxg);
+  restore_flat_edge_ports(edges, cnt, physical_tail);
 
   dot_rank(auxg);
   const int r = dot_mincross(auxg);
@@ -1226,6 +2413,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       ND_coord(n).y = midx;
   }
   dot_sameports(auxg);
+  restore_flat_edge_ports(edges, cnt, physical_tail);
   const int rc = dot_splines_(auxg, 0);
   if (rc != 0) {
     return rc;
@@ -1250,25 +2438,22 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     auxe = ED_alg(e);
     if ((auxe == hvye) & !ED_alg(auxe))
       continue; /* pseudo-edge */
-    auxbz = ED_spl(auxe)->list;
+    splines *auxspl = ED_spl(auxe);
+    if (auxspl == NULL)
+      continue;
+    auxbz = auxspl->list;
     bz = new_spline(e, auxbz->size);
     bz->sflag = auxbz->sflag;
     bz->sp = transformf(auxbz->sp, del, GD_flip(g));
     bz->eflag = auxbz->eflag;
     bz->ep = transformf(auxbz->ep, del, GD_flip(g));
-    for (size_t j = 0; j < auxbz->size;) {
-      pointf cp[4];
-      cp[0] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      if (j >= auxbz->size)
-        break;
-      cp[1] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[2] = bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
-      j++;
-      cp[3] = transformf(auxbz->list[j], del, GD_flip(g));
-      update_bb_bz(&GD_bb(g), cp);
-    }
+    for (size_t j = 0; j < auxbz->size; ++j)
+      bz->list[j] = transformf(auxbz->list[j], del, GD_flip(g));
+    restore_flat_endpoints(e, bz);
+    if (Concentrate)
+      align_arrow_tangents(g, e);
+    for (size_t j = 0; j + 3 < bz->size; j += 3)
+      update_bb_bz(&GD_bb(g), &bz->list[j]);
     if (ED_label(e)) {
       ED_label(e)->pos = transformf(ED_label(auxe)->pos, del, GD_flip(g));
       ED_label(e)->set = true;
@@ -1411,6 +2596,8 @@ static void make_flat_labeled_edge(graph_t *g, const spline_info_t sp, path *P,
     }
   }
   clip_and_install(e, aghead(e), ps, pn, &sinfo);
+  if (Concentrate)
+    align_arrow_tangents(g, e);
   if (ps_needs_free)
     free(ps);
 }
@@ -1484,6 +2671,8 @@ static void make_flat_bottom_edges(graph_t *g, const spline_info_t sp, path *P,
       return;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    if (Concentrate)
+      align_arrow_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -1547,12 +2736,11 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
   node_t *tn = agtail(e);
   node_t *hn = aghead(e);
   const int r = ND_rank(tn);
-  if (r > 0) {
-    rank_t *prevr;
-    if (GD_has_labels(g->root) & EDGE_LABEL)
-      prevr = GD_rank(g) + (r - 2);
-    else
-      prevr = GD_rank(g) + (r - 1);
+  // With edge labels, an auxiliary rank sits immediately below each node rank.
+  // There may be no preceding node rank.
+  const int prev_rank = r - ((GD_has_labels(g->root) & EDGE_LABEL) ? 2 : 1);
+  if (prev_rank >= 0) {
+    rank_t *const prevr = GD_rank(g) + prev_rank;
     vspace = ND_coord(prevr->v[0]).y - prevr->ht1 - ND_coord(tn).y -
              GD_rank(g)[r].ht2;
   } else {
@@ -1608,6 +2796,8 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
       return 0;
     }
     clip_and_install(e, aghead(e), ps, pn, &sinfo);
+    if (Concentrate)
+      align_arrow_tangents(g, e);
     free(ps);
     P->nbox = 0;
   }
@@ -1697,8 +2887,1258 @@ static int makeLineEdge(graph_t *g, edge_t *fe, points_t *points, node_t **hp) {
   return pn;
 }
 
+static void align_control_arm(pointf *control, pointf endpoint,
+                              pointf arrow_tip, double min_control_length) {
+  const pointf axis = sub_pointf(arrow_tip, endpoint);
+  const double axis_length = hypot(axis.x, axis.y);
+  const double control_length =
+      MAX(DIST(*control, endpoint), min_control_length);
+  if (axis_length <= MILLIPOINT || control_length <= MILLIPOINT)
+    return;
+
+  *control = sub_pointf(endpoint, scale(control_length / axis_length, axis));
+}
+
+static void align_arrow_arm(bezier *spline, pointf arrow_tip,
+                            double min_control_length) {
+  const bool at_start = DIST(spline->list[0], arrow_tip) <=
+                        DIST(spline->list[spline->size - 1], arrow_tip);
+  const size_t endpoint = at_start ? 0 : spline->size - 1;
+  const size_t control = at_start ? 1 : spline->size - 2;
+  align_control_arm(&spline->list[control], spline->list[endpoint], arrow_tip,
+                    min_control_length);
+}
+
+static double arrow_arm_angle(const bezier *spline, bool at_start,
+                              pointf arrow_tip) {
+  const size_t endpoint = at_start ? 0 : spline->size - 1;
+  const int step = at_start ? 1 : -1;
+  int control = (int)endpoint + step;
+  while (control >= 0 && control < (int)spline->size &&
+         DIST(spline->list[endpoint], spline->list[control]) <= MILLIPOINT) {
+    control += step;
+  }
+  if (control < 0 || control >= (int)spline->size)
+    return 180.0;
+
+  const pointf shaft =
+      sub_pointf(spline->list[control], spline->list[endpoint]);
+  const pointf axis = sub_pointf(arrow_tip, spline->list[endpoint]);
+  const double denominator = hypot(shaft.x, shaft.y) * hypot(axis.x, axis.y);
+  if (denominator <= MILLIPOINT)
+    return 180.0;
+
+  const double cosine =
+      fabs((shaft.x * axis.x + shaft.y * axis.y) / denominator);
+  return acos(MIN(1.0, MAX(-1.0, cosine))) * 180.0 / M_PI;
+}
+
+static void align_arrow_tangents(graph_t *g, edge_t *edge) {
+  while (ED_to_orig(edge) != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+
+  assert(ED_spl(edge) != NULL && ED_spl(edge)->size > 0);
+  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
+  if (spline->size < 4)
+    return;
+
+  // Multi-edge offsets are applied before clipping. Realign the final control
+  // arms afterward, when clipping has established the visible arrow axes.
+  if (spline->sflag != ARR_NONE)
+    align_arrow_arm(spline, spline->sp, 0.0);
+  if (spline->eflag != ARR_NONE)
+    align_arrow_arm(spline, spline->ep, 0.0);
+
+  const bool grouped_head =
+      E_samehead != NULL && agxget(edge, E_samehead)[0] != '\0';
+  const port head_port = ED_head_port(edge);
+  if (grouped_head && head_port.defined && !head_port.clip) {
+    const bool head_at_start =
+        DIST(spline->list[0], ND_coord(aghead(edge))) <=
+        DIST(spline->list[spline->size - 1], ND_coord(aghead(edge)));
+    const size_t endpoint = head_at_start ? 0 : spline->size - 1;
+    const size_t near_control = head_at_start ? 1 : spline->size - 2;
+    bend_endpoint_control_outward(aghead(edge), spline->list[endpoint],
+                                  &spline->list[near_control]);
+  }
+  for (size_t i = 0; i + 3 < spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+static void align_installed_flat_arrow_tangents(graph_t *g, edge_t *edge) {
+  if (ED_spl(edge) == NULL || ED_spl(edge)->size == 0)
+    return;
+
+  bezier *const spline = &ED_spl(edge)->list[ED_spl(edge)->size - 1];
+  if (spline->size < 4)
+    return;
+
+  edge_t *const arrow_edge = getmainedge(edge);
+  if (spline->sflag != ARR_NONE &&
+      arrow_arm_angle(spline, true, spline->sp) > 2.0)
+    align_arrow_arm(spline, spline->sp,
+                    NOMINAL_ARROW_LENGTH *
+                        edge_arrow_arrowsize(arrow_edge, EDGE_ARROW_START));
+  if (spline->eflag != ARR_NONE &&
+      arrow_arm_angle(spline, false, spline->ep) > 2.0)
+    align_arrow_arm(spline, spline->ep,
+                    NOMINAL_ARROW_LENGTH *
+                        edge_arrow_arrowsize(arrow_edge, EDGE_ARROW_END));
+
+  const bool grouped_tail =
+      E_sametail != NULL && agxget(arrow_edge, E_sametail)[0] != '\0';
+  const port tail_port = ED_tail_port(arrow_edge);
+  if (grouped_tail && tail_port.defined && !tail_port.clip) {
+    const bool tail_at_start =
+        DIST(spline->list[0], ND_coord(agtail(arrow_edge))) <=
+        DIST(spline->list[spline->size - 1], ND_coord(agtail(arrow_edge)));
+    keep_terminal_cubic_outside_node(agtail(arrow_edge), spline, tail_at_start);
+  }
+
+  for (size_t i = 0; i + 3 < spline->size; i += 3)
+    update_bb_bz(&GD_bb(g), &spline->list[i]);
+}
+
+static void align_flat_arrow_tangents_in_graph(graph_t *g) {
+  for (node_t *node = agfstnode(g); node != NULL; node = agnxtnode(g, node)) {
+    for (edge_t *edge = agfstout(g, node); edge != NULL;
+         edge = agnxtout(g, edge)) {
+      edge_t *const main_edge = getmainedge(edge);
+      if (ED_spl(edge) == NULL || ED_spl(edge)->size == 0)
+        continue;
+      if (ND_rank(agtail(main_edge)) != ND_rank(aghead(main_edge)))
+        continue;
+      if (!has_grouped_flat_endpoint(main_edge))
+        continue;
+
+      align_installed_flat_arrow_tangents(g, edge);
+    }
+  }
+}
+
+static bool bezier_intersects_box(const pointf control[4], boxf obstacle) {
+  boxf control_box = {.LL = control[0], .UR = control[0]};
+  for (size_t i = 1; i < 4; i++)
+    expandbp(&control_box, control[i]);
+  if (!boxf_overlap(control_box, obstacle))
+    return false;
+
+  const double flatness_squared =
+      MULTIEDGE_BEZIER_FLATNESS * MULTIEDGE_BEZIER_FLATNESS;
+  if (ptToLine2(control[0], control[3], control[1]) <= flatness_squared &&
+      ptToLine2(control[0], control[3], control[2]) <= flatness_squared)
+    return lineToBox(control[0], control[3], obstacle) != -1;
+
+  pointf left[4];
+  pointf right[4];
+  Bezier(control, 0.5, left, right);
+  return bezier_intersects_box(left, obstacle) ||
+         bezier_intersects_box(right, obstacle);
+}
+
+static boxf route_cubic_bounds(const pointf control[4]) {
+  boxf bounds = {.LL = control[0], .UR = control[0]};
+  for (size_t i = 1; i < 4; i++)
+    expandbp(&bounds, control[i]);
+  return bounds;
+}
+
+static double route_point_segment_distance_squared(pointf query, pointf a,
+                                                   pointf b) {
+  const pointf direction = sub_pointf(b, a);
+  const double length_squared =
+      direction.x * direction.x + direction.y * direction.y;
+  if (length_squared <= 1e-24)
+    return DIST2(query, a);
+  const pointf offset = sub_pointf(query, a);
+  const double t =
+      MAX(0.0, MIN(1.0, (offset.x * direction.x + offset.y * direction.y) /
+                            length_squared));
+  const pointf closest = add_pointf(a, scale(t, direction));
+  return DIST2(query, closest);
+}
+
+#define ROUTE_VALIDATION_FLATNESS 1e-2
+#define ROUTE_VALIDATION_MAX_DEPTH 20
+
+static bool flatten_route_cubic_recursive(const pointf control[4], double t0,
+                                          double t1, unsigned depth,
+                                          route_flat_points_t *points) {
+  const double error_squared = MAX(
+      route_point_segment_distance_squared(control[1], control[0], control[3]),
+      route_point_segment_distance_squared(control[2], control[0], control[3]));
+  if (error_squared <= ROUTE_VALIDATION_FLATNESS * ROUTE_VALIDATION_FLATNESS) {
+    LIST_APPEND(points, ((route_flat_point_t){.point = control[3],
+                                              .t = t1,
+                                              .error = sqrt(error_squared)}));
+    return true;
+  }
+  if (depth == ROUTE_VALIDATION_MAX_DEPTH)
+    return false;
+
+  pointf left[4];
+  pointf right[4];
+  Bezier(control, 0.5, left, right);
+  const double middle = (t0 + t1) / 2.0;
+  return flatten_route_cubic_recursive(left, t0, middle, depth + 1, points) &&
+         flatten_route_cubic_recursive(right, middle, t1, depth + 1, points);
+}
+
+static bool flatten_route_cubic(const pointf control[4],
+                                route_flat_points_t *points) {
+  LIST_APPEND(points, ((route_flat_point_t){
+                          .point = control[0], .t = 0.0, .error = 0.0}));
+  return flatten_route_cubic_recursive(control, 0.0, 1.0, 0, points);
+}
+
+static double route_cross_product(pointf a, pointf b) {
+  return a.x * b.y - a.y * b.x;
+}
+
+static double route_segments_distance_squared(pointf a, pointf b, pointf c,
+                                              pointf d) {
+  return MIN(MIN(route_point_segment_distance_squared(a, c, d),
+                 route_point_segment_distance_squared(b, c, d)),
+             MIN(route_point_segment_distance_squared(c, a, b),
+                 route_point_segment_distance_squared(d, a, b)));
+}
+
+static route_segment_intersection_t
+route_segments_intersect(pointf a, pointf b, double ab_error, pointf c,
+                         pointf d, double cd_error, double *along_ab,
+                         double *along_cd) {
+  const pointf ab = sub_pointf(b, a);
+  const pointf cd = sub_pointf(d, c);
+  const double ab_squared = ab.x * ab.x + ab.y * ab.y;
+  const double cd_squared = cd.x * cd.x + cd.y * cd.y;
+  const double uncertainty = ab_error + cd_error + 1e-9;
+  if (ab_squared <= 1e-18 || cd_squared <= 1e-18)
+    return route_segments_distance_squared(a, b, c, d) <=
+                   uncertainty * uncertainty
+               ? ROUTE_SEGMENT_AMBIGUOUS
+               : ROUTE_SEGMENT_DISJOINT;
+
+  const double denominator = route_cross_product(ab, cd);
+  const pointf ac = sub_pointf(c, a);
+  const double parallel_tolerance =
+      1e-10 * sqrt(ab_squared * cd_squared) + 1e-12;
+  if (fabs(denominator) <= parallel_tolerance)
+    return route_segments_distance_squared(a, b, c, d) <=
+                   uncertainty * uncertainty
+               ? ROUTE_SEGMENT_AMBIGUOUS
+               : ROUTE_SEGMENT_DISJOINT;
+
+  const double t = route_cross_product(ac, cd) / denominator;
+  const double u = route_cross_product(ac, ab) / denominator;
+  if (t < 0.0 || t > 1.0 || u < 0.0 || u > 1.0) {
+    return route_segments_distance_squared(a, b, c, d) <=
+                   uncertainty * uncertainty
+               ? ROUTE_SEGMENT_AMBIGUOUS
+               : ROUTE_SEGMENT_DISJOINT;
+  }
+  const double ab_length = sqrt(ab_squared);
+  const double cd_length = sqrt(cd_squared);
+  const double sine = fabs(denominator) / (ab_length * cd_length);
+  const double endpoint_margin = uncertainty / sine;
+  if (MIN(t, 1.0 - t) * ab_length <= endpoint_margin ||
+      MIN(u, 1.0 - u) * cd_length <= endpoint_margin)
+    return ROUTE_SEGMENT_AMBIGUOUS;
+  *along_ab = MIN(1.0, MAX(0.0, t));
+  *along_cd = MIN(1.0, MAX(0.0, u));
+  return ROUTE_SEGMENT_INTERSECTION;
+}
+
+static void append_unique_route_crossing(route_crossings_t *crossings,
+                                         route_crossing_t crossing) {
+  for (size_t i = 0; i < LIST_SIZE(crossings); i++) {
+    const route_crossing_t existing = LIST_GET(crossings, i);
+    if (existing.affected_cubic == crossing.affected_cubic &&
+        existing.other_edge == crossing.other_edge &&
+        existing.other_spline == crossing.other_spline &&
+        existing.other_cubic == crossing.other_cubic &&
+        fabs(existing.affected_t - crossing.affected_t) <= 1e-6 &&
+        fabs(existing.other_t - crossing.other_t) <= 1e-6)
+      return;
+  }
+  LIST_APPEND(crossings, crossing);
+}
+
+static bool route_flat_segments_share_curve_endpoint(route_flat_point_t a,
+                                                     route_flat_point_t b,
+                                                     route_flat_point_t c,
+                                                     route_flat_point_t d) {
+  const route_flat_point_t first_endpoints[2] = {a, b};
+  const route_flat_point_t second_endpoints[2] = {c, d};
+  for (size_t first = 0; first < 2; first++) {
+    if (first_endpoints[first].t != 0.0 && first_endpoints[first].t != 1.0)
+      continue;
+    for (size_t second = 0; second < 2; second++) {
+      if (second_endpoints[second].t != 0.0 &&
+          second_endpoints[second].t != 1.0)
+        continue;
+      if (DIST2(first_endpoints[first].point, second_endpoints[second].point) <=
+          1e-18)
+        return true;
+    }
+  }
+  return false;
+}
+
+static bool append_route_crossings(const route_flat_points_t *affected,
+                                   const route_flat_points_t *other,
+                                   size_t affected_cubic, size_t other_edge,
+                                   size_t other_spline, size_t other_cubic,
+                                   route_crossings_t *crossings) {
+  for (size_t i = 0; i + 1 < LIST_SIZE(affected); i++) {
+    const route_flat_point_t a = LIST_GET(affected, i);
+    const route_flat_point_t b = LIST_GET(affected, i + 1);
+    for (size_t j = 0; j + 1 < LIST_SIZE(other); j++) {
+      const route_flat_point_t c = LIST_GET(other, j);
+      const route_flat_point_t d = LIST_GET(other, j + 1);
+      const double uncertainty = b.error + d.error + 1e-9;
+      if (MAX(a.point.x, b.point.x) + uncertainty < MIN(c.point.x, d.point.x) ||
+          MAX(c.point.x, d.point.x) + uncertainty < MIN(a.point.x, b.point.x) ||
+          MAX(a.point.y, b.point.y) + uncertainty < MIN(c.point.y, d.point.y) ||
+          MAX(c.point.y, d.point.y) + uncertainty < MIN(a.point.y, b.point.y))
+        continue;
+      if (route_flat_segments_share_curve_endpoint(a, b, c, d))
+        continue;
+      double affected_segment_t;
+      double other_segment_t;
+      const route_segment_intersection_t intersection =
+          route_segments_intersect(a.point, b.point, b.error, c.point, d.point,
+                                   d.error, &affected_segment_t,
+                                   &other_segment_t);
+      if (intersection == ROUTE_SEGMENT_AMBIGUOUS)
+        return false;
+      if (intersection == ROUTE_SEGMENT_DISJOINT)
+        continue;
+      const double affected_t = a.t + affected_segment_t * (b.t - a.t);
+      if (affected_t <= 1e-6 || affected_t >= 1.0 - 1e-6)
+        continue;
+      append_unique_route_crossing(
+          crossings,
+          (route_crossing_t){.affected_cubic = affected_cubic,
+                             .affected_t = affected_t,
+                             .other_edge = other_edge,
+                             .other_spline = other_spline,
+                             .other_cubic = other_cubic,
+                             .other_t = c.t + other_segment_t * (d.t - c.t)});
+    }
+  }
+  return true;
+}
+
+static bool append_route_segment_crossings(const route_flat_points_t *affected,
+                                           pointf a, pointf b,
+                                           size_t affected_cubic,
+                                           size_t segment_id,
+                                           route_crossings_t *crossings) {
+  for (size_t i = 0; i + 1 < LIST_SIZE(affected); i++) {
+    const route_flat_point_t p = LIST_GET(affected, i);
+    const route_flat_point_t q = LIST_GET(affected, i + 1);
+    if (((p.t == 0.0 &&
+          route_point_segment_distance_squared(p.point, a, b) <= 1e-18) ||
+         (q.t == 1.0 &&
+          route_point_segment_distance_squared(q.point, a, b) <= 1e-18)))
+      continue;
+    double affected_segment_t;
+    double other_segment_t;
+    const route_segment_intersection_t intersection =
+        route_segments_intersect(p.point, q.point, q.error, a, b, 0.0,
+                                 &affected_segment_t, &other_segment_t);
+    if (intersection == ROUTE_SEGMENT_AMBIGUOUS)
+      return false;
+    if (intersection == ROUTE_SEGMENT_DISJOINT)
+      continue;
+    const double affected_t = p.t + affected_segment_t * (q.t - p.t);
+    if (affected_t <= 1e-6 || affected_t >= 1.0 - 1e-6)
+      continue;
+    append_unique_route_crossing(
+        crossings, (route_crossing_t){.affected_cubic = affected_cubic,
+                                      .affected_t = affected_t,
+                                      .other_edge = segment_id,
+                                      .other_t = other_segment_t});
+  }
+  return true;
+}
+
+static int compare_route_crossings(const void *a, const void *b) {
+  const route_crossing_t *const left = a;
+  const route_crossing_t *const right = b;
+#define ROUTE_COMPARE_FIELD(field)                                             \
+  do {                                                                         \
+    if (left->field < right->field)                                            \
+      return -1;                                                               \
+    if (left->field > right->field)                                            \
+      return 1;                                                                \
+  } while (0)
+  ROUTE_COMPARE_FIELD(affected_cubic);
+  if (left->affected_t < right->affected_t)
+    return -1;
+  if (left->affected_t > right->affected_t)
+    return 1;
+  ROUTE_COMPARE_FIELD(other_edge);
+  ROUTE_COMPARE_FIELD(other_spline);
+  ROUTE_COMPARE_FIELD(other_cubic);
+  if (left->other_t < right->other_t)
+    return -1;
+  if (left->other_t > right->other_t)
+    return 1;
+#undef ROUTE_COMPARE_FIELD
+  return 0;
+}
+
+static void sort_route_crossings(route_crossings_t *crossings) {
+  if (LIST_SIZE(crossings) > 1) {
+    qsort(LIST_FRONT(crossings), LIST_SIZE(crossings), sizeof(route_crossing_t),
+          compare_route_crossings);
+  }
+}
+
+static bool route_crossing_signatures_equal(const route_crossings_t *left,
+                                            const route_crossings_t *right) {
+  if (LIST_SIZE(left) != LIST_SIZE(right))
+    return false;
+  for (size_t i = 0; i < LIST_SIZE(left); i++) {
+    const route_crossing_t a = LIST_GET(left, i);
+    const route_crossing_t b = LIST_GET(right, i);
+    if (a.affected_cubic != b.affected_cubic || a.other_edge != b.other_edge ||
+        a.other_spline != b.other_spline || a.other_cubic != b.other_cubic)
+      return false;
+  }
+  for (size_t i = 0; i < LIST_SIZE(left); i++) {
+    for (size_t j = i + 1; j < LIST_SIZE(left); j++) {
+      const route_crossing_t a = LIST_GET(left, i);
+      const route_crossing_t b = LIST_GET(left, j);
+      const route_crossing_t c = LIST_GET(right, i);
+      const route_crossing_t d = LIST_GET(right, j);
+      if (a.other_edge != b.other_edge || a.other_spline != b.other_spline ||
+          a.other_cubic != b.other_cubic)
+        continue;
+      const double original_order = a.other_t - b.other_t;
+      const double candidate_order = c.other_t - d.other_t;
+      if (original_order * candidate_order < -1e-12)
+        return false;
+    }
+  }
+  return true;
+}
+
+static bool route_graph_crossing_signature(graph_t *graph,
+                                           const route_junction_t *junction,
+                                           route_crossings_t *crossings) {
+  splines *const affected_splines = ED_spl(junction->edge);
+  bezier *const left = &affected_splines->list[junction->left_spline];
+  bezier *const right = &affected_splines->list[junction->right_spline];
+  const pointf *const affected_controls[2] = {&left->list[left->size - 4],
+                                              &right->list[0]};
+  const size_t affected_spline_indices[2] = {junction->left_spline,
+                                             junction->right_spline};
+  const size_t affected_cubic_indices[2] = {junction->left_cubic,
+                                            junction->right_cubic};
+
+  for (size_t affected_index = 0; affected_index < 2; affected_index++) {
+    route_flat_points_t affected = {0};
+    if (!flatten_route_cubic(affected_controls[affected_index], &affected)) {
+      LIST_FREE(&affected);
+      return false;
+    }
+    const boxf affected_bounds =
+        route_cubic_bounds(affected_controls[affected_index]);
+    size_t edge_index = 0;
+    for (node_t *node = agfstnode(graph); node != NULL;
+         node = agnxtnode(graph, node)) {
+      for (edge_t *edge = agfstout(graph, node); edge != NULL;
+           edge = agnxtout(graph, edge), edge_index++) {
+        const splines *const edge_splines = ED_spl(edge);
+        if (edge_splines == NULL)
+          continue;
+        for (size_t spline_index = 0; spline_index < edge_splines->size;
+             spline_index++) {
+          const bezier *const spline = &edge_splines->list[spline_index];
+          for (size_t cubic_start = 0; cubic_start + 3 < spline->size;
+               cubic_start += 3) {
+            const pointf *const other_control = &spline->list[cubic_start];
+            const size_t other_cubic = cubic_start / 3;
+            const bool same_route = edge_splines == affected_splines;
+            const bool adjacent_in_spline =
+                same_route &&
+                spline_index == affected_spline_indices[affected_index] &&
+                (other_cubic + 1 == affected_cubic_indices[affected_index] ||
+                 affected_cubic_indices[affected_index] + 1 == other_cubic);
+            // The two cubics intentionally meet at this tagged seam. Their
+            // shared endpoint is not an edge crossing; G1 is checked
+            // separately below. Including this pair turns the endpoint touch
+            // into a quadratic segment-pair scan without adding a crossing
+            // invariant.
+            const bool artificial_joint_neighbor =
+                same_route && ((affected_index == 0 &&
+                                spline_index == junction->right_spline &&
+                                other_cubic == junction->right_cubic) ||
+                               (affected_index == 1 &&
+                                spline_index == junction->left_spline &&
+                                other_cubic == junction->left_cubic));
+            if (other_control == affected_controls[affected_index] ||
+                adjacent_in_spline || artificial_joint_neighbor ||
+                !boxf_overlap(affected_bounds,
+                              route_cubic_bounds(other_control)))
+              continue;
+            route_flat_points_t other = {0};
+            if (!flatten_route_cubic(other_control, &other)) {
+              LIST_FREE(&other);
+              LIST_FREE(&affected);
+              return false;
+            }
+            const bool unambiguous = append_route_crossings(
+                &affected, &other, affected_index, edge_index, spline_index,
+                other_cubic, crossings);
+            LIST_FREE(&other);
+            if (!unambiguous) {
+              LIST_FREE(&affected);
+              return false;
+            }
+          }
+        }
+      }
+    }
+    LIST_FREE(&affected);
+  }
+  sort_route_crossings(crossings);
+  return true;
+}
+
+static bool route_barrier_signature(const route_junction_t *junction,
+                                    const route_pieces_t *pieces,
+                                    route_crossings_t *crossings) {
+  if (junction->left_piece >= LIST_SIZE(pieces) ||
+      junction->right_piece >= LIST_SIZE(pieces))
+    return false;
+  const route_piece_metadata_t *const left_piece =
+      LIST_AT(pieces, junction->left_piece);
+  const route_piece_metadata_t *const right_piece =
+      LIST_AT(pieces, junction->right_piece);
+  const route_spline_metadata_t *const routes[2] = {&left_piece->end.route,
+                                                    &right_piece->start.route};
+  splines *const affected_splines = ED_spl(junction->edge);
+  bezier *const left = &affected_splines->list[junction->left_spline];
+  bezier *const right = &affected_splines->list[junction->right_spline];
+  const pointf *const affected_controls[2] = {&left->list[left->size - 4],
+                                              &right->list[0]};
+
+  for (size_t affected_index = 0; affected_index < 2; affected_index++) {
+    route_flat_points_t affected = {0};
+    if (!flatten_route_cubic(affected_controls[affected_index], &affected)) {
+      LIST_FREE(&affected);
+      return false;
+    }
+    if (!route_spline_metadata_valid(routes[affected_index])) {
+      LIST_FREE(&affected);
+      return false;
+    }
+    for (size_t barrier_index = 0;
+         barrier_index < routes[affected_index]->barrier_count;
+         barrier_index++) {
+      const Pedge_t barrier = routes[affected_index]->barriers[barrier_index];
+      if (!append_route_segment_crossings(&affected, barrier.a, barrier.b,
+                                          affected_index, barrier_index,
+                                          crossings)) {
+        LIST_FREE(&affected);
+        return false;
+      }
+    }
+    LIST_FREE(&affected);
+  }
+  sort_route_crossings(crossings);
+  return true;
+}
+
+static bool route_corridor_signature(const route_junction_t *junction,
+                                     const route_pieces_t *pieces,
+                                     route_crossings_t *crossings) {
+  if (junction->left_piece >= LIST_SIZE(pieces) ||
+      junction->right_piece >= LIST_SIZE(pieces))
+    return false;
+  const route_piece_metadata_t *const left_piece =
+      LIST_AT(pieces, junction->left_piece);
+  const route_piece_metadata_t *const right_piece =
+      LIST_AT(pieces, junction->right_piece);
+  const route_spline_metadata_t *const routes[2] = {&left_piece->end.route,
+                                                    &right_piece->start.route};
+  splines *const affected_splines = ED_spl(junction->edge);
+  bezier *const left = &affected_splines->list[junction->left_spline];
+  bezier *const right = &affected_splines->list[junction->right_spline];
+  const pointf *const affected_controls[2] = {&left->list[left->size - 4],
+                                              &right->list[0]};
+
+  for (size_t affected_index = 0; affected_index < 2; affected_index++) {
+    if (!route_spline_metadata_valid(routes[affected_index]))
+      return false;
+    route_flat_points_t affected = {0};
+    if (!flatten_route_cubic(affected_controls[affected_index], &affected)) {
+      LIST_FREE(&affected);
+      return false;
+    }
+    for (size_t portal_index = 0;
+         portal_index < routes[affected_index]->portal_count; portal_index++) {
+      const Pedge_t portal = routes[affected_index]->portals[portal_index];
+      if (!append_route_segment_crossings(&affected, portal.a, portal.b,
+                                          affected_index, portal_index,
+                                          crossings)) {
+        LIST_FREE(&affected);
+        return false;
+      }
+    }
+    LIST_FREE(&affected);
+  }
+  sort_route_crossings(crossings);
+  return true;
+}
+
+static bool route_barrier_side_signature(const route_junction_t *junction,
+                                         const route_pieces_t *pieces,
+                                         route_sides_t *sides) {
+  if (junction->left_piece >= LIST_SIZE(pieces) ||
+      junction->right_piece >= LIST_SIZE(pieces))
+    return false;
+  const route_piece_metadata_t *const left_piece =
+      LIST_AT(pieces, junction->left_piece);
+  const route_piece_metadata_t *const right_piece =
+      LIST_AT(pieces, junction->right_piece);
+  const route_spline_metadata_t *const routes[2] = {&left_piece->end.route,
+                                                    &right_piece->start.route};
+  splines *const affected_splines = ED_spl(junction->edge);
+  bezier *const left = &affected_splines->list[junction->left_spline];
+  bezier *const right = &affected_splines->list[junction->right_spline];
+  const pointf *const affected_controls[2] = {&left->list[left->size - 4],
+                                              &right->list[0]};
+
+  for (size_t affected_index = 0; affected_index < 2; affected_index++) {
+    if (!route_spline_metadata_valid(routes[affected_index]))
+      return false;
+    pointf first_half[4];
+    pointf second_half[4];
+    Bezier(affected_controls[affected_index], 0.5, first_half, second_half);
+    const pointf midpoint = first_half[3];
+    for (size_t barrier_index = 0;
+         barrier_index < routes[affected_index]->barrier_count;
+         barrier_index++) {
+      const Pedge_t barrier = routes[affected_index]->barriers[barrier_index];
+      const pointf direction = sub_pointf(barrier.b, barrier.a);
+      const pointf offset = sub_pointf(midpoint, barrier.a);
+      const double orientation = route_cross_product(direction, offset);
+      const double tolerance = 1e-9 *
+                               MAX(1.0, hypot(direction.x, direction.y)) *
+                               MAX(1.0, hypot(offset.x, offset.y));
+      LIST_APPEND(sides, orientation > tolerance    ? 1
+                         : orientation < -tolerance ? -1
+                                                    : 0);
+    }
+  }
+  return true;
+}
+
+static bool route_side_signatures_equal(const route_sides_t *left,
+                                        const route_sides_t *right) {
+  if (LIST_SIZE(left) != LIST_SIZE(right))
+    return false;
+  for (size_t i = 0; i < LIST_SIZE(left); i++) {
+    if (LIST_GET(left, i) != LIST_GET(right, i))
+      return false;
+  }
+  return true;
+}
+
+static route_bezier_invariants_t route_bezier_invariants(const bezier *spline) {
+  assert(spline->size > 0);
+  return (route_bezier_invariants_t){
+      .size = spline->size,
+      .start = spline->list[0],
+      .end = spline->list[spline->size - 1],
+      .sflag = spline->sflag,
+      .eflag = spline->eflag,
+      .sp = spline->sp,
+      .ep = spline->ep,
+  };
+}
+
+static bool route_bezier_invariants_equal(route_bezier_invariants_t expected,
+                                          const bezier *actual) {
+  return expected.size == actual->size && actual->size % 3 == 1 &&
+         memcmp(&expected.start, &actual->list[0], sizeof(pointf)) == 0 &&
+         memcmp(&expected.end, &actual->list[actual->size - 1],
+                sizeof(pointf)) == 0 &&
+         expected.sflag == actual->sflag && expected.eflag == actual->eflag &&
+         memcmp(&expected.sp, &actual->sp, sizeof(pointf)) == 0 &&
+         memcmp(&expected.ep, &actual->ep, sizeof(pointf)) == 0;
+}
+
+static double route_barrier_width(boxf barrier, pointf tangent) {
+  const double width = MAX(0.0, barrier.UR.x - barrier.LL.x);
+  const double height = MAX(0.0, barrier.UR.y - barrier.LL.y);
+  return fabs(tangent.y) * width + fabs(tangent.x) * height;
+}
+
+static bool route_ray_box_limit(pointf origin, pointf direction, boxf bounds,
+                                double *limit) {
+  const double tolerance = MILLIPOINT;
+  if (origin.x < bounds.LL.x - tolerance ||
+      origin.x > bounds.UR.x + tolerance ||
+      origin.y < bounds.LL.y - tolerance || origin.y > bounds.UR.y + tolerance)
+    return false;
+
+  *limit = DBL_MAX;
+  if (direction.x > 1e-12)
+    *limit = MIN(*limit, (bounds.UR.x - origin.x) / direction.x);
+  else if (direction.x < -1e-12)
+    *limit = MIN(*limit, (bounds.LL.x - origin.x) / direction.x);
+  if (direction.y > 1e-12)
+    *limit = MIN(*limit, (bounds.UR.y - origin.y) / direction.y);
+  else if (direction.y < -1e-12)
+    *limit = MIN(*limit, (bounds.LL.y - origin.y) / direction.y);
+  return isfinite(*limit) && *limit >= 0.0;
+}
+
+static bool route_ray_trust_interval(pointf origin, pointf direction,
+                                     pointf original, double radius,
+                                     double *minimum, double *maximum) {
+  const pointf delta = sub_pointf(original, origin);
+  const double projection = delta.x * direction.x + delta.y * direction.y;
+  const double perpendicular_squared =
+      MAX(0.0, delta.x * delta.x + delta.y * delta.y - projection * projection);
+  if (perpendicular_squared > radius * radius)
+    return false;
+  const double span = sqrt(MAX(0.0, radius * radius - perpendicular_squared));
+  *minimum = MAX(0.0, projection - span);
+  *maximum = projection + span;
+  return *maximum >= 0.0;
+}
+
+static void include_route_scale(double value, double *scale) {
+  if (isfinite(value) && value > MILLIPOINT)
+    *scale = MIN(*scale, value);
+}
+
+static bool fixed_template_g1_candidate(const route_junction_t *junction,
+                                        pointf *left_control,
+                                        pointf *right_control) {
+  const splines *const edge_splines = ED_spl(junction->edge);
+  const bezier *const left = &edge_splines->list[junction->left_spline];
+  const bezier *const right = &edge_splines->list[junction->right_spline];
+  const pointf *const left_cubic = &left->list[left->size - 4];
+  const pointf *const right_cubic = &right->list[0];
+  const double left_chord = DIST(left_cubic[0], left_cubic[3]);
+  const double right_chord = DIST(right_cubic[0], right_cubic[3]);
+  const double left_length = DIST(left_cubic[2], junction->joint);
+  const double right_length = DIST(right_cubic[1], junction->joint);
+
+  double left_scale = DBL_MAX;
+  double right_scale = DBL_MAX;
+  include_route_scale(left_chord, &left_scale);
+  include_route_scale(
+      route_barrier_width(junction->local_barriers[0], junction->t_ref),
+      &left_scale);
+  include_route_scale(right_chord, &right_scale);
+  include_route_scale(
+      route_barrier_width(junction->local_barriers[1], junction->t_ref),
+      &right_scale);
+  if (left_scale == DBL_MAX || right_scale == DBL_MAX)
+    return false;
+
+  const double left_length_floor = MAX(2 * MILLIPOINT, left_scale * 1e-3);
+  const double right_length_floor = MAX(2 * MILLIPOINT, right_scale * 1e-3);
+  const double left_trust_radius = MAX(4 * MILLIPOINT, left_scale * 0.75);
+  const double right_trust_radius = MAX(4 * MILLIPOINT, right_scale * 0.75);
+  double left_box_limit;
+  double right_box_limit;
+  double left_trust_minimum;
+  double left_trust_maximum;
+  double right_trust_minimum;
+  double right_trust_maximum;
+  if (!route_ray_box_limit(junction->joint, scale(-1.0, junction->t_ref),
+                           junction->local_barriers[0], &left_box_limit) ||
+      !route_ray_box_limit(junction->joint, junction->t_ref,
+                           junction->local_barriers[1], &right_box_limit) ||
+      !route_ray_trust_interval(junction->joint, scale(-1.0, junction->t_ref),
+                                left_cubic[2], left_trust_radius,
+                                &left_trust_minimum, &left_trust_maximum) ||
+      !route_ray_trust_interval(junction->joint, junction->t_ref,
+                                right_cubic[1], right_trust_radius,
+                                &right_trust_minimum, &right_trust_maximum))
+    return false;
+  const double left_minimum = MAX(left_length_floor, left_trust_minimum);
+  const double right_minimum = MAX(right_length_floor, right_trust_minimum);
+  const double left_ceiling =
+      MIN(left_trust_maximum,
+          MIN(left_box_limit,
+              MIN(left_chord, MAX(left_minimum, left_length * 2.0))));
+  const double right_ceiling =
+      MIN(right_trust_maximum,
+          MIN(right_box_limit,
+              MIN(right_chord, MAX(right_minimum, right_length * 2.0))));
+  if (left_ceiling < left_minimum || right_ceiling < right_minimum)
+    return false;
+  const double projected_left =
+      MIN(left_ceiling, MAX(left_minimum, left_length));
+  const double projected_right =
+      MIN(right_ceiling, MAX(right_minimum, right_length));
+  *left_control =
+      sub_pointf(junction->joint, scale(projected_left, junction->t_ref));
+  *right_control =
+      add_pointf(junction->joint, scale(projected_right, junction->t_ref));
+  return true;
+}
+
+static bool fixed_template_g1_valid(const route_junction_t *junction,
+                                    pointf left_control, pointf right_control) {
+  const pointf incoming = sub_pointf(junction->joint, left_control);
+  const pointf outgoing = sub_pointf(right_control, junction->joint);
+  const double incoming_length = hypot(incoming.x, incoming.y);
+  const double outgoing_length = hypot(outgoing.x, outgoing.y);
+  if (incoming_length <= MILLIPOINT || outgoing_length <= MILLIPOINT)
+    return false;
+  const double residual = fabs(route_cross_product(incoming, outgoing));
+  return residual <= 1e-9 * incoming_length * outgoing_length &&
+         incoming.x * outgoing.x + incoming.y * outgoing.y > 0.0;
+}
+
+static bool averaged_existing_g1_candidate(const route_junction_t *junction,
+                                           pointf left_control,
+                                           pointf right_control,
+                                           pointf *candidate_left,
+                                           pointf *candidate_right) {
+  const pointf incoming = sub_pointf(junction->joint, left_control);
+  const pointf outgoing = sub_pointf(right_control, junction->joint);
+  const double incoming_length = hypot(incoming.x, incoming.y);
+  const double outgoing_length = hypot(outgoing.x, outgoing.y);
+  if (!isfinite(incoming_length) || !isfinite(outgoing_length) ||
+      incoming_length <= MILLIPOINT || outgoing_length <= MILLIPOINT ||
+      incoming.x * outgoing.x + incoming.y * outgoing.y <= 0.0)
+    return false;
+
+  pointf direction = {
+      .x = incoming.x / incoming_length + outgoing.x / outgoing_length,
+      .y = incoming.y / incoming_length + outgoing.y / outgoing_length,
+  };
+  const double direction_length = hypot(direction.x, direction.y);
+  if (!isfinite(direction_length) || direction_length <= MILLIPOINT)
+    return false;
+  direction.x /= direction_length;
+  direction.y /= direction_length;
+
+  *candidate_left =
+      sub_pointf(junction->joint, scale(incoming_length, direction));
+  *candidate_right =
+      add_pointf(junction->joint, scale(outgoing_length, direction));
+  return fixed_template_g1_valid(junction, *candidate_left, *candidate_right);
+}
+
+static double route_g1_angular_residual(const route_junction_t *junction,
+                                        pointf left_control,
+                                        pointf right_control) {
+  const pointf incoming = sub_pointf(junction->joint, left_control);
+  const pointf outgoing = sub_pointf(right_control, junction->joint);
+  const double incoming_length = hypot(incoming.x, incoming.y);
+  const double outgoing_length = hypot(outgoing.x, outgoing.y);
+  if (!isfinite(incoming_length) || !isfinite(outgoing_length) ||
+      incoming_length <= MILLIPOINT || outgoing_length <= MILLIPOINT)
+    return INFINITY;
+
+  const double cross = fabs(route_cross_product(incoming, outgoing));
+  const double product = incoming.x * outgoing.x + incoming.y * outgoing.y;
+  if (!isfinite(cross) || !isfinite(product))
+    return INFINITY;
+  return atan2(cross, product);
+}
+
+static double controls_angular_residual(pointf joint, pointf left_control,
+                                        pointf right_control) {
+  const pointf incoming = sub_pointf(joint, left_control);
+  const pointf outgoing = sub_pointf(right_control, joint);
+  const double cross = fabs(route_cross_product(incoming, outgoing));
+  const double product = incoming.x * outgoing.x + incoming.y * outgoing.y;
+  return atan2(cross, product);
+}
+
+static bool route_g1_residual_improves(double original, double candidate) {
+  return isfinite(candidate) && candidate <= ROUTE_G1_RESIDUAL_TOLERANCE &&
+         candidate + ROUTE_G1_RESIDUAL_TOLERANCE < original;
+}
+
+static bool route_cubic_clears_nodes(graph_t *graph, edge_t *edge,
+                                     const pointf control[4]) {
+  edge = getmainedge(edge);
+  const double clearance =
+      late_double(edge, E_penwidth, 1.0, 0.0) / 2 + MULTIEDGE_NODE_MARGIN;
+  const node_t *const tail = agtail(edge);
+  const node_t *const head = aghead(edge);
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    if (node == tail || node == head || ND_node_type(node) != NORMAL)
+      continue;
+    const boxf obstacle = {
+        .LL = {ND_coord(node).x - ND_lw(node) - clearance,
+               ND_coord(node).y - ND_ht(node) / 2 - clearance},
+        .UR = {ND_coord(node).x + ND_rw(node) + clearance,
+               ND_coord(node).y + ND_ht(node) / 2 + clearance},
+    };
+    if (bezier_intersects_box(control, obstacle))
+      return false;
+  }
+  return true;
+}
+
+static bool
+route_metadata_sequence_valid(const route_spline_metadata_t *metadata) {
+  if (!route_spline_metadata_valid(metadata))
+    return false;
+  for (size_t i = 0; i < metadata->barrier_count; i++) {
+    const Pedge_t barrier = metadata->barriers[i];
+    if (!isfinite(barrier.a.x) || !isfinite(barrier.a.y) ||
+        !isfinite(barrier.b.x) || !isfinite(barrier.b.y))
+      return false;
+  }
+  for (size_t i = 0; i < metadata->corridor_count; i++) {
+    const boxf corridor_box = metadata->corridor[i];
+    if (!isfinite(corridor_box.LL.x) || !isfinite(corridor_box.LL.y) ||
+        !isfinite(corridor_box.UR.x) || !isfinite(corridor_box.UR.y) ||
+        corridor_box.LL.x > corridor_box.UR.x ||
+        corridor_box.LL.y > corridor_box.UR.y ||
+        (i > 0 && !boxes_overlap(metadata->corridor[i - 1], corridor_box)))
+      return false;
+  }
+  for (size_t i = 0; i < metadata->portal_count; i++) {
+    const Pedge_t portal = metadata->portals[i];
+    const boxf first = metadata->corridor[i];
+    const boxf second = metadata->corridor[i + 1];
+    const pointf portal_points[2] = {portal.a, portal.b};
+    for (size_t point_index = 0; point_index < 2; point_index++) {
+      const pointf portal_point = portal_points[point_index];
+      if (!isfinite(portal_point.x) || !isfinite(portal_point.y) ||
+          portal_point.x < MAX(first.LL.x, second.LL.x) - MILLIPOINT ||
+          portal_point.x > MIN(first.UR.x, second.UR.x) + MILLIPOINT ||
+          portal_point.y < MAX(first.LL.y, second.LL.y) - MILLIPOINT ||
+          portal_point.y > MIN(first.UR.y, second.UR.y) + MILLIPOINT)
+        return false;
+    }
+  }
+  for (size_t i = 0; i < metadata->template_point_count; i++) {
+    const Ppoint_t template_point = metadata->template_points[i];
+    if (!isfinite(template_point.x) || !isfinite(template_point.y))
+      return false;
+  }
+  return true;
+}
+
+static bool
+route_junction_topology_metadata_valid(const route_junction_t *junction,
+                                       const route_pieces_t *pieces) {
+  if (!route_junction_metadata_valid(junction) ||
+      junction->portal_id != (size_t)AGSEQ(junction->portal) ||
+      junction->left_piece >= LIST_SIZE(pieces) ||
+      junction->right_piece >= LIST_SIZE(pieces))
+    return false;
+  const route_piece_metadata_t *const left =
+      LIST_AT(pieces, junction->left_piece);
+  const route_piece_metadata_t *const right =
+      LIST_AT(pieces, junction->right_piece);
+  if (left->edge != junction->edge || right->edge != junction->edge ||
+      left->spline_index != junction->left_spline ||
+      right->spline_index != junction->right_spline ||
+      left->end.portal != junction->portal ||
+      right->start.portal != junction->portal ||
+      !route_metadata_sequence_valid(&left->end.route) ||
+      !route_metadata_sequence_valid(&right->start.route))
+    return false;
+
+  const pointf left_template_end =
+      left->end.route.template_points[left->end.route.template_point_count - 1];
+  const pointf right_template_start = right->start.route.template_points[0];
+  const pointf portal_position = ND_coord(junction->portal);
+  const pointf left_router_offset =
+      sub_pointf(junction->left_router_portal, junction->left_installed_portal);
+  const pointf right_router_offset = sub_pointf(
+      junction->right_router_portal, junction->right_installed_portal);
+  return left_template_end.x == junction->left_router_portal.x &&
+         left_template_end.y == junction->left_router_portal.y &&
+         right_template_start.x == junction->right_router_portal.x &&
+         right_template_start.y == junction->right_router_portal.y &&
+         DIST(junction->joint, portal_position) <= MILLIPOINT &&
+         DIST(junction->joint, junction->left_installed_portal) <= MILLIPOINT &&
+         DIST(junction->joint, junction->right_installed_portal) <=
+             MILLIPOINT &&
+         fabs(left_router_offset.x) <= MILLIPOINT &&
+         fabs(left_router_offset.y - 1.0) <= MILLIPOINT &&
+         fabs(right_router_offset.x) <= MILLIPOINT &&
+         fabs(right_router_offset.y + 1.0) <= MILLIPOINT;
+}
+
+static bool repair_route_junction(graph_t *graph, const route_pieces_t *pieces,
+                                  const route_junction_t *junction) {
+  if (!route_junction_topology_metadata_valid(junction, pieces))
+    return false;
+  splines *const edge_splines = ED_spl(junction->edge);
+  bezier *const left = &edge_splines->list[junction->left_spline];
+  bezier *const right = &edge_splines->list[junction->right_spline];
+  pointf *const left_control = &left->list[left->size - 2];
+  pointf *const right_control = &right->list[1];
+  const pointf saved_left = *left_control;
+  const pointf saved_right = *right_control;
+  const double saved_residual =
+      route_g1_angular_residual(junction, saved_left, saved_right);
+  const route_bezier_invariants_t saved_left_invariants =
+      route_bezier_invariants(left);
+  const route_bezier_invariants_t saved_right_invariants =
+      route_bezier_invariants(right);
+
+  pointf candidate_left;
+  pointf candidate_right;
+  pointf repeated_left;
+  pointf repeated_right;
+  bool candidate_valid =
+      fixed_template_g1_candidate(junction, &candidate_left,
+                                  &candidate_right) &&
+      fixed_template_g1_candidate(junction, &repeated_left, &repeated_right) &&
+      DIST(candidate_left, repeated_left) <= 1e-12 &&
+      DIST(candidate_right, repeated_right) <= 1e-12 &&
+      fixed_template_g1_valid(junction, candidate_left, candidate_right);
+  if (!candidate_valid)
+    candidate_valid = averaged_existing_g1_candidate(
+        junction, saved_left, saved_right, &candidate_left, &candidate_right);
+  if (!candidate_valid ||
+      !route_g1_residual_improves(
+          saved_residual,
+          route_g1_angular_residual(junction, candidate_left, candidate_right)))
+    return false;
+
+  route_crossings_t original_crossings = {0};
+  route_crossings_t candidate_crossings = {0};
+  route_crossings_t original_barriers = {0};
+  route_crossings_t candidate_barriers = {0};
+  route_crossings_t original_corridor = {0};
+  route_crossings_t candidate_corridor = {0};
+  route_sides_t original_sides = {0};
+  route_sides_t candidate_sides = {0};
+  const bool original_signatures_valid =
+      route_graph_crossing_signature(graph, junction, &original_crossings) &&
+      route_barrier_signature(junction, pieces, &original_barriers) &&
+      route_corridor_signature(junction, pieces, &original_corridor) &&
+      route_barrier_side_signature(junction, pieces, &original_sides);
+  if (!original_signatures_valid || !LIST_IS_EMPTY(&original_barriers)) {
+    LIST_FREE(&original_crossings);
+    LIST_FREE(&original_barriers);
+    LIST_FREE(&original_corridor);
+    LIST_FREE(&original_sides);
+    return false;
+  }
+
+  *left_control = candidate_left;
+  *right_control = candidate_right;
+  const bool candidate_signatures_valid =
+      route_graph_crossing_signature(graph, junction, &candidate_crossings) &&
+      route_barrier_signature(junction, pieces, &candidate_barriers) &&
+      route_corridor_signature(junction, pieces, &candidate_corridor) &&
+      route_barrier_side_signature(junction, pieces, &candidate_sides);
+
+  pointf idempotent_left;
+  pointf idempotent_right;
+  const bool valid =
+      candidate_signatures_valid &&
+      route_junction_topology_metadata_valid(junction, pieces) &&
+      route_bezier_invariants_equal(saved_left_invariants, left) &&
+      route_bezier_invariants_equal(saved_right_invariants, right) &&
+      fixed_template_g1_valid(junction, *left_control, *right_control) &&
+      route_g1_residual_improves(
+          saved_residual,
+          route_g1_angular_residual(junction, *left_control, *right_control)) &&
+      route_cubic_clears_nodes(graph, junction->edge,
+                               &left->list[left->size - 4]) &&
+      route_cubic_clears_nodes(graph, junction->edge, &right->list[0]) &&
+      route_crossing_signatures_equal(&original_crossings,
+                                      &candidate_crossings) &&
+      route_crossing_signatures_equal(&original_barriers,
+                                      &candidate_barriers) &&
+      LIST_IS_EMPTY(&candidate_barriers) &&
+      route_crossing_signatures_equal(&original_corridor,
+                                      &candidate_corridor) &&
+      route_side_signatures_equal(&original_sides, &candidate_sides) &&
+      fixed_template_g1_candidate(junction, &idempotent_left,
+                                  &idempotent_right) &&
+      DIST(idempotent_left, *left_control) <= 1e-9 &&
+      DIST(idempotent_right, *right_control) <= 1e-9;
+  if (!valid) {
+    *left_control = saved_left;
+    *right_control = saved_right;
+  } else {
+    update_bb_bz(&GD_bb(graph), &left->list[left->size - 4]);
+    update_bb_bz(&GD_bb(graph), &right->list[0]);
+  }
+
+  LIST_FREE(&original_crossings);
+  LIST_FREE(&candidate_crossings);
+  LIST_FREE(&original_barriers);
+  LIST_FREE(&candidate_barriers);
+  LIST_FREE(&original_corridor);
+  LIST_FREE(&candidate_corridor);
+  LIST_FREE(&original_sides);
+  LIST_FREE(&candidate_sides);
+  return valid;
+}
+
+static void repair_route_junctions(graph_t *graph, const route_pieces_t *pieces,
+                                   const route_junctions_t *junctions) {
+  for (size_t i = 0; i < LIST_SIZE(junctions); i++)
+    repair_route_junction(graph, pieces, LIST_AT(junctions, i));
+}
+
+static bool near_g1_spline_join_candidate(bezier *left, bezier *right,
+                                          pointf *candidate_left,
+                                          pointf *candidate_right) {
+  if (left->size < 4 || right->size < 4 || left->size % 3 != 1 ||
+      right->size % 3 != 1)
+    return false;
+  const pointf joint = left->list[left->size - 1];
+  if (DIST(joint, right->list[0]) > MILLIPOINT)
+    return false;
+
+  const pointf saved_left = left->list[left->size - 2];
+  const pointf saved_right = right->list[1];
+  const pointf incoming = sub_pointf(joint, saved_left);
+  const pointf outgoing = sub_pointf(saved_right, joint);
+  const double incoming_length = hypot(incoming.x, incoming.y);
+  const double outgoing_length = hypot(outgoing.x, outgoing.y);
+  const double product = incoming.x * outgoing.x + incoming.y * outgoing.y;
+  if (!isfinite(incoming_length) || !isfinite(outgoing_length) ||
+      incoming_length <= MILLIPOINT || outgoing_length <= MILLIPOINT ||
+      product <= 0.0)
+    return false;
+
+  const double saved_residual =
+      controls_angular_residual(joint, saved_left, saved_right);
+  if (!isfinite(saved_residual) ||
+      saved_residual <= ROUTE_G1_RESIDUAL_TOLERANCE || saved_residual > 0.05)
+    return false;
+
+  pointf direction = {
+      .x = incoming.x / incoming_length + outgoing.x / outgoing_length,
+      .y = incoming.y / incoming_length + outgoing.y / outgoing_length,
+  };
+  const double direction_length = hypot(direction.x, direction.y);
+  if (!isfinite(direction_length) || direction_length <= MILLIPOINT)
+    return false;
+  direction.x /= direction_length;
+  direction.y /= direction_length;
+
+  *candidate_left = sub_pointf(joint, scale(incoming_length, direction));
+  *candidate_right = add_pointf(joint, scale(outgoing_length, direction));
+  return controls_angular_residual(joint, *candidate_left, *candidate_right) <=
+         ROUTE_G1_RESIDUAL_TOLERANCE;
+}
+
+static void repair_near_g1_spline_joins(graph_t *graph) {
+  if (!Concentrate)
+    return;
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    for (edge_t *edge = agfstout(graph, node); edge != NULL;
+         edge = agnxtout(graph, edge)) {
+      splines *const edge_splines = ED_spl(edge);
+      if (edge_splines == NULL)
+        continue;
+      for (size_t i = 0; i + 1 < edge_splines->size; i++) {
+        bezier *const left = &edge_splines->list[i];
+        bezier *const right = &edge_splines->list[i + 1];
+        pointf candidate_left;
+        pointf candidate_right;
+        if (!near_g1_spline_join_candidate(left, right, &candidate_left,
+                                           &candidate_right))
+          continue;
+        const pointf saved_left = left->list[left->size - 2];
+        const pointf saved_right = right->list[1];
+        left->list[left->size - 2] = candidate_left;
+        right->list[1] = candidate_right;
+        if (!route_cubic_clears_nodes(graph, edge,
+                                      &left->list[left->size - 4]) ||
+            !route_cubic_clears_nodes(graph, edge, &right->list[0])) {
+          left->list[left->size - 2] = saved_left;
+          right->list[1] = saved_right;
+        } else {
+          update_bb_bz(&GD_bb(graph), &left->list[left->size - 4]);
+          update_bb_bz(&GD_bb(graph), &right->list[0]);
+        }
+      }
+    }
+  }
+}
+
+static bool shifted_route_intersects_box(const points_t *points, double offset,
+                                         boxf obstacle) {
+  assert(LIST_SIZE(points) % 3 == 1);
+  for (size_t start = 0; start + 3 < LIST_SIZE(points); start += 3) {
+    pointf control[4];
+    for (size_t i = 0; i < 4; i++) {
+      const size_t index = start + i;
+      control[i] = LIST_GET(points, index);
+      if (index > 0 && index + 1 < LIST_SIZE(points))
+        control[i].x += offset;
+    }
+    if (bezier_intersects_box(control, obstacle))
+      return true;
+  }
+  return false;
+}
+
+static bool shifted_route_clears_nodes(graph_t *g, edge_t *edge,
+                                       const points_t *points, double offset) {
+  edge = getmainedge(edge);
+  const double clearance =
+      late_double(edge, E_penwidth, 1.0, 0.0) / 2 + MULTIEDGE_NODE_MARGIN;
+  const node_t *const tail = agtail(edge);
+  const node_t *const head = aghead(edge);
+
+  for (node_t *node = agfstnode(g); node; node = agnxtnode(g, node)) {
+    if (node == tail || node == head || ND_node_type(node) != NORMAL)
+      continue;
+    const boxf obstacle = {
+        .LL = {ND_coord(node).x - ND_lw(node) - clearance,
+               ND_coord(node).y - ND_ht(node) / 2 - clearance},
+        .UR = {ND_coord(node).x + ND_rw(node) + clearance,
+               ND_coord(node).y + ND_ht(node) / 2 + clearance},
+    };
+    if (shifted_route_intersects_box(points, offset, obstacle))
+      return false;
+  }
+  return true;
+}
+
+static double constrain_multiedge_offset(graph_t *g, edge_t *edge,
+                                         const points_t *points,
+                                         double requested) {
+  if (shifted_route_clears_nodes(g, edge, points, requested))
+    return requested;
+
+  // The center route already passed through the node-aware path router. If it
+  // does not provide the requested stroke clearance, the displacement did not
+  // cause the conflict and contracting it cannot reliably solve the problem.
+  if (!shifted_route_clears_nodes(g, edge, points, 0))
+    return requested;
+
+  double safe = 0;
+  double unsafe = requested;
+  while (fabs(unsafe - safe) > MULTIEDGE_BEZIER_FLATNESS) {
+    const double candidate = (safe + unsafe) / 2;
+    if (shifted_route_clears_nodes(g, edge, points, candidate))
+      safe = candidate;
+    else
+      unsafe = candidate;
+  }
+  return safe;
+}
+
 static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
-                              edge_t **edges, unsigned cnt, int et) {
+                              edge_t **edges, unsigned cnt, int et,
+                              route_pieces_t *route_pieces,
+                              route_junctions_t *route_junctions) {
   node_t *tn, *hn;
   Agedgeinfo_t fwdedgeai, fwdedgebi, fwdedgei;
   Agedgepair_t fwdedgea, fwdedgeb, fwdedge;
@@ -1708,6 +4148,9 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   int sl;
   points_t pointfs = {0};
   points_t pointfs2 = {0};
+  route_endpoint_metadata_t route_start = {0};
+  route_endpoint_metadata_t route_end = {0};
+  route_local_plans_t local_plans = {0};
 
   fwdedgea.out.base.data = &fwdedgeai.hdr;
   fwdedgeb.out.base.data = &fwdedgebi.hdr;
@@ -1758,11 +4201,22 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   } else {
     bool is_spline = et == EDGETYPE_SPLINE;
     boxes_t boxes = {0};
+    size_t pending_straight_bridge = SIZE_MAX;
     segfirst = e;
     tn = agtail(e);
     hn = aghead(e);
     b = tend.nb = maximal_bbox(g, *sp, tn, NULL, e);
     beginpath(P, e, REGULAREDGE, &tend, spline_merge(tn));
+    route_start = (route_endpoint_metadata_t){
+        .portal = spline_merge(tn) ? tn : NULL,
+        .router_portal = P->start.p,
+        .installed_portal = ND_coord(tn),
+        .tangent = P->start.constrained ? (pointf){.x = cos(P->start.theta),
+                                                   .y = sin(P->start.theta)}
+                                        : (pointf){0},
+        .local_barrier = tend.nb,
+        .constrained = P->start.constrained,
+    };
     b.UR.y = tend.boxes[tend.boxn - 1].UR.y;
     b.LL.y = tend.boxes[tend.boxn - 1].LL.y;
     b = makeregularend(b, BOTTOM, ND_coord(tn).y - GD_rank(g)[ND_rank(tn)].ht1);
@@ -1796,9 +4250,10 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
       completeregularpath(P, segfirst, e, &tend, &hend, &boxes);
       pointf *ps = NULL;
       size_t pn = 0;
-      if (is_spline)
-        ps = routesplines(P, &pn);
-      else {
+      route_spline_metadata_t current_route = {0};
+      if (is_spline) {
+        ps = routesplines_with_metadata(P, &pn, &current_route);
+      } else {
         ps = routepolylines(P, &pn);
         if (et == EDGETYPE_LINE && pn > 4) {
           ps[1] = ps[0];
@@ -1811,14 +4266,25 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
         LIST_FREE(&boxes);
         LIST_FREE(&pointfs);
         LIST_FREE(&pointfs2);
+        route_spline_metadata_free(&current_route);
+        free_route_local_plans(&local_plans);
         return;
       }
 
+      size_t first_control = LIST_SIZE(&pointfs);
       for (size_t i = 0; i < pn; i++) {
         LIST_APPEND(&pointfs, ps[i]);
       }
+      const size_t unregularized_size = LIST_SIZE(&pointfs);
+      regularize_straight_bridge(&pointfs, &pending_straight_bridge);
+      if (LIST_SIZE(&pointfs) < unregularized_size)
+        first_control -= unregularized_size - LIST_SIZE(&pointfs);
+      if (is_spline)
+        capture_route_spline_metadata(&local_plans, &current_route,
+                                      first_control, pn);
       free(ps);
-      e = straight_path(ND_out(hn).list[0], sl, &pointfs);
+      e = straight_path(ND_out(hn).list[0], sl, &pointfs,
+                        &pending_straight_bridge);
       recover_slack(segfirst, P);
       segfirst = e;
       tn = agtail(e);
@@ -1837,6 +4303,16 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     b = hend.nb = maximal_bbox(g, *sp, hn, e, NULL);
     endpath(P, hackflag ? &fwdedgeb.out : e, REGULAREDGE, &hend,
             spline_merge(aghead(e)));
+    route_end = (route_endpoint_metadata_t){
+        .portal = spline_merge(aghead(e)) ? aghead(e) : NULL,
+        .router_portal = P->end.p,
+        .installed_portal = ND_coord(aghead(e)),
+        .tangent = P->end.constrained ? (pointf){.x = -cos(P->end.theta),
+                                                 .y = -sin(P->end.theta)}
+                                      : (pointf){0},
+        .local_barrier = hend.nb,
+        .constrained = P->end.constrained,
+    };
     b.UR.y = hend.boxes[hend.boxn - 1].UR.y;
     b.LL.y = hend.boxes[hend.boxn - 1].LL.y;
     b = makeregularend(b, TOP, ND_coord(hn).y + GD_rank(g)[ND_rank(hn)].ht2);
@@ -1846,9 +4322,10 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_FREE(&boxes);
     pointf *ps = NULL;
     size_t pn = 0;
-    if (is_spline)
-      ps = routesplines(P, &pn);
-    else
+    route_spline_metadata_t current_route = {0};
+    if (is_spline) {
+      ps = routesplines_with_metadata(P, &pn, &current_route);
+    } else
       ps = routepolylines(P, &pn);
     if (et == EDGETYPE_LINE && pn > 4) {
       /* Here we have used the polyline case to handle
@@ -1863,50 +4340,98 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
       free(ps);
       LIST_FREE(&pointfs);
       LIST_FREE(&pointfs2);
+      route_spline_metadata_free(&current_route);
+      free_route_local_plans(&local_plans);
       return;
     }
+    size_t first_control = LIST_SIZE(&pointfs);
     for (size_t i = 0; i < pn; i++) {
       LIST_APPEND(&pointfs, ps[i]);
     }
+    const size_t unregularized_size = LIST_SIZE(&pointfs);
+    regularize_straight_bridge(&pointfs, &pending_straight_bridge);
+    if (LIST_SIZE(&pointfs) < unregularized_size)
+      first_control -= unregularized_size - LIST_SIZE(&pointfs);
+    if (is_spline)
+      capture_route_spline_metadata(&local_plans, &current_route, first_control,
+                                    pn);
     free(ps);
+    assert(pending_straight_bridge == SIZE_MAX);
     recover_slack(segfirst, P);
     hn = hackflag ? aghead(&fwdedgeb.out) : aghead(e);
   }
+
+  if (!LIST_IS_EMPTY(&local_plans)) {
+    copy_route_spline_metadata(&route_start.route,
+                               &LIST_FRONT(&local_plans)->route);
+    copy_route_spline_metadata(&route_end.route,
+                               &LIST_BACK(&local_plans)->route);
+  }
+  if (route_spline_metadata_valid(&route_start.route))
+    route_start.local_barrier = route_start.route.corridor[0];
+  if (route_spline_metadata_valid(&route_end.route))
+    route_end.local_barrier =
+        route_end.route.corridor[route_end.route.corridor_count - 1];
 
   /* make copies of the spline points, one per multi-edge */
 
   if (cnt == 1) {
     LIST_SYNC(&pointfs);
+    edge_t *const owner = route_spline_owner(fe);
+    const size_t prior_spline_count =
+        ED_spl(owner) == NULL ? 0 : ED_spl(owner)->size;
     clip_and_install(fe, hn, LIST_FRONT(&pointfs), LIST_SIZE(&pointfs), &sinfo);
+    if (et == EDGETYPE_SPLINE)
+      record_route_piece(route_pieces, route_junctions, fe, prior_spline_count,
+                         route_start, route_end, &local_plans, 0.0);
+    if (Concentrate)
+      align_arrow_tangents(g, fe);
     LIST_FREE(&pointfs);
     LIST_FREE(&pointfs2);
+    route_spline_metadata_free(&route_start.route);
+    route_spline_metadata_free(&route_end.route);
+    free_route_local_plans(&local_plans);
     return;
   }
   const double dx = sp->Multisep * (cnt - 1) / 2;
-  for (size_t k = 1; k + 1 < LIST_SIZE(&pointfs); k++)
-    LIST_AT(&pointfs, k)->x -= dx;
-
-  for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
-    LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
-  LIST_SYNC(&pointfs2);
-  clip_and_install(fe, hn, LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2), &sinfo);
-  for (unsigned j = 1; j < cnt; j++) {
-    e = edges[j];
-    if (ED_tree_index(e) & BWDEDGE) {
-      makefwdedge(&fwdedge.out, e);
-      e = &fwdedge.out;
+  for (unsigned j = 0; j < cnt; j++) {
+    node_t *install_head;
+    if (j == 0) {
+      e = fe;
+      install_head = hn;
+    } else {
+      e = edges[j];
+      if (ED_tree_index(e) & BWDEDGE) {
+        makefwdedge(&fwdedge.out, e);
+        e = &fwdedge.out;
+      }
+      install_head = aghead(e);
     }
-    for (size_t k = 1; k + 1 < LIST_SIZE(&pointfs); k++)
-      LIST_AT(&pointfs, k)->x += sp->Multisep;
+    const double requested = -dx + j * sp->Multisep;
+    const double offset = constrain_multiedge_offset(g, e, &pointfs, requested);
     LIST_CLEAR(&pointfs2);
-    for (size_t k = 0; k < LIST_SIZE(&pointfs); k++)
-      LIST_APPEND(&pointfs2, LIST_GET(&pointfs, k));
+    for (size_t k = 0; k < LIST_SIZE(&pointfs); k++) {
+      pointf route_point = LIST_GET(&pointfs, k);
+      if (k > 0 && k + 1 < LIST_SIZE(&pointfs))
+        route_point.x += offset;
+      LIST_APPEND(&pointfs2, route_point);
+    }
     LIST_SYNC(&pointfs2);
-    clip_and_install(e, aghead(e), LIST_FRONT(&pointfs2), LIST_SIZE(&pointfs2),
-                     &sinfo);
+    edge_t *const owner = route_spline_owner(e);
+    const size_t prior_spline_count =
+        ED_spl(owner) == NULL ? 0 : ED_spl(owner)->size;
+    clip_and_install(e, install_head, LIST_FRONT(&pointfs2),
+                     LIST_SIZE(&pointfs2), &sinfo);
+    if (et == EDGETYPE_SPLINE)
+      record_route_piece(route_pieces, route_junctions, e, prior_spline_count,
+                         route_start, route_end, &local_plans, offset);
+    align_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);
   LIST_FREE(&pointfs2);
+  route_spline_metadata_free(&route_start.route);
+  route_spline_metadata_free(&route_end.route);
+  free_route_local_plans(&local_plans);
 }
 
 /* regular edges */
@@ -2039,12 +4564,52 @@ static int straight_len(node_t *n) {
   return cnt;
 }
 
-static edge_t *straight_path(edge_t *e, int cnt, points_t *plist) {
+static void erase_points(points_t *points, size_t first, size_t count) {
+  const size_t size = LIST_SIZE(points);
+  assert(first <= size && count <= size - first);
+
+  for (size_t i = first; i + count < size; i++) {
+    LIST_SET(points, i, LIST_GET(points, i + count));
+  }
+  for (size_t i = 0; i < count; i++) {
+    LIST_DROP_BACK(points);
+  }
+}
+
+static void regularize_straight_bridge(points_t *points,
+                                       size_t *pending_straight_bridge) {
+  if (*pending_straight_bridge == SIZE_MAX) {
+    return;
+  }
+
+  const size_t bridge = *pending_straight_bridge;
+  assert(bridge + 3 < LIST_SIZE(points));
+  const pointf j = LIST_GET(points, bridge);
+  const pointf k = LIST_GET(points, bridge + 3);
+  if (j.x == k.x && j.y == k.y) {
+    // Drop the two placeholders and the next partial's duplicate start.
+    erase_points(points, bridge + 1, 3);
+  } else {
+    const pointf delta = {.x = k.x - j.x, .y = k.y - j.y};
+    LIST_SET(points, bridge + 1,
+             ((pointf){.x = j.x + delta.x / 3.0, .y = j.y + delta.y / 3.0}));
+    LIST_SET(points, bridge + 2,
+             ((pointf){.x = j.x + 2.0 * delta.x / 3.0,
+                       .y = j.y + 2.0 * delta.y / 3.0}));
+  }
+  *pending_straight_bridge = SIZE_MAX;
+  assert(LIST_SIZE(points) % 3 == 1);
+}
+
+static edge_t *straight_path(edge_t *e, int cnt, points_t *plist,
+                             size_t *pending_straight_bridge) {
   edge_t *f = e;
 
   while (cnt--)
     f = ND_out(aghead(f)).list[0];
   assert(!LIST_IS_EMPTY(plist));
+  assert(*pending_straight_bridge == SIZE_MAX);
+  *pending_straight_bridge = LIST_SIZE(plist) - 1;
   LIST_APPEND(plist, LIST_GET(plist, LIST_SIZE(plist) - 1));
   LIST_APPEND(plist, LIST_GET(plist, LIST_SIZE(plist) - 1));
 
