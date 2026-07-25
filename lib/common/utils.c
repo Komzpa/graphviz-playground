@@ -1518,6 +1518,7 @@ void gv_cleanup_edge(edge_t * e)
     free_label(ED_xlabel(e));
     free_label(ED_head_label(e));
     free_label(ED_tail_label(e));
+    gv_cleanup_concentrated_edge_arrows(e);
     /*FIX HERE , shallow cleaning may not be enough here */
     agdelrec(e, "Agedgeinfo_t");
 }
