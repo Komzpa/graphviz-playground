@@ -5369,6 +5369,32 @@ def test_concentrated_left_self_edge_label_releases_duplicate_route_width():
     assert _graph_width(layout) < _graph_width(_json_layout(unconcentrated)) * 0.7
 
 
+def test_concentrated_left_self_edge_label_tracks_loop_height():
+    """Deduped left self-loop labels should center on the retained loop."""
+
+    source = (Path(__file__).parent / "graphs" / "sl_box_dbl.gv").read_text()
+    concentrated = source.replace("{", "{\n  graph [concentrate=true];", 1)
+
+    layout = _json_layout(concentrated)
+    objects = layout["objects"]
+    labels_by_tail = {}
+    for edge in layout["edges"]:
+        tail_name = objects[edge["tail"]]["name"]
+        head_name = objects[edge["head"]]["name"]
+        if tail_name != head_name or "_draw_" not in edge or "lp" not in edge:
+            continue
+        route = _drawn_edge_polyline(edge)
+        route_center_y = (
+            min(point[1] for point in route) + max(point[1] for point in route)
+        ) / 2
+        label_y = float(edge["lp"].split(",")[1])
+        labels_by_tail[tail_name] = (label_y, route_center_y)
+
+    for node_name in ("node11", "node12"):
+        label_y, route_center_y = labels_by_tail[node_name]
+        assert label_y == pytest.approx(route_center_y, abs=1.0)
+
+
 def test_2814_grouped_endpoint_labels_sit_clear_of_nodes():
     """Grouped flat endpoint labels should not be separated into node boxes."""
 

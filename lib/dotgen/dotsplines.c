@@ -296,6 +296,17 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
   updateBB(graph, label);
 }
 
+static void center_self_edge_label_on_loop_height(graph_t *graph,
+                                                  edge_t *edge) {
+  boxf bounds;
+  if (!edge_spline_bounds(edge, &bounds)) {
+    return;
+  }
+
+  ED_label(edge)->pos.y = (bounds.LL.y + bounds.UR.y) / 2.0;
+  updateBB(graph, ED_label(edge));
+}
+
 static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
                                      size_t label_count) {
   if (label_count == 0) {
@@ -1232,6 +1243,7 @@ static int dot_splines_(graph_t *g, int normalize) {
         break;
     }
 
+    const unsigned original_cnt = cnt;
     cnt = suppress_and_compact_concentrated_duplicate_routes(
         LIST_AT(&edges, ind), cnt);
     if (cnt == 0)
@@ -1290,8 +1302,11 @@ static int dot_splines_(graph_t *g, int normalize) {
       makeSelfEdge(LIST_AT(&edges, ind), cnt, sd.Multisep, sizey / 2, &sinfo);
       for (unsigned b = 0; b < cnt; b++) {
         e = LIST_GET(&edges, ind + b);
-        if (ED_label(e))
+        if (ED_label(e)) {
+          if (Concentrate && original_cnt > cnt)
+            center_self_edge_label_on_loop_height(g, e);
           updateBB(g, ED_label(e));
+        }
       }
     } else if (ND_rank(agtail(e0)) == ND_rank(aghead(e0))) {
       const int rc = make_flat_edge(g, sd, &P, LIST_AT(&edges, ind), cnt, et);
