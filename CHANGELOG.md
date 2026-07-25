@@ -83,6 +83,29 @@ and this project adheres to
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
 
+### Fixed
+
+- `concentrate=true` no longer merges edges with different attributes, such as
+  differently colored parallel or opposite-direction edges.
+- Opposite edges attached to the same physical port now share ordinary
+  multi-edge routing instead of being drawn on top of each other. #1039
+- Equivalent opposite edges inside a `rank=same` subgraph are now concentrated.
+  #150
+- Concentration now compares ports and clipping at physical endpoints when
+  edges run in opposite directions. #448
+- Concentration no longer merges continuations attached to different record
+  ports. #449
+- An out-of-bounds read while routing certain flat labeled edges no longer
+  causes a crash. #2757
+- Processing clustered graphs no longer dereferences freed
+  rankleaders. #2760
+- Malformed ranksets inside clusters no longer crash dot when they leave empty
+  rank slots during layout. #2759 #2762
+- Malformed flat edges whose auxiliary route cannot produce splines no longer
+  crash `dot`. #2758
+- Dot now keeps routing through incomplete pathplan triangulation instead of
+  dropping affected edges. #2470 #2814
+
 ## [15.1.0] – 2026-06-17
 
 ### Added
