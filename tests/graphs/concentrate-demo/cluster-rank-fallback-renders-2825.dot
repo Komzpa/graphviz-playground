@@ -1,0 +1,15 @@
+digraph {
+  concentrate=true
+
+  subgraph cluster_outer {
+    subgraph cluster_inner {
+      a -> b -> c
+      b -> d
+      p [shape=point, style=invis]
+      { b c d } -> p [constraint=false, style=invis]
+    }
+
+    c -> a
+    { rank=same; c; b }
+  }
+}

@@ -1,0 +1,7 @@
+digraph {
+  graph [concentrate=true]
+  edge [penwidth=3]
+
+  a -> a [label="L", color=blue]
+  a -> a [label="L", color=blue]
+}
