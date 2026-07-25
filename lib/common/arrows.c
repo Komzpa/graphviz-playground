@@ -571,8 +571,8 @@ static const arrowname_t Arrownames[] = {
     {"icurve", (ARR_TYPE_CURVE | ARR_MOD_INV)},
     {0}};
 
-typedef pointf arrow_generator_fn(arrow_geometry_t *geometry, pointf p, pointf u,
-                                  double arrowsize, double penwidth,
+typedef pointf arrow_generator_fn(arrow_geometry_t *geometry, pointf p,
+                                  pointf u, double arrowsize, double penwidth,
                                   uint32_t flag);
 typedef double arrow_length_fn(double lenfact, double arrowsize,
                                double penwidth, uint32_t flag);

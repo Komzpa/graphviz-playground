@@ -648,9 +648,8 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
 static bool
 same_direction_edges_are_concentrated_duplicates(edge_t *retained,
                                                  edge_t *candidate) {
-  const bool same_self_loop =
-      same_self_edge_node_pair(retained, candidate) &&
-      agtail(retained) == aghead(retained);
+  const bool same_self_loop = same_self_edge_node_pair(retained, candidate) &&
+                              agtail(retained) == aghead(retained);
   return retained != candidate && agtail(retained) == agtail(candidate) &&
          aghead(retained) == aghead(candidate) &&
          ((edge_has_no_labels(retained) && edge_has_no_labels(candidate)) ||
@@ -3999,8 +3998,8 @@ static bool near_g1_spline_join_candidate(bezier *left, bezier *right,
 
   const double saved_residual =
       controls_angular_residual(joint, saved_left, saved_right);
-  if (!isfinite(saved_residual) || saved_residual <= ROUTE_G1_RESIDUAL_TOLERANCE ||
-      saved_residual > 0.05)
+  if (!isfinite(saved_residual) ||
+      saved_residual <= ROUTE_G1_RESIDUAL_TOLERANCE || saved_residual > 0.05)
     return false;
 
   pointf direction = {
@@ -4041,7 +4040,8 @@ static void repair_near_g1_spline_joins(graph_t *graph) {
         const pointf saved_right = right->list[1];
         left->list[left->size - 2] = candidate_left;
         right->list[1] = candidate_right;
-        if (!route_cubic_clears_nodes(graph, edge, &left->list[left->size - 4]) ||
+        if (!route_cubic_clears_nodes(graph, edge,
+                                      &left->list[left->size - 4]) ||
             !route_cubic_clears_nodes(graph, edge, &right->list[0])) {
           left->list[left->size - 2] = saved_left;
           right->list[1] = saved_right;

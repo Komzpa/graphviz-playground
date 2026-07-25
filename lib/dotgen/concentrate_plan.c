@@ -280,7 +280,8 @@ bool gv_concentration_apply(gv_concentration_plan_context_t *ctx,
   return true;
 }
 
-void gv_concentration_plan_context_commit(gv_concentration_plan_context_t *ctx) {
+void gv_concentration_plan_context_commit(
+    gv_concentration_plan_context_t *ctx) {
   if (ctx->transaction != NULL) {
     commit_transaction(ctx->transaction);
     ctx->transaction = NULL;

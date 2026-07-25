@@ -133,8 +133,7 @@ static bool bothdowncandidates(node_t *u, node_t *v) {
     edge_t *f0 = original_normal_edge(f);
     return original_edges_have_same_rank_direction(e, f) &&
            rendered_edges_are_equal(f0, e0) &&
-           gv_edge_tail_ports_are_equal(e, f) &&
-           e0 != NULL && f0 != NULL &&
+           gv_edge_tail_ports_are_equal(e, f) && e0 != NULL && f0 != NULL &&
            dense_same_head_labeled_fan_can_join_at(e0, f0, u) &&
            gv_edge_tail_ports_are_equal(e0, f0);
   }
@@ -155,8 +154,7 @@ static bool bothupcandidates(node_t *u, node_t *v) {
     edge_t *f0 = original_normal_edge(f);
     return original_edges_have_same_rank_direction(e, f) &&
            rendered_edges_are_equal(f0, e0) &&
-           gv_edge_head_ports_are_equal(e, f) &&
-           e0 != NULL && f0 != NULL &&
+           gv_edge_head_ports_are_equal(e, f) && e0 != NULL && f0 != NULL &&
            dense_same_head_labeled_fan_can_join_at(e0, f0, u) &&
            (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
   }
