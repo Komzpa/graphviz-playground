@@ -11223,7 +11223,7 @@ def test_2723():
 
 def test_2758():
     """
-    malformed flat edges with failed auxiliary splines should not crash dot
+    malformed layout separation should not create an INT_MAX-sized canvas
     https://gitlab.com/graphviz/graphviz/-/issues/2758
     """
 
@@ -11231,13 +11231,48 @@ def test_2758():
     assert input.exists(), "unexpectedly missing test case"
 
     p = subprocess.run(
-        ["dot", "-Kdot", "-Tdot", input],
+        ["dot", "-Kdot", "-Txdot", input],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
     )
 
-    assert p.returncode in (0, 1), "dot crashed on malformed flat edge input"
+    assert p.returncode == 1, "out-of-range nodesep was not rejected"
+    assert b"nodesep" in p.stderr, "missing nodesep diagnostic"
+    assert (
+        re.search(rb"\bAddressSanitizer: heap-buffer-overflow\b", p.stderr) is None
+    ), "malformed input caused a buffer overflow"
+
+    bb_match = re.search(rb'\bbb="([^"]+)"', p.stdout)
+    assert bb_match is not None, "layout output has no bounding box"
+    bb = [float(v) for v in bb_match.group(1).split(b",")]
+    assert bb[2] - bb[0] < 10000, "malformed nodesep produced an oversized width"
+    assert bb[3] - bb[1] < 10000, "malformed nodesep produced an oversized height"
+
+
+@pytest.mark.parametrize("attribute", ("nodesep", "ranksep"))
+def test_layout_separations_reject_out_of_range_values(attribute: str):
+    """
+    Dot layout separations are stored as integer points and must reject overflow.
+    """
+
+    source = f'digraph {{ graph [{attribute}="40000000d"]; a -> b }}'
+    proc = subprocess.run(
+        ["dot", "-Kdot", "-Txdot"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 1, f"out-of-range {attribute} was not rejected"
+    assert attribute in proc.stderr, f"missing {attribute} diagnostic"
+    bb_match = re.search(r'\bbb="([^"]+)"', proc.stdout)
+    assert bb_match is not None, "layout output has no bounding box"
+    bb = [float(v) for v in bb_match.group(1).split(",")]
+    assert bb[2] - bb[0] < 10000, f"{attribute} produced an oversized width"
+    assert bb[3] - bb[1] < 10000, f"{attribute} produced an oversized height"
 
 
 def test_2727():
