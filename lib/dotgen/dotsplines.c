@@ -22,6 +22,7 @@
 #include <common/render.h>
 #include <common/utils.h>
 #include <dotgen/dot.h>
+#include <dotgen/spline_tuning.h>
 #include <float.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -44,19 +45,12 @@
 #define MINW 16 /* minimum width of a box in the edge path */
 #define HALFMINW 8
 
-#define MULTIEDGE_NODE_MARGIN 0.5
-#define MULTIEDGE_BEZIER_FLATNESS 0.01
-#define FLAT_PORT_NORMAL_ARM 36.0
-#define NOMINAL_ARROW_LENGTH 10.0
-
 #define FWDEDGE 16
 #define BWDEDGE 32
 
 #define MAINGRAPH 64
 #define AUXGRAPH 128
 #define GRAPHTYPEMASK 192 /* the OR of the above */
-#define ENDPOINT_LABEL_GAP 4.0
-#define ENDPOINT_LABEL_NODE_MIN 20.0
 
 typedef struct {
   textlabel_t *label;
