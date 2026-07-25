@@ -253,6 +253,16 @@ bool gv_concentration_apply(gv_concentration_plan_context_t *ctx,
     return false;
   }
 
+  if (ctx->rollback_probe) {
+    gv_concentration_transaction_t *const probe = begin_transaction(selected);
+    if (!selected->execute(selected, probe)) {
+      rollback_transaction(probe);
+      gv_concentration_candidate_set_free(set);
+      return false;
+    }
+    rollback_transaction(probe);
+  }
+
   gv_concentration_transaction_t *transaction = ctx->transaction;
   if (transaction == NULL)
     transaction = begin_transaction(selected);
@@ -262,16 +272,6 @@ bool gv_concentration_apply(gv_concentration_plan_context_t *ctx,
       ctx->transaction = NULL;
     gv_concentration_candidate_set_free(set);
     return false;
-  }
-
-  if (ctx->rollback_probe && transaction != ctx->transaction) {
-    rollback_transaction(transaction);
-    transaction = begin_transaction(selected);
-    if (!selected->execute(selected, transaction)) {
-      rollback_transaction(transaction);
-      gv_concentration_candidate_set_free(set);
-      return false;
-    }
   }
 
   if (transaction != ctx->transaction)
