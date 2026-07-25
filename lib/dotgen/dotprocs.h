@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #include <dotgen/aspect.h>
+#include <dotgen/bundle_load.h>
 #include <stdbool.h>
 #include <util/list.h>
 #include <util/unused.h>
@@ -28,7 +29,7 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern void build_skeleton(Agraph_t *, Agraph_t *);
     extern void checkLabelOrder (graph_t* g);
     extern void class1(Agraph_t *);
-    extern void class2(Agraph_t *);
+    extern void build_edge_chains(Agraph_t *);
     extern void decompose(Agraph_t *, int);
     extern void delete_fast_edge(Agedge_t *);
     extern void delete_fast_node(Agraph_t *, Agnode_t *);
@@ -55,8 +56,11 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern void mark_clusters(Agraph_t *);
     extern void mark_lowclusters(Agraph_t *);
     extern bool mergeable(edge_t *e, edge_t *f);
-    extern void merge_chain(Agraph_t*, Agedge_t*, Agedge_t*, bool);
+    extern void merge_chain(Agraph_t *, Agedge_t *, Agedge_t *,
+                            dot_bundle_merge_t);
     extern void merge_oneway(Agedge_t *, Agedge_t *);
+    extern void merge_oneway_with_bundle(Agedge_t *, Agedge_t *,
+                                         dot_bundle_merge_t);
     extern Agedge_t *new_virtual_edge(Agnode_t *, Agnode_t *, Agedge_t *);
     extern bool nonconstraint_edge(Agedge_t *);
     extern void other_edge(Agedge_t *);
