@@ -1,0 +1,10 @@
+demo-distinct-parallel-colors-stay-distinct-after.png 119x191
+demo-distinct-parallel-colors-stay-distinct-before.png 119x191
+demo-distinct-shared-trunk-siblings-separate-after.png 319x383
+demo-distinct-shared-trunk-siblings-separate-before.png 215x383
+demo-reverse-arrowhead-preserved-after.png 119x191
+demo-reverse-arrowhead-preserved-before.png 119x191
+demo-same-rank-equivalent-edges-still-concentrate-after.png 215x119
+demo-same-rank-equivalent-edges-still-concentrate-before.png 215x95
+demo-self-loop-label-beside-loop-after.png 191x95
+demo-self-loop-label-beside-loop-before.png 191x95

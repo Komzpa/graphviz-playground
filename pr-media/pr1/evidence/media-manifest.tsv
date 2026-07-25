@@ -1,0 +1,11 @@
+media_file	fixture	verifying_assertion	base_fails	branch_passes
+demo-distinct-parallel-colors-stay-distinct-before.png	tests/graphs/concentrate-demo/distinct-parallel-colors-stay-distinct.dot	test_distinct_parallel_colors_stay_distinct: two colored parallel routes remain distinct	yes	yes
+demo-distinct-parallel-colors-stay-distinct-after.png	tests/graphs/concentrate-demo/distinct-parallel-colors-stay-distinct.dot	test_distinct_parallel_colors_stay_distinct: two colored parallel routes remain distinct	yes	yes
+demo-reverse-arrowhead-preserved-before.png	tests/graphs/concentrate-demo/reverse-arrowhead-preserved.dot	test_reverse_arrowhead_preserved: reverse edge keeps its own arrowtail polygon	yes	yes
+demo-reverse-arrowhead-preserved-after.png	tests/graphs/concentrate-demo/reverse-arrowhead-preserved.dot	test_reverse_arrowhead_preserved: reverse edge keeps its own arrowtail polygon	yes	yes
+demo-distinct-shared-trunk-siblings-separate-before.png	tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot	test_distinct_shared_trunk_siblings_separate: distinct sibling routes separate instead of sharing a trunk	yes	yes
+demo-distinct-shared-trunk-siblings-separate-after.png	tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot	test_distinct_shared_trunk_siblings_separate: distinct sibling routes separate instead of sharing a trunk	yes	yes
+demo-same-rank-equivalent-edges-still-concentrate-before.png	tests/graphs/concentrate-demo/same-rank-equivalent-edges-concentrate.dot	test_same_rank_equivalent_edges_still_concentrate: equivalent same-rank reverse edges collapse to one two-arrow route	yes	yes
+demo-same-rank-equivalent-edges-still-concentrate-after.png	tests/graphs/concentrate-demo/same-rank-equivalent-edges-concentrate.dot	test_same_rank_equivalent_edges_still_concentrate: equivalent same-rank reverse edges collapse to one two-arrow route	yes	yes
+demo-self-loop-label-beside-loop-before.png	tests/graphs/concentrate-demo/self-loop-label-beside-loop.dot	test_self_loop_label_sits_beside_loop: deduped self-loop label sits beside the retained loop	yes	yes
+demo-self-loop-label-beside-loop-after.png	tests/graphs/concentrate-demo/self-loop-label-beside-loop.dot	test_self_loop_label_sits_beside_loop: deduped self-loop label sits beside the retained loop	yes	yes
