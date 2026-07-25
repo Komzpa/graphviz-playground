@@ -5813,15 +5813,21 @@ def test_concentrate_train11_suppressed_arrows_survive_pos_roundtrip():
     source = (Path(__file__).parent / "graphs" / "train11.gv").read_text().replace(
         "digraph G {", "digraph G {\n  graph [concentrate=true];", 1
     )
+    dot_layout = json.loads(dot("json", source=source))
     positioned = dot("dot", source=source)
     layout = json.loads(run(which("neato"), "-n2", "-Tjson", input=positioned))
 
-    for tail in ("st8",):
+    expected_hdraw = {
+        tail: "_hdraw_" in _drawn_edge_between(dot_layout, tail, "st0")
+        for tail in ("st8", "st6", "st4", "st10")
+    }
+
+    assert not expected_hdraw["st8"]
+    assert expected_hdraw["st6"]
+    assert expected_hdraw["st10"]
+    for tail, has_hdraw in expected_hdraw.items():
         edge = _drawn_edge_between(layout, tail, "st0")
-        assert "_hdraw_" not in edge
-    assert "_hdraw_" in _drawn_edge_between(layout, "st6", "st0")
-    assert "_hdraw_" in _drawn_edge_between(layout, "st4", "st0")
-    assert "_hdraw_" in _drawn_edge_between(layout, "st10", "st0")
+        assert ("_hdraw_" in edge) == has_hdraw
 
 
 def test_concentrate_fanout_keeps_real_terminal_arrowheads():
