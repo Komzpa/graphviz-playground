@@ -1,0 +1,54 @@
+// minimized fixture: detached endpoint labels
+// date: 2026-07-21
+digraph endpoint_labels {
+	graph [concentrate=true,
+		nodesep=0.2,
+		rankdir=LR,
+		ranksep=0.2
+	];
+	node [fontsize=10,
+		height=0,
+		width=0
+	];
+	edge [arrowsize=0.9,
+		dir=none,
+		fontsize=8,
+		labelangle=-30,
+		labeldistance=0.8,
+		labelfontsize=8
+	];
+	{
+		graph [rank=same];
+	}
+	{
+		graph [rank=same];
+		n002	[fontsize=""];
+	}
+	{
+		graph [rank=same];
+	}
+	{
+		graph [rank=same];
+	}
+	{
+		graph [rank=same];
+	}
+	{
+		graph [rank=same];
+	}
+	n003	[fontsize=""];
+	n003 -> n002	[arrowhead=dot,
+		fontsize="",
+		headlabel=":s:"];
+	n003 -> n002	[arrowtail=inv,
+		fontsize="",
+		samearrowhead=1,
+		samehead=m000];
+	n005	[fontsize=""];
+	n005 -> n002	[arrowhead=dot,
+		arrowtail=inv,
+		fontsize="",
+		headlabel=":u:",
+		samearrowhead=1,
+		samehead=m000];
+}

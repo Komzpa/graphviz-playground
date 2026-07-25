@@ -1,0 +1,10 @@
+digraph {
+  graph [concentrate=true, ranksep=1.2]
+  node [shape=circle, width=0.45, fixedsize=true]
+  edge [arrowsize=0.9, penwidth=3]
+
+  a -> b [color=red, arrowhead=normal]
+  a -> b [color=blue, arrowhead=vee]
+  b -> a [color=red, arrowhead=normal]
+  b -> a [color=blue, arrowhead=vee]
+}

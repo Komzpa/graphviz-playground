@@ -1,0 +1,14 @@
+strict digraph {
+  graph [concentrate=true, nodesep=0.8]
+  node [shape=circle, width=0.45, fixedsize=true]
+  edge [arrowsize=0.9, penwidth=3]
+
+  subgraph same_rank {
+    rank=same
+    a
+    b
+  }
+
+  a -> b [penwidth=2]
+  b -> a [penwidth=2]
+}

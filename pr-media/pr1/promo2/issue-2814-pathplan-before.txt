@@ -1,0 +1,3 @@
+base rc=1
+pathplan triangulation failed
+Pshortestpath failed

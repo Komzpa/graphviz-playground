@@ -1,0 +1,1 @@
+digraph { graph [concentrate=true compound=true]; subgraph cluster_x { x } a -> x [lhead=cluster_x]; x -> a [ltail=cluster_x]; }

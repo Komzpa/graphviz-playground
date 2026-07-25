@@ -1,0 +1,14 @@
+// minimized fixture: touching state-transition routes
+// date: 2026-07-21
+digraph disk_states {
+	graph [concentrate=true];
+	Inconsistent -> UpToDate	[label="resync completed"];
+	Inconsistent -> Failed	[label="io completion error"];
+	UpToDate -> Inconsistent	[label=ioctl_replicate];
+	UpToDate -> Failed	[label="io completion error"];
+	Consistent -> Inconsistent	[label="start resync"];
+	Consistent -> UpToDate	[label="receive_param()"];
+	Consistent -> Failed	[label="io completion error"];
+	Outdated -> Inconsistent	[label="start resync"];
+	Outdated -> Failed	[label="io completion error"];
+}

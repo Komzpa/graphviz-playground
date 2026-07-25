@@ -1,0 +1,11 @@
+digraph G {
+  graph [concentrate=true, rankdir=LR, bgcolor=white, margin=0.08];
+  node [shape=circle, width=0.45, fixedsize=true, style=filled, fillcolor=white, fontname="DejaVu Sans", fontsize=14];
+  edge [penwidth=3, arrowsize=0.9, color="#2b2b2b"];
+
+  a [label="A"];
+  b [label="B"];
+
+  a -> b [style=solid];
+  a -> b [style=dashed];
+}

@@ -1,0 +1,1 @@
+base dot exits with SIGSEGV in conc_slope()

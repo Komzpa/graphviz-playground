@@ -1,0 +1,8 @@
+Warning: syntax ambiguity - badly delimited number '0H' in line 1 of /tmp/claude-1000/-home-kom-Dropbox-Reemxy-tasks-loop/a1291db2-e40f-400a-b2a0-c194e773cec0/scratchpad/pr-media-clone/pr-media/pr1/evidence/crash-2764.dot splits into two tokens
+Warning: syntax ambiguity - badly delimited number '0H' in line 1 of /tmp/claude-1000/-home-kom-Dropbox-Reemxy-tasks-loop/a1291db2-e40f-400a-b2a0-c194e773cec0/scratchpad/pr-media-clone/pr-media/pr1/evidence/crash-2764.dot splits into two tokens
+Warning: syntax ambiguity - badly delimited number '0H' in line 1 of /tmp/claude-1000/-home-kom-Dropbox-Reemxy-tasks-loop/a1291db2-e40f-400a-b2a0-c194e773cec0/scratchpad/pr-media-clone/pr-media/pr1/evidence/crash-2764.dot splits into two tokens
+Warning: node Ho0er0est, port 0 unrecognized
+Warning: node Ho0er0tra0e0o0top, port 0 unrecognized
+Warning: node Ho0er0est, port 0 unrecognized
+Warning: node Ho0er0est, port 0 unrecognized
+Warning: node Ho0er0est, port 0 unrecognized

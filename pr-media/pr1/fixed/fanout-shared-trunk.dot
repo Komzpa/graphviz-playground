@@ -1,0 +1,6 @@
+// minimized fixture: fan-out shared trunk
+digraph {
+  graph [concentrate=true]
+  a -> b [minlen=2]
+  a -> c [minlen=2]
+}

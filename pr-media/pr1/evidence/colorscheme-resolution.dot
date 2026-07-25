@@ -1,0 +1,1 @@
+digraph { graph [concentrate=true]; a -> b [colorscheme=accent3 color=1]; a -> b [colorscheme=paired3 color=1]; }

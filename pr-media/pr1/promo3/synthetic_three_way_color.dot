@@ -1,0 +1,13 @@
+digraph G {
+  graph [concentrate=true, rankdir=LR, bgcolor=white, margin=0.08];
+  node [shape=circle, width=0.45, fixedsize=true, style=filled, fillcolor=white, fontname="DejaVu Sans", fontsize=14];
+  edge [penwidth=3, arrowsize=0.9];
+
+  a [label="A"];
+  b [label="B"];
+  c [label="C"];
+
+  a -> b [color="#d62728"];
+  a -> b [color="#1f77b4"];
+  a -> c [color="#2ca02c"];
+}

@@ -1,0 +1,9 @@
+digraph {
+  graph [concentrate=true, rankdir=LR, ranksep=1.2]
+  node [shape=circle, width=0.45, fixedsize=true]
+  edge [arrowsize=0.8, penwidth=3]
+
+  a -> b [color=red]
+  a -> b [color=blue]
+  a -> b [color=red]
+}

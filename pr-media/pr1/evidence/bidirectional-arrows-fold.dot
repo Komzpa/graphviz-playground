@@ -1,0 +1,1 @@
+digraph { graph [concentrate=true]; a -> b [dir=both]; b -> a [dir=both]; a -> b [dir=none]; }

@@ -1,0 +1,10 @@
+lib/pathplan//home/kom/tmp/graphviz-pr1-cleanup-20260719/corpus-v2/base-worktree/lib/pathplan/shortest.c:333: triangulation failed
+lib/pathplan//home/kom/tmp/graphviz-pr1-cleanup-20260719/corpus-v2/base-worktree/lib/pathplan/shortest.c:193: destination point not in any triangle
+Error: in routesplines, Pshortestpath failed
+lib/pathplan//home/kom/tmp/graphviz-pr1-cleanup-20260719/corpus-v2/base-worktree/lib/pathplan/shortest.c:333: triangulation failed
+lib/pathplan//home/kom/tmp/graphviz-pr1-cleanup-20260719/corpus-v2/base-worktree/lib/pathplan/shortest.c:193: destination point not in any triangle
+Error: in routesplines, Pshortestpath failed
+Warning: no position for edge with tail label Edg2
+Warning: no position for edge with tail label Edg4
+Error: lost n.2 n.19 edge
+Error: lost n.2 n.20 edge
