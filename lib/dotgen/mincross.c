@@ -1617,11 +1617,13 @@ static bool medians(graph_t *g, int r0, int r1) {
     size_t j = 0;
     if (r1 > r0)
       for (j0 = 0; (e = ND_out(n).list[j0]); j0++) {
-        list[j++] = VAL(aghead(e), ED_head_port(e));
+        if (ED_xpenalty(e) > 0)
+          list[j++] = VAL(aghead(e), ED_head_port(e));
       }
     else
       for (j0 = 0; (e = ND_in(n).list[j0]); j0++) {
-        list[j++] = VAL(agtail(e), ED_tail_port(e));
+        if (ED_xpenalty(e) > 0)
+          list[j++] = VAL(agtail(e), ED_tail_port(e));
       }
     switch (j) {
     case 0:
