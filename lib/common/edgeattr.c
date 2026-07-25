@@ -1741,3 +1741,467 @@ typedef struct {
   size_t sources_size;
 } attribute_inheritance_t;
 
+static const attribute_inheritance_t hyperlink_value_matrix[] = {
+    {.slot = {.owner = ATTRIBUTE_OWNER_EDGE, .kind = ATTRIBUTE_KIND_URL},
+     .sources = {{ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+    {.slot = {.owner = ATTRIBUTE_OWNER_LABEL, .kind = ATTRIBUTE_KIND_URL},
+     .sources = {{ATTRIBUTE_OWNER_LABEL, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+    /* nodeIntersect() falls back from explicit endpoint URLs to obj->url. */
+    {.slot = {.owner = ATTRIBUTE_OWNER_HEAD, .kind = ATTRIBUTE_KIND_URL},
+     .sources = {{ATTRIBUTE_OWNER_HEAD, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 3},
+    {.slot = {.owner = ATTRIBUTE_OWNER_TAIL, .kind = ATTRIBUTE_KIND_URL},
+     .sources = {{ATTRIBUTE_OWNER_TAIL, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 3},
+    {.slot = {.owner = ATTRIBUTE_OWNER_EDGE, .kind = ATTRIBUTE_KIND_TOOLTIP},
+     .sources = {{ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_PREFIXED}},
+     .sources_size = 2},
+    {.slot = {.owner = ATTRIBUTE_OWNER_LABEL, .kind = ATTRIBUTE_KIND_TOOLTIP},
+     .sources = {{ATTRIBUTE_OWNER_LABEL, ATTRIBUTE_NAME_PREFIXED}},
+     .sources_size = 1},
+    {.slot = {.owner = ATTRIBUTE_OWNER_HEAD, .kind = ATTRIBUTE_KIND_TOOLTIP},
+     .sources = {{ATTRIBUTE_OWNER_HEAD, ATTRIBUTE_NAME_PREFIXED}},
+     .sources_size = 1},
+    {.slot = {.owner = ATTRIBUTE_OWNER_TAIL, .kind = ATTRIBUTE_KIND_TOOLTIP},
+     .sources = {{ATTRIBUTE_OWNER_TAIL, ATTRIBUTE_NAME_PREFIXED}},
+     .sources_size = 1},
+    {.slot = {.owner = ATTRIBUTE_OWNER_EDGE, .kind = ATTRIBUTE_KIND_TARGET},
+     .sources = {{ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+    {.slot = {.owner = ATTRIBUTE_OWNER_LABEL, .kind = ATTRIBUTE_KIND_TARGET},
+     .sources = {{ATTRIBUTE_OWNER_LABEL, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+    {.slot = {.owner = ATTRIBUTE_OWNER_HEAD, .kind = ATTRIBUTE_KIND_TARGET},
+     .sources = {{ATTRIBUTE_OWNER_HEAD, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+    {.slot = {.owner = ATTRIBUTE_OWNER_TAIL, .kind = ATTRIBUTE_KIND_TARGET},
+     .sources = {{ATTRIBUTE_OWNER_TAIL, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+};
+
+static const attribute_inheritance_t endpoint_label_url_matrix[] = {
+    /* emit_begin_edge() gives endpoint labels only the href/URL default. */
+    {.slot = {.owner = ATTRIBUTE_OWNER_HEAD, .kind = ATTRIBUTE_KIND_URL},
+     .sources = {{ATTRIBUTE_OWNER_HEAD, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+    {.slot = {.owner = ATTRIBUTE_OWNER_TAIL, .kind = ATTRIBUTE_KIND_URL},
+     .sources = {{ATTRIBUTE_OWNER_TAIL, ATTRIBUTE_NAME_PREFIXED},
+                 {ATTRIBUTE_OWNER_EDGE, ATTRIBUTE_NAME_BARE}},
+     .sources_size = 2},
+};
+
+static attribute_owner_t opposite_attribute_owner(attribute_owner_t owner) {
+  switch (owner) {
+  case ATTRIBUTE_OWNER_HEAD:
+    return ATTRIBUTE_OWNER_TAIL;
+  case ATTRIBUTE_OWNER_TAIL:
+    return ATTRIBUTE_OWNER_HEAD;
+  case ATTRIBUTE_OWNER_EDGE:
+  case ATTRIBUTE_OWNER_LABEL:
+  case ATTRIBUTE_OWNER_COUNT:
+    return owner;
+  }
+  return owner;
+}
+
+static const char *attribute_owner_slot_name(attribute_owner_t owner) {
+  switch (owner) {
+  case ATTRIBUTE_OWNER_EDGE:
+    return "edge";
+  case ATTRIBUTE_OWNER_LABEL:
+    return "label";
+  case ATTRIBUTE_OWNER_HEAD:
+    return "head";
+  case ATTRIBUTE_OWNER_TAIL:
+    return "tail";
+  case ATTRIBUTE_OWNER_COUNT:
+    return "";
+  }
+  return "";
+}
+
+static void composed_attribute_name(attribute_owner_t owner,
+                                    attribute_kind_t kind,
+                                    attribute_name_form_t form, bool alias,
+                                    char *name, size_t name_size) {
+  const char *const stem = alias && attribute_kind_url_alias_stem(kind) != NULL
+                               ? attribute_kind_url_alias_stem(kind)
+                               : attribute_kind_canonical_stem(kind);
+  if (form == ATTRIBUTE_NAME_BARE) {
+    snprintf(name, name_size, "%s", stem);
+  } else {
+    snprintf(name, name_size, "%s%s", attribute_owner_prefix(owner), stem);
+  }
+}
+
+static comparable_attribute_value_t
+named_composed_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
+                               attribute_value_source_t source,
+                               attribute_kind_t kind) {
+  char name[32];
+  const bool has_alias = attribute_kind_url_alias_stem(kind) != NULL;
+  if (has_alias) {
+    composed_attribute_name(source.owner, kind, source.form, true, name,
+                            sizeof(name));
+    const comparable_attribute_value_t value =
+        named_attribute_value(root_graph, edge, name);
+    if (value.text[0] != '\0') {
+      return value;
+    }
+  }
+  composed_attribute_name(source.owner, kind, source.form, false, name,
+                          sizeof(name));
+  return named_attribute_value(root_graph, edge, name);
+}
+
+static const attribute_inheritance_t *
+attribute_inheritance(const attribute_inheritance_t *matrix, size_t matrix_size,
+                      attribute_identity_t slot) {
+  for (size_t i = 0; i < matrix_size; i++) {
+    if (matrix[i].slot.owner == slot.owner &&
+        matrix[i].slot.kind == slot.kind) {
+      return &matrix[i];
+    }
+  }
+  return NULL;
+}
+
+static comparable_attribute_value_t
+named_inherited_attribute_value(Agraph_t *root_graph, Agedge_t *edge,
+                                const attribute_inheritance_t *inheritance) {
+  comparable_attribute_value_t empty_value = plain_attribute_value("");
+  for (size_t i = 0; i < inheritance->sources_size; i++) {
+    const comparable_attribute_value_t value = named_composed_attribute_value(
+        root_graph, edge, inheritance->sources[i], inheritance->slot.kind);
+    if (value.text[0] != '\0') {
+      return value;
+    }
+    empty_value = value;
+  }
+  return empty_value;
+}
+
+static bool edge_has_inherited_attribute(Agraph_t *root_graph, Agedge_t *edge,
+                                         const attribute_inheritance_t *matrix,
+                                         size_t matrix_size,
+                                         attribute_identity_t slot) {
+  const attribute_inheritance_t *const inheritance =
+      attribute_inheritance(matrix, matrix_size, slot);
+  if (inheritance == NULL) {
+    return false;
+  }
+  return named_inherited_attribute_value(root_graph, edge, inheritance)
+             .text[0] != '\0';
+}
+
+static bool edge_has_explicit_owner_kind(Agraph_t *root_graph, Agedge_t *edge,
+                                         attribute_owner_t owner,
+                                         attribute_kind_t kind) {
+  return named_composed_attribute_value(
+             root_graph, edge,
+             (attribute_value_source_t){.owner = owner,
+                                        .form = ATTRIBUTE_NAME_PREFIXED},
+             kind)
+             .text[0] != '\0';
+}
+
+static bool hyperlink_owner_gate_is_open(Agedge_t *edge,
+                                         attribute_owner_t owner) {
+  switch (owner) {
+  case ATTRIBUTE_OWNER_EDGE:
+    return true;
+  case ATTRIBUTE_OWNER_LABEL:
+    return edge_has_main_label(edge);
+  case ATTRIBUTE_OWNER_HEAD:
+    return ED_head_label(edge) != NULL;
+  case ATTRIBUTE_OWNER_TAIL:
+    return ED_tail_label(edge) != NULL;
+  case ATTRIBUTE_OWNER_COUNT:
+    return false;
+  }
+  return false;
+}
+
+static bool hyperlink_tooltip_gate_is_open(Agraph_t *root_graph, Agedge_t *edge,
+                                           attribute_owner_t owner) {
+  if (hyperlink_owner_gate_is_open(edge, owner)) {
+    return true;
+  }
+  if (owner != ATTRIBUTE_OWNER_HEAD && owner != ATTRIBUTE_OWNER_TAIL) {
+    return false;
+  }
+  /* nodeIntersect() maps explicit endpoint tooltips without label geometry. */
+  return edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                      ATTRIBUTE_KIND_TOOLTIP);
+}
+
+static const char *hyperlink_fallback_label(Agedge_t *edge,
+                                            attribute_owner_t owner) {
+  switch (owner) {
+  case ATTRIBUTE_OWNER_EDGE:
+  case ATTRIBUTE_OWNER_LABEL:
+    return ED_label(edge) != NULL ? ED_label(edge)->text : "";
+  case ATTRIBUTE_OWNER_HEAD:
+    return ED_head_label(edge) != NULL ? ED_head_label(edge)->text : "";
+  case ATTRIBUTE_OWNER_TAIL:
+    return ED_tail_label(edge) != NULL ? ED_tail_label(edge)->text : "";
+  case ATTRIBUTE_OWNER_COUNT:
+    return "";
+  }
+  return "";
+}
+
+static bool hyperlink_target_anchor_is_present(Agraph_t *root_graph,
+                                               Agedge_t *edge,
+                                               attribute_owner_t owner) {
+  if (owner == ATTRIBUTE_OWNER_EDGE) {
+    return edge_has_inherited_attribute(
+               root_graph, edge, hyperlink_value_matrix,
+               ATTRIBUTE_COUNT(hyperlink_value_matrix),
+               (attribute_identity_t){.owner = owner,
+                                      .kind = ATTRIBUTE_KIND_URL}) ||
+           edge_has_inherited_attribute(
+               root_graph, edge, hyperlink_value_matrix,
+               ATTRIBUTE_COUNT(hyperlink_value_matrix),
+               (attribute_identity_t){.owner = owner,
+                                      .kind = ATTRIBUTE_KIND_TOOLTIP});
+  }
+
+  if (owner == ATTRIBUTE_OWNER_LABEL) {
+    return edge_has_inherited_attribute(
+               root_graph, edge, hyperlink_value_matrix,
+               ATTRIBUTE_COUNT(hyperlink_value_matrix),
+               (attribute_identity_t){.owner = owner,
+                                      .kind = ATTRIBUTE_KIND_URL}) ||
+           edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                        ATTRIBUTE_KIND_TOOLTIP);
+  }
+
+  if (owner == ATTRIBUTE_OWNER_HEAD || owner == ATTRIBUTE_OWNER_TAIL) {
+    return edge_has_inherited_attribute(
+               root_graph, edge, endpoint_label_url_matrix,
+               ATTRIBUTE_COUNT(endpoint_label_url_matrix),
+               (attribute_identity_t){.owner = owner,
+                                      .kind = ATTRIBUTE_KIND_URL}) ||
+           edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                        ATTRIBUTE_KIND_TOOLTIP);
+  }
+
+  return edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                      ATTRIBUTE_KIND_URL) ||
+         edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                      ATTRIBUTE_KIND_TOOLTIP) ||
+         edge_has_explicit_owner_kind(root_graph, edge, owner,
+                                      ATTRIBUTE_KIND_TARGET) ||
+         edge_has_explicit_owner_kind(root_graph, edge, ATTRIBUTE_OWNER_EDGE,
+                                      ATTRIBUTE_KIND_URL);
+}
+
+static bool hyperlink_value_is_rendered(Agraph_t *root_graph, Agedge_t *edge,
+                                        attribute_owner_t owner,
+                                        hyperlink_value_kind_t kind) {
+  switch (kind) {
+  case HYPERLINK_VALUE_URL: {
+    const attribute_inheritance_t *const inheritance = attribute_inheritance(
+        hyperlink_value_matrix, ATTRIBUTE_COUNT(hyperlink_value_matrix),
+        (attribute_identity_t){.owner = owner, .kind = ATTRIBUTE_KIND_URL});
+    const comparable_attribute_value_t url =
+        named_inherited_attribute_value(root_graph, edge, inheritance);
+    return (owner != ATTRIBUTE_OWNER_LABEL ||
+            hyperlink_owner_gate_is_open(edge, owner)) &&
+           (url.text[0] != '\0' ||
+            edge_has_inherited_attribute(
+                root_graph, edge, hyperlink_value_matrix,
+                ATTRIBUTE_COUNT(hyperlink_value_matrix),
+                (attribute_identity_t){.owner = owner,
+                                       .kind = ATTRIBUTE_KIND_TOOLTIP}));
+  }
+  case HYPERLINK_VALUE_TOOLTIP:
+    return hyperlink_tooltip_gate_is_open(root_graph, edge, owner);
+  case HYPERLINK_VALUE_TARGET:
+    return hyperlink_owner_gate_is_open(edge, owner) &&
+           hyperlink_target_anchor_is_present(root_graph, edge, owner);
+  case HYPERLINK_VALUE_COUNT:
+    return false;
+  }
+  return false;
+}
+
+static const char *hyperlink_value_kind_name(hyperlink_value_kind_t kind) {
+  switch (kind) {
+  case HYPERLINK_VALUE_URL:
+    return "URL";
+  case HYPERLINK_VALUE_TOOLTIP:
+    return "tooltip";
+  case HYPERLINK_VALUE_TARGET:
+    return "target";
+  case HYPERLINK_VALUE_COUNT:
+    return "";
+  }
+  return "";
+}
+
+static attribute_kind_t hyperlink_attribute_kind(hyperlink_value_kind_t kind) {
+  switch (kind) {
+  case HYPERLINK_VALUE_URL:
+    return ATTRIBUTE_KIND_URL;
+  case HYPERLINK_VALUE_TOOLTIP:
+    return ATTRIBUTE_KIND_TOOLTIP;
+  case HYPERLINK_VALUE_TARGET:
+    return ATTRIBUTE_KIND_TARGET;
+  case HYPERLINK_VALUE_COUNT:
+    break;
+  }
+  return ATTRIBUTE_KIND_URL;
+}
+
+static void append_hyperlink_slots(agxbuf *signature, Agraph_t *root_graph,
+                                   Agedge_t *edge, bool reverse_orientation) {
+  for (attribute_owner_t canonical_owner = ATTRIBUTE_OWNER_EDGE;
+       canonical_owner < ATTRIBUTE_OWNER_COUNT; canonical_owner++) {
+    const attribute_owner_t source_owner =
+        reverse_orientation ? opposite_attribute_owner(canonical_owner)
+                            : canonical_owner;
+    for (hyperlink_value_kind_t kind = HYPERLINK_VALUE_URL;
+         kind < HYPERLINK_VALUE_COUNT; kind++) {
+      if (!hyperlink_value_is_rendered(root_graph, edge, source_owner, kind)) {
+        continue;
+      }
+
+      const attribute_inheritance_t *const inheritance = attribute_inheritance(
+          hyperlink_value_matrix, ATTRIBUTE_COUNT(hyperlink_value_matrix),
+          (attribute_identity_t){.owner = source_owner,
+                                 .kind = hyperlink_attribute_kind(kind)});
+      comparable_attribute_value_t value =
+          named_inherited_attribute_value(root_graph, edge, inheritance);
+      bool tooltip_uses_fallback = false;
+      if (kind == HYPERLINK_VALUE_TOOLTIP && value.text[0] == '\0') {
+        const attribute_inheritance_t *const url_inheritance =
+            attribute_inheritance(
+                hyperlink_value_matrix, ATTRIBUTE_COUNT(hyperlink_value_matrix),
+                (attribute_identity_t){.owner = source_owner,
+                                       .kind = ATTRIBUTE_KIND_URL});
+        const comparable_attribute_value_t url =
+            named_inherited_attribute_value(root_graph, edge, url_inheritance);
+        if (url.text[0] != '\0') {
+          value = plain_attribute_value(
+              hyperlink_fallback_label(edge, source_owner));
+          tooltip_uses_fallback = true;
+        }
+      }
+
+      agxbuf slot_name = {0};
+      agxbprint(&slot_name, "hyperlink:%s:%s",
+                attribute_owner_slot_name(canonical_owner),
+                hyperlink_value_kind_name(kind));
+      if (kind == HYPERLINK_VALUE_TOOLTIP && tooltip_uses_fallback) {
+        append_plain_signature_slot(signature, agxbuse(&slot_name), value.text);
+      } else if (kind == HYPERLINK_VALUE_TOOLTIP && !tooltip_uses_fallback) {
+        char *const preprocessed = preprocessTooltip((char *)value.text, edge);
+        char *const substituted = strdup_and_subst_obj(preprocessed, edge);
+        append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                    substituted);
+        free(substituted);
+        free(preprocessed);
+      } else {
+        append_substituted_signature_slot(signature, agxbuse(&slot_name),
+                                          value.text, edge);
+      }
+      agxbfree(&slot_name);
+    }
+
+    if ((source_owner == ATTRIBUTE_OWNER_HEAD ||
+         source_owner == ATTRIBUTE_OWNER_TAIL) &&
+        hyperlink_owner_gate_is_open(edge, source_owner)) {
+      const attribute_inheritance_t *const inheritance = attribute_inheritance(
+          endpoint_label_url_matrix, ATTRIBUTE_COUNT(endpoint_label_url_matrix),
+          (attribute_identity_t){.owner = source_owner,
+                                 .kind = ATTRIBUTE_KIND_URL});
+      comparable_attribute_value_t value =
+          named_inherited_attribute_value(root_graph, edge, inheritance);
+      agxbuf slot_name = {0};
+      agxbprint(&slot_name, "hyperlink:%s:label-URL",
+                attribute_owner_slot_name(canonical_owner));
+      append_substituted_signature_slot(signature, agxbuse(&slot_name),
+                                        value.text, edge);
+      agxbfree(&slot_name);
+    }
+  }
+}
+
+static const char *endpoint_exception_name(const char *canonical_name,
+                                           attribute_owner_t source_owner) {
+  for (size_t i = 0; i < ATTRIBUTE_COUNT(edge_attribute_exceptions); i++) {
+    const edge_attribute_exception_t *const exception =
+        &edge_attribute_exceptions[i];
+    if (exception->endpoint && strcmp(exception->name, canonical_name) != 0 &&
+        exception->owner == source_owner) {
+      const edge_attribute_classification_t canonical =
+          edge_attribute_classification(canonical_name);
+      if (canonical.facts == &exception->facts ||
+          (canonical.facts->compound_only == exception->facts.compound_only &&
+           canonical.facts->default_kind == exception->facts.default_kind)) {
+        return exception->name;
+      }
+    }
+  }
+  return canonical_name;
+}
+
+static node_t *sameport_node(Agedge_t *edge, const char *attribute_name) {
+  if (strcmp(attribute_name, "samehead") == 0) {
+    return aghead(edge);
+  }
+  if (strcmp(attribute_name, "sametail") == 0) {
+    return agtail(edge);
+  }
+  return NULL;
+}
+
+static bool sameport_group_has_multiple_members(Agraph_t *graph, Agedge_t *edge,
+                                                const char *attribute_name) {
+  Agsym_t *const attribute = agfindedgeattr(graph, (char *)attribute_name);
+  if (attribute == NULL) {
+    return false;
+  }
+
+  const char *const group_id = agxget(edge, attribute);
+  if (group_id[0] == '\0') {
+    return false;
+  }
+
+  node_t *const node = sameport_node(edge, attribute_name);
+  if (node == NULL || aghead(edge) == agtail(edge)) {
+    return false;
+  }
+
+  size_t members = 0;
+  for (Agedge_t *member = agfstedge(graph, node); member != NULL;
+       member = agnxtedge(graph, member, node)) {
+    if (aghead(member) == agtail(member)) {
+      continue;
+    }
+    if (sameport_node(member, attribute_name) != node) {
+      continue;
+    }
+    if (strcmp(agxget(member, attribute), group_id) == 0 && ++members > 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
