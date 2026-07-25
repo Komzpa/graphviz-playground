@@ -89,22 +89,40 @@ and this project adheres to
   differently colored parallel or opposite-direction edges.
 - Opposite edges attached to the same physical port now share ordinary
   multi-edge routing instead of being drawn on top of each other. #1039
+  Example: `a:n -> b:s` plus `b:s -> a:n` used to overlap; now both routes
+  remain traceable.
 - Equivalent opposite edges inside a `rank=same` subgraph are now concentrated.
   #150
+  Example: same-rank `a -> b` plus `b -> a` used to draw duplicate routes; now
+  one route carries arrows at both ends.
 - Concentration now compares ports and clipping at physical endpoints when
   edges run in opposite directions. #448
+  Example: reverse samehead/sametail members used to compare logical endpoints;
+  now they meet the same physical anchor.
 - Concentration no longer merges continuations attached to different record
   ports. #449
+  Example: record-port edges to different fields used to collapse together; now
+  distinct fields keep distinct routes.
 - An out-of-bounds read while routing certain flat labeled edges no longer
   causes a crash. #2757
+  Example: a malformed flat labeled edge used to read beyond route storage; now
+  `dot` rejects or renders without crashing.
 - Processing clustered graphs no longer dereferences freed
   rankleaders. #2760
+  Example: cluster rank rebuilds used to reuse freed rankleader pointers; now
+  layout completes after rebuilding the rank data.
 - Malformed ranksets inside clusters no longer crash dot when they leave empty
   rank slots during layout. #2759 #2762
+  Example: empty cluster rank slots used to segfault during rank scans; now the
+  scan skips invalid slots.
 - Malformed flat edges whose auxiliary route cannot produce splines no longer
   crash `dot`. #2758
+  Example: an overwide `nodesep` flat edge used to produce an oversized broken
+  route; now it returns a bounded diagnostic failure.
 - Dot now keeps routing through incomplete pathplan triangulation instead of
   dropping affected edges. #2470 #2814
+  Example: incomplete triangulation used to omit routed edges; now affected
+  edges fall back and still emit splines.
 
 ## [15.1.0] – 2026-06-17
 
