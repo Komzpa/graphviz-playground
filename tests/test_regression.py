@@ -4795,11 +4795,22 @@ def test_2559():
     ), "concentrated edge drawn as a regular straight edge"
 
 
-def _drawn_edges(source: str) -> list[dict]:
+def _json_layout(source: str) -> dict:
+    """Render DOT source once and parse its JSON xdot payload."""
+
+    return json.loads(dot("json", source=source))
+
+
+def _drawn_edges_from_layout(layout: dict) -> list[dict]:
     """Return edges with an xdot ``_draw_`` stream and thus visible geometry."""
 
-    layout = json.loads(dot("json", source=source))
     return [edge for edge in layout["edges"] if "_draw_" in edge]
+
+
+def _drawn_edges(source: str) -> list[dict]:
+    """Render DOT source and return visible drawn edges."""
+
+    return _drawn_edges_from_layout(_json_layout(source))
 
 
 def _drawn_edge_piece_end_gaps(edge: dict) -> list[float]:
@@ -5162,13 +5173,13 @@ def _edge_label_texts(source: str) -> list[str]:
     ]
 
 
-def _edge_label_boxes(
-    source: str, include_endpoint: bool = False
+def _edge_label_boxes_from_layout(
+    layout: dict, include_endpoint: bool = False
 ) -> list[tuple[str, tuple[float, float, float, float]]]:
-    """Read approximate edge-label boxes from JSON xdot label streams."""
+    """Read approximate edge-label boxes from a parsed JSON xdot layout."""
 
     boxes = []
-    for edge in json.loads(dot("json", source=source))["edges"]:
+    for edge in layout["edges"]:
         for stream in _edge_label_draw_streams(edge, include_endpoint):
             font_size = 14.0
             for operation in stream:
@@ -5197,6 +5208,14 @@ def _edge_label_boxes(
                     )
                 )
     return boxes
+
+
+def _edge_label_boxes(
+    source: str, include_endpoint: bool = False
+) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """Render DOT source and read approximate edge-label boxes."""
+
+    return _edge_label_boxes_from_layout(_json_layout(source), include_endpoint)
 
 
 def _box_gap(
@@ -5264,8 +5283,8 @@ def test_concentrated_duplicate_self_edge_labels_sit_clear_of_drawing(fixture: s
     source = (Path(__file__).parent / "graphs" / fixture).read_text().replace(
         "{", "{\n  graph [concentrate=true];", 1
     )
-    layout = json.loads(dot("json", source=source))
-    boxes = _edge_label_boxes(source)
+    layout = _json_layout(source)
+    boxes = _edge_label_boxes_from_layout(layout)
     assert len(boxes) == 2
 
     for text, box in boxes:
@@ -5288,7 +5307,7 @@ def test_concentrated_duplicate_self_edge_routes_merge_with_one_label():
         'a -> a [label="tailport=n headport=n" tailport=n headport=n]',
         'a -> a [label="tailport=n headport=n" tailport=n headport=n]',
     )
-    layout = json.loads(dot("json", source=source))
+    layout = _json_layout(source)
     drawn_self_edges = [
         edge
         for edge in layout["edges"]
@@ -5314,7 +5333,7 @@ def test_concentrated_duplicate_self_edge_label_is_not_replaced_as_xlabel():
         f'a -> a [label="{label}" tailport=n headport=n]',
         f'a -> a [label="{label}" tailport=n headport=n]',
     )
-    layout = json.loads(dot("json", source=source))
+    layout = _json_layout(source)
     label_draws = [
         operation["text"]
         for edge in layout["edges"]
@@ -5329,10 +5348,10 @@ def test_2814_grouped_endpoint_labels_sit_clear_of_nodes():
     """Grouped flat endpoint labels should not be separated into node boxes."""
 
     source = (Path(__file__).parent / "2814.dot").read_text()
-    layout = json.loads(dot("json", source=source))
+    layout = _json_layout(source)
     boxes = [
         (text, box)
-        for text, box in _edge_label_boxes(source, include_endpoint=True)
+        for text, box in _edge_label_boxes_from_layout(layout, include_endpoint=True)
         if text in {"Edg2", "Edg3", "Edg4", "Edg5"}
     ]
     assert {text for text, _ in boxes} == {"Edg2", "Edg3", "Edg4", "Edg5"}
@@ -8801,7 +8820,7 @@ def test_concentrate_endpoint_labels_keep_distinct_flat_routes():
     assert _endpoint_label_detach_honda_score(layout) == (0, 0)
 
 
-def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Path, dict]:
+def _dynamic_graphviz_link() -> tuple[list[Union[str, Path]], tuple[Path, ...]]:
     core = _find_plugin_so("core")
     dot_layout = _find_plugin_so("dot_layout")
     if core is None or dot_layout is None:
@@ -8823,11 +8842,33 @@ def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Pat
         link = ["cgraph", "gvc", core, dot_layout]
         library_directories = (core.parent, dot_layout.parent)
 
+    return link, library_directories
+
+
+def _env_with_library_path(library_directories: tuple[Path, ...]) -> dict:
+    env = os.environ.copy()
+    library_paths = os.pathsep.join(str(path) for path in library_directories)
+    loader_path = "DYLD_LIBRARY_PATH" if is_macos() else "LD_LIBRARY_PATH"
+    env[loader_path] = os.pathsep.join(
+        part for part in (library_paths, env.get(loader_path, "")) if part
+    )
+    return env
+
+
+def _compile_concentrate_c_test(
+    tmp_path: Path,
+    source_name: str,
+    exe_name: str,
+    *,
+    extra_includes: tuple[Path, ...] = (),
+) -> tuple[Path, dict]:
+    link, library_directories = _dynamic_graphviz_link()
     source_lib = Path(__file__).parent.parent / "lib"
-    exe = tmp_path / "concentrate-edge-identity-tooltip"
+    exe = tmp_path / exe_name
     compile_c(
-        Path(__file__).parent / "concentrate_edge_identity_tooltip.c",
+        Path(__file__).parent / source_name,
         cflags=[
+            *(f"-I{include}" for include in extra_includes),
             f"-I{source_lib}",
             f"-I{source_lib / 'cdt'}",
             f"-I{source_lib / 'cgraph'}",
@@ -8838,14 +8879,15 @@ def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Pat
         link=link,
         dst=exe,
     )
+    return exe, _env_with_library_path(library_directories)
 
-    env = os.environ.copy()
-    library_paths = os.pathsep.join(str(path) for path in library_directories)
-    loader_path = "DYLD_LIBRARY_PATH" if is_macos() else "LD_LIBRARY_PATH"
-    env[loader_path] = os.pathsep.join(
-        part for part in (library_paths, env.get(loader_path, "")) if part
+
+def _compile_concentrate_edge_identity_tooltip_test(tmp_path: Path) -> tuple[Path, dict]:
+    return _compile_concentrate_c_test(
+        tmp_path,
+        "concentrate_edge_identity_tooltip.c",
+        "concentrate-edge-identity-tooltip",
     )
-    return exe, env
 
 
 @pytest.mark.skipif(
@@ -8914,50 +8956,8 @@ def test_concentrate_ortho_duplicate_edges_are_ignored(tmp_path: Path):
 def test_concentrate_repeated_layout_discards_accumulated_arrows(tmp_path: Path):
     """``gv_cleanup_edge`` drops the private arrow fold before a second layout."""
 
-    c_src = (Path(__file__).parent / "concentrate_repeat_layout.c").resolve()
-    core = _find_plugin_so("core")
-    dot_layout = _find_plugin_so("dot_layout")
-    if core is None or dot_layout is None:
-        # The focused developer-test shim points directly into a CMake tree,
-        # rather than an installed Graphviz prefix understood by _find_plugin_so().
-        build_root = which("dot").resolve().parents[2]
-        core = build_root / "plugin/core/libgvplugin_core.so"
-        dot_layout = build_root / "plugin/dot_layout/libgvplugin_dot_layout.so"
-        cgraph = build_root / "lib/cgraph/libcgraph.so"
-        gvc = build_root / "lib/gvc/libgvc.so"
-        for library in (core, dot_layout, cgraph, gvc):
-            assert library.exists(), f"missing build library {library}"
-        link = [cgraph, gvc, core, dot_layout]
-        library_directories = (
-            cgraph.parent,
-            gvc.parent,
-            core.parent,
-            dot_layout.parent,
-        )
-    else:
-        link = ["cgraph", "gvc", core, dot_layout]
-        library_directories = (core.parent, dot_layout.parent)
-
-    exe = tmp_path / "concentrate-repeat-layout"
-    source_lib = Path(__file__).parent.parent / "lib"
-    compile_c(
-        c_src,
-        cflags=[
-            f"-I{source_lib}",
-            f"-I{source_lib / 'cdt'}",
-            f"-I{source_lib / 'cgraph'}",
-            f"-I{source_lib / 'common'}",
-            f"-I{source_lib / 'gvc'}",
-            f"-I{source_lib / 'pathplan'}",
-        ],
-        link=link,
-        dst=exe,
-    )
-    env = os.environ.copy()
-    library_paths = os.pathsep.join(str(path) for path in library_directories)
-    loader_path = "DYLD_LIBRARY_PATH" if is_macos() else "LD_LIBRARY_PATH"
-    env[loader_path] = os.pathsep.join(
-        part for part in (library_paths, env.get(loader_path, "")) if part
+    exe, env = _compile_concentrate_c_test(
+        tmp_path, "concentrate_repeat_layout.c", "concentrate-repeat-layout"
     )
     result = subprocess.run(exe, capture_output=True, env=env, check=True, text=True)
     rendered = json.loads(result.stdout)
@@ -8975,48 +8975,11 @@ def test_concentrate_sums_retained_virtual_segment_weight(tmp_path: Path):
     if not (build_root / "config.h").exists():
         pytest.skip("private dotgen headers require a configured build tree")
 
-    core = _find_plugin_so("core")
-    dot_layout = _find_plugin_so("dot_layout")
-    if core is None or dot_layout is None:
-        core = build_root / "plugin/core/libgvplugin_core.so"
-        dot_layout = build_root / "plugin/dot_layout/libgvplugin_dot_layout.so"
-        cgraph = build_root / "lib/cgraph/libcgraph.so"
-        gvc = build_root / "lib/gvc/libgvc.so"
-        for library in (core, dot_layout, cgraph, gvc):
-            assert library.exists(), f"missing build library {library}"
-        link = [cgraph, gvc, core, dot_layout]
-        library_directories = (
-            cgraph.parent,
-            gvc.parent,
-            core.parent,
-            dot_layout.parent,
-        )
-    else:
-        link = ["cgraph", "gvc", core, dot_layout]
-        library_directories = (core.parent, dot_layout.parent)
-
-    source_lib = Path(__file__).parent.parent / "lib"
-    exe = tmp_path / "concentrate-segment-weight"
-    compile_c(
-        Path(__file__).parent / "concentrate_segment_weight.c",
-        cflags=[
-            f"-I{build_root}",
-            f"-I{source_lib}",
-            f"-I{source_lib / 'cdt'}",
-            f"-I{source_lib / 'cgraph'}",
-            f"-I{source_lib / 'common'}",
-            f"-I{source_lib / 'dotgen'}",
-            f"-I{source_lib / 'gvc'}",
-            f"-I{source_lib / 'pathplan'}",
-        ],
-        link=link,
-        dst=exe,
-    )
-    env = os.environ.copy()
-    library_paths = os.pathsep.join(str(path) for path in library_directories)
-    loader_path = "DYLD_LIBRARY_PATH" if is_macos() else "LD_LIBRARY_PATH"
-    env[loader_path] = os.pathsep.join(
-        part for part in (library_paths, env.get(loader_path, "")) if part
+    exe, env = _compile_concentrate_c_test(
+        tmp_path,
+        "concentrate_segment_weight.c",
+        "concentrate-segment-weight",
+        extra_includes=(build_root, Path(__file__).parent.parent / "lib" / "dotgen"),
     )
     subprocess.run((exe,), capture_output=True, env=env, check=True)
 
