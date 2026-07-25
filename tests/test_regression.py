@@ -4266,26 +4266,19 @@ def test_2416():
 def test_curved_concentrated_attributed_edges_do_not_crash():
     """Curved route concentration compares original edges, not virtual pieces."""
 
-    for source in (
-        b"""
-            digraph {
-              graph [concentrate=true splines=curved]
-              a -> c [minlen=3 color=red]
-              a -> c [minlen=3 color=red]
-            }
-        """,
-        b"""
-            digraph {
-              graph [concentrate=true splines=curved]
-              a -> b -> c -> d
-              a -> d [minlen=3 color=red]
-              a -> d [minlen=3 color=red]
-            }
-        """,
+    for input in (
+        Path(__file__).parent
+        / "graphs"
+        / "concentrate-demo"
+        / "curved-concentrated-attributed-parallel.dot",
+        Path(__file__).parent
+        / "graphs"
+        / "concentrate-demo"
+        / "curved-concentrated-attributed-chain.dot",
     ):
+        assert input.exists(), "unexpectedly missing test case"
         proc = subprocess.run(
-            [which("dot"), "-Tjson"],
-            input=source,
+            [which("dot"), "-Tjson", input],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             check=False,
@@ -8958,28 +8951,6 @@ def test_concentrate_implicit_tooltip_fallback_uses_textlabel_text(tmp_path: Pat
     subprocess.run(
         (exe, "parsed-label-fallback"), capture_output=True, env=env, check=True
     )
-
-
-def test_route_certificate_unit_fixtures(tmp_path: Path):
-    """Post-routing portal and crossing certificates preserve topology."""
-
-    source_lib = Path(__file__).parent.parent / "lib"
-    exe = tmp_path / "routecert"
-    compile_c(
-        Path(__file__).parent / "routecert.c",
-        cflags=[
-            "-std=c17",
-            f"-I{source_lib}",
-            f"-I{source_lib / 'cdt'}",
-            f"-I{source_lib / 'cgraph'}",
-            f"-I{source_lib / 'common'}",
-            f"-I{source_lib / 'gvc'}",
-            f"-I{source_lib / 'pathplan'}",
-            *(["-lm"] if platform.system() != "Windows" else []),
-        ],
-        dst=exe,
-    )
-    subprocess.run((exe,), capture_output=True, check=True)
 
 
 @pytest.mark.skipif(

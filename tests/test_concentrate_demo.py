@@ -27,13 +27,14 @@ def _render_xdot_json(path: Path) -> dict:
     return json.loads(dot("json", source_file=path))
 
 
-def _run_xdot(path: Path) -> subprocess.CompletedProcess:
+def _run_xdot(path: Path, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["dot", "-Kdot", "-Txdot", path],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         check=False,
+        env=env,
     )
 
 
@@ -184,6 +185,18 @@ def test_record_port_concentrate_crash_repro_renders():
     assert "SEGV" not in proc.stderr
     assert "AddressSanitizer" not in proc.stderr
     assert re.search(r"\w+\s*->\s*\w+\s+\[", proc.stdout) is not None
+    assert "pos=" in proc.stdout
+
+
+def test_rollback_probe_exercises_successful_shared_transaction_path():
+    """Opt-in rollback probing validates a successful concentration candidate."""
+
+    env = os.environ.copy()
+    env["GV_CONCENTRATE_ROLLBACK"] = "1"
+    proc = _run_xdot(_fixture("distinct-parallel-colors-stay-distinct.dot"), env=env)
+
+    assert proc.returncode == 0
+    assert "SEGV" not in proc.stderr
     assert "pos=" in proc.stdout
 
 
