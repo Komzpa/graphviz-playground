@@ -1144,3 +1144,245 @@ static void append_edge_color_value(agxbuf *signature, Agedge_t *edge,
   append_signature_slot(signature, slot_name, value);
 }
 
+static void append_textlabel_slots(agxbuf *signature, Agedge_t *edge,
+                                   const char *slot_prefix,
+                                   const textlabel_t *label) {
+  if (label == NULL) {
+    return;
+  }
+
+  agxbuf slot_name = {0};
+  agxbprint(&slot_name, "%s:text", slot_prefix);
+  if (label->html) {
+    const char *imagescale = agget(edge, "imagescale");
+    if (imagescale == NULL || imagescale[0] == '\0') {
+      imagescale = "false";
+    }
+    append_html_label_identity_slots(signature, edge, agxbuse(&slot_name),
+                                     label->u.html, imagescale);
+    if (html_label_may_use_colorscheme(label->u.html)) {
+      agxbclear(&slot_name);
+      agxbprint(&slot_name, "%s:colorscheme", slot_prefix);
+      const char *colorscheme = agget(edge, "colorscheme");
+      append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                  colorscheme == NULL ? "" : colorscheme);
+    }
+    size_t anchor_index = 0;
+    append_html_label_hyperlink_slots(signature, edge, slot_prefix,
+                                      label->u.html, false, &anchor_index);
+  } else {
+    agxbuf rendered_label = {0};
+    for (size_t i = 0; i < label->u.txt.nspans; i++) {
+      if (i > 0) {
+        agxbputc(&rendered_label, '\n');
+      }
+      agxbputc(&rendered_label, label->u.txt.span[i].just);
+      agxbputc(&rendered_label, ':');
+      agxbput(&rendered_label, label->u.txt.span[i].str);
+    }
+    append_plain_signature_slot(signature, agxbuse(&slot_name),
+                                agxbuse(&rendered_label));
+    agxbfree(&rendered_label);
+  }
+
+  if (label->html && !html_label_may_use_fallback_font(label->u.html)) {
+    agxbfree(&slot_name);
+    return;
+  }
+
+  agxbclear(&slot_name);
+  agxbprint(&slot_name, "%s:fontname", slot_prefix);
+  append_plain_signature_slot(signature, agxbuse(&slot_name), label->fontname);
+
+  agxbclear(&slot_name);
+  agxbprint(&slot_name, "%s:fontsize", slot_prefix);
+  agxbuf rendered_number = {0};
+  agxbprint(&rendered_number, "%a", label->fontsize);
+  append_plain_signature_slot(signature, agxbuse(&slot_name),
+                              agxbuse(&rendered_number));
+  agxbfree(&rendered_number);
+
+  agxbclear(&slot_name);
+  agxbprint(&slot_name, "%s:fontcolor", slot_prefix);
+  append_edge_color_value(signature, edge, agxbuse(&slot_name),
+                          plain_attribute_value(label->fontcolor), false,
+                          false);
+  agxbfree(&slot_name);
+}
+
+static textlabel_t *edge_endpoint_label(Agedge_t *edge,
+                                        edge_endpoint_t endpoint) {
+  return endpoint == EDGE_HEAD_ENDPOINT ? ED_head_label(edge)
+                                        : ED_tail_label(edge);
+}
+
+static void append_structured_label_slots(agxbuf *signature, Agedge_t *edge,
+                                          bool reverse_orientation) {
+  append_textlabel_slots(signature, edge, "label", ED_label(edge));
+  if (ED_label(edge) != NULL) {
+    append_plain_signature_slot(signature, "label:ontop",
+                                ED_label_ontop(edge) ? "true" : "false");
+  }
+  append_textlabel_slots(signature, edge, "xlabel", ED_xlabel(edge));
+
+  for (edge_endpoint_t endpoint = EDGE_TAIL_ENDPOINT;
+       endpoint < EDGE_ENDPOINT_COUNT; endpoint++) {
+    const edge_endpoint_t source_endpoint =
+        reverse_orientation
+            ? (endpoint == EDGE_HEAD_ENDPOINT ? EDGE_TAIL_ENDPOINT
+                                              : EDGE_HEAD_ENDPOINT)
+            : endpoint;
+    append_textlabel_slots(signature, edge,
+                           endpoint == EDGE_HEAD_ENDPOINT ? "headlabel"
+                                                          : "taillabel",
+                           edge_endpoint_label(edge, source_endpoint));
+  }
+}
+
+static bool edge_numeric_attribute_value(comparable_attribute_value_t value,
+                                         double default_value, double minimum,
+                                         double *number) {
+  if (value.is_html) {
+    return false;
+  }
+  if (value.text[0] == '\0') {
+    *number = default_value;
+    return true;
+  }
+
+  char *end = NULL;
+  const double parsed_value = strtod(value.text, &end);
+  if (end == value.text) {
+    *number = default_value;
+    return true;
+  }
+  if (!isfinite(parsed_value)) {
+    *number = default_value;
+    return true;
+  }
+  *number = parsed_value < minimum ? minimum : parsed_value;
+  return true;
+}
+
+static bool
+edge_numeric_projected_value(edge_attribute_classification_t classification,
+                             comparable_attribute_value_t value,
+                             double *number) {
+  if (!classification.found) {
+    return false;
+  }
+  double default_value;
+  double minimum = 0.0;
+
+  if (classification.facts->default_kind == ATTRIBUTE_DEFAULT_ONE) {
+    default_value = 1.0;
+  } else if (classification.facts->default_kind ==
+             ATTRIBUTE_DEFAULT_LABEL_ANGLE) {
+    default_value = PORT_LABEL_ANGLE;
+    minimum = -180.0;
+  } else {
+    return false;
+  }
+
+  return edge_numeric_attribute_value(value, default_value, minimum, number);
+}
+
+static bool style_penwidth_value(const char *style, double *penwidth) {
+  if (style == NULL || style[0] == '\0') {
+    return false;
+  }
+  bool found = false;
+  for (char **item = parse_style((char *)style); *item != NULL; item++) {
+    if (strcmp(*item, "bold") == 0) {
+      *penwidth = 2.0;
+      found = true;
+      continue;
+    }
+    if (strcmp(*item, "setlinewidth") != 0) {
+      continue;
+    }
+    char *end = NULL;
+    const char *const argument = *item + strlen(*item) + 1;
+    const double parsed = strtod(argument, &end);
+    if (end != argument) {
+      *penwidth = parsed;
+      found = true;
+    }
+  }
+  return found;
+}
+
+static bool
+edge_projected_penwidth(edge_attribute_classification_t classification,
+                        comparable_attribute_value_t value, Agedge_t *edge,
+                        double *penwidth) {
+  if (!classification.found ||
+      classification.facts->default_kind != ATTRIBUTE_DEFAULT_ONE) {
+    return false;
+  }
+  if (strcmp(classification.name, "penwidth") == 0 && value.text[0] == '\0' &&
+      !value.is_html && style_penwidth_value(agget(edge, "style"), penwidth)) {
+    return true;
+  }
+  return edge_numeric_projected_value(classification, value, penwidth);
+}
+
+static bool graph_uses_ortho_edges(Agraph_t *root_graph) {
+  const char *const splines_value = agget(root_graph, "splines");
+  return splines_value != NULL && strcmp(splines_value, "ortho") == 0;
+}
+
+static bool
+edge_uses_simple_color_ortho_branch(Agraph_t *root_graph, Agedge_t *edge,
+                                    comparable_attribute_value_t style);
+
+static bool edge_style_token_sets_pen_pattern(const char *style) {
+  return strcmp(style, "solid") == 0 || strcmp(style, "dashed") == 0 ||
+         strcmp(style, "dotted") == 0 || strcmp(style, "invis") == 0;
+}
+
+static const char *canonical_edge_style_pen_pattern(const char *style) {
+  return style;
+}
+
+static void append_style_value(agxbuf *signature, const char *slot_name,
+                               comparable_attribute_value_t value,
+                               bool keep_rounded) {
+  if (value.is_html) {
+    append_signature_slot(signature, slot_name, value);
+    return;
+  }
+
+  agxbuf rendered_style = {0};
+  const char *pen_pattern = NULL;
+  for (char **item = parse_style((char *)value.text); *item != NULL; item++) {
+    if (strcmp(*item, "invis") == 0) {
+      append_plain_signature_slot(signature, slot_name, "invis");
+      agxbfree(&rendered_style);
+      return;
+    }
+    if (strcmp(*item, "bold") == 0 || strcmp(*item, "setlinewidth") == 0 ||
+        (!keep_rounded && strcmp(*item, "rounded") == 0)) {
+      continue;
+    }
+    if (edge_style_token_sets_pen_pattern(*item)) {
+      pen_pattern = canonical_edge_style_pen_pattern(*item);
+      continue;
+    }
+    if (agxblen(&rendered_style) > 0) {
+      agxbputc(&rendered_style, ',');
+    }
+    agxbput(&rendered_style, *item);
+  }
+  if (pen_pattern != NULL) {
+    if (agxblen(&rendered_style) > 0) {
+      agxbputc(&rendered_style, ',');
+    }
+    agxbput(&rendered_style, pen_pattern);
+  }
+  append_plain_signature_slot(
+      signature, slot_name,
+      agxblen(&rendered_style) == 0 ? "solid" : agxbuse(&rendered_style));
+  agxbfree(&rendered_style);
+}
+
