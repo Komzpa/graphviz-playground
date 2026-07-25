@@ -32,8 +32,9 @@
 /* standard arrow length in points */
 #define ARROW_LENGTH 10.
 
-#define NUMB_OF_ARROW_HEADS 4
-/* each arrow in 8 bits.  Room for NUMB_OF_ARROW_HEADS arrows in 32 bit int. */
+#define NUMBER_OF_ARROW_HEADS 4
+/* each arrow in 8 bits.  Room for NUMBER_OF_ARROW_HEADS arrows in 32 bit int.
+ */
 
 #define BITS_PER_ARROW 8
 
@@ -109,6 +110,10 @@ struct gv_concentrated_arrow_snapshot_s {
 
 #define CONCENTRATED_ARROW_DECORATION_RECORD "concentrated arrow decoration"
 
+/*
+ * Return the retained edge's private concentration arrow record. Creation uses
+ * agbindrec with move_to_front=false so ED_* macro storage remains first.
+ */
 static arrow_decoration_t *concentrated_arrow_decoration_record(Agedge_t *edge,
                                                                 bool create) {
   if (create) {
@@ -123,6 +128,10 @@ static arrow_decoration_t *concentrated_arrow_decoration_record(Agedge_t *edge,
   return record == NULL ? NULL : record->endpoints;
 }
 
+/*
+ * Delete the private arrow fold before an edge is destroyed or re-expanded, so
+ * later layout passes cannot read stale concentration state.
+ */
 void gv_cleanup_concentrated_edge_arrows(Agedge_t *edge) {
   agdelrec(edge, CONCENTRATED_ARROW_DECORATION_RECORD);
 }
@@ -182,7 +191,7 @@ static char *effective_edge_arrow_fillcolor(Agedge_t *edge, bool *is_html) {
 }
 
 static bool arrow_shape_uses_fillcolor(uint32_t shape_flags) {
-  for (int i = 0; i < NUMB_OF_ARROW_HEADS; i++) {
+  for (int i = 0; i < NUMBER_OF_ARROW_HEADS; i++) {
     const uint32_t arrow =
         (shape_flags >> (i * BITS_PER_ARROW)) & ((1 << BITS_PER_ARROW) - 1);
     const uint32_t type = arrow & ((1 << BITS_PER_ARROW_TYPE) - 1);
@@ -207,6 +216,7 @@ static bool arrow_shape_uses_fillcolor(uint32_t shape_flags) {
   return false;
 }
 
+/* Report whether fillcolor was explicitly set on this edge, not inherited. */
 static bool explicit_edge_fillcolor(Agedge_t *edge) {
   Agraph_t *const root_graph = agroot(agraphof(edge));
   Agsym_t *const fillcolor_attribute = agfindedgeattr(root_graph, "fillcolor");
@@ -216,6 +226,10 @@ static bool explicit_edge_fillcolor(Agedge_t *edge) {
   return agxget(edge, fillcolor_attribute)[0] != '\0';
 }
 
+/*
+ * Remove a weighted color-list suffix in-place and return its parsed fraction.
+ * The caller only needs the first explicit fraction to decide endpoint color.
+ */
 static bool strip_color_segment_fraction(char *segment, double *fraction) {
   char *const separator = segment == NULL ? NULL : strchr(segment, ';');
   if (separator == NULL) {
@@ -233,6 +247,11 @@ static bool strip_color_segment_fraction(char *segment, double *fraction) {
   return true;
 }
 
+/*
+ * Resolve the color-list entry used at one arrow endpoint. Graphviz gradients
+ * use the first segment at the head side unless the first segment consumes all
+ * weight; the second segment is the tail-side color when it exists.
+ */
 static char *color_list_endpoint_color(char *color_list,
                                        edge_arrow_endpoint_t endpoint) {
   char *const colors = gv_strdup(color_list);
@@ -653,6 +672,10 @@ static char *arrow_match_name_frag(char *name, const arrowname_t *arrownames,
   return rest;
 }
 
+/*
+ * Parse one primitive arrow shape, accepting synonyms and stacked modifiers
+ * before the primitive name. Bare modifiers imply the normal arrow shape.
+ */
 static char *arrow_match_shape(char *name, uint32_t *flag) {
   char *next, *rest;
   uint32_t f = ARR_TYPE_NONE;
@@ -671,13 +694,17 @@ static char *arrow_match_shape(char *name, uint32_t *flag) {
   return rest;
 }
 
+/*
+ * Parse a complete arrow name into packed per-shape flags. Interior gaps are
+ * preserved, while leading or trailing "none" does not allocate a shape slot.
+ */
 static void arrow_match_name(char *name, uint32_t *flag) {
   char *rest = name;
   char *next;
   int i;
 
   *flag = 0;
-  for (i = 0; *rest != '\0' && i < NUMB_OF_ARROW_HEADS;) {
+  for (i = 0; *rest != '\0' && i < NUMBER_OF_ARROW_HEADS;) {
     uint32_t f = ARR_TYPE_NONE;
     next = rest;
     rest = arrow_match_shape(next, &f);
@@ -685,7 +712,7 @@ static void arrow_match_name(char *name, uint32_t *flag) {
       agwarningf("Arrow type \"%s\" unknown - ignoring\n", next);
       return;
     }
-    if (f == ARR_TYPE_GAP && i == NUMB_OF_ARROW_HEADS - 1)
+    if (f == ARR_TYPE_GAP && i == NUMBER_OF_ARROW_HEADS - 1)
       f = ARR_TYPE_NONE;
     if (f == ARR_TYPE_GAP && i == 0 && *rest == '\0')
       f = ARR_TYPE_NONE;
@@ -736,7 +763,7 @@ static double arrow_length(edge_t *e, uint32_t flag, double arrowsize) {
     return 0;
   }
 
-  for (i = 0; i < NUMB_OF_ARROW_HEADS; i++) {
+  for (i = 0; i < NUMBER_OF_ARROW_HEADS; i++) {
     /* we don't simply index with flag because arrowtypes are not necessarily
      * sorted */
     uint32_t f =
@@ -1662,7 +1689,7 @@ void arrow_geometry(pointf p, pointf u, double arrowsize, double penwidth,
   u.y *= s;
 
   /* the first arrow head - closest to node */
-  for (i = 0; i < NUMB_OF_ARROW_HEADS; i++) {
+  for (i = 0; i < NUMBER_OF_ARROW_HEADS; i++) {
     uint32_t f = (flag >> (i * BITS_PER_ARROW)) & ((1 << BITS_PER_ARROW) - 1);
     if (f == ARR_TYPE_NONE)
       break;
