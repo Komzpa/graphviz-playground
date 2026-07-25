@@ -2205,3 +2205,163 @@ static bool sameport_group_has_multiple_members(Agraph_t *graph, Agedge_t *edge,
   return false;
 }
 
+static void append_endpoint_attribute_slots(agxbuf *signature,
+                                            Agraph_t *root_graph,
+                                            Agedge_t *edge,
+                                            bool reverse_orientation) {
+  for (size_t i = 0; i < ATTRIBUTE_COUNT(edge_attribute_exceptions); i++) {
+    const edge_attribute_exception_t *const exception =
+        &edge_attribute_exceptions[i];
+    const edge_attribute_classification_t classification =
+        edge_attribute_classification(exception->name);
+    if (!exception->endpoint ||
+        !edge_attribute_is_rendered(root_graph, edge, classification)) {
+      continue;
+    }
+    const attribute_owner_t source_owner =
+        reverse_orientation ? opposite_attribute_owner(exception->owner)
+                            : exception->owner;
+    const char *const source_name =
+        endpoint_exception_name(exception->name, source_owner);
+    if ((strcmp(source_name, "samehead") == 0 ||
+         strcmp(source_name, "sametail") == 0) &&
+        !sameport_group_has_multiple_members(root_graph, edge, source_name)) {
+      continue;
+    }
+    append_projected_attribute_value(signature, root_graph, edge,
+                                     exception->name, source_name,
+                                     reverse_orientation);
+  }
+
+  for (attribute_owner_t canonical_owner = ATTRIBUTE_OWNER_HEAD;
+       canonical_owner <= ATTRIBUTE_OWNER_TAIL; canonical_owner++) {
+    const attribute_owner_t source_owner =
+        reverse_orientation ? opposite_attribute_owner(canonical_owner)
+                            : canonical_owner;
+    char slot_name[32];
+    char source_name[32];
+    composed_attribute_name(canonical_owner, ATTRIBUTE_KIND_CLIP,
+                            ATTRIBUTE_NAME_PREFIXED, false, slot_name,
+                            sizeof(slot_name));
+    composed_attribute_name(source_owner, ATTRIBUTE_KIND_CLIP,
+                            ATTRIBUTE_NAME_PREFIXED, false, source_name,
+                            sizeof(source_name));
+    append_projected_attribute_value(signature, root_graph, edge, slot_name,
+                                     source_name, reverse_orientation);
+  }
+}
+
+static rendered_edge_identity_t
+project_rendered_edge_identity(Agedge_t *edge, bool reverse_orientation) {
+  Agraph_t *const root_graph = agroot(agraphof(edge));
+  agxbuf signature = {0};
+
+  append_structured_label_slots(&signature, edge, reverse_orientation);
+  append_structured_port_slots(&signature, edge, reverse_orientation);
+  append_ordinary_attribute_slots(&signature, root_graph, edge,
+                                  reverse_orientation);
+  append_taper_direction_slot(&signature, edge, reverse_orientation);
+  append_endpoint_attribute_slots(&signature, root_graph, edge,
+                                  reverse_orientation);
+  append_hyperlink_slots(&signature, root_graph, edge, reverse_orientation);
+
+  return (rendered_edge_identity_t){.text = agxbdisown(&signature)};
+}
+
+static bool edge_rendered_identities_are_equal(Agedge_t *first_edge,
+                                               Agedge_t *second_edge,
+                                               bool reverse_second_edge) {
+  rendered_edge_identity_t first_identity =
+      project_rendered_edge_identity(first_edge, false);
+  rendered_edge_identity_t second_identity =
+      project_rendered_edge_identity(second_edge, reverse_second_edge);
+  const bool equal = strcmp(first_identity.text, second_identity.text) == 0;
+  free(first_identity.text);
+  free(second_identity.text);
+  return equal;
+}
+
+static char *project_endpoint_port_identity(Agedge_t *edge,
+                                            edge_endpoint_t endpoint) {
+  const port resolved_port = edge_endpoint_port(edge, endpoint);
+  agxbuf identity = {0};
+  if (!resolved_port.defined && !resolved_port.dyna) {
+    return gv_strdup("");
+  }
+
+  node_t *const node =
+      endpoint == EDGE_HEAD_ENDPOINT ? aghead(edge) : agtail(edge);
+  const char *const declared_port =
+      edge_endpoint_port_attribute(edge, endpoint);
+  if (!append_declared_endpoint_port_anchor(&identity, node, declared_port)) {
+    agxbclear(&identity);
+    return gv_strdup("");
+  }
+
+  if (resolved_port.defined) {
+    agxbprint(&identity, "|%a,%a,%d,%d", resolved_port.p.x, resolved_port.p.y,
+              resolved_port.constrained, resolved_port.dyna);
+  } else {
+    agxbprint(&identity, "|dynamic:%d", resolved_port.dyna);
+  }
+  return agxbdisown(&identity);
+}
+
+static bool edge_endpoint_ports_are_equal(Agedge_t *first_edge,
+                                          edge_endpoint_t first_endpoint,
+                                          Agedge_t *second_edge,
+                                          edge_endpoint_t second_endpoint) {
+  char *const first =
+      project_endpoint_port_identity(first_edge, first_endpoint);
+  char *const second =
+      project_endpoint_port_identity(second_edge, second_endpoint);
+  const bool equal = strcmp(first, second) == 0;
+  free(first);
+  free(second);
+  return equal;
+}
+
+bool gv_edge_ports_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
+  for (edge_endpoint_t endpoint = EDGE_TAIL_ENDPOINT;
+       endpoint < EDGE_ENDPOINT_COUNT; endpoint++) {
+    if (!edge_endpoint_ports_are_equal(first_edge, endpoint, second_edge,
+                                       endpoint)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool gv_edge_tail_ports_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
+  return edge_endpoint_ports_are_equal(first_edge, EDGE_TAIL_ENDPOINT,
+                                       second_edge, EDGE_TAIL_ENDPOINT);
+}
+
+bool gv_edge_head_ports_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
+  return edge_endpoint_ports_are_equal(first_edge, EDGE_HEAD_ENDPOINT,
+                                       second_edge, EDGE_HEAD_ENDPOINT);
+}
+
+bool gv_opposite_edge_ports_are_equal(Agedge_t *first_edge,
+                                      Agedge_t *second_edge) {
+  for (edge_endpoint_t first_endpoint = EDGE_TAIL_ENDPOINT;
+       first_endpoint < EDGE_ENDPOINT_COUNT; first_endpoint++) {
+    const edge_endpoint_t second_endpoint = first_endpoint == EDGE_HEAD_ENDPOINT
+                                                ? EDGE_TAIL_ENDPOINT
+                                                : EDGE_HEAD_ENDPOINT;
+    if (!edge_endpoint_ports_are_equal(first_edge, first_endpoint, second_edge,
+                                       second_endpoint)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool gv_edge_attributes_are_equal(Agedge_t *first_edge, Agedge_t *second_edge) {
+  return edge_rendered_identities_are_equal(first_edge, second_edge, false);
+}
+
+bool gv_opposite_edge_attributes_are_equal(Agedge_t *first_edge,
+                                           Agedge_t *second_edge) {
+  return edge_rendered_identities_are_equal(first_edge, second_edge, true);
+}
