@@ -78,6 +78,22 @@ static bool inBoxf(pointf p, boxf *bb) {
     return INSIDE(p, *bb);
 }
 
+static bool same_pointf(pointf a, pointf b) {
+    return a.x == b.x && a.y == b.y;
+}
+
+static void regularize_collapsed_bezier_joins(bezier *bez) {
+    for (size_t joint = 3; joint + 1 < bez->size; joint += 3) {
+	if (same_pointf(bez->list[joint - 1], bez->list[joint]) &&
+	    same_pointf(bez->list[joint], bez->list[joint + 1])) {
+	    bez->list[joint - 1] =
+		mid_pointf(bez->list[joint - 2], bez->list[joint]);
+	    bez->list[joint + 1] =
+		mid_pointf(bez->list[joint], bez->list[joint + 2]);
+	}
+    }
+}
+
 /* Returns subgraph with given name.
  * Returns NULL if no name is given, or subgraph of
  * that name does not exist.
@@ -449,6 +465,7 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
     nbez.list = gv_calloc(nbez.size, sizeof(pointf));
     for (size_t i = 0, j = starti; i < nbez.size; i++, j++)
 	nbez.list[i] = bez->list[j];
+    regularize_collapsed_bezier_joins(&nbez);
     free(bez->list);
     *ED_spl(e)->list = nbez;
 }
