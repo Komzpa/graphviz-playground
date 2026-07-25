@@ -12,11 +12,12 @@
 
 #include <assert.h>
 #include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 #include <pathplan/pathutil.h>
+#include <pathplan/route_internal.h>
 #include <pathplan/solvers.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define EPSILON1 1E-3
 #define EPSILON2 1E-6
@@ -35,8 +36,8 @@ typedef struct tna_t {
 static Ppoint_t *ops;
 static size_t opn, opl;
 
-static int reallyroutespline(Pedge_t *, size_t,
-			     Ppoint_t *, int, Ppoint_t, Ppoint_t);
+static int reallyroutespline(Pedge_t *, size_t, Ppoint_t *, const Pvector_t *,
+                             int, Ppoint_t, Ppoint_t);
 static int mkspline(Ppoint_t *, int, const tna_t *, Ppoint_t, Ppoint_t,
 		    Ppoint_t *, Ppoint_t *, Ppoint_t *, Ppoint_t *);
 static int splinefits(Pedge_t *, size_t, Ppoint_t, Pvector_t, Ppoint_t,
@@ -47,6 +48,13 @@ static void points2coeff(double, double, double, double, double *);
 static void addroot(double, double *, int *);
 
 static Pvector_t normv(Pvector_t);
+typedef enum {
+  SPLIT_TANGENT_OK,
+  SPLIT_TANGENT_TRUE_REVERSAL,
+  SPLIT_TANGENT_NO_CORRIDOR_DIRECTION,
+} split_tangent_result_t;
+static split_tangent_result_t split_tangent(Ppoint_t *, int, Pvector_t,
+                                            Pvector_t *);
 
 static int growops(size_t);
 
@@ -67,93 +75,132 @@ static double B23(double t);
  * fitting the input and endpoint vectors, and return in output_route.
  * Return 0 on success and -1 on failure, including no memory.
  */
+static int routespline_with_fallbacks(Pedge_t *barriers, size_t n_barriers,
+                                      Ppolyline_t input_route,
+                                      Ppoint_t endpoint_slopes[2],
+                                      const Pvector_t *split_fallbacks,
+                                      Ppolyline_t *output_route) {
+  Ppoint_t *inps;
+  int inpn;
+
+  /* unpack into previous format rather than modify legacy code */
+  inps = input_route.ps;
+  assert(input_route.pn <= INT_MAX);
+  inpn = (int)input_route.pn;
+
+  /* generate the splines */
+  endpoint_slopes[0] = normv(endpoint_slopes[0]);
+  endpoint_slopes[1] = normv(endpoint_slopes[1]);
+  opl = 0;
+  if (growops(4) < 0) {
+    return -1;
+  }
+  ops[opl++] = inps[0];
+  if (reallyroutespline(barriers, n_barriers, inps, split_fallbacks, inpn,
+                        endpoint_slopes[0], endpoint_slopes[1]) == -1)
+    return -1;
+  output_route->pn = opl;
+  output_route->ps = ops;
+
+  return 0;
+}
+
 int Proutespline(Pedge_t *barriers, size_t n_barriers, Ppolyline_t input_route,
                  Ppoint_t endpoint_slopes[2], Ppolyline_t *output_route) {
-    Ppoint_t *inps;
-    int inpn;
+  return routespline_with_fallbacks(barriers, n_barriers, input_route,
+                                    endpoint_slopes, NULL, output_route);
+}
 
-    /* unpack into previous format rather than modify legacy code */
-    inps = input_route.ps;
-    assert(input_route.pn <= INT_MAX);
-    inpn = (int)input_route.pn;
-
-    /* generate the splines */
-    endpoint_slopes[0] = normv(endpoint_slopes[0]);
-    endpoint_slopes[1] = normv(endpoint_slopes[1]);
-    opl = 0;
-    if (growops(4) < 0) {
-	return -1;
-    }
-    ops[opl++] = inps[0];
-    if (reallyroutespline(barriers, n_barriers, inps, inpn, endpoint_slopes[0],
-                          endpoint_slopes[1]) == -1)
-	return -1;
-    output_route->pn = opl;
-    output_route->ps = ops;
-
-    return 0;
+int Proutespline_with_fallbacks(Pedge_t *barriers, size_t n_barriers,
+                                Ppolyline_t input_route,
+                                Ppoint_t endpoint_slopes[2],
+                                const Pvector_t *split_fallbacks,
+                                Ppolyline_t *output_route) {
+  return routespline_with_fallbacks(barriers, n_barriers, input_route,
+                                    endpoint_slopes, split_fallbacks,
+                                    output_route);
 }
 
 static int reallyroutespline(Pedge_t *edges, size_t edgen, Ppoint_t *inps,
-                             int inpn, Ppoint_t ev0, Ppoint_t ev1) {
-    Ppoint_t p1, p2;
-    Pvector_t v1, v2;
-    double d;
+                             const Pvector_t *split_fallbacks, int inpn,
+                             Ppoint_t ev0, Ppoint_t ev1) {
+  Ppoint_t p1, p2;
+  Pvector_t v1, v2;
+  double d;
 
-    assert(inpn > 0);
-    tna_t *const tnas = calloc((size_t)inpn, sizeof(tna_t));
-    if (tnas == NULL) {
-	return -1;
-    }
-    tnas[0].t = 0;
-    for (int i = 1; i < inpn; i++)
-	tnas[i].t = tnas[i - 1].t + dist(inps[i], inps[i - 1]);
-    for (int i = 1; i < inpn; i++)
-	tnas[i].t /= tnas[inpn - 1].t;
-    for (int i = 0; i < inpn; i++) {
-	tnas[i].a[0] = scale(ev0, B1(tnas[i].t));
-	tnas[i].a[1] = scale(ev1, B2(tnas[i].t));
-    }
-    if (mkspline(inps, inpn, tnas, ev0, ev1, &p1, &v1, &p2, &v2) == -1) {
-	free(tnas);
-	return -1;
-    }
-    int fit = splinefits(edges, edgen, p1, v1, p2, v2, inps, inpn);
-    if (fit > 0) {
-	free(tnas);
-	return 0;
-    }
-    if (fit < 0) {
-	free(tnas);
-	return -1;
-    }
-    const Ppoint_t cp1 = add(p1, scale(v1, 1 / 3.0));
-    const Ppoint_t cp2 = sub(p2, scale(v2, 1 / 3.0));
-    int maxi = -1;
-    double maxd = -1;
-    for (int i = 1; i < inpn - 1; i++) {
-	const double t = tnas[i].t;
-	const Ppoint_t p = {
-	  .x = B0(t) * p1.x + B1(t) * cp1.x + B2(t) * cp2.x + B3(t) * p2.x,
-	  .y = B0(t) * p1.y + B1(t) * cp1.y + B2(t) * cp2.y + B3(t) * p2.y};
-	if ((d = dist(p, inps[i])) > maxd) {
-	    maxd = d;
-	    maxi = i;
-	}
-    }
+  assert(inpn > 0);
+  tna_t *const tnas = calloc((size_t)inpn, sizeof(tna_t));
+  if (tnas == NULL) {
+    return -1;
+  }
+  tnas[0].t = 0;
+  for (int i = 1; i < inpn; i++)
+    tnas[i].t = tnas[i - 1].t + dist(inps[i], inps[i - 1]);
+  for (int i = 1; i < inpn; i++)
+    tnas[i].t /= tnas[inpn - 1].t;
+  for (int i = 0; i < inpn; i++) {
+    tnas[i].a[0] = scale(ev0, B1(tnas[i].t));
+    tnas[i].a[1] = scale(ev1, B2(tnas[i].t));
+  }
+  if (mkspline(inps, inpn, tnas, ev0, ev1, &p1, &v1, &p2, &v2) == -1) {
     free(tnas);
-    const int spliti = maxi;
-    const Pvector_t splitv1 = normv(sub(inps[spliti], inps[spliti - 1]));
-    const Pvector_t splitv2 = normv(sub(inps[spliti + 1], inps[spliti]));
-    const Pvector_t splitv = normv(add(splitv1, splitv2));
-    if (reallyroutespline(edges, edgen, inps, spliti + 1, ev0, splitv) < 0) {
-	return -1;
-    }
-    if (reallyroutespline(edges, edgen, &inps[spliti], inpn - spliti, splitv,
-                          ev1) < 0) {
-	return -1;
-    }
+    return -1;
+  }
+  int fit = splinefits(edges, edgen, p1, v1, p2, v2, inps, inpn);
+  if (fit > 0) {
+    free(tnas);
     return 0;
+  }
+  if (fit < 0) {
+    free(tnas);
+    return -1;
+  }
+  const Ppoint_t cp1 = add(p1, scale(v1, 1 / 3.0));
+  const Ppoint_t cp2 = sub(p2, scale(v2, 1 / 3.0));
+  int maxi = -1;
+  double maxd = -1;
+  for (int i = 1; i < inpn - 1; i++) {
+    const double t = tnas[i].t;
+    const Ppoint_t p = {
+        .x = B0(t) * p1.x + B1(t) * cp1.x + B2(t) * cp2.x + B3(t) * p2.x,
+        .y = B0(t) * p1.y + B1(t) * cp1.y + B2(t) * cp2.y + B3(t) * p2.y};
+    if ((d = dist(p, inps[i])) > maxd) {
+      maxd = d;
+      maxi = i;
+    }
+  }
+  free(tnas);
+  const int spliti = maxi;
+  Pvector_t splitv;
+  const Pvector_t corridor_direction =
+      split_fallbacks == NULL ? (Pvector_t){0} : split_fallbacks[spliti];
+  const split_tangent_result_t split_result =
+      split_tangent(inps, spliti, corridor_direction, &splitv);
+  if (split_result != SPLIT_TANGENT_OK) {
+    if (split_result == SPLIT_TANGENT_TRUE_REVERSAL) {
+      fprintf(stderr,
+              "warning: Proutespline: true 180-degree reversal at "
+              "template point %d; refusing a cusp\n",
+              spliti);
+    } else {
+      fprintf(stderr,
+              "warning: Proutespline: no usable local corridor direction "
+              "at template point %d; refusing a zero split tangent\n",
+              spliti);
+    }
+    return -1;
+  }
+  if (reallyroutespline(edges, edgen, inps, split_fallbacks, spliti + 1, ev0,
+                        splitv) < 0) {
+    return -1;
+  }
+  if (reallyroutespline(edges, edgen, &inps[spliti],
+                        split_fallbacks == NULL ? NULL
+                                                : &split_fallbacks[spliti],
+                        inpn - spliti, splitv, ev1) < 0) {
+    return -1;
+  }
+  return 0;
 }
 
 static int mkspline(Ppoint_t * inps, int inpn, const tna_t *tnas, Ppoint_t ev0,
@@ -416,6 +463,56 @@ static Pvector_t normv(Pvector_t v)
 	v.x /= d, v.y /= d;
     }
     return v;
+}
+
+static int vector_is_usable(Pvector_t v) {
+  const double length_squared = dot(v, v);
+  return isfinite(length_squared) && length_squared > 1e-6;
+}
+
+static int unit_vector(Pvector_t v, Pvector_t *unit) {
+  if (!vector_is_usable(v))
+    return -1;
+  *unit = normv(v);
+  return 0;
+}
+
+static int split_direction_is_compatible(Pvector_t candidate,
+                                         Pvector_t incoming,
+                                         Pvector_t outgoing) {
+  return (!vector_is_usable(incoming) || dot(candidate, incoming) > EPSILON2) &&
+         (!vector_is_usable(outgoing) || dot(candidate, outgoing) > EPSILON2);
+}
+
+static int try_split_tangent(Pvector_t candidate, Pvector_t incoming,
+                             Pvector_t outgoing, Pvector_t *splitv) {
+  Pvector_t unit;
+  if (unit_vector(candidate, &unit) < 0 ||
+      !split_direction_is_compatible(unit, incoming, outgoing))
+    return -1;
+  *splitv = unit;
+  return 0;
+}
+
+static split_tangent_result_t split_tangent(Ppoint_t *inps, int spliti,
+                                            Pvector_t corridor_direction,
+                                            Pvector_t *splitv) {
+  const Pvector_t incoming = normv(sub(inps[spliti], inps[spliti - 1]));
+  const Pvector_t outgoing = normv(sub(inps[spliti + 1], inps[spliti]));
+
+  if (try_split_tangent(add(incoming, outgoing), incoming, outgoing, splitv) ==
+      0)
+    return SPLIT_TANGENT_OK;
+  if (try_split_tangent(sub(inps[spliti + 1], inps[spliti - 1]), incoming,
+                        outgoing, splitv) == 0)
+    return SPLIT_TANGENT_OK;
+
+  if (try_split_tangent(corridor_direction, incoming, outgoing, splitv) == 0)
+    return SPLIT_TANGENT_OK;
+  if (vector_is_usable(incoming) && vector_is_usable(outgoing) &&
+      dot(incoming, outgoing) <= -1.0 + EPSILON2)
+    return SPLIT_TANGENT_TRUE_REVERSAL;
+  return SPLIT_TANGENT_NO_CORRIDOR_DIRECTION;
 }
 
 static int growops(size_t newopn) {
