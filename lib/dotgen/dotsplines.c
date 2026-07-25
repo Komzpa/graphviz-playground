@@ -257,7 +257,10 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
   if (!edge_spline_bounds(retained, &retained_bounds)) {
     return;
   }
-  if (edge_spline_bounds(duplicate, &duplicate_bounds)) {
+  const int retained_port_sides =
+      ED_tail_port(retained).side | ED_head_port(retained).side;
+  if ((retained_port_sides & LEFT) == 0 &&
+      edge_spline_bounds(duplicate, &duplicate_bounds)) {
     retained_bounds.LL.x = MIN(retained_bounds.LL.x, duplicate_bounds.LL.x);
     retained_bounds.LL.y = MIN(retained_bounds.LL.y, duplicate_bounds.LL.y);
     retained_bounds.UR.x = MAX(retained_bounds.UR.x, duplicate_bounds.UR.x);
