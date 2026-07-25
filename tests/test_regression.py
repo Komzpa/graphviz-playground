@@ -5344,6 +5344,31 @@ def test_concentrated_duplicate_self_edge_label_is_not_replaced_as_xlabel():
     assert label_draws == [label]
 
 
+def test_concentrated_left_self_edge_label_releases_duplicate_route_width():
+    """Left self-loop dedupe should not reserve the deleted duplicate lane."""
+
+    source = (Path(__file__).parent / "graphs" / "sl_box_dbl.gv").read_text()
+    concentrated = source.replace("{", "{\n  graph [concentrate=true];", 1)
+    unconcentrated = source.replace("{", "{\n  graph [concentrate=false];", 1)
+
+    layout = _json_layout(concentrated)
+    drawn_self_edges = [
+        edge
+        for edge in layout["edges"]
+        if edge["tail"] == edge["head"] and "_draw_" in edge
+    ]
+    label_draws = [
+        operation["text"]
+        for edge in layout["edges"]
+        for operation in edge.get("_ldraw_", [])
+        if operation["op"] == "T"
+    ]
+
+    assert len(drawn_self_edges) == 21
+    assert len(label_draws) == 21
+    assert _graph_width(layout) < _graph_width(_json_layout(unconcentrated)) * 0.7
+
+
 def test_2814_grouped_endpoint_labels_sit_clear_of_nodes():
     """Grouped flat endpoint labels should not be separated into node boxes."""
 

@@ -663,6 +663,11 @@ same_direction_edges_are_concentrated_duplicates(edge_t *retained,
                                                              candidate);
 }
 
+static bool self_loop_uses_left_port(edge_t *edge) {
+  return agtail(edge) == aghead(edge) &&
+         ((ED_tail_port(edge).side | ED_head_port(edge).side) & LEFT) != 0;
+}
+
 static unsigned
 suppress_and_compact_concentrated_duplicate_routes(edge_t **edges,
                                                    unsigned cnt) {
@@ -701,7 +706,8 @@ suppress_and_compact_concentrated_duplicate_routes(edge_t **edges,
     edge_t *const edge = getmainedge(edges[i]);
     const bool ignored_self_loop_context =
         edge != NULL && first != NULL && ED_edge_type(edge) == IGNORED &&
-        same_self_edge_node_pair(first, edge) && ED_label(edge) != NULL;
+        same_self_edge_node_pair(first, edge) && ED_label(edge) != NULL &&
+        !self_loop_uses_left_port(edge);
     if (ED_edge_type(edges[i]) != IGNORED || ignored_self_loop_context) {
       edges[kept++] = edges[i];
     }
