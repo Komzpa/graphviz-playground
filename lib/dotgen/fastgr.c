@@ -10,6 +10,7 @@
 
 #include "config.h"
 
+#include <dotgen/bundle_load.h>
 #include <dotgen/dot.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -154,6 +155,7 @@ edge_t *new_virtual_edge(node_t * u, node_t * v, edge_t * orig)
 	    ED_head_port(e) = ED_head_port(orig);
 	else if (aghead(e) == agtail(orig))
 	    ED_head_port(e) = ED_tail_port(orig);
+	dot_bundle_load_init_virtual(e, orig);
 
 	if (ED_to_virt(orig) == NULL)
 	    ED_to_virt(orig) = e;
@@ -163,6 +165,7 @@ edge_t *new_virtual_edge(node_t * u, node_t * v, edge_t * orig)
 	ED_xpenalty(e) = 1;
 	ED_count(e) = 1;
 	ED_minlen(e) = 1;
+	dot_bundle_load_init_virtual(e, NULL);
     }
     return e;
 }
@@ -229,20 +232,24 @@ void delete_flat_edge(edge_t * e)
 }
 
 static void 
-basic_merge(edge_t * e, edge_t * rep)
+basic_merge(edge_t * e, edge_t * rep, dot_bundle_merge_t merge)
 {
     if (ED_minlen(rep) < ED_minlen(e))
 	ED_minlen(rep) = ED_minlen(e);
     while (rep) {
-	ED_count(rep) += ED_count(e);
-	ED_xpenalty(rep) += ED_xpenalty(e);
-	ED_weight(rep) += ED_weight(e);
+	const int legacy_count = ED_count(rep) + ED_count(e);
+	const int legacy_xpenalty = ED_xpenalty(rep) + ED_xpenalty(e);
+	const int legacy_position = ED_weight(rep) + ED_weight(e);
+	dot_bundle_load_merge(rep, e, merge);
+	dot_bundle_load_set_legacy_count(rep, legacy_count);
+	dot_bundle_load_set_legacy_xpenalty(rep, legacy_xpenalty);
+	dot_bundle_load_set_legacy_position(rep, legacy_position);
 	rep = ED_to_virt(rep);
     }
 }
-	
-void 
-merge_oneway(edge_t * e, edge_t * rep)
+
+void merge_oneway_with_bundle(edge_t *e, edge_t *rep,
+                              dot_bundle_merge_t merge)
 {
     if (rep == ED_to_virt(e) || e == ED_to_virt(rep)) {
 	agwarningf("merge_oneway glitch\n");
@@ -250,5 +257,11 @@ merge_oneway(edge_t * e, edge_t * rep)
     }
     assert(ED_to_virt(e) == NULL);
     ED_to_virt(e) = rep;
-    basic_merge(e, rep);
+    basic_merge(e, rep, merge);
+}
+
+void
+merge_oneway(edge_t * e, edge_t * rep)
+{
+    merge_oneway_with_bundle(e, rep, DOT_BUNDLE_ACCUMULATE);
 }
