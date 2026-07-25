@@ -816,6 +816,16 @@ size_t arrowStartClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
   return startp;
 }
 
+static pointf ortho_point_at_distance(pointf p, pointf q, double distance) {
+  pointf r = p;
+  if (p.y == q.y) {
+    r.x += p.x < q.x ? distance : -distance;
+  } else {
+    r.y += p.y < q.y ? distance : -distance;
+  }
+  return r;
+}
+
 /* arrowOrthoClip:
  * For orthogonal routing, we know each Bézier of spl is a horizontal or
  * vertical line segment. We need to guarantee the B-spline stays this way. At
@@ -843,25 +853,8 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
     if (hlen + tlen >= d) {
       hlen = tlen = d / 3.0;
     }
-    if (p.y == q.y) { // horizontal segment
-      s.y = t.y = p.y;
-      if (p.x < q.x) {
-        t.x = q.x - hlen;
-        s.x = p.x + tlen;
-      } else {
-        t.x = q.x + hlen;
-        s.x = p.x - tlen;
-      }
-    } else { // vertical segment
-      s.x = t.x = p.x;
-      if (p.y < q.y) {
-        t.y = q.y - hlen;
-        s.y = p.y + tlen;
-      } else {
-        t.y = q.y + hlen;
-        s.y = p.y - tlen;
-      }
-    }
+    s = ortho_point_at_distance(p, q, tlen);
+    t = ortho_point_at_distance(p, q, d - hlen);
     ps[endp] = ps[endp + 1] = s;
     ps[endp + 2] = ps[endp + 3] = t;
     spl->sflag = sflag, spl->sp = p;
@@ -877,19 +870,7 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
     if (hlen >= maxd) { /* arrow too long */
       hlen = maxd;
     }
-    if (p.y == q.y) { // horizontal segment
-      r.y = p.y;
-      if (p.x < q.x)
-        r.x = q.x - hlen;
-      else
-        r.x = q.x + hlen;
-    } else { // vertical segment
-      r.x = p.x;
-      if (p.y < q.y)
-        r.y = q.y - hlen;
-      else
-        r.y = q.y + hlen;
-    }
+    r = ortho_point_at_distance(p, q, d - hlen);
     ps[endp + 1] = p;
     ps[endp + 2] = ps[endp + 3] = r;
     spl->eflag = eflag;
@@ -904,19 +885,7 @@ void arrowOrthoClip(edge_t *e, pointf *ps, size_t startp, size_t endp,
     if (tlen >= maxd) { /* arrow too long */
       tlen = maxd;
     }
-    if (p.y == q.y) { // horizontal segment
-      r.y = p.y;
-      if (p.x < q.x)
-        r.x = p.x + tlen;
-      else
-        r.x = p.x - tlen;
-    } else { // vertical segment
-      r.x = p.x;
-      if (p.y < q.y)
-        r.y = p.y + tlen;
-      else
-        r.y = p.y - tlen;
-    }
+    r = ortho_point_at_distance(p, q, tlen);
     ps[startp] = ps[startp + 1] = r;
     ps[startp + 2] = q;
     spl->sflag = sflag;
