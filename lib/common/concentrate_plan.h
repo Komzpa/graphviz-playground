@@ -7,6 +7,18 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifdef GVDLL
+#ifdef GVC_EXPORTS
+#define CONCENTRATE_PLAN_API __declspec(dllexport)
+#else
+#define CONCENTRATE_PLAN_API __declspec(dllimport)
+#endif
+#endif
+
+#ifndef CONCENTRATE_PLAN_API
+#define CONCENTRATE_PLAN_API /* nothing */
+#endif
+
 typedef enum {
   GV_CONCENTRATION_SAME_DIRECTION,
   GV_CONCENTRATION_OPPOSITE_DIRECTION,
@@ -37,9 +49,14 @@ typedef struct {
   size_t group_count;
 } gv_concentration_plan_t;
 
-bool gv_concentration_edges_have_equal_rendered_identity(
+CONCENTRATE_PLAN_API bool gv_concentration_edges_have_equal_rendered_identity(
     Agedge_t *representative, Agedge_t *candidate,
     gv_concentration_direction_t direction);
-gv_concentration_plan_t gv_concentration_plan(Agraph_t *graph);
-void gv_concentration_plan_free(gv_concentration_plan_t *plan);
-void gv_concentration_plan_diagnose_if_enabled(Agraph_t *graph);
+CONCENTRATE_PLAN_API gv_concentration_plan_t
+gv_concentration_plan(Agraph_t *graph);
+CONCENTRATE_PLAN_API void
+gv_concentration_plan_free(gv_concentration_plan_t *plan);
+CONCENTRATE_PLAN_API void
+gv_concentration_plan_diagnose_if_enabled(Agraph_t *graph);
+
+#undef CONCENTRATE_PLAN_API
