@@ -1,1 +1,0 @@
-digraph { graph [concentrate=true]; a -> b [style=solid]; a -> b [style=dashed penwidth=3]; a -> b [style=solid]; }

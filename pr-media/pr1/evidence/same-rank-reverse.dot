@@ -1,1 +1,0 @@
-digraph { graph [concentrate=true]; { rank=same; a; b } a -> b; b -> a; }

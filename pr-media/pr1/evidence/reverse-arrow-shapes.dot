@@ -1,1 +1,0 @@
-digraph { graph [concentrate=true]; a -> b [arrowhead=normal]; b -> a [arrowhead=normal]; a -> b [arrowhead=vee]; b -> a [arrowhead=vee]; }

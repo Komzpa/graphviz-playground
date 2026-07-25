@@ -1,1 +1,0 @@
-digraph { graph [concentrate=true]; a -> b [color=red]; a -> b [color=blue]; a -> b [color=red]; }
