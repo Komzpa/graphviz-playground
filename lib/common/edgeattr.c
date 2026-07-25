@@ -1539,3 +1539,205 @@ static void append_structured_port_slots(agxbuf *signature, Agedge_t *edge,
   }
 }
 
+static void append_projected_attribute_value(agxbuf *signature,
+                                             Agraph_t *root_graph,
+                                             Agedge_t *edge,
+                                             const char *slot_name,
+                                             const char *attribute_name,
+                                             bool reverse_orientation) {
+  comparable_attribute_value_t value =
+      named_attribute_value(root_graph, edge, attribute_name);
+  const edge_attribute_classification_t classification =
+      edge_attribute_classification(attribute_name);
+  const edge_attribute_facts_t *const facts = classification.facts;
+
+  if (facts->substituted) {
+    append_substituted_signature_slot(signature, slot_name, value.text, edge);
+    return;
+  }
+
+  if (facts->clipping) {
+    append_plain_signature_slot(
+        signature, slot_name,
+        value.text[0] == '\0' || mapbool(value.text) ? "true" : "false");
+    return;
+  }
+
+  if (facts->color) {
+    if (value.text[0] == '\0') {
+      value = plain_attribute_value(DEFAULT_COLOR);
+    }
+    append_edge_color_value(signature, edge, slot_name, value, true,
+                            reverse_orientation);
+    return;
+  }
+
+  if (facts->presence_affects_rendering) {
+    agxbuf presence_slot = {0};
+    agxbprint(&presence_slot, "%s:present", slot_name);
+    append_plain_signature_slot(signature, agxbuse(&presence_slot),
+                                value.text[0] == '\0' ? "false" : "true");
+    agxbfree(&presence_slot);
+  }
+
+  double number;
+  if (edge_projected_penwidth(classification, value, edge, &number)) {
+    agxbuf rendered_number = {0};
+    agxbprint(&rendered_number, "%a", number);
+    append_plain_signature_slot(signature, slot_name,
+                                agxbuse(&rendered_number));
+    agxbfree(&rendered_number);
+    return;
+  }
+
+  if (strcmp(classification.name, "radius") == 0 && !value.is_html) {
+    char *end = NULL;
+    double radius = value.text[0] == '\0' ? 0.0 : strtod(value.text, &end);
+    if (value.text[0] != '\0' &&
+        (end == value.text || !isfinite(radius) || radius <= 0.0)) {
+      radius = 0.0;
+    }
+    agxbuf rendered_number = {0};
+    agxbprint(&rendered_number, "%a", radius);
+    append_plain_signature_slot(signature, slot_name,
+                                agxbuse(&rendered_number));
+    agxbfree(&rendered_number);
+    return;
+  }
+
+  if (facts->style && !value.is_html && value.text[0] == '\0') {
+    value = plain_attribute_value("solid");
+  }
+  if (facts->style) {
+    double penwidth;
+    if (!value.is_html && style_penwidth_value(value.text, &penwidth) &&
+        agfindedgeattr(root_graph, "penwidth") == NULL) {
+      agxbuf rendered_number = {0};
+      agxbprint(&rendered_number, "%a", penwidth);
+      append_plain_signature_slot(signature, "penwidth",
+                                  agxbuse(&rendered_number));
+      agxbfree(&rendered_number);
+    }
+    append_style_value(
+        signature, slot_name, value,
+        edge_uses_simple_color_ortho_branch(root_graph, edge, value));
+    return;
+  }
+
+  if (facts->default_kind == ATTRIBUTE_DEFAULT_FALSE) {
+    append_plain_signature_slot(
+        signature, slot_name,
+        value.text[0] != '\0' && mapbool(value.text) ? "true" : "false");
+    return;
+  }
+
+  append_signature_slot(signature, slot_name, value);
+}
+
+static void append_ordinary_attribute_slots(agxbuf *signature,
+                                            Agraph_t *root_graph,
+                                            Agedge_t *edge,
+                                            bool reverse_orientation) {
+  for (Agsym_t *attribute = agnxtattr(root_graph, AGEDGE, NULL);
+       attribute != NULL;
+       attribute = agnxtattr(root_graph, AGEDGE, attribute)) {
+    const edge_attribute_classification_t classification =
+        edge_attribute_classification(attribute->name);
+    if (!classification.found || classification.endpoint ||
+        !edge_attribute_is_rendered(root_graph, edge, classification)) {
+      continue;
+    }
+    append_projected_attribute_value(signature, root_graph, edge,
+                                     attribute->name, attribute->name,
+                                     reverse_orientation);
+  }
+}
+
+static bool edge_uses_tapered_style(Agedge_t *edge) {
+  char *const style = agget(edge, "style");
+  if (style == NULL || style[0] == '\0') {
+    return false;
+  }
+  for (char **item = parse_style(style); *item != NULL; item++) {
+    if (strcmp(*item, "tapered") == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool edge_uses_tapered_style_value(comparable_attribute_value_t style) {
+  if (style.is_html || style.text[0] == '\0') {
+    return false;
+  }
+  for (char **item = parse_style((char *)style.text); *item != NULL; item++) {
+    if (strcmp(*item, "tapered") == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool
+edge_uses_simple_color_ortho_branch(Agraph_t *root_graph, Agedge_t *edge,
+                                    comparable_attribute_value_t style) {
+  const char *const color = agget(edge, "color");
+  return graph_uses_ortho_edges(root_graph) &&
+         !edge_uses_tapered_style_value(style) &&
+         (color == NULL || strchr(color, ':') == NULL);
+}
+
+static void append_taper_direction_slot(agxbuf *signature, Agedge_t *edge,
+                                        bool reverse_orientation) {
+  if (!edge_uses_tapered_style(edge)) {
+    return;
+  }
+  if (color_list_renders_as_segmented_multicolor(agget(edge, "color"))) {
+    return;
+  }
+
+  const char *direction = agget(edge, "dir");
+  if (direction == NULL ||
+      (strcmp(direction, "forward") != 0 && strcmp(direction, "back") != 0 &&
+       strcmp(direction, "both") != 0 && strcmp(direction, "none") != 0)) {
+    direction = agisdirected(agraphof(edge)) ? "forward" : "none";
+  }
+  if (reverse_orientation) {
+    if (strcmp(direction, "forward") == 0) {
+      direction = "back";
+    } else if (strcmp(direction, "back") == 0) {
+      direction = "forward";
+    }
+  }
+
+  /*
+   * An arrowless tapered edge has an empty decoration record, but taperfun()
+   * still consumes dir. Keep direction in the core identity only while the
+   * tapered renderer consumes it, so ordinary arrowless edges remain equal.
+   */
+  append_plain_signature_slot(signature, "taper:direction", direction);
+}
+
+typedef enum {
+  HYPERLINK_VALUE_URL,
+  HYPERLINK_VALUE_TOOLTIP,
+  HYPERLINK_VALUE_TARGET,
+  HYPERLINK_VALUE_COUNT,
+} hyperlink_value_kind_t;
+
+typedef enum {
+  ATTRIBUTE_NAME_PREFIXED,
+  ATTRIBUTE_NAME_BARE,
+} attribute_name_form_t;
+
+typedef struct {
+  attribute_owner_t owner;
+  attribute_name_form_t form;
+} attribute_value_source_t;
+
+typedef struct {
+  attribute_identity_t slot;
+  attribute_value_source_t sources[3];
+  size_t sources_size;
+} attribute_inheritance_t;
+
