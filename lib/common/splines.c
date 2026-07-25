@@ -781,15 +781,26 @@ void endpath(path *P, edge_t *e, int et, pathend_t *endp, bool merge) {
 }
 
 static int convert_sides_to_points(int tail_side, int head_side) {
+  /* clang-format off */
   int vertices[] = {
-      12, 4, 6, 2, 3, 1, 9, 8}; // the cumulative side value of each node point
+      12, 4, 6, 2, 3, 1, 9, 8,
+  }; // the cumulative side value of each node point
+  /* clang-format on */
   int i, tail_i, head_i;
+
+  /* clang-format off */
   int pair_a[8][8] = {
       // array of possible node point pairs
-      {11, 12, 13, 14, 15, 16, 17, 18}, {21, 22, 23, 24, 25, 26, 27, 28},
-      {31, 32, 33, 34, 35, 36, 37, 38}, {41, 42, 43, 44, 45, 46, 47, 48},
-      {51, 52, 53, 54, 55, 56, 57, 58}, {61, 62, 63, 64, 65, 66, 67, 68},
-      {71, 72, 73, 74, 75, 76, 77, 78}, {81, 82, 83, 84, 85, 86, 87, 88}};
+      {11, 12, 13, 14, 15, 16, 17, 18},
+      {21, 22, 23, 24, 25, 26, 27, 28},
+      {31, 32, 33, 34, 35, 36, 37, 38},
+      {41, 42, 43, 44, 45, 46, 47, 48},
+      {51, 52, 53, 54, 55, 56, 57, 58},
+      {61, 62, 63, 64, 65, 66, 67, 68},
+      {71, 72, 73, 74, 75, 76, 77, 78},
+      {81, 82, 83, 84, 85, 86, 87, 88},
+  };
+  /* clang-format on */
 
   tail_i = head_i = -1;
   for (i = 0; i < 8; i++) {

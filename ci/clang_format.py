@@ -175,7 +175,6 @@ EXCLUDE = (
     "lib/common/psusershape.c",
     "lib/common/routespl.c",
     "lib/common/shapes.c",
-    "lib/common/splines.c",
     "lib/common/taper.c",
     "lib/common/textspan.c",
     "lib/common/types.h",
