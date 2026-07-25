@@ -9,7 +9,8 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/lib/cdt \
 	-I$(top_srcdir)/lib/pathplan
 
-noinst_HEADERS = dot.h dotprocs.h aspect.h bundle_load.h concentrate_plan.h
+noinst_HEADERS = dot.h dotprocs.h aspect.h bundle_load.h concentrate_plan.h \
+	spline_tuning.h
 noinst_LTLIBRARIES = libdotgen_C.la
 
 libdotgen_C_la_LDFLAGS = -no-undefined
