@@ -38,7 +38,7 @@ def dot_plain(path: str, dot: str) -> str:
     text = open(path, encoding="utf-8").read()
     for line in text.splitlines():
         fields = shlex.split(line)
-        if fields and fields[0] == "graph":
+        if len(fields) == 4 and fields[0] == "graph":
             return text
         if fields:
             break
@@ -73,8 +73,8 @@ def overshoots(nodes: dict[str, Node], edges: list[Edge]) -> list[tuple[Edge, fl
         head = nodes.get(edge.head)
         if tail is None or head is None:
             continue
-        low = min(tail.y, head.y) - max(tail.height, head.height) / 2.0
-        high = max(tail.y, head.y) + max(tail.height, head.height) / 2.0
+        low = min(tail.y - tail.height / 2.0, head.y - head.height / 2.0)
+        high = max(tail.y + tail.height / 2.0, head.y + head.height / 2.0)
         excess = max((low - y for _, y in edge.points), default=0.0)
         excess = max(excess, max((y - high for _, y in edge.points), default=0.0))
         if excess > 1e-9:

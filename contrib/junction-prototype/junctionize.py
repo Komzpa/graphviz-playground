@@ -16,6 +16,9 @@ import pygraphviz as pgv
 
 IDENTITY_ATTRS = (
     "label",
+    "xlabel",
+    "headlabel",
+    "taillabel",
     "color",
     "style",
     "penwidth",
@@ -121,6 +124,23 @@ def copy_without(attrs: dict[str, str], names: set[str]) -> dict[str, str]:
     return {k: v for k, v in attrs.items() if k not in names and k not in ROUTING_ATTRS}
 
 
+def common_cluster(candidate: Candidate, clusters: dict[str, str]) -> str:
+    names = {clusters.get(candidate.endpoint, "")}
+    for edge in candidate.edges:
+        names.add(clusters.get(edge.tail, ""))
+        names.add(clusters.get(edge.head, ""))
+    return names.pop() if len(names) == 1 else ""
+
+
+def output_scope(graph: pgv.AGraph, cluster: str) -> pgv.AGraph:
+    if not cluster:
+        return graph
+    try:
+        return graph.get_subgraph(cluster)
+    except KeyError:
+        return graph
+
+
 def fresh_node_name(graph: pgv.AGraph, prefix: str = "__junction") -> str:
     existing = {str(n) for n in graph.nodes()}
     index = 0
@@ -189,8 +209,11 @@ def add_junction(graph: pgv.AGraph, name: str, visible: bool) -> None:
 
 def trunk_attrs(candidate: Candidate, args: argparse.Namespace) -> dict[str, str]:
     attrs = copy_without(candidate.edges[0].attrdict(), LABEL_ATTRS)
-    if candidate.label:
-        attrs["label"] = candidate.label
+    attrs.update(
+        (name, value)
+        for name, value in candidate.edges[0].attrdict().items()
+        if name in LABEL_ATTRS
+    )
     if args.sum_weights:
         attrs["weight"] = weight_sum(candidate.edges)
     if args.penwidth_by_count:
@@ -204,16 +227,28 @@ def arm_attrs(edge: EdgeInfo) -> dict[str, str]:
     return attrs
 
 
-def back_attrs(attrs: dict[str, str]) -> dict[str, str]:
+def reversed_attrs(attrs: dict[str, str]) -> dict[str, str]:
     out = dict(attrs)
-    out["dir"] = "back"
-    out.pop("arrowhead", None)
-    out.pop("arrowtail", None)
+    direction = out.get("dir", "forward").lower()
+    out["dir"] = {
+        "forward": "back",
+        "back": "forward",
+        "both": "both",
+        "none": "none",
+    }.get(direction, "back")
+    head = out.pop("arrowhead", None)
+    tail = out.pop("arrowtail", None)
+    if head is not None:
+        out["arrowtail"] = head
+    if tail is not None:
+        out["arrowhead"] = tail
     return out
 
 
-def add_group_naive(graph: pgv.AGraph, candidate: Candidate, node: str, args: argparse.Namespace) -> None:
-    add_junction(graph, node, args.visible_junctions)
+def add_group_naive(
+    graph: pgv.AGraph, scope: pgv.AGraph, candidate: Candidate, node: str, args: argparse.Namespace
+) -> None:
+    add_junction(scope, node, args.visible_junctions)
     if candidate.kind == "fan-out":
         graph.add_edge(candidate.endpoint, node, **dict(trunk_attrs(candidate, args), arrowhead="none"))
         for edge in candidate.edges:
@@ -226,6 +261,7 @@ def add_group_naive(graph: pgv.AGraph, candidate: Candidate, node: str, args: ar
 
 def add_group_preserving(
     graph: pgv.AGraph,
+    scope: pgv.AGraph,
     candidate: Candidate,
     node: str,
     args: argparse.Namespace,
@@ -236,7 +272,7 @@ def add_group_preserving(
         refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "rank-straddles-anchor")
         return False
 
-    add_junction(graph, node, args.visible_junctions)
+    add_junction(scope, node, args.visible_junctions)
     if candidate.kind == "fan-out":
         tail = candidate.endpoint
         if relation < 0:
@@ -246,7 +282,7 @@ def add_group_preserving(
         else:
             graph.add_edge(node, tail, **dict(trunk_attrs(candidate, args), arrowhead="none"))
             for edge in candidate.edges:
-                graph.add_edge(edge.head, node, **back_attrs(copy_without(edge.attrdict(), LABEL_ATTRS)))
+                graph.add_edge(edge.head, node, **reversed_attrs(copy_without(edge.attrdict(), LABEL_ATTRS)))
     else:
         head = candidate.endpoint
         if relation > 0:
@@ -254,7 +290,7 @@ def add_group_preserving(
                 graph.add_edge(edge.tail, node, **arm_attrs(edge))
             graph.add_edge(node, head, **trunk_attrs(candidate, args))
         else:
-            graph.add_edge(head, node, **back_attrs(trunk_attrs(candidate, args)))
+            graph.add_edge(head, node, **reversed_attrs(trunk_attrs(candidate, args)))
             for edge in candidate.edges:
                 graph.add_edge(node, edge.tail, **arm_attrs(edge))
     return True
@@ -271,7 +307,7 @@ def orient_remaining_edges(graph: pgv.AGraph, edges: list[EdgeInfo], ranks: dict
         head = ranks.get(edge.head)
         if tail is None or head is None or head.y <= tail.y or math.isclose(head.y, tail.y, abs_tol=1e-6):
             continue
-        attrs = back_attrs(copy_without(edge.attrdict(), set()))
+        attrs = reversed_attrs(copy_without(edge.attrdict(), set()))
         graph.delete_edge(edge.tail, edge.head)
         graph.add_edge(edge.head, edge.tail, **attrs)
 
@@ -374,11 +410,12 @@ def main() -> int:
     really_transformed: set[int] = set()
     for candidate in selected:
         node = fresh_node_name(out)
+        scope = output_scope(out, common_cluster(candidate, clusters))
         if args.preserve_ranks:
-            ok = add_group_preserving(out, candidate, node, args, ranks)
+            ok = add_group_preserving(out, scope, candidate, node, args, ranks)
         else:
             ok = True
-            add_group_naive(out, candidate, node, args)
+            add_group_naive(out, scope, candidate, node, args)
         if not ok:
             continue
         delete_original_edges(out, candidate)
