@@ -15,8 +15,10 @@
 #include <common/render.h>
 #include <float.h>
 #include <label/xlabels.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <util/agxbuf.h>
 #include <util/alloc.h>
 #include <util/list.h>
@@ -239,42 +241,40 @@ static void printData(object_t *objs, size_t n_objs, xlabel_t *lbls,
   }
 }
 
-static pointf
-edgeTailpoint (Agedge_t* e)
-{
-    splines *spl;
-    bezier *bez;
-
-    if ((spl = getsplinepoints(e)) == NULL) {
-	pointf p;
-	p.x = p.y = 0;
+static pointf edgeEndpointLabelPoint(Agedge_t *e, textlabel_t *lp, bool head_p) {
+    (void)lp;
+    splines *spl = getsplinepoints(e);
+    if (spl == NULL) {
+	pointf p = {0};
 	return p;
     }
-    bez = &spl->list[0];
-    if (bez->sflag) {
-	return bez->sp;
-    } else {
-	return bez->list[0];
-    }
-}
 
-static pointf
-edgeHeadpoint (Agedge_t* e)
-{
-    splines *spl;
-    bezier *bez;
-
-    if ((spl = getsplinepoints(e)) == NULL) {
-	pointf p;
-	p.x = p.y = 0;
-	return p;
-    }
-    bez = &spl->list[spl->size - 1];
-    if (bez->eflag) {
-	return bez->ep;
+    pointf endpoint;
+    pointf inside;
+    if (head_p) {
+	bezier *bez = &spl->list[spl->size - 1];
+	endpoint = bez->eflag ? bez->ep : bez->list[bez->size - 1];
+	inside = bez->eflag || bez->size < 2 ? bez->list[bez->size - 1]
+					      : bez->list[bez->size - 2];
     } else {
-	return bez->list[bez->size - 1];
+	bezier *bez = &spl->list[0];
+	endpoint = bez->sflag ? bez->sp : bez->list[0];
+	inside = bez->sflag || bez->size < 2 ? bez->list[0] : bez->list[1];
     }
+
+    pointf away = {inside.x - endpoint.x, inside.y - endpoint.y};
+    double length = hypot(away.x, away.y);
+    if (length < 0.01) {
+	away = (pointf){head_p ? 1 : -1, 0};
+	length = 1;
+    }
+
+    const double clearance = 10.0;
+    pointf center = {
+	endpoint.x + clearance * away.x / length,
+	endpoint.y + clearance * away.y / length,
+    };
+    return center;
 }
 
 /* adjustBB:
@@ -510,7 +510,8 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeTailpoint(ep)); 
+		    addXLabel (lp, objp, xlp, 1,
+		               edgeEndpointLabelPoint(ep, lp, false));
 		    xlp++;
 		}
 		else {
@@ -525,7 +526,8 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeHeadpoint(ep)); 
+		    addXLabel (lp, objp, xlp, 1,
+		               edgeEndpointLabelPoint(ep, lp, true));
 		    xlp++;
 		}
 		else {
