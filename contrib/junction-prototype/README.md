@@ -38,8 +38,9 @@ A group is a set of edges that share an endpoint and have identical values for:
 `arrowhead`, `arrowtail`, `dir`, `fontname`, `fontsize`, `fontcolor`,
 `labelfontname`, `labelfontsize`, `labelfontcolor`, and `class`.
 
-Every group with size at least `--min-group` is either transformed or reported
-to stderr as refused. The machine-readable census format is:
+Every group with size at least `--min-group` is either transformed, or the
+whole input is reported to stderr as refused and emitted byte-for-byte unchanged.
+The machine-readable census format is:
 
 ```text
 kind<TAB>endpoint<TAB>label<TAB>size
@@ -85,6 +86,14 @@ while preserving all parallel edge identities is a separate piece of machinery.
 `rankdir=LR` is reported as a non-TB case and left unchanged. The current rank
 preservation and overshoot predicate are y-axis checks tuned for top-to-bottom
 drawings.
+
+## Smoke Check
+
+```sh
+contrib/junction-prototype/smoke.py
+```
+
+The smoke check covers byte-exact passthrough for every current refusal reason.
 
 ## Fixtures
 

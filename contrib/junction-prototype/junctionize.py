@@ -187,6 +187,10 @@ def plain_ranks(path: str, dot: str) -> dict[str, NodeRank]:
     return ranks
 
 
+def emit_original(source: bytes) -> None:
+    sys.stdout.buffer.write(source)
+
+
 def endpoint_relation(candidate: Candidate, ranks: dict[str, NodeRank]) -> int | None:
     signs: set[int] = set()
     for edge in candidate.edges:
@@ -368,21 +372,22 @@ def main() -> int:
         print("--min-group must be at least 2", file=sys.stderr)
         return 2
 
+    original = open(args.input, "rb").read()
     graph = pgv.AGraph(args.input)
     if not graph.is_directed():
         print("refused:undirected-graph\t*\t\t0", file=sys.stderr)
-        print(graph.string(), end="")
+        emit_original(original)
         return 0
 
     if graph.strict:
         print("refused:strict-graph\t*\t\t0", file=sys.stderr)
-        print(graph.string(), end="")
+        emit_original(original)
         return 0
 
     rankdir = (graph.graph_attr.get("rankdir") or "TB").upper()
     if rankdir not in {"TB", ""}:
         print(f"refused:rankdir-{rankdir}-not-tb\t*\t\t0", file=sys.stderr)
-        print(graph.string(), end="")
+        emit_original(original)
         return 0
 
     ranks: dict[str, NodeRank] = {}
@@ -391,7 +396,7 @@ def main() -> int:
             ranks = plain_ranks(args.input, args.dot)
         except (OSError, subprocess.CalledProcessError) as exc:
             print(f"refused:rank-read-failed\t*\t\t0\t{exc}", file=sys.stderr)
-            print(graph.string(), end="")
+            emit_original(original)
             return 1
 
     clusters = node_clusters(graph)
@@ -409,6 +414,7 @@ def main() -> int:
     pair_counts = Counter((edge.tail, edge.head) for edge in raw_edges)
     eligible: list[EdgeInfo] = []
     skipped: set[int] = set()
+    refused = False
     for edge in raw_edges:
         attrs = edge.attrdict()
         label = attrs.get("label", "")
@@ -427,6 +433,7 @@ def main() -> int:
         if reason:
             skipped.add(edge.index)
             refusal("edge", f"{edge.tail}->{edge.head}", label, 1, reason)
+            refused = True
         else:
             eligible.append(edge)
 
@@ -452,13 +459,19 @@ def main() -> int:
     for candidate in candidates:
         if args.preserve_ranks and endpoint_relation(candidate, ranks) is None:
             refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "rank-straddles-anchor")
+            refused = True
             continue
         overlap = sorted(edge.index for edge in candidate.edges if edge.index in transformed)
         if overlap:
             refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "overlaps-selected-group")
+            refused = True
             continue
         selected.append(candidate)
         transformed.update(edge.index for edge in candidate.edges)
+
+    if refused or not selected:
+        emit_original(original)
+        return 0
 
     out = pgv.AGraph(string=graph.string())
     out.graph_attr["concentrate"] = "false"
