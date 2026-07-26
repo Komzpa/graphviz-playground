@@ -305,10 +305,10 @@ static int dotLayout(Agraph_t *g) {
     dot_init_subg(g,g);
     dot_init_node_edge(g);
     gv_concentration_plan_diagnose_if_enabled(g);
+    dot_edgejunction(g);
 
     GV_INFO("Starting phase 1 [dot_rank]");
     dot_rank(g);
-    dot_edgejunction(g);
     if (maxphase == 1) {
         attach_phase_attrs (g, 1);
         return 0;
