@@ -211,6 +211,7 @@ static void init_added_edge(edge_t *e) {
   ED_weight(e) = late_int(e, E_weight, 1, 0);
   ED_count(e) = ED_xpenalty(e) = 1;
   ED_minlen(e) = late_int(e, E_minlen, 1, 0);
+  dot_bundle_load_init_original(e);
 }
 
 static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
