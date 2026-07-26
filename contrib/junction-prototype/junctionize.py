@@ -179,14 +179,18 @@ def plain_ranks(path: str, dot: str) -> dict[str, NodeRank]:
     proc = subprocess.run(
         [dot, "-Tplain", path],
         check=True,
-        text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     ranks: dict[str, NodeRank] = {}
-    for line in proc.stdout.splitlines():
-        fields = shlex.split(line)
-        if len(fields) >= 6 and fields[0] == "node":
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        lexer = shlex.shlex(line, posix=True)
+        lexer.whitespace_split = True
+        try:
+            fields = [lexer.get_token() for _ in range(6)]
+        except ValueError:
+            continue
+        if fields[0] == "node" and fields[5]:
             ranks[fields[1]] = NodeRank(float(fields[2]), float(fields[3]), float(fields[4]), float(fields[5]))
     return ranks
 
@@ -415,6 +419,18 @@ def orient_remaining_edges(
         graph.get_node(edge.head).attr["ordering"] = "out"
 
 
+def is_edge_statement(line: str) -> bool:
+    return " -> " in line and line.lstrip() != line
+
+
+def is_node_statement(line: str) -> bool:
+    stripped = line.lstrip()
+    if line == stripped or " -> " in line or "[" not in line:
+        return False
+    keyword = stripped.split(None, 1)[0]
+    return keyword not in {"graph", "node", "edge"}
+
+
 def ordered_dot(text: str) -> str:
     blocks: list[list[str]] = []
     current: list[str] = []
@@ -424,7 +440,7 @@ def ordered_dot(text: str) -> str:
             if line.rstrip().endswith(";"):
                 blocks.append(current)
                 current = []
-        elif " -> " in line and line.lstrip() != line:
+        elif is_edge_statement(line) or is_node_statement(line):
             current = [line]
             if line.rstrip().endswith(";"):
                 blocks.append(current)
@@ -437,9 +453,9 @@ def ordered_dot(text: str) -> str:
     edges: list[tuple[int, list[str]]] = []
     ordering_nodes: list[tuple[int, list[str]]] = []
     for index, block in enumerate(blocks):
-        if " -> " in block[0]:
+        if is_edge_statement(block[0]):
             edges.append((index, block))
-        elif "ordering=out" in "".join(block):
+        elif is_node_statement(block[0]) and "ordering=out" in "".join(block):
             ordering_nodes.append((index, block))
     if not edges:
         return text
@@ -453,7 +469,7 @@ def ordered_dot(text: str) -> str:
     for index, block in enumerate(blocks):
         if index in ordering_node_indices:
             continue
-        if " -> " in block[0]:
+        if is_edge_statement(block[0]):
             if not inserted:
                 for node_block in ordered_node_blocks:
                     out.extend(node_block)

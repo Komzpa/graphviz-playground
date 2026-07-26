@@ -33,6 +33,8 @@ FIXTURES = [
     )
     if path is not None
 ]
+GRAPH_DIRS = (ROOT / "graphs", ROOT / "tests" / "graphs")
+GRAMMAR = ROOT / "graphs" / "directed" / "grammar.gv"
 PAD = 3.0
 
 
@@ -98,6 +100,17 @@ def baseline_tool(tmpdir: Path) -> Path:
 
 def junctionize_with(tool: Path, path: Path) -> subprocess.CompletedProcess[bytes]:
     return run([sys.executable, str(tool), str(path)])
+
+
+def graph_corpus() -> list[Path]:
+    paths: list[Path] = []
+    for directory in GRAPH_DIRS:
+        paths.extend(path for path in directory.rglob("*.gv") if path.is_file())
+    return sorted(paths)
+
+
+def dot_parse(dot_bytes: bytes) -> subprocess.CompletedProcess[bytes]:
+    return run(["dot", "-Tdot"], input_bytes=dot_bytes)
 
 
 def dot_json(dot_bytes: bytes) -> dict:
@@ -323,10 +336,36 @@ def refusal_sample(base_tool: Path) -> tuple[int, int, int]:
     return matched, refused, len(candidates)
 
 
+def verify_dot_parse_gate() -> tuple[int, int, list[str], bool]:
+    failures: list[str] = []
+    checked = 0
+    parsed = 0
+    grammar_passed = False
+    for path in graph_corpus():
+        checked += 1
+        transformed = junctionize(path, skewer=True)
+        rel = path.relative_to(ROOT)
+        if transformed.returncode != 0:
+            failures.append(f"{rel}: junctionize failed: {transformed.stderr.decode('utf-8', 'replace')}")
+            continue
+        parsed_graph = dot_parse(transformed.stdout)
+        if parsed_graph.returncode != 0:
+            failures.append(f"{rel}: dot parse failed: {parsed_graph.stderr.decode('utf-8', 'replace')}")
+            continue
+        parsed += 1
+        if path == GRAMMAR:
+            grammar_passed = True
+    return checked, parsed, failures, grammar_passed
+
+
 def main() -> int:
     failures: list[str] = []
     with tempfile.TemporaryDirectory(prefix="junction-baseline-") as tmp:
         base_tool = baseline_tool(Path(tmp))
+        checked, parsed, parse_failures, grammar_passed = verify_dot_parse_gate()
+        print(f"dot_parse_gate\tchecked={checked}\tparsed={parsed}")
+        print(f"dot_parse_gate\tgraphs/directed/grammar.gv={'pass' if grammar_passed else 'missing-or-fail'}")
+        failures.extend(parse_failures)
         for fixture in FIXTURES:
             before = junctionize_with(base_tool, fixture)
             after = junctionize(fixture, skewer=True)
