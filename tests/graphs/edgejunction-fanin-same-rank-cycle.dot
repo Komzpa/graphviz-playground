@@ -1,0 +1,7 @@
+digraph {
+  graph [edgejunction=fanin]
+
+  {rank=same; a; b}
+  a -> b
+  c -> b
+}

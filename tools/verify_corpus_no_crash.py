@@ -1,117 +1,103 @@
 #!/usr/bin/env python3
-"""Render tracked graph fixtures and fail only on crashes/timeouts."""
+"""Verify dot does not crash on the frozen junction/concentrate corpus."""
 
 from __future__ import annotations
 
+import concurrent.futures as futures
+import os
+from pathlib import Path
 import shutil
 import subprocess
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
+import sys
+import time
 
 
-JOBS = 16
-TIMEOUT_SECONDS = 10
-CRASH_MARKERS = (
-    "AddressSanitizer",
-    "LeakSanitizer",
-    "UndefinedBehaviorSanitizer",
-    "Segmentation fault",
-    "SEGV",
-    "SIGABRT",
-    "Assertion",
+DEFAULT_CORPUS = (
+    "~/tmp/graphviz-pr1-cleanup-20260719/defects/route-curls/"
+    "census/frozen-inputs"
 )
-LEGACY_FAILURES = {
-    Path("share/examples/4elt.gv"),
-    Path("share/examples/world.gv"),
-    Path("tests/1494.dot"),
-    Path("tests/1652.dot"),
-    Path("tests/1718.dot"),
-    Path("tests/1864.dot"),
-    Path("tests/2064.dot"),
-    Path("tests/2095_1.dot"),
-    Path("tests/2108.dot"),
-    Path("tests/2222.dot"),
-    Path("tests/2343.dot"),
-    Path("tests/2371.dot"),
-    Path("tests/2471.dot"),
-    Path("tests/2475_1.dot"),
-    Path("tests/2475_2.dot"),
-    Path("tests/2521.dot"),
-    Path("tests/2593.dot"),
-    Path("tests/2620.dot"),
-    Path("tests/2621.dot"),
-    Path("tests/2646.dot"),
-    Path("tests/2723.dot"),
-    Path("tests/2784.dot"),
-    Path("tests/2854.dot"),
-    Path("tests/graphs/b100.gv"),
-    Path("tests/graphs/b104.gv"),
-}
+MODES = (
+    ("default", ()),
+    ("concentrate", ("-Gconcentrate=true",)),
+    ("edgejunction_fanin", ("-Gedgejunction=fanin",)),
+    ("edgejunction_fanout", ("-Gedgejunction=fanout",)),
+    ("edgejunction_both", ("-Gedgejunction=both",)),
+)
 
 
-def tracked_graphs() -> list[Path]:
-    output = subprocess.check_output(
-        ["git", "ls-files", "*.dot", "*.gv"], text=True
-    )
-    return [Path(line) for line in output.splitlines()]
-
-
-def check_graph(dot: str, path: Path) -> tuple[str, str]:
-    try:
-        proc = subprocess.run(
-            [dot, "-Kdot", "-Tjson", path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            timeout=TIMEOUT_SECONDS,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return "failure", f"{path}: timeout after {TIMEOUT_SECONDS}s"
-
-    stderr = proc.stderr.decode("utf-8", errors="replace")
-    if proc.returncode < 0:
-        return "failure", f"{path}: terminated by signal {-proc.returncode}"
-    if any(marker in stderr for marker in CRASH_MARKERS):
-        return "failure", f"{path}: crash marker in stderr"
-    if proc.returncode != 0:
-        return "ordinary_error", str(path)
-    return "ok", str(path)
-
-
-def main() -> None:
+def _dot_binary() -> str:
     dot = shutil.which("dot")
     if dot is None:
-        raise SystemExit("dot not found on PATH")
+        sys.exit("dot not found in PATH")
+    return dot
 
-    checked = 0
-    ordinary_errors = 0
-    legacy_failures = 0
-    failures = []
-    paths = tracked_graphs()
-    with ThreadPoolExecutor(max_workers=JOBS) as executor:
-        futures = [executor.submit(check_graph, dot, path) for path in paths]
-        for future in as_completed(futures):
-            status, detail = future.result()
-            checked += 1
-            if status == "ordinary_error":
-                ordinary_errors += 1
-            elif status == "failure":
-                path = Path(detail.split(":", 1)[0])
-                if path in LEGACY_FAILURES:
-                    legacy_failures += 1
-                else:
-                    failures.append(detail)
 
-    print(
-        f"checked graphs: {checked}; ordinary render errors: {ordinary_errors}; "
-        f"legacy crashes/timeouts: {legacy_failures}; "
-        f"new crashes/timeouts: {len(failures)}; jobs: {JOBS}"
-    )
-    if failures:
-        for failure in failures:
-            print(failure)
-        raise SystemExit(1)
+def _run_one(dot: str, timeout: float, item: tuple[str, tuple[str, ...], Path]):
+    mode, flags, path = item
+    start = time.monotonic()
+    command = [dot, "-Tdot", "-o", os.devnull, *flags, str(path)]
+    try:
+        proc = subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+        elapsed = time.monotonic() - start
+        rc: int | str = proc.returncode
+        status = "ok" if rc == 0 else "signal" if rc < 0 else "rc"
+        stderr = proc.stderr.decode("utf-8", "replace").replace("\n", "\\n")
+    except subprocess.TimeoutExpired as err:
+        elapsed = time.monotonic() - start
+        rc = "TIMEOUT"
+        status = "timeout"
+        stderr = (err.stderr or b"").decode("utf-8", "replace").replace("\n", "\\n")
+    return mode, path, rc, status, elapsed, stderr[:500]
+
+
+def main() -> int:
+    corpus = Path(os.environ.get("GRAPHVIZ_JUNCTION_CORPUS", DEFAULT_CORPUS)).expanduser()
+    if not corpus.is_dir():
+        sys.exit(f"corpus directory not found: {corpus}")
+
+    dot = _dot_binary()
+    timeout = float(os.environ.get("GRAPHVIZ_JUNCTION_CORPUS_TIMEOUT", "15"))
+    jobs = int(os.environ.get("GRAPHVIZ_JUNCTION_CORPUS_JOBS", "16"))
+    inputs = sorted(corpus.glob("*.dot"))
+    items = [(mode, flags, path) for mode, flags in MODES for path in inputs]
+
+    counts = {
+        mode: {"total": 0, "ok": 0, "rc": 0, "signal": 0, "timeout": 0}
+        for mode, _ in MODES
+    }
+    nonzero = []
+    with futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+        for row in executor.map(lambda item: _run_one(dot, timeout, item), items):
+            mode, path, rc, status, elapsed, stderr = row
+            counts[mode]["total"] += 1
+            counts[mode][status] += 1
+            if rc != 0:
+                nonzero.append(row)
+
+    print(f"dot\t{dot}")
+    print(f"corpus\t{corpus}")
+    print(f"inputs\t{len(inputs)}")
+    print("mode\ttotal\tok\trc\tsignal\ttimeout")
+    for mode, _ in MODES:
+        count = counts[mode]
+        print(
+            f"{mode}\t{count['total']}\t{count['ok']}\t{count['rc']}"
+            f"\t{count['signal']}\t{count['timeout']}"
+        )
+
+    if nonzero:
+        print("nonzero")
+        print("mode\tinput\trc\tstatus\telapsed_s\tstderr")
+        for mode, path, rc, status, elapsed, stderr in nonzero:
+            print(f"{mode}\t{path}\t{rc}\t{status}\t{elapsed:.3f}\t{stderr}")
+    return 1 if any(row[3] == "signal" for row in nonzero) else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
