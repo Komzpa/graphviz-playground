@@ -10,6 +10,7 @@
 
 #include "config.h"
 
+#include <float.h>
 #include <math.h>
 #include <pathplan/pathutil.h>
 #include <pathplan/tri.h>
@@ -69,6 +70,8 @@ static size_t finddqsplit(const deque_t *dq, pointnlink_t *);
 static int pointintri(size_t, Ppoint_t *);
 
 static int growops(size_t);
+static int visibility_fallback_path(const Ppoly_t *, Ppoint_t[2],
+                                    Ppolyline_t *);
 static int straight_path(Ppoint_t[2], Ppolyline_t *);
 
 static Ppoint_t point_indexer(void *base, size_t index) {
@@ -164,7 +167,7 @@ int Pshortestpath(Ppoly_t *polyp, Ppoint_t eps[2], Ppolyline_t *output) {
     free(dq.pnlps);
     free(pnlps);
     free(pnls);
-    return straight_path(eps, output);
+    return visibility_fallback_path(polyp, eps, output);
   }
 
 #if defined(DEBUG) && DEBUG >= 2
@@ -207,7 +210,7 @@ int Pshortestpath(Ppoly_t *polyp, Ppoint_t eps[2], Ppolyline_t *output) {
     free(dq.pnlps);
     free(pnlps);
     free(pnls);
-    return straight_path(eps, output);
+    return visibility_fallback_path(polyp, eps, output);
   }
 
   /* if endpoints in same triangle, use a single line */
@@ -318,6 +321,117 @@ static int straight_path(Ppoint_t eps[2], Ppolyline_t *output) {
   output->pn = 2;
   ops[0] = eps[0], ops[1] = eps[1];
   output->ps = ops;
+  return 0;
+}
+
+static bool segment_crosses_edge(Ppoint_t a, Ppoint_t b, Ppoint_t c,
+                                 Ppoint_t d) {
+  const int abc = ccw(a, b, c);
+  const int abd = ccw(a, b, d);
+  const int cda = ccw(c, d, a);
+  const int cdb = ccw(c, d, b);
+
+  if (abc == ISON || abd == ISON || cda == ISON || cdb == ISON)
+    return false;
+
+  return abc != abd && cda != cdb;
+}
+
+static bool segment_is_visible(const Ppoly_t *poly, Ppoint_t a, Ppoint_t b) {
+  for (size_t i = 0; i < poly->pn; i++) {
+    if (segment_crosses_edge(a, b, poly->ps[i], poly->ps[(i + 1) % poly->pn])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static int visibility_fallback_path(const Ppoly_t *poly, Ppoint_t eps[2],
+                                    Ppolyline_t *output) {
+  if (segment_is_visible(poly, eps[0], eps[1]))
+    return straight_path(eps, output);
+
+  const size_t point_count = poly->pn + 2;
+  Ppoint_t *const points = calloc(point_count, sizeof(points[0]));
+  double *const distances = calloc(point_count, sizeof(distances[0]));
+  size_t *const predecessors = calloc(point_count, sizeof(predecessors[0]));
+  bool *const done = calloc(point_count, sizeof(done[0]));
+  if (points == NULL || distances == NULL || predecessors == NULL ||
+      done == NULL) {
+    free(done);
+    free(predecessors);
+    free(distances);
+    free(points);
+    return -2;
+  }
+
+  points[0] = eps[0];
+  points[1] = eps[1];
+  for (size_t i = 0; i < poly->pn; i++)
+    points[i + 2] = poly->ps[i];
+  for (size_t i = 0; i < point_count; i++) {
+    distances[i] = DBL_MAX;
+    predecessors[i] = SIZE_MAX;
+  }
+  distances[0] = 0.0;
+
+  while (true) {
+    size_t closest = SIZE_MAX;
+    for (size_t i = 0; i < point_count; i++) {
+      if (!done[i] &&
+          (closest == SIZE_MAX || distances[i] < distances[closest]))
+        closest = i;
+    }
+    if (closest == SIZE_MAX || distances[closest] == DBL_MAX || closest == 1)
+      break;
+
+    done[closest] = true;
+    for (size_t i = 0; i < point_count; i++) {
+      if (done[i] || i == closest ||
+          !segment_is_visible(poly, points[closest], points[i]))
+        continue;
+
+      const double candidate =
+          distances[closest] + sqrt(dist2(points[closest], points[i]));
+      if (candidate < distances[i]) {
+        distances[i] = candidate;
+        predecessors[i] = closest;
+      }
+    }
+  }
+
+  if (predecessors[1] == SIZE_MAX) {
+    free(done);
+    free(predecessors);
+    free(distances);
+    free(points);
+    return -1;
+  }
+
+  size_t output_count = 1;
+  for (size_t at = 1; at != 0; at = predecessors[at])
+    output_count++;
+  if (growops(output_count) != 0) {
+    free(done);
+    free(predecessors);
+    free(distances);
+    free(points);
+    return -2;
+  }
+
+  size_t at = 1;
+  for (size_t i = output_count; i-- > 0;) {
+    ops[i] = points[at];
+    at = predecessors[at];
+  }
+  output->pn = output_count;
+  output->ps = ops;
+
+  free(done);
+  free(predecessors);
+  free(distances);
+  free(points);
   return 0;
 }
 

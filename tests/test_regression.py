@@ -4428,6 +4428,50 @@ def test_2814():
         assert _box_gap(first, second) >= 2.0
 
 
+def test_shortestpath_rejects_uncontained_straight_fallback(tmp_path: Path):
+    """
+    failed triangulation must not silently return a line outside the polygon
+    """
+
+    c_src = tmp_path / "shortestpath-uncontained-fallback.c"
+    c_src.write_text(
+        r"""
+        #include <pathplan/pathplan.h>
+        #include <stdio.h>
+
+        int main(void) {
+          Ppoint_t points[] = {
+            {0.0, 0.0},
+            {4.0, 0.0},
+            {0.0, 0.0},
+            {4.0, 4.0},
+            {3.0, 4.0},
+            {3.0, 1.0},
+            {1.0, 1.0},
+            {1.0, 4.0},
+            {0.0, 4.0},
+          };
+          Ppoly_t poly = {.ps = points, .pn = sizeof(points) / sizeof(points[0])};
+          Ppoint_t endpoints[] = {{0.5, 3.5}, {3.5, 3.5}};
+          Ppolyline_t output = {0};
+          const int rc = Pshortestpath(&poly, endpoints, &output);
+          if (rc != 0 || output.pn <= 2) {
+            fprintf(stderr, "unexpected rc=%d pn=%zu\n", rc, output.pn);
+            return 1;
+          }
+          return 0;
+        }
+        """,
+        encoding="utf-8",
+    )
+    run_c(
+        c_src,
+        tmp_path,
+        cflags=["-Ilib"],
+        link=[Path("build/lib/pathplan/libpathplan.so.4.0.8").resolve()],
+    )
+
+
 def _edge_label_draw_streams(edge: dict, include_endpoint: bool = False) -> list[list[dict]]:
     """Read main and endpoint edge label xdot streams."""
 
