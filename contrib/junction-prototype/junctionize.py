@@ -382,6 +382,8 @@ def main() -> int:
     rankdir = (graph.graph_attr.get("rankdir") or "TB").upper()
     if rankdir not in {"TB", ""}:
         print(f"refused:rankdir-{rankdir}-not-tb\t*\t\t0", file=sys.stderr)
+        print(graph.string(), end="")
+        return 0
 
     ranks: dict[str, NodeRank] = {}
     if args.preserve_ranks:

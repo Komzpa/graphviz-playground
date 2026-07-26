@@ -82,8 +82,9 @@ between the same ordered endpoint pair. True multi-edges are skipped in this
 prototype because PyGraphviz can parse them, but safely deleting just one member
 while preserving all parallel edge identities is a separate piece of machinery.
 
-`rankdir=LR` is reported as a non-TB case. The current rank preservation and
-overshoot predicate are y-axis checks tuned for top-to-bottom drawings.
+`rankdir=LR` is reported as a non-TB case and left unchanged. The current rank
+preservation and overshoot predicate are y-axis checks tuned for top-to-bottom
+drawings.
 
 ## Fixtures
 
