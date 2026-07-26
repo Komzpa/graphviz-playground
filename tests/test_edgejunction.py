@@ -187,6 +187,83 @@ def test_edgejunction_fanin_draws_one_labelled_trunk_with_one_arrowhead():
     assert float(junctions[0]["height"]) == pytest.approx(0.02)
 
 
+def test_edgejunction_fanout_draws_one_labelled_trunk_with_head_arrowheads():
+    source = """
+        digraph {
+          graph [edgejunction=fanout]
+          edge [label=shared, minlen=2]
+          source -> amber
+          source -> violet
+        }
+    """
+    layout = _layout(source)
+    originals = _edge_objects(layout, label="shared")
+    junctions = [
+        obj
+        for obj in layout["objects"]
+        if obj.get("name", "").startswith("_edgejunction_")
+    ]
+    svg = _svg(source)
+
+    assert len(originals) == 2
+    assert all(";" in edge["pos"] for edge in originals)
+    assert sum("_hdraw_" in edge for edge in originals) == 2
+    assert sum("_ldraw_" in edge for edge in originals) == 1
+    assert len(re.findall(r"<polygon fill=\"black\" stroke=\"black\"", svg)) == 2
+    assert len(junctions) == 1
+    assert junctions[0]["shape"] == "point"
+    assert float(junctions[0]["width"]) == pytest.approx(0.02)
+    assert float(junctions[0]["height"]) == pytest.approx(0.02)
+
+
+def test_edgejunction_both_handles_fanin_and_fanout():
+    source = """
+        digraph {
+          graph [edgejunction=both]
+          edge [label=in, minlen=2]
+          amber -> target
+          violet -> target
+          edge [label=out, minlen=2]
+          source -> cyan
+          source -> magenta
+        }
+    """
+    layout = _layout(source)
+
+    assert len(_edge_objects(layout, label="in")) == 2
+    assert len(_edge_objects(layout, label="out")) == 2
+    assert sum("_ldraw_" in edge for edge in _edge_objects(layout, label="in")) == 1
+    assert sum("_ldraw_" in edge for edge in _edge_objects(layout, label="out")) == 1
+    assert (
+        len(
+            [
+                obj
+                for obj in layout["objects"]
+                if obj.get("name", "").startswith("_edgejunction_")
+            ]
+        )
+        == 2
+    )
+
+
+def test_edgejunction_true_means_both():
+    source = """
+        digraph {
+          graph [edgejunction=true]
+          edge [label=in, minlen=2]
+          amber -> target
+          violet -> target
+          edge [label=out, minlen=2]
+          source -> cyan
+          source -> magenta
+        }
+    """
+    layout = _layout(source)
+
+    assert sum("_ldraw_" in edge for edge in _edge_objects(layout, label="in")) == 1
+    assert sum("_ldraw_" in edge for edge in _edge_objects(layout, label="out")) == 1
+
+
 def test_edgejunction_fanin_places_default_minlen_label():
     source = """
         digraph {
@@ -218,6 +295,21 @@ def test_edgejunction_fanin_has_no_empty_spline_endpoints():
     assert _empty_spline_endpoints(_layout(source)) == []
 
 
+def test_edgejunction_fanout_has_no_empty_spline_endpoints():
+    source = """
+        digraph {
+          graph [edgejunction=fanout]
+          edge [label=shared, minlen=2]
+          source -> alpha
+          source -> beta
+          source -> gamma
+          source -> delta
+        }
+    """
+
+    assert _empty_spline_endpoints(_layout(source)) == []
+
+
 def test_edgejunction_fanin_keeps_distinct_colours_separate():
     source = """
         digraph {
@@ -243,6 +335,31 @@ def test_edgejunction_fanin_keeps_distinct_colours_separate():
     assert all("_hdraw_" in edge for edge in coloured)
 
 
+def test_edgejunction_fanout_keeps_distinct_colours_separate():
+    source = """
+        digraph {
+          graph [concentrate=true, edgejunction=fanout]
+          edge [penwidth=3]
+          { rank=max; north; south }
+          source -> relay
+          relay -> waypoint
+          waypoint -> north
+          source -> north [color=blue]
+          source -> south [color=red]
+          source -> north
+          source -> south
+        }
+    """
+    layout = _layout(source)
+    coloured = [
+        edge for edge in layout["edges"] if edge.get("color") in ("blue", "red")
+    ]
+
+    assert {edge["color"] for edge in coloured} == {"blue", "red"}
+    assert all("_draw_" in edge for edge in coloured)
+    assert all("_hdraw_" in edge for edge in coloured)
+
+
 def test_edgejunction_fanin_preserves_user_node_name_collision():
     source = """
         digraph {
@@ -251,6 +368,33 @@ def test_edgejunction_fanin_preserves_user_node_name_collision():
           edge [label=shared, minlen=2]
           amber -> target
           violet -> target
+        }
+    """
+    layout = _layout(source)
+    objects = layout["objects"]
+    user = [obj for obj in objects if obj.get("name") == "_edgejunction_0"]
+    helpers = [
+        obj
+        for obj in objects
+        if obj.get("name", "").startswith("_edgejunction_")
+        and obj.get("_edgejunction_node") == "true"
+    ]
+
+    assert len(user) == 1
+    assert user[0]["label"] == "user"
+    assert user[0].get("shape") != "point"
+    assert len(helpers) == 1
+    assert helpers[0]["name"] != "_edgejunction_0"
+
+
+def test_edgejunction_fanout_preserves_user_node_name_collision():
+    source = """
+        digraph {
+          graph [edgejunction=fanout]
+          _edgejunction_0 [label=user]
+          edge [label=shared, minlen=2]
+          source -> amber
+          source -> violet
         }
     """
     layout = _layout(source)
@@ -356,6 +500,31 @@ def test_edgejunction_fanin_clustered_graph_falls_back():
           edge [label=shared, minlen=2]
           amber -> target
           violet -> target
+        }
+    """
+
+    assert run("dot", "-Tsvg", input=source, timeout=10) is not None
+
+    layout = _layout(source)
+    assert len(_edge_objects(layout, label="shared")) == 2
+    assert not [
+        obj
+        for obj in layout["objects"]
+        if obj.get("name", "").startswith("_edgejunction_")
+    ]
+
+
+def test_edgejunction_fanout_clustered_graph_falls_back():
+    source = """
+        digraph {
+          graph [edgejunction=fanout]
+          subgraph cluster_one {
+            amber
+            violet
+          }
+          edge [label=shared, minlen=2]
+          source -> amber
+          source -> violet
         }
     """
 

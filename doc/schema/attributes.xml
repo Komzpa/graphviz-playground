@@ -589,7 +589,7 @@
 		<xsd:annotation>
 			<xsd:documentation>
 				<html:p>
-					If <html:span class="val">fanin</html:span>, dot may replace identical incoming edges with an edge-interior point junction and one shared labelled trunk. The transform is opt-in; the default <html:span class="val">none</html:span> preserves existing output.
+					If <html:span class="val">fanin</html:span>, dot may replace identical incoming edges with an edge-interior point junction and one shared labelled trunk. If <html:span class="val">fanout</html:span>, dot may similarly replace identical outgoing edges. <html:span class="val">both</html:span> and <html:span class="val">true</html:span> enable both directions. The transform is opt-in; the default <html:span class="val">none</html:span> preserves existing output.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
