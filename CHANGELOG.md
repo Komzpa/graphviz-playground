@@ -113,6 +113,11 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
+### Added
+
+- Dot has a new opt-in graph attribute, `edgejunction=fanin`, that can draw
+  identical incoming edges through one laid-out junction trunk.
+
 ### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
