@@ -27,10 +27,16 @@ IDENTITY_ATTRS = (
     "dir",
     "fontname",
     "fontsize",
+    "fontcolor",
+    "labelfontname",
+    "labelfontsize",
+    "labelfontcolor",
     "class",
 )
 
-LABEL_ATTRS = {"label", "xlabel", "taillabel", "headlabel"}
+EDGE_LABEL_ATTRS = {"label", "xlabel"}
+ENDPOINT_LABEL_ATTRS = {"taillabel", "headlabel"}
+LABEL_ATTRS = EDGE_LABEL_ATTRS | ENDPOINT_LABEL_ATTRS
 ROUTING_ATTRS = {"pos", "lp", "head_lp", "tail_lp", "_draw_", "_hdraw_", "_tdraw_", "_ldraw_"}
 
 
@@ -88,8 +94,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def edge_attrs(edge) -> dict[str, str]:
-    attrs = {str(k): str(v) for k, v in edge.attr.items()}
-    return {k: v for k, v in attrs.items() if v != ""}
+    return {str(k): str(v) for k, v in edge.attr.items()}
 
 
 def node_clusters(graph: pgv.AGraph) -> dict[str, str]:
@@ -208,11 +213,13 @@ def add_junction(graph: pgv.AGraph, name: str, visible: bool) -> None:
 
 
 def trunk_attrs(candidate: Candidate, args: argparse.Namespace) -> dict[str, str]:
-    attrs = copy_without(candidate.edges[0].attrdict(), LABEL_ATTRS)
+    source = candidate.edges[0].attrdict()
+    attrs = copy_without(source, LABEL_ATTRS)
+    shared_endpoint_label = "taillabel" if candidate.kind == "fan-out" else "headlabel"
     attrs.update(
         (name, value)
-        for name, value in candidate.edges[0].attrdict().items()
-        if name in LABEL_ATTRS
+        for name, value in source.items()
+        if name in EDGE_LABEL_ATTRS or name == shared_endpoint_label
     )
     if args.sum_weights:
         attrs["weight"] = weight_sum(candidate.edges)
@@ -221,9 +228,11 @@ def trunk_attrs(candidate: Candidate, args: argparse.Namespace) -> dict[str, str
     return attrs
 
 
-def arm_attrs(edge: EdgeInfo) -> dict[str, str]:
-    attrs = copy_without(edge.attrdict(), LABEL_ATTRS)
-    attrs["arrowhead"] = "none"
+def arm_attrs(candidate: Candidate, edge: EdgeInfo) -> dict[str, str]:
+    source = edge.attrdict()
+    attrs = copy_without(source, LABEL_ATTRS)
+    distinct_endpoint_label = "headlabel" if candidate.kind == "fan-out" else "taillabel"
+    attrs.update((name, value) for name, value in source.items() if name == distinct_endpoint_label)
     return attrs
 
 
@@ -242,7 +251,45 @@ def reversed_attrs(attrs: dict[str, str]) -> dict[str, str]:
         out["arrowtail"] = head
     if tail is not None:
         out["arrowhead"] = tail
+    head_label = out.pop("headlabel", None)
+    tail_label = out.pop("taillabel", None)
+    if head_label is not None:
+        out["taillabel"] = head_label
+    if tail_label is not None:
+        out["headlabel"] = tail_label
     return out
+
+
+def endpoint_arrows(attrs: dict[str, str], *, keep_head: bool, keep_tail: bool) -> dict[str, str]:
+    out = dict(attrs)
+    direction = out.get("dir", "forward").lower()
+    has_head = keep_head and direction in {"forward", "both"}
+    has_tail = keep_tail and direction in {"back", "both"}
+    if has_head and has_tail:
+        out["dir"] = "both"
+    elif has_head:
+        out["dir"] = "forward"
+    elif has_tail:
+        out["dir"] = "back"
+    else:
+        out["dir"] = "none"
+    if not has_head:
+        out.pop("arrowhead", None)
+    if not has_tail:
+        out.pop("arrowtail", None)
+    return out
+
+
+def logical_trunk_attrs(candidate: Candidate, args: argparse.Namespace) -> dict[str, str]:
+    if candidate.kind == "fan-out":
+        return endpoint_arrows(trunk_attrs(candidate, args), keep_head=False, keep_tail=True)
+    return endpoint_arrows(trunk_attrs(candidate, args), keep_head=True, keep_tail=False)
+
+
+def logical_arm_attrs(candidate: Candidate, edge: EdgeInfo) -> dict[str, str]:
+    if candidate.kind == "fan-out":
+        return endpoint_arrows(arm_attrs(candidate, edge), keep_head=True, keep_tail=False)
+    return endpoint_arrows(arm_attrs(candidate, edge), keep_head=False, keep_tail=True)
 
 
 def add_group_naive(
@@ -250,13 +297,13 @@ def add_group_naive(
 ) -> None:
     add_junction(scope, node, args.visible_junctions)
     if candidate.kind == "fan-out":
-        graph.add_edge(candidate.endpoint, node, **dict(trunk_attrs(candidate, args), arrowhead="none"))
+        graph.add_edge(candidate.endpoint, node, **logical_trunk_attrs(candidate, args))
         for edge in candidate.edges:
-            graph.add_edge(node, edge.head, **copy_without(edge.attrdict(), LABEL_ATTRS))
+            graph.add_edge(node, edge.head, **logical_arm_attrs(candidate, edge))
     else:
         for edge in candidate.edges:
-            graph.add_edge(edge.tail, node, **arm_attrs(edge))
-        graph.add_edge(node, candidate.endpoint, **trunk_attrs(candidate, args))
+            graph.add_edge(edge.tail, node, **logical_arm_attrs(candidate, edge))
+        graph.add_edge(node, candidate.endpoint, **logical_trunk_attrs(candidate, args))
 
 
 def add_group_preserving(
@@ -276,23 +323,23 @@ def add_group_preserving(
     if candidate.kind == "fan-out":
         tail = candidate.endpoint
         if relation < 0:
-            graph.add_edge(tail, node, **dict(trunk_attrs(candidate, args), arrowhead="none"))
+            graph.add_edge(tail, node, **logical_trunk_attrs(candidate, args))
             for edge in candidate.edges:
-                graph.add_edge(node, edge.head, **copy_without(edge.attrdict(), LABEL_ATTRS))
+                graph.add_edge(node, edge.head, **logical_arm_attrs(candidate, edge))
         else:
-            graph.add_edge(node, tail, **dict(trunk_attrs(candidate, args), arrowhead="none"))
+            graph.add_edge(node, tail, **reversed_attrs(logical_trunk_attrs(candidate, args)))
             for edge in candidate.edges:
-                graph.add_edge(edge.head, node, **reversed_attrs(copy_without(edge.attrdict(), LABEL_ATTRS)))
+                graph.add_edge(edge.head, node, **reversed_attrs(logical_arm_attrs(candidate, edge)))
     else:
         head = candidate.endpoint
         if relation > 0:
             for edge in candidate.edges:
-                graph.add_edge(edge.tail, node, **arm_attrs(edge))
-            graph.add_edge(node, head, **trunk_attrs(candidate, args))
+                graph.add_edge(edge.tail, node, **logical_arm_attrs(candidate, edge))
+            graph.add_edge(node, head, **logical_trunk_attrs(candidate, args))
         else:
-            graph.add_edge(head, node, **reversed_attrs(trunk_attrs(candidate, args)))
+            graph.add_edge(head, node, **reversed_attrs(logical_trunk_attrs(candidate, args)))
             for edge in candidate.edges:
-                graph.add_edge(node, edge.tail, **arm_attrs(edge))
+                graph.add_edge(node, edge.tail, **reversed_attrs(logical_arm_attrs(candidate, edge)))
     return True
 
 

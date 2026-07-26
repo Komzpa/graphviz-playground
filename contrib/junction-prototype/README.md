@@ -34,8 +34,9 @@ graph, node, edge, and subgraph attributes through Graphviz's own parser.
 
 A group is a set of edges that share an endpoint and have identical values for:
 
-`label`, `color`, `style`, `penwidth`, `arrowhead`, `arrowtail`, `dir`,
-`fontname`, `fontsize`, and `class`.
+`label`, `xlabel`, `headlabel`, `taillabel`, `color`, `style`, `penwidth`,
+`arrowhead`, `arrowtail`, `dir`, `fontname`, `fontsize`, `fontcolor`,
+`labelfontname`, `labelfontsize`, `labelfontcolor`, and `class`.
 
 Every group with size at least `--min-group` is either transformed or reported
 to stderr as refused. The machine-readable census format is:
