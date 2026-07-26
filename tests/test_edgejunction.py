@@ -201,6 +201,15 @@ def test_edgejunction_absent_keeps_output_unchanged():
     ]
 
 
+def test_edgejunction_fanin_same_rank_cycle_renders():
+    dot(
+        "dot",
+        source_file=Path(__file__).parent
+        / "graphs"
+        / "edgejunction-fanin-same-rank-cycle.dot",
+    )
+
+
 def test_edgejunction_fanin_draws_one_labelled_trunk_with_one_arrowhead():
     source = """
         digraph {
