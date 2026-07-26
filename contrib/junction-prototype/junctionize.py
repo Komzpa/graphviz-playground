@@ -42,7 +42,9 @@ ROUTING_ATTRS = {"pos", "lp", "head_lp", "tail_lp", "_draw_", "_hdraw_", "_tdraw
 
 @dataclass(frozen=True)
 class NodeRank:
+    x: float
     y: float
+    width: float
     height: float
 
 
@@ -185,22 +187,41 @@ def plain_ranks(path: str, dot: str) -> dict[str, NodeRank]:
     for line in proc.stdout.splitlines():
         fields = shlex.split(line)
         if len(fields) >= 6 and fields[0] == "node":
-            ranks[fields[1]] = NodeRank(float(fields[3]), float(fields[5]))
+            ranks[fields[1]] = NodeRank(float(fields[2]), float(fields[3]), float(fields[4]), float(fields[5]))
     return ranks
+
+
+def rank_axis(rankdir: str) -> str:
+    return "x" if rankdir in {"LR", "RL"} else "y"
+
+
+def rank_delta(tail: NodeRank, head: NodeRank, rankdir: str) -> float:
+    return (head.x - tail.x) if rank_axis(rankdir) == "x" else (head.y - tail.y)
+
+
+def is_backward_edge(tail: NodeRank, head: NodeRank, rankdir: str) -> bool:
+    delta = rank_delta(tail, head, rankdir)
+    if math.isclose(delta, 0.0, abs_tol=1e-6):
+        return False
+    if rankdir == "BT":
+        return delta < 0
+    if rankdir in {"LR", "RL"}:
+        return delta < 0 if rankdir == "LR" else delta > 0
+    return delta > 0
 
 
 def emit_original(source: bytes) -> None:
     sys.stdout.buffer.write(source)
 
 
-def endpoint_relation(candidate: Candidate, ranks: dict[str, NodeRank]) -> int | None:
+def endpoint_relation(candidate: Candidate, ranks: dict[str, NodeRank], rankdir: str) -> int | None:
     signs: set[int] = set()
     for edge in candidate.edges:
         if edge.tail not in ranks or edge.head not in ranks:
             return None
         anchor = edge.tail if candidate.kind == "fan-out" else edge.head
         other = edge.head if candidate.kind == "fan-out" else edge.tail
-        delta = ranks[other].y - ranks[anchor].y
+        delta = rank_delta(ranks[anchor], ranks[other], rankdir)
         if math.isclose(delta, 0.0, abs_tol=1e-6):
             return None
         signs.add(1 if delta > 0 else -1)
@@ -323,7 +344,8 @@ def add_group_preserving(
     args: argparse.Namespace,
     ranks: dict[str, NodeRank],
 ) -> bool:
-    relation = endpoint_relation(candidate, ranks)
+    rankdir = (graph.graph_attr.get("rankdir") or "TB").upper()
+    relation = endpoint_relation(candidate, ranks, rankdir)
     if relation is None:
         refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "rank-straddles-anchor")
         return False
@@ -358,13 +380,13 @@ def delete_original_edges(graph: pgv.AGraph, candidate: Candidate) -> None:
 
 
 def orient_remaining_edges(
-    graph: pgv.AGraph, edges: list[EdgeInfo], ranks: dict[str, NodeRank], skewer_order: bool
+    graph: pgv.AGraph, edges: list[EdgeInfo], ranks: dict[str, NodeRank], skewer_order: bool, rankdir: str
 ) -> None:
     if not skewer_order:
         for edge in edges:
             tail = ranks.get(edge.tail)
             head = ranks.get(edge.head)
-            if tail is None or head is None or head.y <= tail.y or math.isclose(head.y, tail.y, abs_tol=1e-6):
+            if tail is None or head is None or not is_backward_edge(tail, head, rankdir):
                 continue
             attrs = reversed_attrs(copy_without(edge.attrdict(), set()))
             graph.delete_edge(edge.tail, edge.head)
@@ -376,7 +398,7 @@ def orient_remaining_edges(
     for edge in edges:
         tail = ranks.get(edge.tail)
         head = ranks.get(edge.head)
-        if tail is None or head is None or head.y <= tail.y or math.isclose(head.y, tail.y, abs_tol=1e-6):
+        if tail is None or head is None or not is_backward_edge(tail, head, rankdir):
             forward.append(edge)
         else:
             backward.append(edge)
@@ -387,6 +409,7 @@ def orient_remaining_edges(
 
     for edge in backward:
         attrs = reversed_attrs(copy_without(edge.attrdict(), set()))
+        attrs.setdefault("weight", "10")
         graph.delete_edge(edge.tail, edge.head)
         graph.add_edge(edge.head, edge.tail, **attrs)
         graph.get_node(edge.head).attr["ordering"] = "out"
@@ -543,7 +566,7 @@ def main() -> int:
     selected: list[Candidate] = []
     transformed: set[int] = set()
     for candidate in candidates:
-        if args.preserve_ranks and endpoint_relation(candidate, ranks) is None:
+        if args.preserve_ranks and endpoint_relation(candidate, ranks, rankdir) is None:
             refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "rank-straddles-anchor")
             refused = True
             continue
@@ -578,7 +601,7 @@ def main() -> int:
 
     if args.preserve_ranks:
         remaining = [edge for edge in eligible if edge.index not in really_transformed]
-        orient_remaining_edges(out, remaining, ranks, args.skewer_order)
+        orient_remaining_edges(out, remaining, ranks, args.skewer_order, rankdir)
 
     text = out.string()
     if args.skewer_order:

@@ -9,12 +9,14 @@ import re
 import statistics
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "contrib" / "junction-prototype" / "junctionize.py"
+BASELINE = "b835b3ffa"
 DRBD = Path("/home/kom/tmp/graphviz-pr1-cleanup-20260719/lane2bU-anchor-fixtures-frozen/0604-64000479e879bbdc.dot")
 FIXTURES = [
     DRBD,
@@ -35,6 +37,7 @@ class Box:
 
 @dataclass(frozen=True)
 class EdgeRow:
+    index: int
     tail: str
     head: str
     label: str
@@ -43,8 +46,18 @@ class EdgeRow:
 
 
 @dataclass(frozen=True)
+class LabelBox:
+    edge_name: str
+    label: str
+    box: Box
+
+
+@dataclass(frozen=True)
 class Metrics:
     edges: list[EdgeRow]
+    rank_axis: str
+    label_boxes: list[LabelBox]
+    label_label_pairs: list[tuple[str, str]]
     median_forward_x: float | None
     reversed_left_of_median: int
     label_crossed: int
@@ -62,6 +75,20 @@ def junctionize(path: Path, *, skewer: bool) -> subprocess.CompletedProcess[byte
     if not skewer:
         cmd.append("--no-skewer-order")
     return run(cmd)
+
+
+def baseline_tool(tmpdir: Path) -> Path:
+    proc = run(["git", "show", f"{BASELINE}:contrib/junction-prototype/junctionize.py"])
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.decode("utf-8", "replace"))
+    tool = tmpdir / "junctionize-baseline.py"
+    tool.write_bytes(proc.stdout)
+    tool.chmod(0o755)
+    return tool
+
+
+def junctionize_with(tool: Path, path: Path) -> subprocess.CompletedProcess[bytes]:
+    return run([sys.executable, str(tool), str(path)])
 
 
 def dot_json(dot_bytes: bytes) -> dict:
@@ -121,6 +148,10 @@ def boxes_overlap(a: Box, b: Box) -> bool:
     return a.x0 < b.x1 and a.x1 > b.x0 and a.y0 < b.y1 and a.y1 > b.y0
 
 
+def box_text(box: Box) -> str:
+    return f"{box.x0:.2f},{box.y0:.2f}..{box.x1:.2f},{box.y1:.2f}"
+
+
 def label_box(edge: dict, *, expand: float = 0.0) -> Box | None:
     for op in edge.get("_ldraw_", []):
         if op.get("op") == "T":
@@ -172,15 +203,22 @@ def edge_kind(edge: dict, positions: dict[int, tuple[float, float]], rankdir: st
     return "reversed" if delta > 1e-6 else "forward"
 
 
+def edge_name(index: int, tail: str, head: str, label: str) -> str:
+    suffix = f" label={label}" if label else ""
+    return f"#{index} {tail}->{head}{suffix}"
+
+
 def metrics(dot_bytes: bytes) -> Metrics:
     data = dot_json(dot_bytes)
     names = {obj["_gvid"]: obj["name"] for obj in data.get("objects", [])}
     nodes = node_boxes(data)
     positions = node_positions(data)
     rankdir = (data.get("rankdir") or "TB").upper()
+    rank_axis = "x" if rankdir in {"LR", "RL"} else "y"
     rows: list[EdgeRow] = []
-    labels: list[tuple[int, Box]] = []
+    labels: list[tuple[int, str, Box]] = []
     expanded_labels: list[tuple[int, Box]] = []
+    label_boxes: list[LabelBox] = []
     splines: list[tuple[int, list[tuple[float, float]]]] = []
 
     for index, edge in enumerate(data.get("edges", [])):
@@ -189,14 +227,19 @@ def metrics(dot_bytes: bytes) -> Metrics:
             continue
         mean_x = statistics.fmean(x for x, _ in pts)
         kind = edge_kind(edge, positions, rankdir)
-        rows.append(EdgeRow(names[edge["tail"]], names[edge["head"]], edge.get("label", ""), kind, mean_x))
+        tail_name = names[edge["tail"]]
+        head_name = names[edge["head"]]
+        label = edge.get("label", "")
+        name = edge_name(index, tail_name, head_name, label)
+        rows.append(EdgeRow(index, tail_name, head_name, label, kind, mean_x))
         splines.append((index, pts))
         box = label_box(edge)
-        if box is not None and edge.get("label", ""):
-            labels.append((index, box))
+        if box is not None and label:
             expanded = label_box(edge, expand=PAD)
             assert expanded is not None
+            labels.append((index, name, expanded))
             expanded_labels.append((index, expanded))
+            label_boxes.append(LabelBox(name, label, expanded))
 
     forward_x = [row.mean_x for row in rows if row.kind == "forward"]
     median = statistics.median(forward_x) if forward_x else None
@@ -211,28 +254,47 @@ def metrics(dot_bytes: bytes) -> Metrics:
                 crossed_labels.add(label_index)
                 break
 
-    label_label = 0
-    for i, (_, a) in enumerate(labels):
-        for _, b in labels[i + 1 :]:
-            label_label += int(boxes_overlap(a, b))
+    label_label_pairs: list[tuple[str, str]] = []
+    for i, (_, a_name, a) in enumerate(labels):
+        for _, b_name, b in labels[i + 1 :]:
+            if boxes_overlap(a, b):
+                label_label_pairs.append((a_name, b_name))
 
     label_node = 0
-    for _, label in labels:
+    for _, _, label in labels:
         for node in nodes.values():
             label_node += int(boxes_overlap(label, node))
 
-    return Metrics(rows, median, left, len(crossed_labels), label_label, label_node, dot_crossings(dot_bytes))
+    return Metrics(
+        rows,
+        rank_axis,
+        label_boxes,
+        label_label_pairs,
+        median,
+        left,
+        len(crossed_labels),
+        len(label_label_pairs),
+        label_node,
+        dot_crossings(dot_bytes),
+    )
 
 
 def print_metrics(name: str, side: str, m: Metrics) -> None:
     median = "n/a" if m.median_forward_x is None else f"{m.median_forward_x:.2f}"
-    print(f"{name}\t{side}\tmedian_forward_x={median}\treversed_left_of_median={m.reversed_left_of_median}\tlabel_crossed={m.label_crossed}\tlabel_label={m.label_label_overlaps}\tlabel_node={m.label_node_overlaps}\tcrossings={m.crossings}")
+    print(f"{name}\t{side}\trank_axis={m.rank_axis}\tmedian_forward_x={median}\treversed_left_of_median={m.reversed_left_of_median}\tlabel_crossed={m.label_crossed}\tlabel_label={m.label_label_overlaps}\tlabel_node={m.label_node_overlaps}\tcrossings={m.crossings}")
+    for item in m.label_boxes:
+        print(f"{name}\t{side}\tlabel_box\t{item.edge_name}\tpad={PAD:.1f}\tbox={box_text(item.box)}")
+    if m.label_label_pairs:
+        for a, b in m.label_label_pairs:
+            print(f"{name}\t{side}\tlabel_overlap\t{a}\t{b}")
+    else:
+        print(f"{name}\t{side}\tlabel_overlap_pairs=empty")
     for row in m.edges:
         label = f"\tlabel={row.label}" if row.label else ""
-        print(f"{name}\t{side}\tedge\t{row.tail}->{row.head}\t{row.kind}\tmean_x={row.mean_x:.2f}{label}")
+        print(f"{name}\t{side}\tedge\t#{row.index}\t{row.tail}->{row.head}\t{row.kind}\tmean_x={row.mean_x:.2f}{label}")
 
 
-def refusal_sample() -> tuple[int, int, int]:
+def refusal_sample(base_tool: Path) -> tuple[int, int, int]:
     candidates = sorted(
         set(
             list((ROOT / "contrib" / "junction-prototype" / "fixtures" / "original").glob("*.gv"))
@@ -246,41 +308,49 @@ def refusal_sample() -> tuple[int, int, int]:
         proc = junctionize(path, skewer=True)
         if proc.stderr.startswith(b"refused:"):
             refused += 1
-            if proc.stdout == path.read_bytes():
+            baseline = junctionize_with(base_tool, path)
+            if baseline.returncode == 0 and proc.stdout == baseline.stdout:
                 matched += 1
     return matched, refused, len(candidates)
 
 
 def main() -> int:
     failures: list[str] = []
-    for fixture in FIXTURES:
-        before = junctionize(fixture, skewer=False)
-        after = junctionize(fixture, skewer=True)
-        if before.returncode != 0 or after.returncode != 0:
-            failures.append(f"{fixture}: junctionize failed")
-            continue
-        before_m = metrics(before.stdout)
-        after_m = metrics(after.stdout)
-        name = fixture.name
-        print_metrics(name, "before", before_m)
-        print_metrics(name, "after", after_m)
-        for field in ("crossings", "label_crossed", "label_label_overlaps", "label_node_overlaps"):
-            if getattr(after_m, field) > getattr(before_m, field):
-                failures.append(f"{name}: {field} regressed {getattr(before_m, field)} -> {getattr(after_m, field)}")
-        if fixture == DRBD:
-            median = after_m.median_forward_x
-            if median is None:
-                failures.append("DRBD: no forward median")
-            elif any(row.kind == "reversed" and row.mean_x <= median for row in after_m.edges):
-                failures.append("DRBD: a reversed edge is not right of the median forward edge")
-            by_label = {row.label: row.mean_x for row in after_m.edges if row.label}
-            if by_label.get("sending notify to peer", -math.inf) <= by_label.get("resync completed", math.inf):
-                failures.append("DRBD: sending notify to peer is not right of resync completed")
-            if by_label.get("ioctl_replicate", -math.inf) <= by_label.get("resync completed", math.inf):
-                failures.append("DRBD: ioctl_replicate is not right of resync completed")
+    with tempfile.TemporaryDirectory(prefix="junction-baseline-") as tmp:
+        base_tool = baseline_tool(Path(tmp))
+        for fixture in FIXTURES:
+            before = junctionize_with(base_tool, fixture)
+            after = junctionize(fixture, skewer=True)
+            if before.returncode != 0 or after.returncode != 0:
+                failures.append(f"{fixture}: junctionize failed")
+                continue
+            before_m = metrics(before.stdout)
+            after_m = metrics(after.stdout)
+            name = fixture.name
+            print_metrics(name, BASELINE, before_m)
+            print_metrics(name, "new-head", after_m)
+            for field in ("crossings", "label_crossed", "label_label_overlaps", "label_node_overlaps"):
+                if getattr(after_m, field) > getattr(before_m, field):
+                    failures.append(f"{name}: {field} regressed {getattr(before_m, field)} -> {getattr(after_m, field)}")
+            new_pairs = set(after_m.label_label_pairs) - set(before_m.label_label_pairs)
+            if new_pairs:
+                failures.append(f"{name}: new label-label overlap pairs {sorted(new_pairs)}")
+            if fixture == DRBD:
+                median = after_m.median_forward_x
+                if median is None:
+                    failures.append("DRBD: no forward median")
+                elif any(row.kind == "reversed" and row.mean_x <= median for row in after_m.edges):
+                    failures.append("DRBD: a reversed edge is not right of the median forward edge")
+                by_label = {row.label: row.mean_x for row in after_m.edges if row.label}
+                if by_label.get("sending notify to peer", -math.inf) <= by_label.get("resync completed", math.inf):
+                    failures.append("DRBD: sending notify to peer is not right of resync completed")
+                if by_label.get("sending notify to peer", -math.inf) <= by_label.get("ioctl_replicate", math.inf):
+                    failures.append("DRBD: sending notify to peer is not right of ioctl_replicate")
+                if by_label.get("ioctl_replicate", -math.inf) <= by_label.get("resync completed", math.inf):
+                    failures.append("DRBD: ioctl_replicate is not right of resync completed")
 
-    matched, refused, sample = refusal_sample()
-    print(f"refusal_byte_identity\tmatched={matched}\trefused_total={refused}\tsample_total={sample}")
+        matched, refused, sample = refusal_sample(base_tool)
+    print(f"refusal_byte_identity_vs_{BASELINE}\tmatched={matched}\trefused_total={refused}\tsample_total={sample}")
     if matched != refused:
         failures.append(f"refusal byte identity failed: {matched}/{refused}")
 
