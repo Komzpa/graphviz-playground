@@ -90,6 +90,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-preserve-ranks", dest="preserve_ranks", action="store_false")
     parser.add_argument("--visible-junctions", action="store_true", default=False)
     parser.add_argument("--dot", default="dot", help="dot executable used to read original ranks.")
+    parser.add_argument("--skewer-order", dest="skewer_order", action="store_true", default=True)
+    parser.add_argument("--no-skewer-order", dest="skewer_order", action="store_false", help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -355,15 +357,99 @@ def delete_original_edges(graph: pgv.AGraph, candidate: Candidate) -> None:
         graph.delete_edge(edge.tail, edge.head)
 
 
-def orient_remaining_edges(graph: pgv.AGraph, edges: list[EdgeInfo], ranks: dict[str, NodeRank]) -> None:
+def orient_remaining_edges(
+    graph: pgv.AGraph, edges: list[EdgeInfo], ranks: dict[str, NodeRank], skewer_order: bool
+) -> None:
+    if not skewer_order:
+        for edge in edges:
+            tail = ranks.get(edge.tail)
+            head = ranks.get(edge.head)
+            if tail is None or head is None or head.y <= tail.y or math.isclose(head.y, tail.y, abs_tol=1e-6):
+                continue
+            attrs = reversed_attrs(copy_without(edge.attrdict(), set()))
+            graph.delete_edge(edge.tail, edge.head)
+            graph.add_edge(edge.head, edge.tail, **attrs)
+        return
+
+    forward: list[EdgeInfo] = []
+    backward: list[EdgeInfo] = []
     for edge in edges:
         tail = ranks.get(edge.tail)
         head = ranks.get(edge.head)
         if tail is None or head is None or head.y <= tail.y or math.isclose(head.y, tail.y, abs_tol=1e-6):
-            continue
+            forward.append(edge)
+        else:
+            backward.append(edge)
+
+    for edge in forward:
+        graph.delete_edge(edge.tail, edge.head)
+        graph.add_edge(edge.tail, edge.head, **copy_without(edge.attrdict(), set()))
+
+    for edge in backward:
         attrs = reversed_attrs(copy_without(edge.attrdict(), set()))
         graph.delete_edge(edge.tail, edge.head)
         graph.add_edge(edge.head, edge.tail, **attrs)
+        graph.get_node(edge.head).attr["ordering"] = "out"
+
+
+def ordered_dot(text: str) -> str:
+    blocks: list[list[str]] = []
+    current: list[str] = []
+    for line in text.splitlines(keepends=True):
+        if current:
+            current.append(line)
+            if line.rstrip().endswith(";"):
+                blocks.append(current)
+                current = []
+        elif " -> " in line and line.lstrip() != line:
+            current = [line]
+            if line.rstrip().endswith(";"):
+                blocks.append(current)
+                current = []
+        else:
+            blocks.append([line])
+    if current:
+        blocks.append(current)
+
+    edges: list[tuple[int, list[str]]] = []
+    ordering_nodes: list[tuple[int, list[str]]] = []
+    for index, block in enumerate(blocks):
+        if " -> " in block[0]:
+            edges.append((index, block))
+        elif "ordering=out" in "".join(block):
+            ordering_nodes.append((index, block))
+    if not edges:
+        return text
+
+    ordering_node_indices = {index for index, _ in ordering_nodes}
+    ordered_node_blocks = [block for _, block in ordering_nodes]
+    out: list[str] = []
+    inserted = False
+    seen_forward_tail: set[str] = set()
+    pending_back: dict[str, list[list[str]]] = defaultdict(list)
+    for index, block in enumerate(blocks):
+        if index in ordering_node_indices:
+            continue
+        if " -> " in block[0]:
+            if not inserted:
+                for node_block in ordered_node_blocks:
+                    out.extend(node_block)
+                inserted = True
+            tail = block[0].split(" -> ", 1)[0].strip()
+            if "dir=back" in "".join(block) and tail not in seen_forward_tail:
+                pending_back[tail].append(block)
+                continue
+            out.extend(block)
+            if "dir=back" not in "".join(block):
+                seen_forward_tail.add(tail)
+                for edge_block in pending_back.pop(tail, []):
+                    out.extend(edge_block)
+            continue
+        out.extend(block)
+    for blocks_for_tail in pending_back.values():
+        for edge_block in blocks_for_tail:
+            out.extend(edge_block)
+    return "".join(out)
 
 
 def main() -> int:
@@ -492,9 +578,12 @@ def main() -> int:
 
     if args.preserve_ranks:
         remaining = [edge for edge in eligible if edge.index not in really_transformed]
-        orient_remaining_edges(out, remaining, ranks)
+        orient_remaining_edges(out, remaining, ranks, args.skewer_order)
 
-    print(out.string(), end="")
+    text = out.string()
+    if args.skewer_order:
+        text = ordered_dot(text)
+    print(text, end="")
     return 0
 
 
