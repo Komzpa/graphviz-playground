@@ -53,15 +53,26 @@ GROUP_ATTRS = (
     "headtarget",
     "tailtarget",
 )
-DEFAULT_CASES = (
-    ("siblings", "fanin", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
-    ("drbd", "both", "/home/kom/tmp/graphviz-pr1-cleanup-20260719/lane2bU-anchor-fixtures-frozen/0604-64000479e879bbdc.dot"),
+# The DRBD state graph is not in-tree; point EDGEJUNCTION_DRBD at a local copy
+# to include it. Without it the in-tree cases still run.
+DRBD_ENV = "EDGEJUNCTION_DRBD"
+DEFAULT_CASES = tuple(
+    case
+    for case in (
+        ("siblings", "fanin", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
+        ("drbd", "both", os.environ.get(DRBD_ENV, "")),
+    )
+    if case[2]
 )
-GEOMETRY_CASES = (
-    ("siblings", "fanin", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
-    ("drbd", "both", "/home/kom/tmp/graphviz-pr1-cleanup-20260719/lane2bU-anchor-fixtures-frozen/0604-64000479e879bbdc.dot"),
-    ("dfa", "fanin", "graphs/directed/dfa.gv"),
-    ("unix", "fanin", "graphs/directed/unix.gv"),
+GEOMETRY_CASES = tuple(
+    case
+    for case in (
+        ("siblings", "fanin", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
+        ("drbd", "both", os.environ.get(DRBD_ENV, "")),
+        ("dfa", "fanin", "graphs/directed/dfa.gv"),
+        ("unix", "fanin", "graphs/directed/unix.gv"),
+    )
+    if case[2]
 )
 SIBLINGS_NODES = ("a", "b", "c", "e", "_edgejunction_0", "d")
 DRBD_LABELS = (
