@@ -37,6 +37,8 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern void dot_cleanup(graph_t * g);
     extern void dot_layout(Agraph_t * g);
     extern void dot_init_node_edge(graph_t * g);
+    extern void dot_edgejunction(graph_t * g);
+    extern void dot_edgejunction_splines(graph_t * g);
     extern void dot_scan_ranks(graph_t * g);
     extern void enqueue_neighbors(node_queue_t *q, node_t *n0, int pass);
     /// @return 0 on success
