@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import statistics
 import subprocess
@@ -17,12 +18,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "contrib" / "junction-prototype" / "junctionize.py"
 BASELINE = "b835b3ffa"
-DRBD = Path("/home/kom/tmp/graphviz-pr1-cleanup-20260719/lane2bU-anchor-fixtures-frozen/0604-64000479e879bbdc.dot")
+# The DRBD state graph is not in the tree. Point SKEWER_DRBD at a local copy to
+# include it; without it the in-tree fixtures still run.
+DRBD_ENV = "SKEWER_DRBD"
+_drbd = os.environ.get(DRBD_ENV, "")
+DRBD = Path(_drbd) if _drbd else None
 FIXTURES = [
-    DRBD,
-    ROOT / "graphs" / "directed" / "dfa.gv",
-    ROOT / "graphs" / "directed" / "fsm.gv",
-    ROOT / "graphs" / "directed" / "unix.gv",
+    path
+    for path in (
+        DRBD,
+        ROOT / "graphs" / "directed" / "dfa.gv",
+        ROOT / "graphs" / "directed" / "fsm.gv",
+        ROOT / "graphs" / "directed" / "unix.gv",
+    )
+    if path is not None
 ]
 PAD = 3.0
 
