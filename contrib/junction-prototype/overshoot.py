@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
 def dot_plain(path: str, dot: str) -> str:
     text = open(path, encoding="utf-8").read()
     for line in text.splitlines():
-        fields = shlex.split(line)
+        fields = line.split(None, 3)
         if len(fields) == 4 and fields[0] == "graph":
             return text
         if fields:
