@@ -5,12 +5,12 @@
     "lib/common/edgeattr.c": 2367,
     "lib/common/emit.c": 4403,
     "lib/common/shapes.c": 4342,
-    "lib/dotgen/dotsplines.c": 4868,
+    "lib/dotgen/dotsplines.c": 3519,
     "lib/dotgen/mincross.c": 1779,
     "lib/edgepaint/lab_gamut.c": 10751,
     "lib/expr/exeval.c": 1975,
     "lib/gvpr/compile.c": 2512,
     "lib/sparse/color_palette.c": 7622,
-    "tests/test_regression.py": 12803
+    "tests/test_regression.py": 7927
   }
 }
