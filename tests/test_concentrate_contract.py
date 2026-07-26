@@ -223,6 +223,36 @@ def test_concentrate_oracle_trace_developer_mode(tmp_path: Path):
     assert "variants=no-merge,join-at-rank,sub-bundles,full-trunk" in completed.stderr
 
 
+def test_concentration_plan_reports_compatible_subgroups(tmp_path: Path):
+    """Diagnostics should keep later compatible edges visible after a mismatch."""
+
+    source = tmp_path / "plan-subgroups.dot"
+    source.write_text(
+        """
+        digraph {
+          graph [concentrate=true]
+          a -> b [color=red]
+          a -> b [color=blue]
+          a -> b [color=blue]
+        }
+        """,
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["GV_CONCENTRATION_PLAN_DIAGNOSTICS"] = "1"
+    completed = subprocess.run(
+        ["dot", "-Txdot", source],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+    assert "\trepresentative=0:a->b\tmembers=1:same,2:same" in completed.stderr
+    assert "\tverdict=share-route-only" in completed.stderr
+    assert "\trepresentative=1:a->b\tmembers=2:same\tverdict=suppressible" in completed.stderr
+
+
 def test_concentrate_issue_2764_public_repro_renders_edge_splines():
     """GitLab #2764: raw public conc_slope crash repro still renders edges."""
 

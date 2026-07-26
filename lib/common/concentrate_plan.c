@@ -84,26 +84,32 @@ gv_concentration_plan_t gv_concentration_plan(Agraph_t *graph) {
     group->representative = edges[i];
     group->representative_index = i;
     group->members = gv_calloc(member_count, sizeof(*group->members));
-    group->member_count = member_count;
     group->verdict = GV_CONCENTRATION_SUPPRESSIBLE;
+    assigned[i] = true;
 
     size_t member_index = 0;
     for (size_t j = i; j < collected; ++j) {
       if (assigned[j] || !have_common_unordered_endpoints(edges[i], edges[j]))
         continue;
-      assigned[j] = true;
       const gv_concentration_direction_t direction =
           direction_from(edges[i], edges[j]);
+      const bool matching_ports =
+          ports_are_equal(edges[i], edges[j], direction);
+      const bool matching_identity =
+          matching_ports && gv_concentration_edges_have_equal_rendered_identity(
+                                edges[i], edges[j], direction);
       group->members[member_index++] = (gv_concentration_member_t){
           .edge = edges[j], .input_index = j, .direction = direction};
-      if (!ports_are_equal(edges[i], edges[j], direction)) {
+      if (!matching_ports) {
         group->verdict = GV_CONCENTRATION_INDEPENDENT;
       } else if (group->verdict != GV_CONCENTRATION_INDEPENDENT &&
-                 !gv_concentration_edges_have_equal_rendered_identity(
-                     edges[i], edges[j], direction)) {
+                 !matching_identity) {
         group->verdict = GV_CONCENTRATION_SHARE_ROUTE_ONLY;
+      } else if (matching_identity) {
+        assigned[j] = true;
       }
     }
+    group->member_count = member_index;
   }
 
   free(assigned);
