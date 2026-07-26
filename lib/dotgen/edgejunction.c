@@ -69,10 +69,6 @@ static bool eligible(edge_t *e) {
   if (agtail(e) == aghead(e)) {
     return false;
   }
-  const int rank_delta = ND_rank(aghead(e)) - ND_rank(agtail(e));
-  if (rank_delta > -2 && rank_delta < 2) {
-    return false;
-  }
   if (nonconstraint_edge(e)) {
     return false;
   }
@@ -92,18 +88,6 @@ static bool eligible(edge_t *e) {
 
 static node_t *group_anchor(edge_t *e, junction_kind_t kind) {
   return kind == JUNCTION_FANOUT ? agtail(e) : aghead(e);
-}
-
-static node_t *group_other(edge_t *e, junction_kind_t kind) {
-  return kind == JUNCTION_FANOUT ? aghead(e) : agtail(e);
-}
-
-static bool group_reversed(const junction_group_t *group, edge_t *e,
-                           junction_kind_t kind) {
-  if (kind == JUNCTION_FANOUT) {
-    return ND_rank(group_other(e, kind)) < ND_rank(group->anchor);
-  }
-  return ND_rank(group->anchor) < ND_rank(group_other(e, kind));
 }
 
 static bool same_group(const junction_group_t *group, edge_t *e,
@@ -281,17 +265,6 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   ND_width(jn) = 0.02;
   ND_height(jn) = 0.02;
   gv_nodesize(jn, GD_flip(g));
-  const int anchor_rank = ND_rank(group_anchor(rep, kind));
-  const int other_rank = ND_rank(group_other(rep, kind));
-  ND_rank(jn) = (anchor_rank + other_rank) / 2;
-  if (ED_label(rep) && abs(other_rank - anchor_rank) == 2) {
-    if (kind == JUNCTION_FANOUT) {
-      ND_rank(jn) = reverse ? anchor_rank - 1 : anchor_rank + 1;
-    } else {
-      const int tail_rank = ND_rank(agtail(rep));
-      ND_rank(jn) = reverse ? tail_rank - 1 : tail_rank + 1;
-    }
-  }
 
   int weight = 0;
   edge_t *trunk = NULL;
@@ -310,6 +283,9 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
     agsafeset(orig, "_edgejunction_original", "true", "");
+    ED_minlen(orig) = 0;
+    ED_weight(orig) = 0;
+    ED_xpenalty(orig) = 0;
     edge_t *arm = NULL;
     if (kind == JUNCTION_FANOUT) {
       arm = reverse ? agedge(g, aghead(orig), jn, NULL, 1)
@@ -391,27 +367,21 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
 
   for (size_t i = 0; i < ngroups; ++i) {
     if (groups[i].size >= 2) {
-      const bool reverse = group_reversed(&groups[i], groups[i].edges[0], kind);
-      bool mixed = false;
-      for (size_t j = 1; j < groups[i].size; ++j) {
-        const bool member_reverse =
-            group_reversed(&groups[i], groups[i].edges[j], kind);
-        if (member_reverse != reverse) {
-          mixed = true;
-          break;
-        }
-      }
-      if (mixed) {
-        agerr(AGWARN, "edgejunction: skipping mixed-side %s at anchor %s\n",
-              kind == JUNCTION_FANOUT ? "fanout" : "fanin",
-              agnameof(groups[i].anchor));
-      } else {
-        make_group(g, &groups[i], made, kind, reverse);
-      }
+      make_group(g, &groups[i], made, kind, false);
     }
     free(groups[i].edges);
   }
   free(groups);
+}
+
+static bool has_cluster_subgraph(graph_t *g) {
+  for (graph_t *subg = agfstsubg(g); subg; subg = agnxtsubg(subg)) {
+    if (strncmp(agnameof(subg), "cluster", strlen("cluster")) == 0 ||
+        has_cluster_subgraph(subg)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void dot_edgejunction(graph_t *g) {
@@ -423,7 +393,7 @@ void dot_edgejunction(graph_t *g) {
   if (!agisdirected(g) || GD_flip(g)) {
     return;
   }
-  if (GD_n_cluster(g) != 0) {
+  if (GD_n_cluster(g) != 0 || has_cluster_subgraph(g)) {
     agsafeset(g, "_edgejunction_clustered_fallback", "true", "");
     return;
   }
