@@ -337,6 +337,26 @@ static bool segment_crosses_edge(Ppoint_t a, Ppoint_t b, Ppoint_t c,
   return abc != abd && cda != cdb;
 }
 
+static bool point_is_on_segment(Ppoint_t p, Ppoint_t a, Ppoint_t b) {
+  return ccw(a, b, p) == ISON && p.x >= fmin(a.x, b.x) &&
+         p.x <= fmax(a.x, b.x) && p.y >= fmin(a.y, b.y) &&
+         p.y <= fmax(a.y, b.y);
+}
+
+static bool point_is_inside_polygon(const Ppoly_t *poly, Ppoint_t p) {
+  bool inside = false;
+  for (size_t i = 0, j = poly->pn - 1; i < poly->pn; j = i++) {
+    const Ppoint_t a = poly->ps[i];
+    const Ppoint_t b = poly->ps[j];
+    if (point_is_on_segment(p, a, b))
+      return true;
+    if ((a.y > p.y) != (b.y > p.y) &&
+        p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x)
+      inside = !inside;
+  }
+  return inside;
+}
+
 static bool segment_is_visible(const Ppoly_t *poly, Ppoint_t a, Ppoint_t b) {
   for (size_t i = 0; i < poly->pn; i++) {
     if (segment_crosses_edge(a, b, poly->ps[i], poly->ps[(i + 1) % poly->pn])) {
@@ -344,7 +364,11 @@ static bool segment_is_visible(const Ppoly_t *poly, Ppoint_t a, Ppoint_t b) {
     }
   }
 
-  return true;
+  const Ppoint_t midpoint = {
+      .x = (a.x + b.x) / 2.0,
+      .y = (a.y + b.y) / 2.0,
+  };
+  return point_is_inside_polygon(poly, midpoint);
 }
 
 static int visibility_fallback_path(const Ppoly_t *poly, Ppoint_t eps[2],
