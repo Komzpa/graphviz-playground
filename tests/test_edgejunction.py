@@ -52,6 +52,48 @@ def _distance(a, b):
     return math.hypot(a.x - b.x, a.y - b.y)
 
 
+def _bezier_point(points, t):
+    omt = 1.0 - t
+    return _Point(
+        omt**3 * points[0].x
+        + 3.0 * omt**2 * t * points[1].x
+        + 3.0 * omt * t**2 * points[2].x
+        + t**3 * points[3].x,
+        omt**3 * points[0].y
+        + 3.0 * omt**2 * t * points[1].y
+        + 3.0 * omt * t**2 * points[2].y
+        + t**3 * points[3].y,
+    )
+
+
+def _label_points(edge):
+    return [
+        _Point(float(op["pt"][0]), float(op["pt"][1]))
+        for op in edge.get("_ldraw_", [])
+        if op.get("op") == "T"
+    ]
+
+
+def _label_height(edge):
+    for op in edge.get("_ldraw_", []):
+        if op.get("op") == "F":
+            return float(op["size"])
+    return 14.0
+
+
+def _distance_to_spline(edge, point):
+    best = math.inf
+    for op in edge.get("_draw_", []):
+        if op.get("op") != "b":
+            continue
+        points = [_Point(float(x), float(y)) for x, y in op.get("points", [])]
+        for i in range(0, len(points) - 3, 3):
+            curve = points[i : i + 4]
+            for step in range(41):
+                best = min(best, _distance(point, _bezier_point(curve, step / 40)))
+    return best
+
+
 def _parse_point(value):
     x, y = value.split(",", 1)
     return _Point(float(x), float(y))
@@ -244,6 +286,42 @@ def test_edgejunction_both_handles_fanin_and_fanout():
         )
         == 2
     )
+
+
+def test_edgejunction_both_keeps_fanout_trunk_label_inside_bbox_and_near_spline():
+    source = """
+        digraph disk_states {
+          graph [edgejunction=both]
+          node [shape=ellipse]
+          Diskless -> Inconsistent [label="ioctl_set_disk()"]
+          Diskless -> Consistent [label="ioctl_set_disk()"]
+          Diskless -> Outdated [label="ioctl_set_disk()"]
+          Consistent -> Outdated [label="receive_param()"]
+          Consistent -> UpToDate [label="receive_param()"]
+          Consistent -> Inconsistent [label="start resync"]
+          Outdated -> Inconsistent [label="start resync"]
+          UpToDate -> Inconsistent [label="ioctl_replicate"]
+          Inconsistent -> UpToDate [label="resync completed"]
+          Consistent -> Failed [label="io completion error"]
+          Outdated -> Failed [label="io completion error"]
+          UpToDate -> Failed [label="io completion error"]
+          Inconsistent -> Failed [label="io completion error"]
+          Failed -> Diskless [label="sending notify to peer"]
+        }
+    """
+    layout = _layout(source)
+    xmin, ymin, xmax, ymax = [float(v) for v in layout["bb"].split(",")]
+    labelled = [
+        edge
+        for edge in _edge_objects(layout, label="receive_param()")
+        if edge.get("_ldraw_")
+    ]
+
+    assert len(labelled) == 1
+    point = _label_points(labelled[0])[0]
+    assert xmin <= point.x <= xmax
+    assert ymin <= point.y <= ymax
+    assert _distance_to_spline(labelled[0], point) <= 4.0 * _label_height(labelled[0])
 
 
 def test_edgejunction_true_means_both():

@@ -459,6 +459,23 @@ static pointf bezier_start(const bezier *bz) { return bz->list[0]; }
 
 static pointf bezier_end(const bezier *bz) { return bz->list[bz->size - 1]; }
 
+static pointf spline_range_midpoint(const splines *spl, size_t begin,
+                                    size_t end) {
+  if (spl == NULL || spl->size == 0) {
+    return (pointf){0, 0};
+  }
+  if (begin >= spl->size) {
+    begin = spl->size - 1;
+  }
+  if (end <= begin || end > spl->size) {
+    end = spl->size;
+  }
+
+  const pointf start = bezier_start(&spl->list[begin]);
+  const pointf finish = bezier_end(&spl->list[end - 1]);
+  return (pointf){(start.x + finish.x) / 2, (start.y + finish.y) / 2};
+}
+
 static double point_distance(pointf a, pointf b) {
   const double dx = a.x - b.x;
   const double dy = a.y - b.y;
@@ -638,7 +655,12 @@ void dot_edgejunction_splines(graph_t *g) {
                 info->draw_trunk ? "true" : "false", "");
 
       if (ED_label(e) && ED_label(info->trunk)) {
-        ED_label(e)->pos = ED_label(info->trunk)->pos;
+        if (info->fanout) {
+          ED_label(e)->pos = spline_range_midpoint(ED_spl(e), 0, arm_size);
+        } else {
+          ED_label(e)->pos =
+              spline_range_midpoint(ED_spl(e), arm_size, ED_spl(e)->size);
+        }
         ED_label(e)->set = true;
       }
 
