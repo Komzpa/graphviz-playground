@@ -4,6 +4,7 @@ import json
 import math
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -411,6 +412,48 @@ def test_edgejunction_fanin_keeps_distinct_colours_separate():
     assert {edge["color"] for edge in coloured} == {"blue", "red"}
     assert all("_draw_" in edge for edge in coloured)
     assert all("_hdraw_" in edge for edge in coloured)
+
+
+def test_edgejunction_fanin_fuses_rank_adjacent_shared_trunk_siblings():
+    fixture = (
+        Path(__file__).parent
+        / "graphs"
+        / "concentrate-demo"
+        / "distinct-shared-trunk-siblings-separate.dot"
+    )
+    layout = json.loads(
+        run("dot", "-Gedgejunction=fanin", "-Tjson", fixture, timeout=10)
+    )
+    names = {int(obj["_gvid"]): obj["name"] for obj in layout["objects"]}
+    junctions = [
+        obj for obj in layout["objects"] if obj.get("_edgejunction_node") == "true"
+    ]
+    black_originals = [
+        edge
+        for edge in layout["edges"]
+        if edge.get("_edgejunction_original") == "true"
+        and names[int(edge["head"])] == "d"
+        and edge.get("color", "black") == "black"
+    ]
+    coloured = [
+        edge
+        for edge in layout["edges"]
+        if names[int(edge["head"])] == "d" and edge.get("color") in ("blue", "red")
+    ]
+
+    assert len(junctions) == 1
+    assert {names[int(edge["tail"])] for edge in black_originals} == {"a", "b", "e"}
+    assert sum("_hdraw_" in edge for edge in black_originals) == 1
+    assert {edge["color"] for edge in coloured} == {"blue", "red"}
+    assert sum("_hdraw_" in edge for edge in coloured) == 2
+    assert (
+        sum(
+            "_hdraw_" in edge
+            for edge in layout["edges"]
+            if names[int(edge["head"])] == "d"
+        )
+        == 3
+    )
 
 
 def test_edgejunction_fanout_keeps_distinct_colours_separate():
