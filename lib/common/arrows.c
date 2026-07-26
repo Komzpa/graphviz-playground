@@ -247,6 +247,10 @@ static bool strip_color_segment_fraction(char *segment, double *fraction) {
   return true;
 }
 
+/*
+ * Resolve the first or last positive color stop from a colon-separated color
+ * list so arrow endpoints inherit the visible stroke color at their end.
+ */
 static char *color_list_endpoint_color(char *color_list,
                                        edge_arrow_endpoint_t endpoint) {
   char *const colors = gv_strdup(color_list);
