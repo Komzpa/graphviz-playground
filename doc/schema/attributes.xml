@@ -585,6 +585,16 @@
 		</xsd:annotation>
 	</xsd:attribute>
 
+	<xsd:attribute name="edgejunction" type="xsd:string" default="none" gv:layouts="dot">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					If <html:span class="val">fanin</html:span>, dot may replace identical incoming edges with an edge-interior point junction and one shared labelled trunk. The transform is opt-in; the default <html:span class="val">none</html:span> preserves existing output.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
 	<xsd:attribute name="constraint" type="xsd:boolean" default="true" gv:layouts="dot">
 		<xsd:annotation>
 			<xsd:documentation>
@@ -2565,6 +2575,7 @@
 		<xsd:attribute ref="comment" />
 		<xsd:attribute ref="compound" default="false" />
 		<xsd:attribute ref="concentrate" default="false" />
+		<xsd:attribute ref="edgejunction" default="none" />
 		<xsd:attribute ref="defaultdist" />
 		<xsd:attribute ref="dim" default="2" />
 		<xsd:attribute ref="diredgeconstraints" default="false" />
