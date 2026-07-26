@@ -13,8 +13,10 @@
 #include <common/render.h>
 #include <common/utils.h>
 #include <dotgen/dot.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -282,6 +284,7 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   ED_edgejunction_internal(trunk) = true;
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
+    const int orig_weight = ED_weight(orig);
     agsafeset(orig, "_edgejunction_original", "true", "");
     ED_minlen(orig) = 0;
     ED_weight(orig) = 0;
@@ -299,8 +302,8 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     agsafeset(arm, "_edgejunction_internal", "true", "");
     init_added_edge(arm);
     ED_edgejunction_internal(arm) = true;
-    ED_weight(arm) = ED_weight(orig);
-    weight += ED_weight(orig);
+    ED_weight(arm) = orig_weight;
+    weight += orig_weight;
 
     junction_edge_t *info = gv_calloc(1, sizeof(junction_edge_t));
     info->arm = arm;
@@ -311,7 +314,9 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     ED_edgejunction(orig) = info;
   }
 
-  ED_weight(trunk) = weight;
+  const int64_t trunk_scale = group->attrs[0][0] ? (int64_t)group->size : 1;
+  const int64_t trunk_weight = (int64_t)weight * trunk_scale;
+  ED_weight(trunk) = trunk_weight > INT_MAX ? INT_MAX : (int)trunk_weight;
 }
 
 static junction_mode_t edgejunction_mode(graph_t *g) {
