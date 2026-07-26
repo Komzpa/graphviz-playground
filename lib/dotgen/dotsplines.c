@@ -523,11 +523,13 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
       strcmp(label->text, prior_label->text) != 0) {
     return false;
   }
-  if (APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT)) {
-    return true;
-  }
   if (same_self_edge_node_pair(edge, prior_edge) &&
       gv_edge_ports_are_equal(edge, prior_edge)) {
+    return true;
+  }
+  if (aghead(edge) == aghead(prior_edge) &&
+      concentrated_routes_share_visible_trunk(edge, prior_edge) &&
+      APPROXEQPT(label->pos, prior_label->pos, MILLIPOINT)) {
     return true;
   }
   if (aghead(edge) != aghead(prior_edge)) {
@@ -1049,6 +1051,8 @@ finish:
       if (E_headlabel) {
         for (e = agfstin(g, n); e; e = agnxtin(g, e)) {
           edge_t *const out_edge = AGMKOUT(e);
+          if (ED_edge_type(out_edge) == IGNORED)
+            continue;
           if (ED_head_label(out_edge)) {
             if (ED_head_label(out_edge)->set ||
                 place_portlabel(out_edge, true)) {
@@ -1070,6 +1074,8 @@ finish:
       }
       if (E_taillabel) {
         for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
+          if (ED_edge_type(e) == IGNORED)
+            continue;
           if (ED_tail_label(e)) {
             if (ED_tail_label(e)->set || place_portlabel(e, false)) {
               const bool needs_node_clearance =
