@@ -277,7 +277,8 @@ static void transactional_merge_chain(gv_concentration_transaction_t *handle,
                                       dot_bundle_merge_t merge) {
   gv_concentration_transaction_record(handle, &ED_to_virt(original_edge),
                                       sizeof(ED_to_virt(original_edge)));
-  if (merge == DOT_BUNDLE_ACCUMULATE || merge == DOT_BUNDLE_COALESCE) {
+  if (merge == DOT_BUNDLE_ACCUMULATE || merge == DOT_BUNDLE_COALESCE ||
+      merge == DOT_BUNDLE_SHARE_ROUTE) {
     const int last_rank =
         MAX(ND_rank(agtail(original_edge)), ND_rank(aghead(original_edge)));
     for (edge_t *representative = first_virtual_edge; representative != NULL;
