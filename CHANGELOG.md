@@ -103,6 +103,8 @@ and this project adheres to
   ports. #449
   Example: record-port edges to different fields used to collapse together; now
   distinct fields keep distinct routes.
+- Equivalent parallel edges separated by distinct same-endpoint siblings are
+  now concentrated without increasing crossings.
 - An out-of-bounds read while routing certain flat labeled edges no longer
   causes a crash. #2757
   Example: a malformed flat labeled edge used to read beyond route storage; now

@@ -3230,6 +3230,36 @@ def test_concentrate_shared_trunk_keeps_visible_lanes_for_distinct_edges():
     assert _max_pointwise_route_distance(*colored) > stroke_width
 
 
+def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
+    """Equivalent siblings can merge while colored siblings stay distinct."""
+
+    source = _shared_trunk_source(
+        "a -> d [color=blue]",
+        "a -> d",
+        "b -> d [color=red]",
+        "b -> d",
+    )
+    edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    assert len(edges) == 4
+    assert sorted(_drawn_edge_color(edge) for edge in edges) == [
+        "#000000",
+        "#000000",
+        "#0000ff",
+        "#ff0000",
+    ]
+
+    blue_red_edges = [
+        edge for edge in edges if _drawn_edge_color(edge) in {"#0000ff", "#ff0000"}
+    ]
+    assert all("_hdraw_" in edge for edge in blue_red_edges)
+
+    black_edges = [edge for edge in edges if _drawn_edge_color(edge) == "#000000"]
+    assert sum("_hdraw_" in edge for edge in black_edges) == 1
+    assert max(
+        len([op for op in edge["_draw_"] if op["op"] == "b"]) for edge in black_edges
+    ) == 2
+
+
 def test_concentrate_shared_trunk_routes_meet_at_junction():
     """Concentrated route pieces meet at their shared virtual node."""
 
@@ -3296,6 +3326,26 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     assert counts[0] == 4
     assert counts[1] >= 8
     assert sum("_hdraw_" in edge for edge in edges) == 1
+
+
+def test_concentrate_shared_trunk_reorders_past_foreign_identity():
+    """A foreign candidate no longer blocks later equivalent siblings."""
+
+    source = _shared_trunk_source(
+        "a -> d",
+        "a -> d [color=blue]",
+        "b -> d",
+    )
+    edges = _drawn_edges_between(source, {"a", "b"}, "d")
+    assert len(edges) == 3
+    assert sorted(_drawn_edge_color(edge) for edge in edges) == [
+        "#000000",
+        "#000000",
+        "#0000ff",
+    ]
+
+    black_edges = [edge for edge in edges if _drawn_edge_color(edge) == "#000000"]
+    assert sum("_hdraw_" in edge for edge in black_edges) == 1
 
 
 def test_concentrate_same_tail_fanout_routes_share_initial_trunk():

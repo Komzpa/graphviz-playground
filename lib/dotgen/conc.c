@@ -18,7 +18,9 @@
 #include <dotgen/concentrate_plan.h>
 #include <dotgen/dot.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
+#include <util/alloc.h>
 
 #define UP 0
 #define DOWN 1
@@ -159,6 +161,276 @@ static bool bothupcandidates(node_t *u, node_t *v) {
            (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
   }
   return false;
+}
+
+static edge_t *original_edge_for_rank_reorder(node_t *node, int direction) {
+  if (direction == DOWN) {
+    if (!downcandidate(node)) {
+      return NULL;
+    }
+    return original_normal_edge(ND_in(node).list[0]);
+  }
+
+  if (!upcandidate(node)) {
+    return NULL;
+  }
+  return original_normal_edge(ND_out(node).list[0]);
+}
+
+static edge_t *scan_edge_for_rank_reorder(node_t *node, int direction) {
+  return direction == DOWN ? ND_in(node).list[0] : ND_out(node).list[0];
+}
+
+static node_t *rank_reorder_bucket_endpoint(node_t *node, int direction) {
+  edge_t *const edge = scan_edge_for_rank_reorder(node, direction);
+  return direction == DOWN ? agtail(edge) : aghead(edge);
+}
+
+static node_t *rank_reorder_tiebreak_tail(edge_t *edge) { return agtail(edge); }
+
+static node_t *rank_reorder_tiebreak_head(edge_t *edge) { return aghead(edge); }
+
+static int node_tiebreak_cmp(node_t *left, node_t *right) {
+  if (ND_rank(left) != ND_rank(right)) {
+    return ND_rank(left) < ND_rank(right) ? -1 : 1;
+  }
+  if (ND_order(left) != ND_order(right)) {
+    return ND_order(left) < ND_order(right) ? -1 : 1;
+  }
+  return strcmp(agnameof(left), agnameof(right));
+}
+
+static int reorder_edge_tiebreak_cmp(edge_t *left, edge_t *right) {
+  const int tail_cmp = node_tiebreak_cmp(rank_reorder_tiebreak_tail(left),
+                                         rank_reorder_tiebreak_tail(right));
+  if (tail_cmp != 0) {
+    return tail_cmp;
+  }
+  return node_tiebreak_cmp(rank_reorder_tiebreak_head(left),
+                           rank_reorder_tiebreak_head(right));
+}
+
+static void rank_reorder_sort_equivalent_run(node_t **nodes, int start, int end,
+                                             int direction) {
+  for (int i = start + 1; i < end; i++) {
+    node_t *const node = nodes[i];
+    edge_t *const edge = original_edge_for_rank_reorder(node, direction);
+    int j = i - 1;
+    while (j >= start) {
+      edge_t *const other = original_edge_for_rank_reorder(nodes[j], direction);
+      if (reorder_edge_tiebreak_cmp(other, edge) <= 0) {
+        break;
+      }
+      nodes[j + 1] = nodes[j];
+      j--;
+    }
+    nodes[j + 1] = node;
+  }
+}
+
+static int collect_rank_reorder_bucket(node_t **input, int input_count,
+                                       bool *used, int bucket_start,
+                                       int direction, node_t **bucket) {
+  assert(original_edge_for_rank_reorder(input[bucket_start], direction) !=
+         NULL);
+  node_t *const endpoint =
+      rank_reorder_bucket_endpoint(input[bucket_start], direction);
+  int bucket_count = 0;
+  for (int i = bucket_start; i < input_count; i++) {
+    if (used[i]) {
+      continue;
+    }
+    assert(original_edge_for_rank_reorder(input[i], direction) != NULL);
+    if (rank_reorder_bucket_endpoint(input[i], direction) == endpoint) {
+      used[i] = true;
+      bucket[bucket_count++] = input[i];
+    }
+  }
+  return bucket_count;
+}
+
+static int append_rank_reorder_identity_run(node_t **bucket, int bucket_count,
+                                            bool *used, int run_start,
+                                            int direction, node_t **output) {
+  edge_t *const representative =
+      original_edge_for_rank_reorder(bucket[run_start], direction);
+  int output_count = 0;
+  for (int i = run_start; i < bucket_count; i++) {
+    if (used[i]) {
+      continue;
+    }
+    edge_t *const edge = original_edge_for_rank_reorder(bucket[i], direction);
+    if (i == run_start || rendered_edges_are_equal(edge, representative)) {
+      used[i] = true;
+      output[output_count++] = bucket[i];
+    }
+  }
+  rank_reorder_sort_equivalent_run(output, 0, output_count, direction);
+  return output_count;
+}
+
+static void build_rank_reorder(node_t **input, int input_count, int direction,
+                               node_t **output, bool *used, node_t **bucket,
+                               bool *bucket_used, node_t **identity_run) {
+  memset(used, 0, (size_t)input_count * sizeof(*used));
+  int output_count = 0;
+  for (int i = 0; i < input_count; i++) {
+    if (used[i]) {
+      continue;
+    }
+
+    const int bucket_count = collect_rank_reorder_bucket(
+        input, input_count, used, i, direction, bucket);
+    memset(bucket_used, 0, (size_t)bucket_count * sizeof(*bucket_used));
+    for (int j = 0; j < bucket_count; j++) {
+      if (bucket_used[j]) {
+        continue;
+      }
+      const int run_count = append_rank_reorder_identity_run(
+          bucket, bucket_count, bucket_used, j, direction, identity_run);
+      for (int k = 0; k < run_count; k++) {
+        output[output_count++] = identity_run[k];
+      }
+    }
+  }
+  assert(output_count == input_count);
+}
+
+static bool rank_reorder_nodes_mergeable(node_t *left, node_t *right,
+                                         int direction) {
+  if (direction == DOWN && !downcandidate(left)) {
+    return false;
+  }
+  if (direction == UP && !upcandidate(left)) {
+    return false;
+  }
+  return direction == DOWN ? bothdowncandidates(left, right)
+                           : bothupcandidates(left, right);
+}
+
+static node_t *node_at_reordered_rank_position(graph_t *graph, int rank,
+                                               int position, node_t **reordered,
+                                               int *positions,
+                                               int candidate_count) {
+  for (int i = 0; i < candidate_count; i++) {
+    if (positions[i] == position) {
+      return reordered[i];
+    }
+  }
+  return GD_rank(graph)[rank].v[position];
+}
+
+static int rank_reorder_merge_count(graph_t *graph, int rank, int direction,
+                                    node_t **reordered, int *positions,
+                                    int candidate_count) {
+  const int rank_size = GD_rank(graph)[rank].n;
+  int merge_count = 0;
+  for (int i = 0; i + 1 < rank_size; i++) {
+    node_t *const left =
+        reordered == NULL
+            ? GD_rank(graph)[rank].v[i]
+            : node_at_reordered_rank_position(graph, rank, i, reordered,
+                                              positions, candidate_count);
+    node_t *const right =
+        reordered == NULL
+            ? GD_rank(graph)[rank].v[i + 1]
+            : node_at_reordered_rank_position(graph, rank, i + 1, reordered,
+                                              positions, candidate_count);
+    if (rank_reorder_nodes_mergeable(left, right, direction)) {
+      merge_count++;
+    }
+  }
+  return merge_count;
+}
+
+static bool
+reorder_rank_concentration_candidates(graph_t *graph, int rank, int direction,
+                                      gv_concentration_transaction_t *handle) {
+  const int rank_size = GD_rank(graph)[rank].n;
+  if (rank_size < 2) {
+    return false;
+  }
+
+  node_t **const candidates = gv_alloc((size_t)rank_size * sizeof(*candidates));
+  int *const positions = gv_alloc((size_t)rank_size * sizeof(*positions));
+  int candidate_count = 0;
+  for (int i = 0; i < rank_size; i++) {
+    node_t *const node = GD_rank(graph)[rank].v[i];
+    if (original_edge_for_rank_reorder(node, direction) != NULL) {
+      positions[candidate_count] = i;
+      candidates[candidate_count++] = node;
+    }
+  }
+  if (candidate_count < 2) {
+    free(positions);
+    free(candidates);
+    return false;
+  }
+
+  node_t **const reordered =
+      gv_alloc((size_t)candidate_count * sizeof(*reordered));
+  bool *const used = gv_alloc((size_t)candidate_count * sizeof(*used));
+  node_t **const bucket = gv_alloc((size_t)candidate_count * sizeof(*bucket));
+  bool *const bucket_used =
+      gv_alloc((size_t)candidate_count * sizeof(*bucket_used));
+  node_t **const identity_run =
+      gv_alloc((size_t)candidate_count * sizeof(*identity_run));
+  build_rank_reorder(candidates, candidate_count, direction, reordered, used,
+                     bucket, bucket_used, identity_run);
+
+  bool changed = false;
+  for (int i = 0; i < candidate_count; i++) {
+    if (candidates[i] != reordered[i]) {
+      changed = true;
+      break;
+    }
+  }
+  if (!changed) {
+    free(identity_run);
+    free(bucket_used);
+    free(bucket);
+    free(used);
+    free(reordered);
+    free(positions);
+    free(candidates);
+    return false;
+  }
+  const int original_merge_count =
+      rank_reorder_merge_count(graph, rank, direction, NULL, NULL, 0);
+  const int reordered_merge_count = rank_reorder_merge_count(
+      graph, rank, direction, reordered, positions, candidate_count);
+  if (reordered_merge_count <= original_merge_count) {
+    free(identity_run);
+    free(bucket_used);
+    free(bucket);
+    free(used);
+    free(reordered);
+    free(positions);
+    free(candidates);
+    return false;
+  }
+
+  gv_concentration_transaction_record(handle, GD_rank(graph)[rank].v,
+                                      ((size_t)rank_size + 1) *
+                                          sizeof(*GD_rank(graph)[rank].v));
+  for (int i = 0; i < candidate_count; i++) {
+    gv_concentration_transaction_record(handle, &ND_order(reordered[i]),
+                                        sizeof(ND_order(reordered[i])));
+  }
+  for (int i = 0; i < candidate_count; i++) {
+    node_t *const node = reordered[i];
+    const int position = positions[i];
+    GD_rank(graph)[rank].v[position] = node;
+    ND_order(node) = position;
+  }
+  free(identity_run);
+  free(bucket_used);
+  free(bucket);
+  free(used);
+  free(reordered);
+  free(positions);
+  free(candidates);
+  return true;
 }
 
 static edge_t *
@@ -625,6 +897,10 @@ int dot_concentrate(graph_t *g) {
   }
   /* this is the corresponding upward pass */
   while (r > 0) {
+    if (GD_n_cluster(g) <= 1) {
+      reorder_rank_concentration_candidates(g, r, UP,
+                                            concentration_context.transaction);
+    }
     for (leftpos = 0; leftpos < GD_rank(g)[r].n; leftpos++) {
       left = GD_rank(g)[r].v[leftpos];
       if (!upcandidate(left))
