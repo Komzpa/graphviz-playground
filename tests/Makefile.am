@@ -15,6 +15,7 @@ EXTRA_DIST = \
 	2814.dot \
 	cl.py \
 	concentrate_edge_identity_tooltip.c \
+	concentrate_helpers.py \
 	concentrate_repeat_layout.c \
 	concentrate_segment_weight.c \
 	graphs \
@@ -22,4 +23,11 @@ EXTRA_DIST = \
 	nshare \
 	test_rtest.py \
 	tests.txt \
+	test_concentrate_contract.py \
+	test_concentrate_demo.py \
+	test_concentrate_rendered_identity.py \
+	test_concentrate_reverse_ports.py \
+	test_concentrate_routing.py \
+	test_concentrate_runtime.py \
+	test_concentrate_self_labels.py \
 	test_regression.py
