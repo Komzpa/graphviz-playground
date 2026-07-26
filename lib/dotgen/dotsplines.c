@@ -398,26 +398,22 @@ static void dedupe_concentrated_edge_labels(graph_t *graph) {
       if (label == NULL || !label->set) {
         continue;
       }
-      for (node_t *prior_node = agfstnode(graph); prior_node != NULL;
-           prior_node = agnxtnode(graph, prior_node)) {
-        for (edge_t *prior_edge = agfstout(graph, prior_node);
-             prior_edge != NULL; prior_edge = agnxtout(graph, prior_edge)) {
-          if (prior_edge == edge) {
-            goto next_edge;
+      for (edge_t *prior_edge = agfstin(graph, aghead(edge));
+           prior_edge != NULL; prior_edge = agnxtin(graph, prior_edge)) {
+        if (AGSEQ(prior_edge) >= AGSEQ(edge)) {
+          continue;
+        }
+        if (concentrated_label_dedupe_match(edge, prior_edge)) {
+          place_deduped_self_edge_label_beside_loop(graph, prior_edge, edge);
+          if (same_self_edge_node_pair(edge, prior_edge) &&
+              gv_edge_ports_are_equal(edge, prior_edge)) {
+            gv_free_splines(edge);
           }
-          if (concentrated_label_dedupe_match(edge, prior_edge)) {
-            place_deduped_self_edge_label_beside_loop(graph, prior_edge, edge);
-            if (same_self_edge_node_pair(edge, prior_edge) &&
-                gv_edge_ports_are_equal(edge, prior_edge)) {
-              gv_free_splines(edge);
-            }
-            free_label(label);
-            ED_label(edge) = NULL;
-            goto next_edge;
-          }
+          free_label(label);
+          ED_label(edge) = NULL;
+          break;
         }
       }
-    next_edge:;
     }
   }
 }
@@ -519,8 +515,12 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   const textlabel_t *const label = ED_label(edge);
   const textlabel_t *const prior_label = ED_label(prior_edge);
   if (label == NULL || prior_label == NULL || !label->set ||
-      !prior_label->set || !gv_edge_attributes_are_equal(prior_edge, edge) ||
-      strcmp(label->text, prior_label->text) != 0) {
+      !prior_label->set || strcmp(label->text, prior_label->text) != 0 ||
+      (!same_self_edge_node_pair(edge, prior_edge) &&
+       aghead(edge) != aghead(prior_edge))) {
+    return false;
+  }
+  if (!gv_edge_attributes_are_equal(prior_edge, edge)) {
     return false;
   }
   if (same_self_edge_node_pair(edge, prior_edge) &&
