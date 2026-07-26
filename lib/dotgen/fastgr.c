@@ -12,6 +12,7 @@
 
 #include <dotgen/bundle_load.h>
 #include <dotgen/dot.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <util/alloc.h>
@@ -67,6 +68,14 @@ safe_list_append(edge_t * e, elist * L)
 	if (e == L->list[i])
 	    return;
     elist_append(e, (*L));
+}
+
+static int saturated_int_add(int left, int right) {
+  if (right > 0 && left > INT_MAX - right)
+    return INT_MAX;
+  if (right < 0 && left < INT_MIN - right)
+    return INT_MIN;
+  return left + right;
 }
 
 edge_t *fast_edge(edge_t * e)
@@ -237,14 +246,16 @@ basic_merge(edge_t * e, edge_t * rep, dot_bundle_merge_t merge)
     if (ED_minlen(rep) < ED_minlen(e))
 	ED_minlen(rep) = ED_minlen(e);
     while (rep) {
-	const int legacy_count = ED_count(rep) + ED_count(e);
-	const int legacy_xpenalty = ED_xpenalty(rep) + ED_xpenalty(e);
-	const int legacy_position = ED_weight(rep) + ED_weight(e);
-	dot_bundle_load_merge(rep, e, merge);
-	dot_bundle_load_set_legacy_count(rep, legacy_count);
-	dot_bundle_load_set_legacy_xpenalty(rep, legacy_xpenalty);
-	dot_bundle_load_set_legacy_position(rep, legacy_position);
-	rep = ED_to_virt(rep);
+      const int legacy_count = saturated_int_add(ED_count(rep), ED_count(e));
+      const int legacy_xpenalty =
+          saturated_int_add(ED_xpenalty(rep), ED_xpenalty(e));
+      const int legacy_position =
+          saturated_int_add(ED_weight(rep), ED_weight(e));
+      dot_bundle_load_merge(rep, e, merge);
+      dot_bundle_load_set_legacy_count(rep, legacy_count);
+      dot_bundle_load_set_legacy_xpenalty(rep, legacy_xpenalty);
+      dot_bundle_load_set_legacy_position(rep, legacy_position);
+      rep = ED_to_virt(rep);
     }
 }
 

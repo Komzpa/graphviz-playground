@@ -468,6 +468,13 @@ transactional_delete_fast_node(gv_concentration_transaction_t *handle,
   delete_fast_node(graph, node);
 }
 
+static void
+transactional_record_edge_info(gv_concentration_transaction_t *handle,
+                               edge_t *edge) {
+  gv_concentration_transaction_record(handle, AGDATA(edge),
+                                      sizeof(Agedgeinfo_t));
+}
+
 static void transactional_merge_oneway(gv_concentration_transaction_t *handle,
                                        edge_t *edge, edge_t *representative) {
   gv_concentration_transaction_record(handle, &ED_to_virt(edge),
@@ -476,12 +483,7 @@ static void transactional_merge_oneway(gv_concentration_transaction_t *handle,
                                       sizeof(ED_minlen(representative)));
   for (edge_t *segment = representative; segment != NULL;
        segment = ED_to_virt(segment)) {
-    gv_concentration_transaction_record(handle, &ED_count(segment),
-                                        sizeof(ED_count(segment)));
-    gv_concentration_transaction_record(handle, &ED_xpenalty(segment),
-                                        sizeof(ED_xpenalty(segment)));
-    gv_concentration_transaction_record(handle, &ED_weight(segment),
-                                        sizeof(ED_weight(segment)));
+    transactional_record_edge_info(handle, segment);
   }
   merge_oneway(edge, representative);
 }

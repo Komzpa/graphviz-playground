@@ -247,40 +247,70 @@ static bool strip_color_segment_fraction(char *segment, double *fraction) {
   return true;
 }
 
-/*
- * Resolve the color-list entry used at one arrow endpoint. Graphviz gradients
- * use the first segment at the head side unless the first segment consumes all
- * weight; the second segment is the tail-side color when it exists.
- */
 static char *color_list_endpoint_color(char *color_list,
                                        edge_arrow_endpoint_t endpoint) {
   char *const colors = gv_strdup(color_list);
-  char *first = NULL;
-  char *second = NULL;
-  double first_fraction = 0.0;
-  size_t index = 0;
+  const size_t segment_capacity = strlen(color_list) + 1;
+  char **const segments = gv_calloc(segment_capacity, sizeof(*segments));
+  double *const fractions = gv_calloc(segment_capacity, sizeof(*fractions));
+  bool *const has_fraction = gv_calloc(segment_capacity, sizeof(*has_fraction));
+  double remaining = 1.0;
+  size_t zero_fraction_count = 0;
+  size_t segment_count = 0;
   for (char *color = strtok(colors, ":"); color != NULL;
-       color = strtok(NULL, ":"), index++) {
-    if (index == 0) {
-      first = color;
-    } else if (index == 1) {
-      second = color;
+       color = strtok(NULL, ":")) {
+    assert(segment_count < segment_capacity);
+    segments[segment_count] = color;
+    double fraction = 0.0;
+    has_fraction[segment_count] =
+        strip_color_segment_fraction(color, &fraction);
+    if (fraction > remaining) {
+      fraction = remaining;
+    }
+    fractions[segment_count] = fraction;
+    if (fraction > EPSILON) {
+      remaining -= fraction;
+    } else if (!has_fraction[segment_count] || fraction <= EPSILON) {
+      zero_fraction_count++;
+    }
+    segment_count++;
+    if (remaining <= EPSILON) {
       break;
     }
   }
-  if (strip_color_segment_fraction(first, &first_fraction) &&
-      first_fraction >= 1.0 - EPSILON) {
-    second = NULL;
-  } else {
-    double second_fraction = 0.0;
-    strip_color_segment_fraction(second, &second_fraction);
+  if (remaining > EPSILON && segment_count > 0) {
+    if (zero_fraction_count == 0) {
+      fractions[segment_count - 1] += remaining;
+    } else {
+      const double distributed = remaining / (double)zero_fraction_count;
+      for (size_t i = 0; i < segment_count; i++) {
+        if (fractions[i] <= EPSILON) {
+          fractions[i] = distributed;
+        }
+      }
+    }
+  }
+
+  char *first_positive = NULL;
+  char *last_positive = NULL;
+  for (size_t i = 0; i < segment_count; i++) {
+    if (fractions[i] > EPSILON) {
+      if (first_positive == NULL) {
+        first_positive = segments[i];
+      }
+      last_positive = segments[i];
+    }
   }
 
   char *const endpoint_color =
-      endpoint == EDGE_ARROW_START && second != NULL ? second : first;
+      endpoint == EDGE_ARROW_START && last_positive != NULL ? last_positive
+                                                            : first_positive;
   char *const result = endpoint_color == NULL || endpoint_color[0] == '\0'
                            ? gv_strdup(DEFAULT_COLOR)
                            : gv_strdup(endpoint_color);
+  free(has_fraction);
+  free(fractions);
+  free(segments);
   free(colors);
   return result;
 }
