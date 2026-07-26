@@ -16,4 +16,4 @@ noinst_LTLIBRARIES = libdotgen_C.la
 libdotgen_C_la_LDFLAGS = -no-undefined
 libdotgen_C_la_SOURCES = acyclic.c bundle_load.c class1.c edge_chains.c flat_edge_splines.c \
 	cluster.c compound.c conc.c concentrate_plan.c concentrate_splines.c decomp.c fastgr.c flat.c \
-	dotinit.c mincross.c position.c rank.c sameport.c dotsplines.c aspect.c
+	dotinit.c edgejunction.c mincross.c position.c rank.c sameport.c dotsplines.c aspect.c

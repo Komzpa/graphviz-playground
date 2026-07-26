@@ -12,6 +12,7 @@ add_library(dotgen STATIC
   concentrate_plan.c
   decomp.c
   dotinit.c
+  edgejunction.c
   dotsplines.c
   fastgr.c
   flat.c

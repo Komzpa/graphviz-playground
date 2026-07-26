@@ -426,6 +426,7 @@ typedef enum {NATIVEFONTS,PSFONTS,SVGFONTS} fontname_kind;
 	char state;
 	unsigned char gui_state; /* Node state for GUI ops */
 	bool clustnode;
+	bool edgejunction;
 
 #ifndef DOT_ONLY
 	unsigned char pinned;
@@ -492,6 +493,7 @@ typedef enum {NATIVEFONTS,PSFONTS,SVGFONTS} fontname_kind;
 #define ND_flat_in(n) (((Agnodeinfo_t*)AGDATA(n))->flat_in)
 #define ND_flat_out(n) (((Agnodeinfo_t*)AGDATA(n))->flat_out)
 #define ND_gui_state(n) (((Agnodeinfo_t*)AGDATA(n))->gui_state)
+#define ND_edgejunction(n) (((Agnodeinfo_t*)AGDATA(n))->edgejunction)
 #define ND_has_port(n) (((Agnodeinfo_t*)AGDATA(n))->has_port)
 #define ND_rep(n) (((Agnodeinfo_t*)AGDATA(n))->rep)
 #define ND_heapindex(n) (((Agnodeinfo_t*)AGDATA(n))->heapindex)
@@ -567,6 +569,10 @@ typedef enum {NATIVEFONTS,PSFONTS,SVGFONTS} fontname_kind;
 	unsigned char bundle_position_scale;
 	bool bundle_capture_legacy_bias;
 	bool conc_opp_flag;
+	bool edgejunction_internal;
+	bool edgejunction_draw_trunk;
+	size_t edgejunction_emit_splines;
+	void *edgejunction;
 	short xpenalty;
 	int weight;
 	int cutvalue;
@@ -586,6 +592,10 @@ typedef enum {NATIVEFONTS,PSFONTS,SVGFONTS} fontname_kind;
 #define ED_count(e) (((Agedgeinfo_t*)AGDATA(e))->count)
 #define ED_cutvalue(e) (((Agedgeinfo_t*)AGDATA(e))->cutvalue)
 #define ED_edge_type(e) (((Agedgeinfo_t*)AGDATA(e))->edge_type)
+#define ED_edgejunction(e) (((Agedgeinfo_t*)AGDATA(e))->edgejunction)
+#define ED_edgejunction_internal(e) (((Agedgeinfo_t*)AGDATA(e))->edgejunction_internal)
+#define ED_edgejunction_draw_trunk(e) (((Agedgeinfo_t*)AGDATA(e))->edgejunction_draw_trunk)
+#define ED_edgejunction_emit_splines(e) (((Agedgeinfo_t*)AGDATA(e))->edgejunction_emit_splines)
 #define ED_compound(e) (((Agedgeinfo_t*)AGDATA(e))->compound)
 #define ED_adjacent(e) (((Agedgeinfo_t*)AGDATA(e))->adjacent)
 #define ED_factor(e) (((Agedgeinfo_t*)AGDATA(e))->factor)
