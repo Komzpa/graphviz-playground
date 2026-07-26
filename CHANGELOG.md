@@ -115,8 +115,8 @@ and this project adheres to
 
 ### Added
 
-- Dot has a new opt-in graph attribute, `edgejunction=fanin`, that can draw
-  identical incoming edges through one laid-out junction trunk.
+- Dot has a new opt-in graph attribute, `edgejunction`, that can draw identical
+  incoming and outgoing edges through laid-out junction trunks.
 
 ### Changed
 

@@ -26,15 +26,26 @@ typedef struct junction_edge_s {
   edge_t *trunk;
   bool draw_trunk;
   bool reverse;
+  bool fanout;
 } junction_edge_t;
 
 typedef struct {
-  node_t *head;
+  node_t *anchor;
   char *attrs[34];
   edge_t **edges;
   size_t size;
   size_t capacity;
 } junction_group_t;
+
+typedef enum {
+  JUNCTION_FANIN,
+  JUNCTION_FANOUT,
+} junction_kind_t;
+
+typedef struct {
+  bool fanin;
+  bool fanout;
+} junction_mode_t;
 
 static char *group_attrs[] = {
     "label",       "color",        "style",        "penwidth",    "fontname",
@@ -79,8 +90,25 @@ static bool eligible(edge_t *e) {
   return true;
 }
 
-static bool same_group(const junction_group_t *group, edge_t *e) {
-  if (group->head != aghead(e)) {
+static node_t *group_anchor(edge_t *e, junction_kind_t kind) {
+  return kind == JUNCTION_FANOUT ? agtail(e) : aghead(e);
+}
+
+static node_t *group_other(edge_t *e, junction_kind_t kind) {
+  return kind == JUNCTION_FANOUT ? aghead(e) : agtail(e);
+}
+
+static bool group_reversed(const junction_group_t *group, edge_t *e,
+                           junction_kind_t kind) {
+  if (kind == JUNCTION_FANOUT) {
+    return ND_rank(group_other(e, kind)) < ND_rank(group->anchor);
+  }
+  return ND_rank(group->anchor) < ND_rank(group_other(e, kind));
+}
+
+static bool same_group(const junction_group_t *group, edge_t *e,
+                       junction_kind_t kind) {
+  if (group->anchor != group_anchor(e, kind)) {
     return false;
   }
   for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
@@ -101,7 +129,23 @@ static void append_edge(junction_group_t *group, edge_t *e) {
   group->edges[group->size++] = e;
 }
 
-static void copy_edge_attrs(edge_t *dst, edge_t *src, bool with_label) {
+static const char *directed_dir(bool keep_head_arrow, bool keep_tail_arrow,
+                                bool reverse) {
+  if (keep_head_arrow && keep_tail_arrow) {
+    return "both";
+  }
+  if (keep_head_arrow) {
+    return reverse ? "back" : "forward";
+  }
+  if (keep_tail_arrow) {
+    return reverse ? "forward" : "back";
+  }
+  return "none";
+}
+
+static void copy_edge_attrs(edge_t *dst, edge_t *src, bool with_label,
+                            bool keep_head_arrow, bool keep_tail_arrow,
+                            bool reverse) {
   if (E_color) {
     agxset(dst, E_color, attr(src, E_color, ""));
   }
@@ -125,18 +169,24 @@ static void copy_edge_attrs(edge_t *dst, edge_t *src, bool with_label) {
   }
   attrsym_t *dir = agfindedgeattr(agraphof(agtail(src)), "dir");
   if (dir) {
-    agxset(dst, dir, with_label ? attr(src, dir, "") : "none");
+    agxset(dst, dir, directed_dir(keep_head_arrow, keep_tail_arrow, reverse));
   }
   attrsym_t *arrowhead = agfindedgeattr(agraphof(agtail(src)), "arrowhead");
-  if (arrowhead && with_label) {
-    agxset(dst, arrowhead, attr(src, arrowhead, ""));
-  }
   attrsym_t *arrowtail = agfindedgeattr(agraphof(agtail(src)), "arrowtail");
-  if (arrowtail && with_label) {
-    agxset(dst, arrowtail, attr(src, arrowtail, ""));
+  if (arrowhead &&
+      ((keep_head_arrow && !reverse) || (keep_tail_arrow && reverse))) {
+    agxset(dst, arrowhead,
+           keep_tail_arrow && reverse ? attr(src, arrowtail, "")
+                                      : attr(src, arrowhead, ""));
+  }
+  if (arrowtail &&
+      ((keep_head_arrow && reverse) || (keep_tail_arrow && !reverse))) {
+    agxset(dst, arrowtail,
+           keep_head_arrow && reverse ? attr(src, arrowhead, "")
+                                      : attr(src, arrowtail, ""));
   }
   attrsym_t *arrowsize = agfindedgeattr(agraphof(agtail(src)), "arrowsize");
-  if (arrowsize && with_label) {
+  if (arrowsize && (keep_head_arrow || keep_tail_arrow)) {
     agxset(dst, arrowsize, attr(src, arrowsize, ""));
   }
   attrsym_t *tailclip = agfindedgeattr(agraphof(agtail(src)), "tailclip");
@@ -178,7 +228,7 @@ static void init_added_edge(edge_t *e) {
 }
 
 static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
-                       bool reverse) {
+                       junction_kind_t kind, bool reverse) {
   edge_t *rep = group->edges[0];
 
   agattr_text(g, AGNODE, "label", "");
@@ -231,19 +281,28 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   ND_width(jn) = 0.02;
   ND_height(jn) = 0.02;
   gv_nodesize(jn, GD_flip(g));
-  const int tail_rank = ND_rank(agtail(rep));
-  const int head_rank = ND_rank(aghead(rep));
-  ND_rank(jn) = (tail_rank + head_rank) / 2;
-  if (ED_label(rep) && abs(head_rank - tail_rank) == 2) {
-    ND_rank(jn) = reverse ? tail_rank - 1 : tail_rank + 1;
+  const int anchor_rank = ND_rank(group_anchor(rep, kind));
+  const int other_rank = ND_rank(group_other(rep, kind));
+  ND_rank(jn) = (anchor_rank + other_rank) / 2;
+  if (ED_label(rep) && abs(other_rank - anchor_rank) == 2) {
+    if (kind == JUNCTION_FANOUT) {
+      ND_rank(jn) = reverse ? anchor_rank - 1 : anchor_rank + 1;
+    } else {
+      const int tail_rank = ND_rank(agtail(rep));
+      ND_rank(jn) = reverse ? tail_rank - 1 : tail_rank + 1;
+    }
   }
 
   int weight = 0;
-  edge_t *trunk = reverse ? agedge(g, group->head, jn, NULL, 1)
-                          : agedge(g, jn, group->head, NULL, 1);
-  copy_edge_attrs(trunk, rep, true);
-  if (reverse) {
-    agsafeset(trunk, "dir", "back", "");
+  edge_t *trunk = NULL;
+  if (kind == JUNCTION_FANOUT) {
+    trunk = reverse ? agedge(g, jn, group->anchor, NULL, 1)
+                    : agedge(g, group->anchor, jn, NULL, 1);
+    copy_edge_attrs(trunk, rep, true, false, false, reverse);
+  } else {
+    trunk = reverse ? agedge(g, group->anchor, jn, NULL, 1)
+                    : agedge(g, jn, group->anchor, NULL, 1);
+    copy_edge_attrs(trunk, rep, true, true, false, reverse);
   }
   agsafeset(trunk, "_edgejunction_internal", "true", "");
   init_added_edge(trunk);
@@ -251,9 +310,16 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
     agsafeset(orig, "_edgejunction_original", "true", "");
-    edge_t *arm = reverse ? agedge(g, jn, agtail(orig), NULL, 1)
-                          : agedge(g, agtail(orig), jn, NULL, 1);
-    copy_edge_attrs(arm, orig, false);
+    edge_t *arm = NULL;
+    if (kind == JUNCTION_FANOUT) {
+      arm = reverse ? agedge(g, aghead(orig), jn, NULL, 1)
+                    : agedge(g, jn, aghead(orig), NULL, 1);
+      copy_edge_attrs(arm, orig, false, true, false, reverse);
+    } else {
+      arm = reverse ? agedge(g, jn, agtail(orig), NULL, 1)
+                    : agedge(g, agtail(orig), jn, NULL, 1);
+      copy_edge_attrs(arm, orig, false, false, false, reverse);
+    }
     agsafeset(arm, "_edgejunction_internal", "true", "");
     init_added_edge(arm);
     ED_edgejunction_internal(arm) = true;
@@ -265,15 +331,92 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     info->trunk = trunk;
     info->draw_trunk = i == 0;
     info->reverse = reverse;
+    info->fanout = kind == JUNCTION_FANOUT;
     ED_edgejunction(orig) = info;
   }
 
   ED_weight(trunk) = weight;
 }
 
+static junction_mode_t edgejunction_mode(graph_t *g) {
+  junction_mode_t mode = {0};
+  char *value = agget(g, "edgejunction");
+  if (value == NULL || streq(value, "") || streq(value, "none") ||
+      streq(value, "false")) {
+    return mode;
+  }
+  if (streq(value, "fanin")) {
+    mode.fanin = true;
+  } else if (streq(value, "fanout")) {
+    mode.fanout = true;
+  } else if (streq(value, "both") || streq(value, "true")) {
+    mode.fanin = true;
+    mode.fanout = true;
+  }
+  return mode;
+}
+
+static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
+  junction_group_t *groups = NULL;
+  size_t ngroups = 0;
+  size_t capacity = 0;
+
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+      if (!eligible(e) || ED_edgejunction(e)) {
+        continue;
+      }
+      size_t i = 0;
+      for (; i < ngroups; ++i) {
+        if (same_group(&groups[i], e, kind)) {
+          break;
+        }
+      }
+      if (i == ngroups) {
+        if (ngroups == capacity) {
+          capacity = capacity == 0 ? 8 : capacity * 2;
+          groups =
+              gv_recalloc(groups, ngroups, capacity, sizeof(junction_group_t));
+        }
+        groups[i].anchor = group_anchor(e, kind);
+        for (size_t j = 0; j < ARRAY_SIZE(group_attrs); ++j) {
+          attrsym_t *sym = agfindedgeattr(g, group_attrs[j]);
+          groups[i].attrs[j] = attr(e, sym, "");
+        }
+        ngroups++;
+      }
+      append_edge(&groups[i], e);
+    }
+  }
+
+  for (size_t i = 0; i < ngroups; ++i) {
+    if (groups[i].size >= 2) {
+      const bool reverse = group_reversed(&groups[i], groups[i].edges[0], kind);
+      bool mixed = false;
+      for (size_t j = 1; j < groups[i].size; ++j) {
+        const bool member_reverse =
+            group_reversed(&groups[i], groups[i].edges[j], kind);
+        if (member_reverse != reverse) {
+          mixed = true;
+          break;
+        }
+      }
+      if (mixed) {
+        agerr(AGWARN, "edgejunction: skipping mixed-side %s at anchor %s\n",
+              kind == JUNCTION_FANOUT ? "fanout" : "fanin",
+              agnameof(groups[i].anchor));
+      } else {
+        make_group(g, &groups[i], made, kind, reverse);
+      }
+    }
+    free(groups[i].edges);
+  }
+  free(groups);
+}
+
 void dot_edgejunction(graph_t *g) {
-  char *mode = agget(g, "edgejunction");
-  if (mode == NULL || !streq(mode, "fanin")) {
+  junction_mode_t mode = edgejunction_mode(g);
+  if (!mode.fanin && !mode.fanout) {
     return;
   }
 
@@ -289,62 +432,13 @@ void dot_edgejunction(graph_t *g) {
   // v1 eligibility restriction makes the transform itself a no-op.
   Concentrate = false;
 
-  junction_group_t *groups = NULL;
-  size_t ngroups = 0;
-  size_t capacity = 0;
-
-  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (!eligible(e)) {
-        continue;
-      }
-      size_t i = 0;
-      for (; i < ngroups; ++i) {
-        if (same_group(&groups[i], e)) {
-          break;
-        }
-      }
-      if (i == ngroups) {
-        if (ngroups == capacity) {
-          capacity = capacity == 0 ? 8 : capacity * 2;
-          groups =
-              gv_recalloc(groups, ngroups, capacity, sizeof(junction_group_t));
-        }
-        groups[i].head = aghead(e);
-        for (size_t j = 0; j < ARRAY_SIZE(group_attrs); ++j) {
-          attrsym_t *sym = agfindedgeattr(g, group_attrs[j]);
-          groups[i].attrs[j] = attr(e, sym, "");
-        }
-        ngroups++;
-      }
-      append_edge(&groups[i], e);
-    }
-  }
-
   size_t made = 0;
-  for (size_t i = 0; i < ngroups; ++i) {
-    if (groups[i].size >= 2) {
-      const bool reverse =
-          ND_rank(groups[i].head) < ND_rank(agtail(groups[i].edges[0]));
-      bool mixed = false;
-      for (size_t j = 1; j < groups[i].size; ++j) {
-        const bool member_reverse =
-            ND_rank(groups[i].head) < ND_rank(agtail(groups[i].edges[j]));
-        if (member_reverse != reverse) {
-          mixed = true;
-          break;
-        }
-      }
-      if (mixed) {
-        agerr(AGWARN, "edgejunction: skipping mixed-side fanin at anchor %s\n",
-              agnameof(groups[i].head));
-      } else {
-        make_group(g, &groups[i], &made, reverse);
-      }
-    }
-    free(groups[i].edges);
+  if (mode.fanin) {
+    make_groups(g, JUNCTION_FANIN, &made);
   }
-  free(groups);
+  if (mode.fanout) {
+    make_groups(g, JUNCTION_FANOUT, &made);
+  }
 }
 
 static void reverse_bezier(bezier *bz) {
@@ -441,9 +535,56 @@ static splines *copy_joined_splines(const splines *arm, const splines *trunk,
   return joined;
 }
 
+static splines *copy_splines(const splines *part, bool reverse) {
+  splines *copy = gv_calloc(1, sizeof(splines));
+  copy->size = part->size;
+  copy->list = gv_calloc(copy->size, sizeof(bezier));
+  for (size_t i = 0; i < part->size; ++i) {
+    copy->list[i] = copy_bezier(part, i, reverse);
+  }
+  copy->bb = part->bb;
+  return copy;
+}
+
+static splines *copy_connected_arm_splines(const splines *trunk,
+                                           const splines *arm, bool reverse) {
+  splines *trunk_copy = copy_splines(trunk, reverse);
+  splines *arm_copy = copy_splines(arm, reverse);
+  const pointf trunk_end = bezier_end(&trunk_copy->list[trunk_copy->size - 1]);
+  const pointf arm_start = bezier_start(&arm_copy->list[0]);
+  const bool needs_join = point_distance(trunk_end, arm_start) > 0.01;
+
+  splines *connected = gv_calloc(1, sizeof(splines));
+  connected->size = arm_copy->size + (needs_join ? 1 : 0);
+  connected->list = gv_calloc(connected->size, sizeof(bezier));
+
+  size_t out = 0;
+  if (needs_join) {
+    connected->list[out++] = line_bezier(trunk_end, arm_start);
+  }
+  for (size_t i = 0; i < arm_copy->size; ++i) {
+    connected->list[out++] = arm_copy->list[i];
+  }
+
+  connected->bb = arm_copy->bb;
+  if (needs_join) {
+    expandbp(&connected->bb, trunk_end);
+    expandbp(&connected->bb, arm_start);
+  }
+
+  for (size_t i = 0; i < trunk_copy->size; ++i) {
+    free(trunk_copy->list[i].list);
+  }
+  free(trunk_copy->list);
+  free(trunk_copy);
+  free(arm_copy->list);
+  free(arm_copy);
+  return connected;
+}
+
 void dot_edgejunction_splines(graph_t *g) {
-  char *mode = agget(g, "edgejunction");
-  if (mode == NULL || !streq(mode, "fanin")) {
+  junction_mode_t mode = edgejunction_mode(g);
+  if (!mode.fanin && !mode.fanout) {
     return;
   }
 
@@ -462,8 +603,19 @@ void dot_edgejunction_splines(graph_t *g) {
 
       size_t arm_size = 0;
       gv_free_splines(e);
-      ED_spl(e) = copy_joined_splines(ED_spl(info->arm), ED_spl(info->trunk),
-                                      info->reverse, &arm_size);
+      if (info->fanout) {
+        if (info->draw_trunk) {
+          ED_spl(e) = copy_joined_splines(
+              ED_spl(info->trunk), ED_spl(info->arm), info->reverse, &arm_size);
+        } else {
+          ED_spl(e) = copy_connected_arm_splines(
+              ED_spl(info->trunk), ED_spl(info->arm), info->reverse);
+          arm_size = ED_spl(e)->size;
+        }
+      } else {
+        ED_spl(e) = copy_joined_splines(ED_spl(info->arm), ED_spl(info->trunk),
+                                        info->reverse, &arm_size);
+      }
       ED_edgejunction_draw_trunk(e) = info->draw_trunk;
       ED_edgejunction_emit_splines(e) = arm_size;
       uint32_t sflag = 0;
