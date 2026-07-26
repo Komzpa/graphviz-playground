@@ -308,6 +308,7 @@ static int dotLayout(Agraph_t *g) {
 
     GV_INFO("Starting phase 1 [dot_rank]");
     dot_rank(g);
+    dot_edgejunction(g);
     if (maxphase == 1) {
         attach_phase_attrs (g, 1);
         return 0;
@@ -339,6 +340,7 @@ static int dotLayout(Agraph_t *g) {
     if (r != 0) {
 	return r;
     }
+    dot_edgejunction_splines(g);
     if (mapbool(agget(g, "compound")))
 	dot_compoundEdges(g);
     return 0;

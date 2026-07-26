@@ -592,6 +592,12 @@ static int rebuild_vlists(graph_t *g) {
   for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
     lead = GD_rankleader(g)[r];
     if (lead == NULL) {
+      if (mapbool(agget(dot_root(g), "_edgejunction_clustered_fallback"))) {
+        agwarningf("degenerate concentrated rank %s,%d\n", agnameof(g), r);
+        GD_rank(g)[r].v = NULL;
+        GD_rank(g)[r].n = 0;
+        continue;
+      }
       agwarningf("rebuild_vlists: lead is null for rank %d\n", r);
       return -1;
     } else if (GD_rank(dot_root(g))[r].v[ND_order(lead)] != lead) {
