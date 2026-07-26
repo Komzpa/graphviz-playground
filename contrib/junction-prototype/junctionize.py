@@ -104,7 +104,7 @@ def node_clusters(graph: pgv.AGraph) -> dict[str, str]:
         name = subgraph.name or ""
         cluster = name if name.startswith("cluster") else current
         for node in subgraph.nodes():
-            result.setdefault(str(node), cluster)
+            result[str(node)] = cluster
         for child in subgraph.subgraphs():
             walk(child, cluster)
 
@@ -140,10 +140,13 @@ def common_cluster(candidate: Candidate, clusters: dict[str, str]) -> str:
 def output_scope(graph: pgv.AGraph, cluster: str) -> pgv.AGraph:
     if not cluster:
         return graph
-    try:
-        return graph.get_subgraph(cluster)
-    except KeyError:
-        return graph
+    stack = list(graph.subgraphs())
+    while stack:
+        subgraph = stack.pop()
+        if subgraph.name == cluster:
+            return subgraph
+        stack.extend(subgraph.subgraphs())
+    return graph
 
 
 def fresh_node_name(graph: pgv.AGraph, prefix: str = "__junction") -> str:
@@ -445,6 +448,9 @@ def main() -> int:
     selected: list[Candidate] = []
     transformed: set[int] = set()
     for candidate in candidates:
+        if args.preserve_ranks and endpoint_relation(candidate, ranks) is None:
+            refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "rank-straddles-anchor")
+            continue
         overlap = sorted(edge.index for edge in candidate.edges if edge.index in transformed)
         if overlap:
             refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "overlaps-selected-group")
