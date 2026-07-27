@@ -184,11 +184,10 @@ static bool graph_has_refused_concentrated_edge(edge_t *e) {
   if (!Concentrate) {
     return false;
   }
-  if (edge_has_primary_label(e) &&
-      (edge_has_junction_peer(e, JUNCTION_FANIN) ||
-       edge_has_junction_peer(e, JUNCTION_FANOUT))) {
-    return true;
-  }
+  /* A labelled fan is what this feature exists to draw: four labels collapsing
+   * to one each is the demonstration. Refusing it to avoid a separate kink
+   * defect throws away the working half, so the label alone is not grounds to
+   * refuse. The kinks are their own class and get their own fix. */
   return edge_has_concentrated_peer(e) && graph_uses_curved_splines(g) &&
          edge_has_copied_junction_attribute(e);
 }
