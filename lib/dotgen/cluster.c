@@ -319,7 +319,7 @@ void mark_clusters(graph_t * g)
 	    if (ND_ranktype(n) != NORMAL) {
 		agwarningf(
 		      "%s was already in a rankset, deleted from cluster %s\n",
-		      agnameof(n), agnameof(g));
+		      agnameof(n), agnameof(clust));
 		agdelete(clust,n);
 		continue;
 	    }
