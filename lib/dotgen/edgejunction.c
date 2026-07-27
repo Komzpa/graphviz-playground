@@ -417,6 +417,15 @@ void dot_edgejunction(graph_t *g) {
   }
 }
 
+void dot_edgejunction_save_rankleader(graph_t *g, int r) {
+  if (GD_rank(g)[r].n == 0 &&
+      mapbool(agget(dot_root(g), "_edgejunction_clustered_fallback"))) {
+    GD_rankleader(g)[r] = NULL;
+    return;
+  }
+  GD_rankleader(g)[r] = GD_rank(g)[r].v[0];
+}
+
 static void reverse_bezier(bezier *bz) {
   for (size_t i = 0; i < bz->size / 2; ++i) {
     pointf p = bz->list[i];
