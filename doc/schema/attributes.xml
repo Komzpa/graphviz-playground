@@ -591,6 +591,9 @@
 				<html:p>
 					If <html:span class="val">fanin</html:span>, dot may replace identical incoming edges with an edge-interior point junction and one shared labelled trunk. If <html:span class="val">fanout</html:span>, dot may similarly replace identical outgoing edges. <html:span class="val">both</html:span> and <html:span class="val">true</html:span> enable both directions. The transform is opt-in; the default <html:span class="val">none</html:span> preserves existing output.
 				</html:p>
+				<html:p>
+					The extra junction nodes increase layout work on dense graphs; validation reports this as feature-on time divided by the same graph's <html:span class="val">none</html:span> time. Large dense validation inputs have measured about 4-5x on a representative case and above 10x in the worst <html:span class="val">fanin</html:span> cases.
+				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
