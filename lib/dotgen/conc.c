@@ -544,8 +544,8 @@ static void mergevirtual_pair(graph_t *g, int r, int lpos, int rpos, int dir,
   assert(ND_in(right).size + ND_out(right).size == 0);
   transactional_delete_fast_node(handle, g, right);
 
-  gv_concentration_transaction_record(handle, GD_rank(g)[r].v,
-                                      ((size_t)GD_rank(g)[r].n + 1) *
+  gv_concentration_transaction_record(handle, &GD_rank(g)[r].v[rpos],
+                                      ((size_t)(GD_rank(g)[r].n - rpos) + 1) *
                                           sizeof(*GD_rank(g)[r].v));
   gv_concentration_transaction_record(handle, &GD_rank(g)[r].n,
                                       sizeof(GD_rank(g)[r].n));

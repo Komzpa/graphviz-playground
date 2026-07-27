@@ -249,6 +249,24 @@ static boxf route_cubic_bounds(const pointf control[4]) {
   return bounds;
 }
 
+typedef struct {
+  const splines *edge_splines;
+  const pointf *control;
+  route_flat_points_t flat;
+  boxf bounds;
+  size_t edge_index;
+  size_t spline_index;
+  size_t cubic;
+  bool flat_attempted;
+  bool flat_valid;
+} route_cubic_ref_t;
+
+typedef struct {
+  route_cubic_ref_t *items;
+  size_t size;
+  size_t capacity;
+} route_cubic_index_t;
+
 static double route_point_segment_distance_squared(pointf query, pointf a,
                                                    pointf b) {
   const pointf direction = sub_pointf(b, a);
@@ -295,6 +313,58 @@ static bool flatten_route_cubic(const pointf control[4],
   LIST_APPEND(points, ((route_flat_point_t){
                           .point = control[0], .t = 0.0, .error = 0.0}));
   return flatten_route_cubic_recursive(control, 0.0, 1.0, 0, points);
+}
+
+static void route_cubic_index_free(route_cubic_index_t *index) {
+  for (size_t i = 0; i < index->size; i++)
+    LIST_FREE(&index->items[i].flat);
+  free(index->items);
+  *index = (route_cubic_index_t){0};
+}
+
+static void route_cubic_index_append(route_cubic_index_t *index,
+                                     const splines *edge_splines,
+                                     const pointf *control, size_t edge_index,
+                                     size_t spline_index, size_t cubic) {
+  if (index->size == index->capacity) {
+    const size_t capacity = index->capacity == 0 ? 64 : index->capacity * 2;
+    index->items = gv_recalloc(index->items, index->capacity, capacity,
+                               sizeof(*index->items));
+    index->capacity = capacity;
+  }
+  route_cubic_ref_t *const item = &index->items[index->size++];
+  *item = (route_cubic_ref_t){
+      .edge_splines = edge_splines,
+      .control = control,
+      .bounds = route_cubic_bounds(control),
+      .edge_index = edge_index,
+      .spline_index = spline_index,
+      .cubic = cubic,
+  };
+}
+
+static void route_cubic_index_build(graph_t *graph,
+                                    route_cubic_index_t *index) {
+  size_t edge_index = 0;
+  for (node_t *node = agfstnode(graph); node != NULL;
+       node = agnxtnode(graph, node)) {
+    for (edge_t *edge = agfstout(graph, node); edge != NULL;
+         edge = agnxtout(graph, edge), edge_index++) {
+      const splines *const edge_splines = ED_spl(edge);
+      if (edge_splines == NULL)
+        continue;
+      for (size_t spline_index = 0; spline_index < edge_splines->size;
+           spline_index++) {
+        const bezier *const spline = &edge_splines->list[spline_index];
+        for (size_t cubic_start = 0; cubic_start + 3 < spline->size;
+             cubic_start += 3) {
+          route_cubic_index_append(index, edge_splines,
+                                   &spline->list[cubic_start], edge_index,
+                                   spline_index, cubic_start / 3);
+        }
+      }
+    }
+  }
 }
 
 static double route_cross_product(pointf a, pointf b) {
@@ -531,7 +601,7 @@ static bool route_crossing_signatures_equal(const route_crossings_t *left,
   return true;
 }
 
-static bool route_graph_crossing_signature(graph_t *graph,
+static bool route_graph_crossing_signature(route_cubic_index_t *index,
                                            const route_junction_t *junction,
                                            route_crossings_t *crossings) {
   splines *const affected_splines = ED_spl(junction->edge);
@@ -552,60 +622,43 @@ static bool route_graph_crossing_signature(graph_t *graph,
     }
     const boxf affected_bounds =
         route_cubic_bounds(affected_controls[affected_index]);
-    size_t edge_index = 0;
-    for (node_t *node = agfstnode(graph); node != NULL;
-         node = agnxtnode(graph, node)) {
-      for (edge_t *edge = agfstout(graph, node); edge != NULL;
-           edge = agnxtout(graph, edge), edge_index++) {
-        const splines *const edge_splines = ED_spl(edge);
-        if (edge_splines == NULL)
-          continue;
-        for (size_t spline_index = 0; spline_index < edge_splines->size;
-             spline_index++) {
-          const bezier *const spline = &edge_splines->list[spline_index];
-          for (size_t cubic_start = 0; cubic_start + 3 < spline->size;
-               cubic_start += 3) {
-            const pointf *const other_control = &spline->list[cubic_start];
-            const size_t other_cubic = cubic_start / 3;
-            const bool same_route = edge_splines == affected_splines;
-            const bool adjacent_in_spline =
-                same_route &&
-                spline_index == affected_spline_indices[affected_index] &&
-                (other_cubic + 1 == affected_cubic_indices[affected_index] ||
-                 affected_cubic_indices[affected_index] + 1 == other_cubic);
-            // The two cubics intentionally meet at this tagged seam. Their
-            // shared endpoint is not an edge crossing; G1 is checked
-            // separately below. Including this pair turns the endpoint touch
-            // into a quadratic segment-pair scan without adding a crossing
-            // invariant.
-            const bool artificial_joint_neighbor =
-                same_route && ((affected_index == 0 &&
-                                spline_index == junction->right_spline &&
-                                other_cubic == junction->right_cubic) ||
-                               (affected_index == 1 &&
-                                spline_index == junction->left_spline &&
-                                other_cubic == junction->left_cubic));
-            if (other_control == affected_controls[affected_index] ||
-                adjacent_in_spline || artificial_joint_neighbor ||
-                !boxf_overlap(affected_bounds,
-                              route_cubic_bounds(other_control)))
-              continue;
-            route_flat_points_t other = {0};
-            if (!flatten_route_cubic(other_control, &other)) {
-              LIST_FREE(&other);
-              LIST_FREE(&affected);
-              return false;
-            }
-            const bool unambiguous = append_route_crossings(
-                &affected, &other, affected_index, edge_index, spline_index,
-                other_cubic, crossings);
-            LIST_FREE(&other);
-            if (!unambiguous) {
-              LIST_FREE(&affected);
-              return false;
-            }
-          }
-        }
+    for (size_t item_index = 0; item_index < index->size; item_index++) {
+      route_cubic_ref_t *const item = &index->items[item_index];
+      const pointf *const other_control = item->control;
+      const size_t other_cubic = item->cubic;
+      const bool same_route = item->edge_splines == affected_splines;
+      const bool adjacent_in_spline =
+          same_route &&
+          item->spline_index == affected_spline_indices[affected_index] &&
+          (other_cubic + 1 == affected_cubic_indices[affected_index] ||
+           affected_cubic_indices[affected_index] + 1 == other_cubic);
+      // The two cubics intentionally meet at this tagged seam. Their shared
+      // endpoint is not an edge crossing; G1 is checked separately below.
+      const bool artificial_joint_neighbor =
+          same_route && ((affected_index == 0 &&
+                          item->spline_index == junction->right_spline &&
+                          other_cubic == junction->right_cubic) ||
+                         (affected_index == 1 &&
+                          item->spline_index == junction->left_spline &&
+                          other_cubic == junction->left_cubic));
+      if (other_control == affected_controls[affected_index] ||
+          adjacent_in_spline || artificial_joint_neighbor ||
+          !boxf_overlap(affected_bounds, item->bounds))
+        continue;
+      if (!item->flat_attempted) {
+        item->flat_valid = flatten_route_cubic(other_control, &item->flat);
+        item->flat_attempted = true;
+      }
+      if (!item->flat_valid) {
+        LIST_FREE(&affected);
+        return false;
+      }
+      const bool unambiguous = append_route_crossings(
+          &affected, &item->flat, affected_index, item->edge_index,
+          item->spline_index, other_cubic, crossings);
+      if (!unambiguous) {
+        LIST_FREE(&affected);
+        return false;
       }
     }
     LIST_FREE(&affected);
@@ -1079,7 +1132,8 @@ route_junction_topology_metadata_valid(const route_junction_t *junction,
          fabs(right_router_offset.y + 1.0) <= MILLIPOINT;
 }
 
-static bool repair_route_junction(graph_t *graph, const route_pieces_t *pieces,
+static bool repair_route_junction(route_cubic_index_t *index, graph_t *graph,
+                                  const route_pieces_t *pieces,
                                   const route_junction_t *junction) {
   if (!route_junction_topology_metadata_valid(junction, pieces))
     return false;
@@ -1126,10 +1180,11 @@ static bool repair_route_junction(graph_t *graph, const route_pieces_t *pieces,
   route_sides_t original_sides = {0};
   route_sides_t candidate_sides = {0};
   const bool original_signatures_valid =
-      route_graph_crossing_signature(graph, junction, &original_crossings) &&
-      route_barrier_signature(junction, pieces, &original_barriers) &&
       route_corridor_signature(junction, pieces, &original_corridor) &&
-      route_barrier_side_signature(junction, pieces, &original_sides);
+      route_barrier_side_signature(junction, pieces, &original_sides) &&
+      route_barrier_signature(junction, pieces, &original_barriers) &&
+      LIST_IS_EMPTY(&original_barriers) &&
+      route_graph_crossing_signature(index, junction, &original_crossings);
   if (!original_signatures_valid || !LIST_IS_EMPTY(&original_barriers)) {
     LIST_FREE(&original_crossings);
     LIST_FREE(&original_barriers);
@@ -1141,10 +1196,11 @@ static bool repair_route_junction(graph_t *graph, const route_pieces_t *pieces,
   *left_control = candidate_left;
   *right_control = candidate_right;
   const bool candidate_signatures_valid =
-      route_graph_crossing_signature(graph, junction, &candidate_crossings) &&
-      route_barrier_signature(junction, pieces, &candidate_barriers) &&
       route_corridor_signature(junction, pieces, &candidate_corridor) &&
-      route_barrier_side_signature(junction, pieces, &candidate_sides);
+      route_barrier_side_signature(junction, pieces, &candidate_sides) &&
+      route_barrier_signature(junction, pieces, &candidate_barriers) &&
+      LIST_IS_EMPTY(&candidate_barriers) &&
+      route_graph_crossing_signature(index, junction, &candidate_crossings);
 
   pointf idempotent_left;
   pointf idempotent_right;
@@ -1164,7 +1220,6 @@ static bool repair_route_junction(graph_t *graph, const route_pieces_t *pieces,
                                       &candidate_crossings) &&
       route_crossing_signatures_equal(&original_barriers,
                                       &candidate_barriers) &&
-      LIST_IS_EMPTY(&candidate_barriers) &&
       route_crossing_signatures_equal(&original_corridor,
                                       &candidate_corridor) &&
       route_side_signatures_equal(&original_sides, &candidate_sides) &&
@@ -1193,8 +1248,14 @@ static bool repair_route_junction(graph_t *graph, const route_pieces_t *pieces,
 
 void repair_route_junctions(graph_t *graph, const route_pieces_t *pieces,
                             const route_junctions_t *junctions) {
+  if (LIST_IS_EMPTY(junctions))
+    return;
+
+  route_cubic_index_t index = {0};
+  route_cubic_index_build(graph, &index);
   for (size_t i = 0; i < LIST_SIZE(junctions); i++)
-    repair_route_junction(graph, pieces, LIST_AT(junctions, i));
+    repair_route_junction(&index, graph, pieces, LIST_AT(junctions, i));
+  route_cubic_index_free(&index);
 }
 
 static bool near_g1_spline_join_candidate(bezier *left, bezier *right,

@@ -38,14 +38,19 @@ struct gv_concentration_transaction_s {
   uint64_t candidate_id;
   memory_undo_t *memory;
   size_t memory_count;
+  size_t memory_capacity;
   elist_undo_t *elists;
   size_t elist_count;
+  size_t elist_capacity;
   arrow_undo_t *arrows;
   size_t arrow_count;
+  size_t arrow_capacity;
   edge_t **new_virtual_edges;
   size_t new_virtual_edge_count;
+  size_t new_virtual_edge_capacity;
   node_t **new_virtual_nodes;
   size_t new_virtual_node_count;
+  size_t new_virtual_node_capacity;
 };
 
 void gv_concentration_plan_context_init(gv_concentration_plan_context_t *ctx) {
@@ -111,15 +116,15 @@ begin_transaction(const gv_concentration_candidate_t *candidate) {
 
 void gv_concentration_transaction_record(
     gv_concentration_transaction_t *transaction, void *address, size_t size) {
-  for (size_t i = 0; i < transaction->memory_count; i++) {
-    const memory_undo_t *const undo = &transaction->memory[i];
-    if (undo->address == address && undo->size == size) {
-      return;
-    }
+  if (transaction->memory_count == transaction->memory_capacity) {
+    const size_t capacity = transaction->memory_capacity == 0
+                                ? 16
+                                : transaction->memory_capacity * 2;
+    transaction->memory =
+        gv_recalloc(transaction->memory, transaction->memory_capacity, capacity,
+                    sizeof(*transaction->memory));
+    transaction->memory_capacity = capacity;
   }
-  transaction->memory =
-      gv_recalloc(transaction->memory, transaction->memory_count,
-                  transaction->memory_count + 1, sizeof(*transaction->memory));
   memory_undo_t *const undo = &transaction->memory[transaction->memory_count++];
   undo->address = address;
   undo->size = size;
@@ -134,9 +139,14 @@ void gv_concentration_transaction_record_elist(
       return;
     }
   }
-  transaction->elists =
-      gv_recalloc(transaction->elists, transaction->elist_count,
-                  transaction->elist_count + 1, sizeof(*transaction->elists));
+  if (transaction->elist_count == transaction->elist_capacity) {
+    const size_t capacity =
+        transaction->elist_capacity == 0 ? 8 : transaction->elist_capacity * 2;
+    transaction->elists =
+        gv_recalloc(transaction->elists, transaction->elist_capacity, capacity,
+                    sizeof(*transaction->elists));
+    transaction->elist_capacity = capacity;
+  }
   elist_undo_t *const undo = &transaction->elists[transaction->elist_count++];
   undo->target = list;
   undo->size = list->size;
@@ -154,9 +164,14 @@ void gv_concentration_transaction_record_arrow(
       return;
     }
   }
-  transaction->arrows =
-      gv_recalloc(transaction->arrows, transaction->arrow_count,
-                  transaction->arrow_count + 1, sizeof(*transaction->arrows));
+  if (transaction->arrow_count == transaction->arrow_capacity) {
+    const size_t capacity =
+        transaction->arrow_capacity == 0 ? 8 : transaction->arrow_capacity * 2;
+    transaction->arrows =
+        gv_recalloc(transaction->arrows, transaction->arrow_capacity, capacity,
+                    sizeof(*transaction->arrows));
+    transaction->arrow_capacity = capacity;
+  }
   arrow_undo_t *const undo = &transaction->arrows[transaction->arrow_count++];
   undo->edge = edge;
   undo->before = snapshot_concentrated_edge_arrow_decorations(edge);
@@ -164,19 +179,31 @@ void gv_concentration_transaction_record_arrow(
 
 void gv_concentration_transaction_track_virtual_edge(
     gv_concentration_transaction_t *transaction, edge_t *edge) {
-  transaction->new_virtual_edges = gv_recalloc(
-      transaction->new_virtual_edges, transaction->new_virtual_edge_count,
-      transaction->new_virtual_edge_count + 1,
-      sizeof(*transaction->new_virtual_edges));
+  if (transaction->new_virtual_edge_count ==
+      transaction->new_virtual_edge_capacity) {
+    const size_t capacity = transaction->new_virtual_edge_capacity == 0
+                                ? 8
+                                : transaction->new_virtual_edge_capacity * 2;
+    transaction->new_virtual_edges = gv_recalloc(
+        transaction->new_virtual_edges, transaction->new_virtual_edge_capacity,
+        capacity, sizeof(*transaction->new_virtual_edges));
+    transaction->new_virtual_edge_capacity = capacity;
+  }
   transaction->new_virtual_edges[transaction->new_virtual_edge_count++] = edge;
 }
 
 void gv_concentration_transaction_track_virtual_node(
     gv_concentration_transaction_t *transaction, node_t *node) {
-  transaction->new_virtual_nodes = gv_recalloc(
-      transaction->new_virtual_nodes, transaction->new_virtual_node_count,
-      transaction->new_virtual_node_count + 1,
-      sizeof(*transaction->new_virtual_nodes));
+  if (transaction->new_virtual_node_count ==
+      transaction->new_virtual_node_capacity) {
+    const size_t capacity = transaction->new_virtual_node_capacity == 0
+                                ? 8
+                                : transaction->new_virtual_node_capacity * 2;
+    transaction->new_virtual_nodes = gv_recalloc(
+        transaction->new_virtual_nodes, transaction->new_virtual_node_capacity,
+        capacity, sizeof(*transaction->new_virtual_nodes));
+    transaction->new_virtual_node_capacity = capacity;
+  }
   transaction->new_virtual_nodes[transaction->new_virtual_node_count++] = node;
 }
 
