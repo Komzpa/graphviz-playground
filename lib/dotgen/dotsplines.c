@@ -23,6 +23,7 @@
 #include <common/utils.h>
 #include <dotgen/concentrate_splines.h>
 #include <dotgen/dot.h>
+#include <dotgen/flat_edge_splines.h>
 #include <dotgen/spline_tuning.h>
 #include <float.h>
 #include <math.h>
@@ -1725,19 +1726,6 @@ static void straighten_flat_port_progression(bezier *spline) {
   }
 }
 
-static void straighten_flat_port_line(bezier *spline) {
-  if (spline->size <= 4)
-    return;
-
-  const pointf start = spline->list[0];
-  const pointf end = spline->list[spline->size - 1];
-  for (size_t i = 1; i + 1 < spline->size; ++i) {
-    const double fraction = (double)i / (double)(spline->size - 1);
-    spline->list[i] = (pointf){.x = start.x + (end.x - start.x) * fraction,
-                               .y = start.y + (end.y - start.y) * fraction};
-  }
-}
-
 static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   const pointf tail_center = ND_coord(agtail(edge));
   const pointf head_center = ND_coord(aghead(edge));
@@ -1770,7 +1758,7 @@ static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
       ED_head_port(edge).defined && !ED_head_port(edge).clip && !grouped_tail &&
       !grouped_head) {
     if (draws_both_arrows)
-      straighten_flat_port_line(spline);
+      flat_edge_straighten_port_line(spline);
     else
       straighten_flat_port_progression(spline);
   }
@@ -1965,56 +1953,6 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
   free(earray);
 }
 
-static void nudge_if_on_cluster_border(graph_t *g, pointf *c1, pointf *c2) {
-  const double cluster_border_clearance = 8.0;
-  const double colinear_epsilon = 0.5;
-  const double min_overlap = 4.0;
-
-  if (fabs(c1->y - c2->y) <= colinear_epsilon) {
-    const double y = (c1->y + c2->y) / 2.0;
-    const double low = MIN(c1->x, c2->x);
-    const double high = MAX(c1->x, c2->x);
-    for (int c = 1; c <= GD_n_cluster(g); c++) {
-      const boxf bb = GD_bb(GD_clust(g)[c]);
-      const double overlap = MIN(high, bb.UR.x) - MAX(low, bb.LL.x);
-      if (overlap < min_overlap)
-        continue;
-      if (fabs(y - bb.LL.y) <= colinear_epsilon) {
-        c1->y -= cluster_border_clearance;
-        c2->y -= cluster_border_clearance;
-        return;
-      }
-      if (fabs(y - bb.UR.y) <= colinear_epsilon) {
-        c1->y += cluster_border_clearance;
-        c2->y += cluster_border_clearance;
-        return;
-      }
-    }
-  }
-
-  if (fabs(c1->x - c2->x) <= colinear_epsilon) {
-    const double x = (c1->x + c2->x) / 2.0;
-    const double low = MIN(c1->y, c2->y);
-    const double high = MAX(c1->y, c2->y);
-    for (int c = 1; c <= GD_n_cluster(g); c++) {
-      const boxf bb = GD_bb(GD_clust(g)[c]);
-      const double overlap = MIN(high, bb.UR.y) - MAX(low, bb.LL.y);
-      if (overlap < min_overlap)
-        continue;
-      if (fabs(x - bb.LL.x) <= colinear_epsilon) {
-        c1->x -= cluster_border_clearance;
-        c2->x -= cluster_border_clearance;
-        return;
-      }
-      if (fabs(x - bb.UR.x) <= colinear_epsilon) {
-        c1->x += cluster_border_clearance;
-        c2->x += cluster_border_clearance;
-        return;
-      }
-    }
-  }
-}
-
 static void makeSimpleFlat(graph_t *g, node_t *tn, node_t *hn, edge_t **edges,
                            unsigned cnt, int et) {
   edge_t *e = *edges;
@@ -2035,7 +1973,7 @@ static void makeSimpleFlat(graph_t *g, node_t *tn, node_t *hn, edge_t **edges,
       points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
       points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
       if (et == EDGETYPE_SPLINE)
-        nudge_if_on_cluster_border(g, &points[1], &points[2]);
+        flat_edge_nudge_around_cluster_border(g, &points[1], &points[2]);
       points[pointn++] = hp;
     } else { /* EDGETYPE_PLINE */
       points[pointn++] = tp;

@@ -4,6 +4,7 @@ add_library(dotgen STATIC
   bundle_load.c
   class1.c
   edge_chains.c
+  flat_edge_splines.c
   cluster.c
   compound.c
   conc.c
