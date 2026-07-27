@@ -244,8 +244,12 @@ bool bezier_intersects_box(const pointf control[4], boxf obstacle) {
 
 static boxf route_cubic_bounds(const pointf control[4]) {
   boxf bounds = {.LL = control[0], .UR = control[0]};
-  for (size_t i = 1; i < 4; i++)
-    expandbp(&bounds, control[i]);
+  for (size_t i = 1; i < 4; i++) {
+    bounds.LL.x = MIN(bounds.LL.x, control[i].x);
+    bounds.LL.y = MIN(bounds.LL.y, control[i].y);
+    bounds.UR.x = MAX(bounds.UR.x, control[i].x);
+    bounds.UR.y = MAX(bounds.UR.y, control[i].y);
+  }
   return bounds;
 }
 
@@ -265,7 +269,12 @@ typedef struct {
   route_cubic_ref_t *items;
   size_t size;
   size_t capacity;
+  boxf *block_bounds;
+  double *block_prefix_max_ur_x;
+  size_t block_count;
 } route_cubic_index_t;
+
+#define ROUTE_CUBIC_INDEX_BLOCK_SIZE 8
 
 static double route_point_segment_distance_squared(pointf query, pointf a,
                                                    pointf b) {
@@ -318,6 +327,8 @@ static bool flatten_route_cubic(const pointf control[4],
 static void route_cubic_index_free(route_cubic_index_t *index) {
   for (size_t i = 0; i < index->size; i++)
     LIST_FREE(&index->items[i].flat);
+  free(index->block_bounds);
+  free(index->block_prefix_max_ur_x);
   free(index->items);
   *index = (route_cubic_index_t){0};
 }
@@ -395,6 +406,42 @@ static void route_cubic_index_build(graph_t *graph,
     qsort(index->items, index->size, sizeof(*index->items),
           compare_route_cubic_bounds);
   }
+  index->block_count = (index->size + ROUTE_CUBIC_INDEX_BLOCK_SIZE - 1) /
+                       ROUTE_CUBIC_INDEX_BLOCK_SIZE;
+  index->block_bounds =
+      gv_calloc(index->block_count, sizeof(*index->block_bounds));
+  index->block_prefix_max_ur_x =
+      gv_calloc(index->block_count, sizeof(*index->block_prefix_max_ur_x));
+  double prefix_max_ur_x = -HUGE_VAL;
+  for (size_t block = 0; block < index->block_count; block++) {
+    const size_t begin = block * ROUTE_CUBIC_INDEX_BLOCK_SIZE;
+    const size_t end = MIN(index->size, begin + ROUTE_CUBIC_INDEX_BLOCK_SIZE);
+    boxf bounds = index->items[begin].bounds;
+    for (size_t i = begin + 1; i < end; i++) {
+      bounds.LL.x = MIN(bounds.LL.x, index->items[i].bounds.LL.x);
+      bounds.LL.y = MIN(bounds.LL.y, index->items[i].bounds.LL.y);
+      bounds.UR.x = MAX(bounds.UR.x, index->items[i].bounds.UR.x);
+      bounds.UR.y = MAX(bounds.UR.y, index->items[i].bounds.UR.y);
+    }
+    index->block_bounds[block] = bounds;
+    prefix_max_ur_x = MAX(prefix_max_ur_x, bounds.UR.x);
+    index->block_prefix_max_ur_x[block] = prefix_max_ur_x;
+  }
+}
+
+static size_t
+route_cubic_index_first_overlap_block(const route_cubic_index_t *index,
+                                      double minimum_ur_x) {
+  size_t low = 0;
+  size_t high = index->block_count;
+  while (low < high) {
+    const size_t middle = low + (high - low) / 2;
+    if (index->block_prefix_max_ur_x[middle] < minimum_ur_x)
+      low = middle + 1;
+    else
+      high = middle;
+  }
+  return low;
 }
 
 static double route_cross_product(pointf a, pointf b) {
@@ -495,12 +542,18 @@ static bool append_route_crossings(const route_flat_points_t *affected,
                                    size_t affected_cubic, size_t other_edge,
                                    size_t other_spline, size_t other_cubic,
                                    route_crossings_t *crossings) {
-  for (size_t i = 0; i + 1 < LIST_SIZE(affected); i++) {
-    const route_flat_point_t a = LIST_GET(affected, i);
-    const route_flat_point_t b = LIST_GET(affected, i + 1);
-    for (size_t j = 0; j + 1 < LIST_SIZE(other); j++) {
-      const route_flat_point_t c = LIST_GET(other, j);
-      const route_flat_point_t d = LIST_GET(other, j + 1);
+  const size_t affected_size = LIST_SIZE(affected);
+  const size_t other_size = LIST_SIZE(other);
+  const route_flat_point_t *const affected_points =
+      affected_size > 0 ? LIST_FRONT(affected) : NULL;
+  const route_flat_point_t *const other_points =
+      other_size > 0 ? LIST_FRONT(other) : NULL;
+  for (size_t i = 0; i + 1 < affected_size; i++) {
+    const route_flat_point_t a = affected_points[i];
+    const route_flat_point_t b = affected_points[i + 1];
+    for (size_t j = 0; j + 1 < other_size; j++) {
+      const route_flat_point_t c = other_points[j];
+      const route_flat_point_t d = other_points[j + 1];
       const double uncertainty = b.error + d.error + 1e-9;
       if (MAX(a.point.x, b.point.x) + uncertainty < MIN(c.point.x, d.point.x) ||
           MAX(c.point.x, d.point.x) + uncertainty < MIN(a.point.x, b.point.x) ||
@@ -540,9 +593,12 @@ static bool append_route_segment_crossings(const route_flat_points_t *affected,
                                            size_t affected_cubic,
                                            size_t segment_id,
                                            route_crossings_t *crossings) {
-  for (size_t i = 0; i + 1 < LIST_SIZE(affected); i++) {
-    const route_flat_point_t p = LIST_GET(affected, i);
-    const route_flat_point_t q = LIST_GET(affected, i + 1);
+  const size_t affected_size = LIST_SIZE(affected);
+  const route_flat_point_t *const affected_points =
+      affected_size > 0 ? LIST_FRONT(affected) : NULL;
+  for (size_t i = 0; i + 1 < affected_size; i++) {
+    const route_flat_point_t p = affected_points[i];
+    const route_flat_point_t q = affected_points[i + 1];
     if (((p.t == 0.0 &&
           route_point_segment_distance_squared(p.point, a, b) <= 1e-18) ||
          (q.t == 1.0 &&
@@ -652,47 +708,57 @@ static bool route_graph_crossing_signature(route_cubic_index_t *index,
     }
     const boxf affected_bounds =
         route_cubic_bounds(affected_controls[affected_index]);
-    for (size_t item_index = 0; item_index < index->size; item_index++) {
-      route_cubic_ref_t *const item = &index->items[item_index];
-      if (item->bounds.LL.x > affected_bounds.UR.x)
+    const size_t first_block =
+        route_cubic_index_first_overlap_block(index, affected_bounds.LL.x);
+    for (size_t block = first_block; block < index->block_count; block++) {
+      const size_t begin = block * ROUTE_CUBIC_INDEX_BLOCK_SIZE;
+      const size_t end = MIN(index->size, begin + ROUTE_CUBIC_INDEX_BLOCK_SIZE);
+      if (index->items[begin].bounds.LL.x > affected_bounds.UR.x)
         break;
-      if (item->bounds.UR.x < affected_bounds.LL.x)
+      if (!boxes_overlap(affected_bounds, index->block_bounds[block]))
         continue;
-      const pointf *const other_control = item->control;
-      const size_t other_cubic = item->cubic;
-      const bool same_route = item->edge_splines == affected_splines;
-      const bool adjacent_in_spline =
-          same_route &&
-          item->spline_index == affected_spline_indices[affected_index] &&
-          (other_cubic + 1 == affected_cubic_indices[affected_index] ||
-           affected_cubic_indices[affected_index] + 1 == other_cubic);
-      // The two cubics intentionally meet at this tagged seam. Their shared
-      // endpoint is not an edge crossing; G1 is checked separately below.
-      const bool artificial_joint_neighbor =
-          same_route && ((affected_index == 0 &&
-                          item->spline_index == junction->right_spline &&
-                          other_cubic == junction->right_cubic) ||
-                         (affected_index == 1 &&
-                          item->spline_index == junction->left_spline &&
-                          other_cubic == junction->left_cubic));
-      if (other_control == affected_controls[affected_index] ||
-          adjacent_in_spline || artificial_joint_neighbor ||
-          !boxf_overlap(affected_bounds, item->bounds))
-        continue;
-      if (!item->flat_attempted) {
-        item->flat_valid = flatten_route_cubic(other_control, &item->flat);
-        item->flat_attempted = true;
-      }
-      if (!item->flat_valid) {
-        LIST_FREE(&affected);
-        return false;
-      }
-      const bool unambiguous = append_route_crossings(
-          &affected, &item->flat, affected_index, item->edge_index,
-          item->spline_index, other_cubic, crossings);
-      if (!unambiguous) {
-        LIST_FREE(&affected);
-        return false;
+      for (size_t item_index = begin; item_index < end; item_index++) {
+        route_cubic_ref_t *const item = &index->items[item_index];
+        if (item->bounds.LL.x > affected_bounds.UR.x)
+          break;
+        if (item->bounds.UR.x < affected_bounds.LL.x)
+          continue;
+        const pointf *const other_control = item->control;
+        const size_t other_cubic = item->cubic;
+        const bool same_route = item->edge_splines == affected_splines;
+        const bool adjacent_in_spline =
+            same_route &&
+            item->spline_index == affected_spline_indices[affected_index] &&
+            (other_cubic + 1 == affected_cubic_indices[affected_index] ||
+             affected_cubic_indices[affected_index] + 1 == other_cubic);
+        // The two cubics intentionally meet at this tagged seam. Their shared
+        // endpoint is not an edge crossing; G1 is checked separately below.
+        const bool artificial_joint_neighbor =
+            same_route && ((affected_index == 0 &&
+                            item->spline_index == junction->right_spline &&
+                            other_cubic == junction->right_cubic) ||
+                           (affected_index == 1 &&
+                            item->spline_index == junction->left_spline &&
+                            other_cubic == junction->left_cubic));
+        if (other_control == affected_controls[affected_index] ||
+            adjacent_in_spline || artificial_joint_neighbor ||
+            !boxf_overlap(affected_bounds, item->bounds))
+          continue;
+        if (!item->flat_attempted) {
+          item->flat_valid = flatten_route_cubic(other_control, &item->flat);
+          item->flat_attempted = true;
+        }
+        if (!item->flat_valid) {
+          LIST_FREE(&affected);
+          return false;
+        }
+        const bool unambiguous = append_route_crossings(
+            &affected, &item->flat, affected_index, item->edge_index,
+            item->spline_index, other_cubic, crossings);
+        if (!unambiguous) {
+          LIST_FREE(&affected);
+          return false;
+        }
       }
     }
     LIST_FREE(&affected);
@@ -720,12 +786,10 @@ static bool route_barrier_signature(const route_junction_t *junction,
                                               &right->list[0]};
 
   for (size_t affected_index = 0; affected_index < 2; affected_index++) {
+    if (!route_spline_metadata_valid(routes[affected_index]))
+      return false;
     route_flat_points_t affected = {0};
     if (!flatten_route_cubic(affected_controls[affected_index], &affected)) {
-      LIST_FREE(&affected);
-      return false;
-    }
-    if (!route_spline_metadata_valid(routes[affected_index])) {
       LIST_FREE(&affected);
       return false;
     }
@@ -1065,6 +1129,7 @@ static bool route_cubic_clears_nodes(graph_t *graph, edge_t *edge,
       late_double(edge, E_penwidth, 1.0, 0.0) / 2 + MULTIEDGE_NODE_MARGIN;
   const node_t *const tail = agtail(edge);
   const node_t *const head = aghead(edge);
+  const boxf control_bounds = route_cubic_bounds(control);
   for (node_t *node = agfstnode(graph); node != NULL;
        node = agnxtnode(graph, node)) {
     if (node == tail || node == head || ND_node_type(node) != NORMAL)
@@ -1075,6 +1140,8 @@ static bool route_cubic_clears_nodes(graph_t *graph, edge_t *edge,
         .UR = {ND_coord(node).x + ND_rw(node) + clearance,
                ND_coord(node).y + ND_ht(node) / 2 + clearance},
     };
+    if (!boxes_overlap(control_bounds, obstacle))
+      continue;
     if (bezier_intersects_box(control, obstacle))
       return false;
   }
