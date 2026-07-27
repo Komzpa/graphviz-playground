@@ -113,13 +113,12 @@ and this project adheres to
 
 ## [15.1.1] – 2026-08-05
 
-### Added
-
-- Dot has a new opt-in graph attribute, `edgejunction`, that can draw identical
-  incoming and outgoing edges through laid-out junction trunks.
-
 ### Changed
 
+- Dot no longer has a separate `edgejunction` graph attribute. The existing
+  `concentrate=true` knob now also inserts junction nodes for eligible incoming
+  and outgoing edge fans, so existing drawings that use `concentrate=true` will
+  differ when the junction transform applies.
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the

@@ -45,11 +45,6 @@ typedef enum {
   JUNCTION_FANOUT,
 } junction_kind_t;
 
-typedef struct {
-  bool fanin;
-  bool fanout;
-} junction_mode_t;
-
 static node_t *group_anchor(edge_t *e, junction_kind_t kind);
 
 static char *group_attrs[] = {
@@ -82,7 +77,9 @@ static bool edge_has_record_endpoint_geometry(edge_t *e) {
 static bool endpoint_has_port(edge_t *e) {
   return ED_tail_port(e).defined || ED_head_port(e).defined ||
          attr(e, agfindedgeattr(agraphof(agtail(e)), "tailport"), "")[0] ||
-         attr(e, agfindedgeattr(agraphof(agtail(e)), "headport"), "")[0];
+         attr(e, agfindedgeattr(agraphof(agtail(e)), "headport"), "")[0] ||
+         attr(e, agfindedgeattr(agraphof(agtail(e)), "sametail"), "")[0] ||
+         attr(e, agfindedgeattr(agraphof(agtail(e)), "samehead"), "")[0];
 }
 
 static bool eligible(edge_t *e) {
@@ -173,6 +170,10 @@ static bool refused_edge_kind(graph_t *g, edge_t *e) {
 
 static node_t *group_anchor(edge_t *e, junction_kind_t kind) {
   return kind == JUNCTION_FANOUT ? agtail(e) : aghead(e);
+}
+
+static node_t *group_outer_endpoint(edge_t *e, junction_kind_t kind) {
+  return kind == JUNCTION_FANOUT ? aghead(e) : agtail(e);
 }
 
 static bool same_group(const junction_group_t *group, edge_t *e,
@@ -271,7 +272,7 @@ static void copy_edge_attrs(edge_t *dst, edge_t *src, bool with_label,
 static node_t *fresh_junction_node(graph_t *g, size_t *index) {
   char name[64];
   do {
-    snprintf(name, sizeof(name), "_edgejunction_%zu", (*index)++);
+    snprintf(name, sizeof(name), "_concentrate_junction_%zu", (*index)++);
   } while (agnode(g, name, 0) != NULL);
   return agnode(g, name, 1);
 }
@@ -313,7 +314,7 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agattr_text(g, AGNODE, "style", "");
   agattr_text(g, AGNODE, "width", "");
   agattr_text(g, AGNODE, "height", "");
-  agattr_text(g, AGNODE, "_edgejunction_node", "");
+  agattr_text(g, AGNODE, "_concentrate_junction_node", "");
   agattr_text(g, AGEDGE, "color", "");
   agattr_text(g, AGEDGE, "style", "");
   agattr_text(g, AGEDGE, "penwidth", "");
@@ -325,10 +326,10 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agattr_text(g, AGEDGE, "arrowhead", "");
   agattr_text(g, AGEDGE, "arrowtail", "");
   agattr_text(g, AGEDGE, "arrowsize", "");
-  agattr_text(g, AGEDGE, "_edgejunction_original", "");
-  agattr_text(g, AGEDGE, "_edgejunction_internal", "");
-  agattr_text(g, AGEDGE, "_edgejunction_arm_splines", "");
-  agattr_text(g, AGEDGE, "_edgejunction_draw_trunk", "");
+  agattr_text(g, AGEDGE, "_concentrate_junction_original", "");
+  agattr_text(g, AGEDGE, "_concentrate_junction_internal", "");
+  agattr_text(g, AGEDGE, "_concentrate_junction_arm_splines", "");
+  agattr_text(g, AGEDGE, "_concentrate_junction_draw_trunk", "");
 
   node_t *jn = fresh_junction_node(g, index);
   if (N_label) {
@@ -351,9 +352,9 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agsafeset(jn, "style", "invis", "");
   agsafeset(jn, "width", "0.02", "");
   agsafeset(jn, "height", "0.02", "");
-  agsafeset(jn, "_edgejunction_node", "true", "");
+  agsafeset(jn, "_concentrate_junction_node", "true", "");
   init_added_node(jn);
-  ND_edgejunction(jn) = true;
+  ND_concentrate_junction(jn) = true;
   ND_shape(jn) = bind_shape("point", jn);
   ND_width(jn) = 0.02;
   ND_height(jn) = 0.02;
@@ -370,14 +371,14 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
                     : agedge(g, jn, group->anchor, NULL, 1);
     copy_edge_attrs(trunk, rep, true, true, false, reverse);
   }
-  agsafeset(trunk, "_edgejunction_internal", "true", "");
+  agsafeset(trunk, "_concentrate_junction_internal", "true", "");
   init_added_edge(trunk);
-  ED_edgejunction_internal(trunk) = true;
+  ED_concentrate_junction_internal(trunk) = true;
   reserve_labelled_trunk_rank(trunk);
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
     const int orig_weight = ED_weight(orig);
-    agsafeset(orig, "_edgejunction_original", "true", "");
+    agsafeset(orig, "_concentrate_junction_original", "true", "");
     ED_minlen(orig) = 0;
     ED_weight(orig) = 0;
     ED_xpenalty(orig) = 0;
@@ -391,9 +392,9 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
                     : agedge(g, agtail(orig), jn, NULL, 1);
       copy_edge_attrs(arm, orig, false, false, false, reverse);
     }
-    agsafeset(arm, "_edgejunction_internal", "true", "");
+    agsafeset(arm, "_concentrate_junction_internal", "true", "");
     init_added_edge(arm);
-    ED_edgejunction_internal(arm) = true;
+    ED_concentrate_junction_internal(arm) = true;
     ED_weight(arm) = orig_weight;
     weight += orig_weight;
 
@@ -403,30 +404,12 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     info->draw_trunk = i == 0;
     info->reverse = reverse;
     info->fanout = kind == JUNCTION_FANOUT;
-    ED_edgejunction(orig) = info;
+    ED_concentrate_junction(orig) = info;
   }
 
   const int64_t trunk_scale = ED_label(trunk) ? (int64_t)group->size : 1;
   const int64_t trunk_weight = (int64_t)weight * trunk_scale;
   ED_weight(trunk) = trunk_weight > INT_MAX ? INT_MAX : (int)trunk_weight;
-}
-
-static junction_mode_t edgejunction_mode(graph_t *g) {
-  junction_mode_t mode = {0};
-  char *value = agget(g, "edgejunction");
-  if (value == NULL || streq(value, "") || streq(value, "none") ||
-      streq(value, "false")) {
-    return mode;
-  }
-  if (streq(value, "fanin")) {
-    mode.fanin = true;
-  } else if (streq(value, "fanout")) {
-    mode.fanout = true;
-  } else if (streq(value, "both") || streq(value, "true")) {
-    mode.fanin = true;
-    mode.fanout = true;
-  }
-  return mode;
 }
 
 static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
@@ -436,7 +419,10 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
 
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (!eligible(e) || refused_edge_kind(g, e) || ED_edgejunction(e)) {
+      if (refused_edge_kind(g, e)) {
+        continue;
+      }
+      if (!eligible(e) || ED_concentrate_junction(e)) {
         continue;
       }
       size_t i = 0;
@@ -463,7 +449,21 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
   }
 
   for (size_t i = 0; i < ngroups; ++i) {
-    if (groups[i].size >= 2) {
+    size_t distinct_outer = 0;
+    for (size_t j = 0; j < groups[i].size; ++j) {
+      node_t *outer = group_outer_endpoint(groups[i].edges[j], kind);
+      bool seen = false;
+      for (size_t k = 0; k < j; ++k) {
+        if (group_outer_endpoint(groups[i].edges[k], kind) == outer) {
+          seen = true;
+          break;
+        }
+      }
+      if (!seen) {
+        distinct_outer++;
+      }
+    }
+    if (distinct_outer >= 2) {
       make_group(g, &groups[i], made, kind, false);
     }
     free(groups[i].edges);
@@ -481,9 +481,8 @@ static bool has_cluster_subgraph(graph_t *g) {
   return false;
 }
 
-void dot_edgejunction(graph_t *g) {
-  junction_mode_t mode = edgejunction_mode(g);
-  if (!mode.fanin && !mode.fanout) {
+void dot_concentrate_junction(graph_t *g) {
+  if (!Concentrate) {
     return;
   }
 
@@ -491,25 +490,22 @@ void dot_edgejunction(graph_t *g) {
     return;
   }
   if (GD_n_cluster(g) != 0 || has_cluster_subgraph(g)) {
-    agsafeset(g, "_edgejunction_clustered_fallback", "true", "");
+    agsafeset(g, "_concentrate_junction_clustered_fallback", "true", "");
     return;
   }
 
   size_t made = 0;
-  if (mode.fanin) {
-    make_groups(g, JUNCTION_FANIN, &made);
-  }
-  if (mode.fanout) {
-    make_groups(g, JUNCTION_FANOUT, &made);
-  }
+  make_groups(g, JUNCTION_FANIN, &made);
+  make_groups(g, JUNCTION_FANOUT, &made);
   if (made > 0) {
+    agsafeset(g, "_concentrate_junction_active", "true", "");
     Concentrate = false;
   }
 }
 
-void dot_edgejunction_save_rankleader(graph_t *g, int r) {
+void dot_concentrate_junction_save_rankleader(graph_t *g, int r) {
   if (GD_rank(g)[r].n == 0 &&
-      mapbool(agget(dot_root(g), "_edgejunction_clustered_fallback"))) {
+      mapbool(agget(dot_root(g), "_concentrate_junction_clustered_fallback"))) {
     GD_rankleader(g)[r] = NULL;
     return;
   }
@@ -657,18 +653,17 @@ static splines *copy_connected_arm_splines(const splines *trunk,
   return connected;
 }
 
-void dot_edgejunction_splines(graph_t *g) {
-  junction_mode_t mode = edgejunction_mode(g);
-  if (!mode.fanin && !mode.fanout) {
+void dot_concentrate_junction_splines(graph_t *g) {
+  if (!mapbool(agget(g, "_concentrate_junction_active"))) {
     return;
   }
 
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (!mapbool(agget(e, "_edgejunction_original"))) {
+      if (!mapbool(agget(e, "_concentrate_junction_original"))) {
         continue;
       }
-      junction_edge_t *info = ED_edgejunction(e);
+      junction_edge_t *info = ED_concentrate_junction(e);
       if (info == NULL) {
         continue;
       }
@@ -691,8 +686,8 @@ void dot_edgejunction_splines(graph_t *g) {
         ED_spl(e) = copy_joined_splines(ED_spl(info->arm), ED_spl(info->trunk),
                                         info->reverse, &arm_size);
       }
-      ED_edgejunction_draw_trunk(e) = info->draw_trunk;
-      ED_edgejunction_emit_splines(e) = arm_size;
+      ED_concentrate_junction_draw_trunk(e) = info->draw_trunk;
+      ED_concentrate_junction_emit_splines(e) = arm_size;
       uint32_t sflag = 0;
       uint32_t eflag = 0;
       arrow_flags(e, &sflag, &eflag);
@@ -708,8 +703,8 @@ void dot_edgejunction_splines(graph_t *g) {
       }
       char nbuf[32];
       snprintf(nbuf, sizeof(nbuf), "%zu", arm_size);
-      agsafeset(e, "_edgejunction_arm_splines", nbuf, "");
-      agsafeset(e, "_edgejunction_draw_trunk",
+      agsafeset(e, "_concentrate_junction_arm_splines", nbuf, "");
+      agsafeset(e, "_concentrate_junction_draw_trunk",
                 info->draw_trunk ? "true" : "false", "");
 
       if (ED_label(e) && ED_label(info->trunk) && ED_label(info->trunk)->set) {
@@ -723,7 +718,7 @@ void dot_edgejunction_splines(graph_t *g) {
         agxset(info->trunk, E_label, "");
       }
       free(info);
-      ED_edgejunction(e) = NULL;
+      ED_concentrate_junction(e) = NULL;
     }
   }
 }

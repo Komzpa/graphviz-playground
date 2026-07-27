@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify edgejunction label placement from dot -Tjson output."""
+"""Verify concentrate_junction label placement from dot -Tjson output."""
 
 from __future__ import annotations
 
@@ -14,7 +14,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-MODES = ("off", "fanin", "fanout", "both")
+MODES = ("off", "on")
+RANKERS = (
+    ("default", ()),
+    ("newrank", ("-Gnewrank=true",)),
+)
 DEFAULT_CASES = ("drbd-anchor.dot", "junction-fanin.dot", "junction-fanout.dot")
 REQUIRED_COUNTS = {
     "ioctl_set_disk()": 1,
@@ -75,9 +79,15 @@ def cases_from_args(args: argparse.Namespace, root: Path) -> list[tuple[str, Pat
 
 
 def run_dot(dot: str, path: Path, mode: str) -> dict:
-    edgejunction = "none" if mode == "off" else mode
+    if "/" not in mode:
+        raise ValueError(f"invalid combined mode: {mode}")
+    mode_name, ranker = mode.split("/", 1)
+    if mode_name not in {"off", "on"}:
+        raise ValueError(f"unknown mode: {mode}")
+    concentrate_junction = mode_name == "on"
+    ranker_flags = () if ranker == "default" else ("-Gnewrank=true",)
     proc = subprocess.run(
-        [dot, f"-Gedgejunction={edgejunction}", "-Tjson", str(path)],
+        [dot, *(("-Gconcentrate=true",) if concentrate_junction else ()), *ranker_flags, "-Tjson", str(path)],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -165,27 +175,27 @@ def check_case(dot: str, case_name: str, path: Path, modes: tuple[str, ...]) -> 
         xmin, ymin, xmax, ymax = parse_bb(layout["bb"])
         counts = Counter()
         for edge in layout.get("edges", []):
-            owned_by_edgejunction = edge.get("_edgejunction_original") == "true"
+            owned_by_concentrate_junction = edge.get("_concentrate_junction_original") == "true"
             for label in drawn_labels(edge):
                 counts[label.text] += 1
                 distance = distance_to_spline(edge, label.anchor)
                 threshold = 4.0 * label.height
                 in_bbox = xmin <= label.anchor.x <= xmax and ymin <= label.anchor.y <= ymax
-                too_far = owned_by_edgejunction and distance > threshold
+                too_far = owned_by_concentrate_junction and distance > threshold
                 status = "OK"
                 if not in_bbox:
                     status = "OUTSIDE_BBOX"
                 elif too_far:
                     status = "TOO_FAR_FROM_SPLINE"
-                elif not owned_by_edgejunction and distance > threshold:
-                    status = "PRINTED_ONLY_DISTANCE_NOT_EDGEJUNCTION_OWNED"
+                elif not owned_by_concentrate_junction and distance > threshold:
+                    status = "PRINTED_ONLY_DISTANCE_NOT_JUNCTION_OWNED"
                 print(
                     f"{case_name} mode={mode} label={label.text!r} "
                     f"anchor=({label.anchor.x:.2f},{label.anchor.y:.2f}) "
                     f"bbox=({xmin:.2f},{ymin:.2f},{xmax:.2f},{ymax:.2f}) "
                     f"distance_to_own_spline={distance:.2f} "
                     f"label_height={label.height:.2f} threshold={threshold:.2f} "
-                    f"edgejunction_owned={owned_by_edgejunction} status={status}"
+                    f"concentrate_junction_owned={owned_by_concentrate_junction} status={status}"
                 )
                 if not in_bbox or too_far:
                     violations += 1
@@ -209,7 +219,18 @@ def check_required_counts(
         return 1
     name = selected[0]
     failures = 0
-    actual = counts.get((name, mode), Counter())
+    matching = [
+        key_mode
+        for case_name, key_mode in counts
+        if case_name == name
+        and (key_mode == mode or ("/" not in mode and key_mode.startswith(f"{mode}/")))
+    ]
+    if not matching:
+        print(f"FAIL --require-counts: no counts for mode={mode!r} case={name!r}")
+        return 1
+    actual = Counter()
+    for key_mode in matching:
+        actual.update(counts.get((name, key_mode), Counter()))
     for label, expected in REQUIRED_COUNTS.items():
         got = actual[label]
         print(f"require-counts case={name} mode={mode} label={label!r} expected={expected} actual={got}")
@@ -220,7 +241,9 @@ def check_required_counts(
 
 def main() -> int:
     args = parse_args()
-    modes = tuple(args.mode or MODES)
+    modes = tuple(
+        f"{mode}/{ranker}" for mode in (args.mode or MODES) for ranker, _ in RANKERS
+    )
     try:
         root = repo_root()
         dot = resolve_dot(args.dot_path)

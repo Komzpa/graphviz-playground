@@ -1,5 +1,5 @@
 digraph {
-  graph [edgejunction=fanin]
+  graph [concentrate=true]
 
   {rank=same; a; b}
   a -> b

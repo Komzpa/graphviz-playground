@@ -1174,6 +1174,10 @@ Setting \verb"concentrate=true" on the top-level graph enables
 an edge merging technique to reduce clutter in dense layouts.
 Edges are merged when they run parallel, have a common endpoint
 and have length greater than 1.
+For eligible incoming and outgoing edge fans, \dot\ may insert
+point junction nodes before ranking so those edges share one trunk.
+This can change ranks and drawings that already used
+\verb"concentrate=true".
 A beneficial side-effect in fixed-sized layouts is that removal
 of these edges often permits larger, more readable labels.
 While concentrators in \dot\ look somewhat like Newbery's

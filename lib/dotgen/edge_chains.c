@@ -1022,7 +1022,7 @@ void build_edge_chains(graph_t *graph) {
         continue;
       }
 
-      if (ED_edgejunction(edge)) {
+      if (ED_concentrate_junction(edge)) {
         continue;
       }
 
