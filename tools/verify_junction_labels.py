@@ -18,14 +18,10 @@ from pathlib import Path
 from typing import Any
 
 
-ANCHOR = Path(
-    "/home/kom/tmp/graphviz-pr1-cleanup-20260719/"
-    "lane2bU-anchor-fixtures-frozen/0604-64000479e879bbdc.dot"
-)
-DEFAULT_BASELINE = Path(
-    "/home/kom/proj/ai_pr/graphviz-refuse-narrow-20260727/src/"
-    "build/cmd/dot/dot_builtins"
-)
+# The anchor graph and the baseline binary are not in the tree; point these at
+# local copies to run the full check. Without them the in-tree checks still run.
+ANCHOR = Path(os.environ.get("JUNCTION_LABEL_ANCHOR", ""))
+DEFAULT_BASELINE = Path(os.environ.get("JUNCTION_LABEL_BASELINE", ""))
 REQUIRED_LABELS = (
     "ioctl_set_disk()",
     "receive_param()",
