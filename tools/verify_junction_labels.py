@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify labelled edgejunction fan readability and byte-identity fallout."""
+"""Verify labelled junction fan readability and byte-identity fallout."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def run_dot(
 ) -> subprocess.CompletedProcess[str]:
     args = [
         str(dot),
-        "-Gedgejunction=both",
+        "-Gconcentrate=true",
         *ranker_args,
         f"-T{output_format}",
         str(path),
@@ -330,7 +330,7 @@ def analyze(dot: Path, path: Path, ranker_args: tuple[str, ...], args: argparse.
     label_node = 0
     for label in labels:
         for node, box in node_boxes(layout):
-            if node.startswith("_edgejunction_"):
+            if node.startswith("_concentrate_junction_"):
                 continue
             if boxes_overlap(label.box, box):
                 label_node += 1
@@ -353,7 +353,7 @@ def required_label_counts(analysis: Analysis) -> Counter[str]:
 
 def has_labelled_fan(layout: dict[str, Any]) -> bool:
     return any(
-        edge.get("_edgejunction_original") == "true" and edge.get("_ldraw_")
+        edge.get("_concentrate_junction_original") == "true" and edge.get("_ldraw_")
         for edge in layout.get("edges", [])
     )
 
@@ -374,7 +374,7 @@ def tracked_graphs(root: Path) -> list[Path]:
                 text = path.read_text(errors="ignore")
             except OSError:
                 continue
-            if "edgejunction" in text:
+            if "concentrate_junction" in text:
                 continue
             paths.append(path)
     return paths
@@ -388,7 +388,7 @@ def render_bytes(
 ) -> bytes | None:
     cmd = [
         str(dot),
-        "-Gedgejunction=both",
+        "-Gconcentrate=true",
         *ranker_args,
         "-Tjson",
         str(path),

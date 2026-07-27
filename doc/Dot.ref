@@ -262,7 +262,9 @@ comment
 compound
      If true, allow edges between clusters. (See lhead and ltail below.)
 concentrate
-     If true, use edge concentrators.
+     If true, use edge concentrators. Eligible incoming and outgoing edge fans
+     may be drawn through point junctions inserted before ranking, so existing
+     concentrate=true drawings can change.
 constraint
      If false, the edge is not used in ranking the nodes. For example, in
      the graph

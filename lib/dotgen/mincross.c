@@ -894,7 +894,7 @@ void save_vlist(graph_t *g) {
 
   if (GD_rankleader(g))
     for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
-      dot_edgejunction_save_rankleader(g, r);
+      dot_concentrate_junction_save_rankleader(g, r);
     }
 }
 

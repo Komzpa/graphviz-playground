@@ -243,8 +243,9 @@ def test_cluster_rank_fallback_renders():
     proc = _run_xdot(_fixture("cluster-rank-fallback-renders-2825.dot"))
 
     assert proc.returncode == 0
-    assert "rebuild_vlists: lead is null" in proc.stderr
-    assert "fell back to an unconcentrated layout" in proc.stderr
+    assert "SEGV" not in proc.stderr
+    assert "AddressSanitizer" not in proc.stderr
+    assert "degenerate concentrated rank" in proc.stderr
     assert "pos=" in proc.stdout
 
 
