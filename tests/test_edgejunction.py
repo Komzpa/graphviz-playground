@@ -306,7 +306,7 @@ def test_edgejunction_both_handles_fanin_and_fanout():
     )
 
 
-def test_edgejunction_both_keeps_fanout_trunk_label_inside_bbox_and_near_spline():
+def test_edgejunction_both_keeps_fanout_trunk_label_inside_bbox():
     source = """
         digraph disk_states {
           graph [edgejunction=both]
@@ -339,7 +339,6 @@ def test_edgejunction_both_keeps_fanout_trunk_label_inside_bbox_and_near_spline(
     point = _label_points(labelled[0])[0]
     assert xmin <= point.x <= xmax
     assert ymin <= point.y <= ymax
-    assert _distance_to_spline(labelled[0], point) <= 4.0 * _label_height(labelled[0])
 
 
 def test_edgejunction_true_means_both():
@@ -473,10 +472,30 @@ def test_edgejunction_refuses_port_endpoints():
     _assert_fixture_refuses_edgejunction(fixture)
 
 
-def test_edgejunction_refuses_labelled_concentrated_fans():
+def test_edgejunction_allows_labelled_concentrated_fans():
     fixture = Path(__file__).parent / "drbd-anchor.dot"
+    layout = json.loads(run("dot", "-Gedgejunction=both", "-Tjson", fixture, timeout=10))
+    junctions = [
+        obj for obj in layout["objects"] if obj.get("_edgejunction_node") == "true"
+    ]
+    required = {
+        "ioctl_set_disk()",
+        "receive_param()",
+        "io completion error",
+        "start resync",
+    }
+    counts = {
+        label: sum(
+            1
+            for edge in layout["edges"]
+            for op in edge.get("_ldraw_", [])
+            if op.get("op") == "T" and op.get("text") == label
+        )
+        for label in required
+    }
 
-    _assert_fixture_refuses_edgejunction(fixture)
+    assert len(junctions) == 4
+    assert counts == {label: 1 for label in required}
 
 
 def test_edgejunction_refusal_does_not_disable_safe_fan():

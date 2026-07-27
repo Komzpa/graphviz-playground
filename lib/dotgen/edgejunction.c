@@ -124,10 +124,6 @@ static bool graph_uses_curved_splines(graph_t *g) {
   return splines_attr != NULL && streq(splines_attr, "curved");
 }
 
-static bool edge_has_primary_label(edge_t *e) {
-  return ED_label(e) != NULL || ED_xlabel(e) != NULL;
-}
-
 static bool edge_has_copied_junction_attribute(edge_t *e) {
   for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
     attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), group_attrs[i]);
@@ -150,29 +146,6 @@ static bool edge_has_concentrated_peer(edge_t *e) {
           gv_concentration_edges_have_equal_rendered_identity(
               e, other, GV_CONCENTRATION_SAME_DIRECTION)) {
         return true;
-      }
-    }
-  }
-  return false;
-}
-
-static bool edge_has_junction_peer(edge_t *e, junction_kind_t kind) {
-  for (node_t *n = agfstnode(agraphof(e)); n; n = agnxtnode(agraphof(e), n)) {
-    for (edge_t *other = agfstout(agraphof(e), n); other;
-         other = agnxtout(agraphof(e), other)) {
-      if (other != e && eligible(other) &&
-          group_anchor(e, kind) == group_anchor(other, kind)) {
-        bool same_attrs = true;
-        for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
-          attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), group_attrs[i]);
-          if (!streq(attr(e, sym, ""), attr(other, sym, ""))) {
-            same_attrs = false;
-            break;
-          }
-        }
-        if (same_attrs) {
-          return true;
-        }
       }
     }
   }
@@ -324,6 +297,13 @@ static void init_added_edge(edge_t *e) {
   dot_bundle_load_init_original(e);
 }
 
+static void reserve_labelled_trunk_rank(edge_t *trunk) {
+  if (ED_label(trunk) == NULL) {
+    return;
+  }
+  ED_minlen(trunk) = MAX(ED_minlen(trunk), 2);
+}
+
 static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
                        junction_kind_t kind, bool reverse) {
   edge_t *rep = group->edges[0];
@@ -393,6 +373,7 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agsafeset(trunk, "_edgejunction_internal", "true", "");
   init_added_edge(trunk);
   ED_edgejunction_internal(trunk) = true;
+  reserve_labelled_trunk_rank(trunk);
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
     const int orig_weight = ED_weight(orig);
@@ -425,7 +406,7 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     ED_edgejunction(orig) = info;
   }
 
-  const int64_t trunk_scale = group->attrs[0][0] ? (int64_t)group->size : 1;
+  const int64_t trunk_scale = ED_label(trunk) ? (int64_t)group->size : 1;
   const int64_t trunk_weight = (int64_t)weight * trunk_scale;
   ED_weight(trunk) = trunk_weight > INT_MAX ? INT_MAX : (int)trunk_weight;
 }
@@ -552,23 +533,6 @@ static void reverse_bezier(bezier *bz) {
 static pointf bezier_start(const bezier *bz) { return bz->list[0]; }
 
 static pointf bezier_end(const bezier *bz) { return bz->list[bz->size - 1]; }
-
-static pointf spline_range_midpoint(const splines *spl, size_t begin,
-                                    size_t end) {
-  if (spl == NULL || spl->size == 0) {
-    return (pointf){0, 0};
-  }
-  if (begin >= spl->size) {
-    begin = spl->size - 1;
-  }
-  if (end <= begin || end > spl->size) {
-    end = spl->size;
-  }
-
-  const pointf start = bezier_start(&spl->list[begin]);
-  const pointf finish = bezier_end(&spl->list[end - 1]);
-  return (pointf){(start.x + finish.x) / 2, (start.y + finish.y) / 2};
-}
 
 static double point_distance(pointf a, pointf b) {
   const double dx = a.x - b.x;
@@ -748,13 +712,8 @@ void dot_edgejunction_splines(graph_t *g) {
       agsafeset(e, "_edgejunction_draw_trunk",
                 info->draw_trunk ? "true" : "false", "");
 
-      if (ED_label(e) && ED_label(info->trunk)) {
-        if (info->fanout) {
-          ED_label(e)->pos = spline_range_midpoint(ED_spl(e), 0, arm_size);
-        } else {
-          ED_label(e)->pos =
-              spline_range_midpoint(ED_spl(e), arm_size, ED_spl(e)->size);
-        }
+      if (ED_label(e) && ED_label(info->trunk) && ED_label(info->trunk)->set) {
+        ED_label(e)->pos = ED_label(info->trunk)->pos;
         ED_label(e)->set = true;
       }
 
