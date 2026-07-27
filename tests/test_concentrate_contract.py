@@ -210,7 +210,7 @@ def test_concentrate_oracle_trace_developer_mode(tmp_path: Path):
     env["GV_CONCENTRATE_ORACLE"] = "1"
     env["GV_CONCENTRATE_ORACLE_MAX_EDGES"] = "8"
     completed = subprocess.run(
-        ["dot", "-Txdot", source],
+        [which("dot"), "-Txdot", source],
         check=True,
         text=True,
         stdout=subprocess.PIPE,
@@ -241,7 +241,7 @@ def test_concentration_plan_reports_compatible_subgroups(tmp_path: Path):
     env = os.environ.copy()
     env["GV_CONCENTRATION_PLAN_DIAGNOSTICS"] = "1"
     completed = subprocess.run(
-        ["dot", "-Txdot", source],
+        [which("dot"), "-Txdot", source],
         check=True,
         text=True,
         stdout=subprocess.PIPE,

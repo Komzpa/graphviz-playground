@@ -400,6 +400,31 @@ static bool vnode_not_related_to(graph_t *g, node_t *v) {
     return true;
 }
 
+static bool cluster_outside_node(graph_t *g, node_t *u) {
+    return !agcontains(g, u) &&
+           (ND_node_type(u) == NORMAL || vnode_not_related_to(g, u));
+}
+
+static bool cluster_rank_orders(graph_t *g, int r, int *left, int *right) {
+    if (GD_rank(g)[r].n == 0 || GD_rank(g)[r].v[0] == NULL)
+	return false;
+
+    *left = ND_order(GD_rank(g)[r].v[0]);
+    *right = *left + GD_rank(g)[r].n - 1;
+    return true;
+}
+
+static bool nearest_cluster_rank_orders(graph_t *g, int r, int *left, int *right) {
+    for (int d = 0; r - d >= GD_minrank(g) || r + d <= GD_maxrank(g); d++) {
+	if (r - d >= GD_minrank(g) && cluster_rank_orders(g, r - d, left, right))
+	    return true;
+	if (d > 0 && r + d <= GD_maxrank(g) &&
+	    cluster_rank_orders(g, r + d, left, right))
+	    return true;
+    }
+    return false;
+}
+
 /* Guarantee nodes outside the cluster g are placed outside of it.
  * This is done by adding constraints to make sure such nodes have
  * a gap of margin from the left or right bounding box node ln or rn.
@@ -411,31 +436,24 @@ static bool vnode_not_related_to(graph_t *g, node_t *v) {
  */
 static void keepout_othernodes(graph_t * g)
 {
-    int i, c, r, margin;
-    node_t *u, *v;
+    int i, c, r, margin, left, right;
+    node_t *u;
+    rank_t *root_rank;
 
     margin = late_int (g, G_margin, CL_OFFSET, 0);
     for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
-	if (GD_rank(g)[r].n == 0)
+	root_rank = &GD_rank(dot_root(g))[r];
+	if (!nearest_cluster_rank_orders(g, r, &left, &right))
 	    continue;
-	v = GD_rank(g)[r].v[0];
-	if (v == NULL)
-	    continue;
-	for (i = ND_order(v) - 1; i >= 0; i--) {
-	    u = GD_rank(dot_root(g))[r].v[i];
+	for (i = 0; i < root_rank->n; i++) {
+	    u = root_rank->v[i];
 	    /* can't use "is_a_vnode_of" because elists are swapped */
-	    if (ND_node_type(u) == NORMAL || vnode_not_related_to(g, u)) {
+	    if (!cluster_outside_node(g, u))
+		continue;
+	    if (i < left || (i <= right && i - left <= right - i))
 		make_aux_edge(u, GD_ln(g), margin + ND_rw(u), 0);
-		break;
-	    }
-	}
-	for (i = ND_order(v) + GD_rank(g)[r].n; i < GD_rank(dot_root(g))[r].n;
-	     i++) {
-	    u = GD_rank(dot_root(g))[r].v[i];
-	    if (ND_node_type(u) == NORMAL || vnode_not_related_to(g, u)) {
+	    else
 		make_aux_edge(GD_rn(g), u, margin + ND_lw(u), 0);
-		break;
-	    }
 	}
     }
 

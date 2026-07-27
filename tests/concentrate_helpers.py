@@ -1411,7 +1411,7 @@ def _assert_public_concentrate_crash_repro_renders(issue: int):
     assert input.exists(), "unexpectedly missing test case"
 
     proc = subprocess.run(
-        ["dot", "-Kdot", "-Tdot", input],
+        [which("dot"), "-Kdot", "-Tdot", input],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

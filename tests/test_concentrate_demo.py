@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 sys.path.append(os.path.dirname(__file__))
-from gvtest import dot  # pylint: disable=wrong-import-position
+from gvtest import dot, which  # pylint: disable=wrong-import-position
 
 
 FIXTURE_DIR = Path(__file__).parent / "graphs" / "concentrate-demo"
@@ -40,7 +40,7 @@ def _render_json_with_args(path: Path, extra_args: list[str]) -> dict:
 
 def _run_xdot(path: Path, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["dot", "-Kdot", "-Txdot", path],
+        [which("dot"), "-Kdot", "-Txdot", path],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
