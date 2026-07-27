@@ -31,6 +31,47 @@ def env_path(name: str, required: bool = False) -> str | None:
     return None
 
 
+def configure_line(label: str, dot: str) -> str:
+    env_name = f"GRAPHVIZ_LAYOUT_TIME_{label.upper()}_CONFIGURE"
+    configured = os.environ.get(env_name)
+    if configured:
+        return configured
+    path = Path(dot).resolve()
+    parts = path.parts
+    for index, part in enumerate(parts):
+        if part == "cmd" and index > 0:
+            build = Path(*parts[:index])
+            cache = build / "CMakeCache.txt"
+            if cache.is_file():
+                return cmake_cache_configure_line(build, cache)
+    return "unknown"
+
+
+def cmake_cache_configure_line(build: Path, cache: Path) -> str:
+    values = {}
+    for line in cache.read_text(errors="replace").splitlines():
+        if line.startswith("//") or ":" not in line or "=" not in line:
+            continue
+        key_type, value = line.split("=", 1)
+        key = key_type.split(":", 1)[0]
+        values[key] = value
+    source = values.get("CMAKE_HOME_DIRECTORY", ".")
+    generator = "Ninja" if values.get("CMAKE_MAKE_PROGRAM", "").endswith("ninja") else ""
+    flags = []
+    for key in (
+        "CMAKE_BUILD_TYPE",
+        "BUILD_SHARED_LIBS",
+        "BUILD_TESTING",
+        "GRAPHVIZ_CLI",
+        "CMAKE_C_FLAGS",
+        "CMAKE_CXX_FLAGS",
+    ):
+        if key in values and values[key] != "":
+            flags.append(f"-D{key}={values[key]}")
+    generator_flag = f" -G {generator!r}" if generator else ""
+    return f"cmake -S {source} -B {build}{generator_flag} {' '.join(flags)}".strip()
+
+
 def env_float(name: str, default: float) -> float:
     value = os.environ.get(name)
     if value is None:
@@ -118,19 +159,23 @@ def print_counts(label: str, rows) -> None:
 
 
 def ratio_report(upstream_rows, current_rows) -> int:
+    return ratio_report_for_label("after", upstream_rows, current_rows, 1.5)
+
+
+def ratio_report_for_label(label: str, upstream_rows, rows, threshold: float) -> int:
     upstream = {(mode, path): elapsed for mode, path, elapsed, rc, _ in upstream_rows if rc == 0}
     failures = []
     ratios = []
-    for mode, path, elapsed, rc, stderr in current_rows:
+    for mode, path, elapsed, rc, stderr in rows:
         base = upstream.get((mode, path))
         if rc != 0 or base is None or base <= 0:
             failures.append((mode, path, rc, elapsed, "missing-upstream" if base is None else stderr))
             continue
         ratio = elapsed / base
         ratios.append((ratio, mode, path, base, elapsed))
-        if ratio > 1.5:
+        if ratio > threshold:
             failures.append((mode, path, rc, elapsed, f"ratio={ratio:.3f} upstream={base:.3f}"))
-    print("worst_ratio_to_upstream")
+    print(f"worst_ratio_to_upstream\t{label}")
     print("ratio\tmode\tupstream_s\tcurrent_s\tinput")
     for ratio, mode, path, base, elapsed in sorted(ratios, reverse=True)[:10]:
         print(f"{ratio:.3f}\t{mode}\t{base:.3f}\t{elapsed:.3f}\t{path.name}")
@@ -163,17 +208,36 @@ def byte_identity_sample(current_dot: str, before_dot: str | None) -> int:
         fixtures.append(rel)
         if len(fixtures) == 60:
             break
-    failures = 0
+    failures_by_mode = {mode: 0 for mode, _ in MODES}
     root = Path.cwd()
     before_root = Path(os.environ.get("GRAPHVIZ_LAYOUT_TIME_BEFORE_ROOT", root))
     for rel in fixtures:
-        for _, flags in MODES:
+        for mode, flags in MODES:
             old = subprocess.run([before_dot, *flags, "-Txdot", str(before_root / rel)], stdout=subprocess.PIPE)
             new = subprocess.run([current_dot, *flags, "-Txdot", str(root / rel)], stdout=subprocess.PIPE)
-            failures += old.returncode != new.returncode or old.stdout != new.stdout
+            failures_by_mode[mode] += old.returncode != new.returncode or old.stdout != new.stdout
+    print(f"byte_identity_sample\tbase={base_ref}\tfixtures={len(fixtures)}")
+    print("mode\tmatched\ttotal")
+    for mode, _ in MODES:
+        failures = failures_by_mode[mode]
+        print(f"{mode}\t{len(fixtures) - failures}\t{len(fixtures)}")
     total = len(fixtures) * len(MODES)
-    print(f"byte_identity_sample\tmatched={total - failures}\ttotal={total}\tbase={base_ref}")
+    failures = sum(failures_by_mode.values())
     return 1 if failures else 0
+
+
+def print_buildability_report() -> None:
+    path = env_path("GRAPHVIZ_LAYOUT_TIME_BUILDABILITY_REPORT")
+    if path is None:
+        print("standalone_buildability\tskipped\tGRAPHVIZ_LAYOUT_TIME_BUILDABILITY_REPORT not set")
+        return
+    report = Path(path)
+    if not report.is_file():
+        print(f"standalone_buildability\tmissing\t{report}")
+        return
+    print("standalone_buildability")
+    for line in report.read_text(errors="replace").splitlines():
+        print(line)
 
 
 def main() -> int:
@@ -186,6 +250,10 @@ def main() -> int:
 
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     print(f"commit\t{commit}")
+    print(f"configure\tupstream\t{configure_line('upstream', upstream_dot)}")
+    if before_dot:
+        print(f"configure\tbefore\t{configure_line('before', before_dot)}")
+    print(f"configure\tafter\t{configure_line('after', current_dot)}")
     if bisect_result := os.environ.get("GRAPHVIZ_LAYOUT_TIME_BISECT_RESULT"):
         print(f"bisect_result\t{bisect_result}")
     if profile_evidence := os.environ.get("GRAPHVIZ_LAYOUT_TIME_PROFILE_EVIDENCE"):
@@ -197,8 +265,12 @@ def main() -> int:
     if before_rows:
         print_counts("before", before_rows)
     print_counts("after", current_rows)
-    rc = ratio_report(upstream_rows, current_rows)
+    rc = 0
+    if before_rows:
+        rc |= ratio_report_for_label("before", upstream_rows, before_rows, float("inf"))
+    rc |= ratio_report(upstream_rows, current_rows)
     rc |= byte_identity_sample(current_dot, before_dot)
+    print_buildability_report()
     return rc
 
 
