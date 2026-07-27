@@ -12,7 +12,9 @@
 
 #include <common/concentrate_junction.h>
 
-bool concentrate_junction_skip_node(const node_t *n) { return ND_concentrate_junction(n); }
+bool concentrate_junction_skip_node(const node_t *n) {
+  return ND_concentrate_junction(n);
+}
 
 bool concentrate_junction_skip_edge(const edge_t *e) {
   return ED_concentrate_junction_internal(e);
@@ -23,7 +25,8 @@ size_t concentrate_junction_draw_spline_count(const edge_t *e) {
     return 0;
   }
   size_t emit_splines = ED_spl(e)->size;
-  if (!ED_concentrate_junction_draw_trunk(e) && ED_concentrate_junction_emit_splines(e) > 0) {
+  if (!ED_concentrate_junction_draw_trunk(e) &&
+      ED_concentrate_junction_emit_splines(e) > 0) {
     emit_splines = ED_concentrate_junction_emit_splines(e);
     if (emit_splines > ED_spl(e)->size) {
       emit_splines = ED_spl(e)->size;
@@ -33,7 +36,8 @@ size_t concentrate_junction_draw_spline_count(const edge_t *e) {
 }
 
 textlabel_t *concentrate_junction_label(const edge_t *e) {
-  if (ED_concentrate_junction_emit_splines(e) == 0 || ED_concentrate_junction_draw_trunk(e)) {
+  if (ED_concentrate_junction_emit_splines(e) == 0 ||
+      ED_concentrate_junction_draw_trunk(e)) {
     return ED_label(e);
   }
   return NULL;
