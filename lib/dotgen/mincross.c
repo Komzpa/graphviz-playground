@@ -585,41 +585,39 @@ static bool left2right(graph_t *g, node_t *v, node_t *w) {
 }
 
 static int mincross_penalty(edge_t *e) { return MAX(ED_xpenalty(e), 0); }
-
-static int64_t in_cross(node_t *v, node_t *w) {
-  edge_t **e1, **e2;
-  int inv, t;
-  int64_t cross = 0;
-
-  for (e2 = ND_in(w).list; *e2; e2++) {
-    int cnt = mincross_penalty(*e2);
-
-    inv = ND_order(agtail(*e2));
-
-    for (e1 = ND_in(v).list; *e1; e1++) {
-      t = ND_order(agtail(*e1)) - inv;
-      if (t > 0 || (t == 0 && ED_tail_port(*e1).p.x > ED_tail_port(*e2).p.x))
-        cross += mincross_penalty(*e1) * cnt;
+static void in_cross_pair(node_t *v, node_t *w, int64_t *vw, int64_t *wv) {
+  *vw = *wv = 0;
+  for (edge_t **v_edge = ND_in(v).list; *v_edge; v_edge++) {
+    const int v_penalty = mincross_penalty(*v_edge);
+    const int v_order = ND_order(agtail(*v_edge));
+    const double v_port = ED_tail_port(*v_edge).p.x;
+    for (edge_t **w_edge = ND_in(w).list; *w_edge; w_edge++) {
+      const int w_penalty = mincross_penalty(*w_edge);
+      const int t = v_order - ND_order(agtail(*w_edge));
+      const int64_t penalty = (int64_t)v_penalty * w_penalty;
+      if (t > 0 || (t == 0 && v_port > ED_tail_port(*w_edge).p.x))
+        *vw += penalty;
+      else if (t < 0 || (t == 0 && v_port < ED_tail_port(*w_edge).p.x))
+        *wv += penalty;
     }
   }
-  return cross;
 }
-
-static int out_cross(node_t *v, node_t *w) {
-  edge_t **e1, **e2;
-  int inv, cross = 0, t;
-
-  for (e2 = ND_out(w).list; *e2; e2++) {
-    int cnt = mincross_penalty(*e2);
-    inv = ND_order(aghead(*e2));
-
-    for (e1 = ND_out(v).list; *e1; e1++) {
-      t = ND_order(aghead(*e1)) - inv;
-      if (t > 0 || (t == 0 && ED_head_port(*e1).p.x > ED_head_port(*e2).p.x))
-        cross += mincross_penalty(*e1) * cnt;
+static void out_cross_pair(node_t *v, node_t *w, int64_t *vw, int64_t *wv) {
+  *vw = *wv = 0;
+  for (edge_t **v_edge = ND_out(v).list; *v_edge; v_edge++) {
+    const int v_penalty = mincross_penalty(*v_edge);
+    const int v_order = ND_order(aghead(*v_edge));
+    const double v_port = ED_head_port(*v_edge).p.x;
+    for (edge_t **w_edge = ND_out(w).list; *w_edge; w_edge++) {
+      const int w_penalty = mincross_penalty(*w_edge);
+      const int t = v_order - ND_order(aghead(*w_edge));
+      const int64_t penalty = (int64_t)v_penalty * w_penalty;
+      if (t > 0 || (t == 0 && v_port > ED_head_port(*w_edge).p.x))
+        *vw += penalty;
+      else if (t < 0 || (t == 0 && v_port < ED_head_port(*w_edge).p.x))
+        *wv += penalty;
     }
   }
-  return cross;
 }
 
 static void exchange(node_t *v, node_t *w) {
@@ -637,7 +635,6 @@ static void exchange(node_t *v, node_t *w) {
 static int64_t transpose_step(graph_t *g, int r, bool reverse) {
   int i;
   node_t *v, *w;
-
   int64_t rv = 0;
   GD_rank(g)[r].candidate = false;
   for (i = 0; i < GD_rank(g)[r].n - 1; i++) {
@@ -646,15 +643,18 @@ static int64_t transpose_step(graph_t *g, int r, bool reverse) {
     assert(ND_order(v) < ND_order(w));
     if (left2right(g, v, w))
       continue;
-    int64_t c0 = 0;
-    int64_t c1 = 0;
+    int64_t c0 = 0, c1 = 0;
     if (r > 0) {
-      c0 += in_cross(v, w);
-      c1 += in_cross(w, v);
+      int64_t vw = 0, wv = 0;
+      in_cross_pair(v, w, &vw, &wv);
+      c0 += vw;
+      c1 += wv;
     }
     if (GD_rank(g)[r + 1].n > 0) {
-      c0 += out_cross(v, w);
-      c1 += out_cross(w, v);
+      int64_t vw = 0, wv = 0;
+      out_cross_pair(v, w, &vw, &wv);
+      c0 += vw;
+      c1 += wv;
     }
     if (c1 < c0 || (c0 > 0 && reverse && c1 == c0)) {
       exchange(v, w);
