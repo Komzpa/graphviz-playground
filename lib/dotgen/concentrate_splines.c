@@ -343,6 +343,32 @@ static void route_cubic_index_append(route_cubic_index_t *index,
   };
 }
 
+static int compare_route_cubic_bounds(const void *a, const void *b) {
+  const route_cubic_ref_t *const left = a;
+  const route_cubic_ref_t *const right = b;
+  if (left->bounds.LL.x < right->bounds.LL.x)
+    return -1;
+  if (left->bounds.LL.x > right->bounds.LL.x)
+    return 1;
+  if (left->bounds.UR.x < right->bounds.UR.x)
+    return -1;
+  if (left->bounds.UR.x > right->bounds.UR.x)
+    return 1;
+  if (left->edge_index < right->edge_index)
+    return -1;
+  if (left->edge_index > right->edge_index)
+    return 1;
+  if (left->spline_index < right->spline_index)
+    return -1;
+  if (left->spline_index > right->spline_index)
+    return 1;
+  if (left->cubic < right->cubic)
+    return -1;
+  if (left->cubic > right->cubic)
+    return 1;
+  return 0;
+}
+
 static void route_cubic_index_build(graph_t *graph,
                                     route_cubic_index_t *index) {
   size_t edge_index = 0;
@@ -364,6 +390,10 @@ static void route_cubic_index_build(graph_t *graph,
         }
       }
     }
+  }
+  if (index->size > 1) {
+    qsort(index->items, index->size, sizeof(*index->items),
+          compare_route_cubic_bounds);
   }
 }
 
@@ -624,6 +654,10 @@ static bool route_graph_crossing_signature(route_cubic_index_t *index,
         route_cubic_bounds(affected_controls[affected_index]);
     for (size_t item_index = 0; item_index < index->size; item_index++) {
       route_cubic_ref_t *const item = &index->items[item_index];
+      if (item->bounds.LL.x > affected_bounds.UR.x)
+        break;
+      if (item->bounds.UR.x < affected_bounds.LL.x)
+        continue;
       const pointf *const other_control = item->control;
       const size_t other_cubic = item->cubic;
       const bool same_route = item->edge_splines == affected_splines;
