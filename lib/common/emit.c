@@ -26,6 +26,7 @@
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
+#include <common/edgejunction.h>
 #include <common/geomprocs.h>
 #include <common/render.h>
 #include <common/htmltable.h>
@@ -1802,10 +1803,7 @@ static void emit_node(GVJ_t * job, node_t * n)
     char **styles = NULL;
     char **sp;
     char *p;
-
-    if (ND_edgejunction(n))
-	return;
-
+    if (edgejunction_skip_node(n)) return;
     if (ND_shape(n) 				     /* node has a shape */
 	    && node_in_layer(job, agraphof(n), n)    /* and is in layer */
 	    && node_in_box(n, job->clip)             /* and is in page/view */
@@ -2374,14 +2372,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
     char* p;
     bool tapered = false;
     agxbuf buf = {0};
-    size_t emit_splines = ED_spl(e) ? ED_spl(e)->size : 0;
-    if (ED_spl(e) && !ED_edgejunction_draw_trunk(e) &&
-	    ED_edgejunction_emit_splines(e) > 0) {
-	emit_splines = ED_edgejunction_emit_splines(e);
-	if (emit_splines > ED_spl(e)->size)
-	    emit_splines = ED_spl(e)->size;
-    }
-
+    size_t emit_splines = edgejunction_draw_spline_count(e);
 #define SEP 2.0
 
     if (ED_spl(e)) {
@@ -3052,11 +3043,7 @@ static void emit_end_edge(GVJ_t * job)
 	nodeIntersect(job, p, obj->explicit_headurl != 0, obj->headurl,
 	              obj->explicit_headtooltip != 0);
     }
-
-    const bool emit_junction_label =
-	ED_edgejunction_emit_splines(e) == 0 || ED_edgejunction_draw_trunk(e);
-
-    emit_edge_label(job, emit_junction_label ? ED_label(e) : NULL, EMIT_ELABEL,
+    emit_edge_label(job, edgejunction_label(e), EMIT_ELABEL,
 	obj->explicit_labeltooltip, 
 	obj->labelurl, obj->labeltooltip, obj->labeltarget, obj->id, 
 	((mapbool(late_string(e, E_decorate, "false")) && ED_spl(e)) ? ED_spl(e) : 0));
@@ -3072,7 +3059,6 @@ static void emit_end_edge(GVJ_t * job)
 	obj->explicit_tailtooltip,
 	obj->tailurl, obj->tailtooltip, obj->tailtarget, obj->id,
 	0);
-
     gvrender_end_edge(job);
     pop_obj_state(job);
 }
@@ -3084,10 +3070,7 @@ static void emit_edge(GVJ_t * job, edge_t * e)
     char **styles = NULL;
     char **sp;
     char *p;
-
-    if (ED_edgejunction_internal(e))
-	return;
-
+    if (edgejunction_skip_edge(e)) return;
     if (edge_in_box(e, job->clip) && edge_in_layer(job, e) ) {
 
 	agxbuf edge = {0};

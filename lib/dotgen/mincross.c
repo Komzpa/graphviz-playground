@@ -894,12 +894,7 @@ void save_vlist(graph_t *g) {
 
   if (GD_rankleader(g))
     for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
-      if (GD_rank(g)[r].n == 0 &&
-          mapbool(agget(dot_root(g), "_edgejunction_clustered_fallback"))) {
-        GD_rankleader(g)[r] = NULL;
-        continue;
-      }
-      GD_rankleader(g)[r] = GD_rank(g)[r].v[0];
+      dot_edgejunction_save_rankleader(g, r);
     }
 }
 
