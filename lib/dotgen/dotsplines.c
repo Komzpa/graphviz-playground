@@ -1725,6 +1725,19 @@ static void straighten_flat_port_progression(bezier *spline) {
   }
 }
 
+static void straighten_flat_port_line(bezier *spline) {
+  if (spline->size <= 4)
+    return;
+
+  const pointf start = spline->list[0];
+  const pointf end = spline->list[spline->size - 1];
+  for (size_t i = 1; i + 1 < spline->size; ++i) {
+    const double fraction = (double)i / (double)(spline->size - 1);
+    spline->list[i] = (pointf){.x = start.x + (end.x - start.x) * fraction,
+                               .y = start.y + (end.y - start.y) * fraction};
+  }
+}
+
 static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   const pointf tail_center = ND_coord(agtail(edge));
   const pointf head_center = ND_coord(aghead(edge));
@@ -1737,6 +1750,9 @@ static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
       E_sametail != NULL && agxget(edge, E_sametail)[0] != '\0';
   const bool grouped_head =
       E_samehead != NULL && agxget(edge, E_samehead)[0] != '\0';
+  const char *const direction = agget(edge, "dir");
+  const bool draws_both_arrows =
+      direction != NULL && strcmp(direction, "both") == 0;
 
   if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip) {
     const pointf anchor =
@@ -1753,7 +1769,10 @@ static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip &&
       ED_head_port(edge).defined && !ED_head_port(edge).clip && !grouped_tail &&
       !grouped_head) {
-    straighten_flat_port_progression(spline);
+    if (draws_both_arrows)
+      straighten_flat_port_line(spline);
+    else
+      straighten_flat_port_progression(spline);
   }
 }
 
@@ -1946,8 +1965,58 @@ static void makeSimpleFlatLabels(node_t *tn, node_t *hn, edge_t **edges,
   free(earray);
 }
 
-static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
-                           int et) {
+static void nudge_if_on_cluster_border(graph_t *g, pointf *c1, pointf *c2) {
+  const double cluster_border_clearance = 8.0;
+  const double colinear_epsilon = 0.5;
+  const double min_overlap = 4.0;
+
+  if (fabs(c1->y - c2->y) <= colinear_epsilon) {
+    const double y = (c1->y + c2->y) / 2.0;
+    const double low = MIN(c1->x, c2->x);
+    const double high = MAX(c1->x, c2->x);
+    for (int c = 1; c <= GD_n_cluster(g); c++) {
+      const boxf bb = GD_bb(GD_clust(g)[c]);
+      const double overlap = MIN(high, bb.UR.x) - MAX(low, bb.LL.x);
+      if (overlap < min_overlap)
+        continue;
+      if (fabs(y - bb.LL.y) <= colinear_epsilon) {
+        c1->y -= cluster_border_clearance;
+        c2->y -= cluster_border_clearance;
+        return;
+      }
+      if (fabs(y - bb.UR.y) <= colinear_epsilon) {
+        c1->y += cluster_border_clearance;
+        c2->y += cluster_border_clearance;
+        return;
+      }
+    }
+  }
+
+  if (fabs(c1->x - c2->x) <= colinear_epsilon) {
+    const double x = (c1->x + c2->x) / 2.0;
+    const double low = MIN(c1->y, c2->y);
+    const double high = MAX(c1->y, c2->y);
+    for (int c = 1; c <= GD_n_cluster(g); c++) {
+      const boxf bb = GD_bb(GD_clust(g)[c]);
+      const double overlap = MIN(high, bb.UR.y) - MAX(low, bb.LL.y);
+      if (overlap < min_overlap)
+        continue;
+      if (fabs(x - bb.LL.x) <= colinear_epsilon) {
+        c1->x -= cluster_border_clearance;
+        c2->x -= cluster_border_clearance;
+        return;
+      }
+      if (fabs(x - bb.UR.x) <= colinear_epsilon) {
+        c1->x += cluster_border_clearance;
+        c2->x += cluster_border_clearance;
+        return;
+      }
+    }
+  }
+}
+
+static void makeSimpleFlat(graph_t *g, node_t *tn, node_t *hn, edge_t **edges,
+                           unsigned cnt, int et) {
   edge_t *e = *edges;
   pointf points[10], tp, hp;
   double stepy, dy;
@@ -1965,6 +2034,8 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
       points[pointn++] = tp;
       points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
       points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
+      if (et == EDGETYPE_SPLINE)
+        nudge_if_on_cluster_border(g, &points[1], &points[2]);
       points[pointn++] = hp;
     } else { /* EDGETYPE_PLINE */
       points[pointn++] = tp;
@@ -2034,7 +2105,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   if (!ports) {
     /* flat edges without ports and labels can go straight left to right */
     if (labels == 0) {
-      makeSimpleFlat(tn, hn, edges, cnt, et);
+      makeSimpleFlat(g, tn, hn, edges, cnt, et);
     }
     /* flat edges without ports but with labels take more work */
     else {
@@ -2414,7 +2485,7 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
   }
 
   if (et == EDGETYPE_LINE) {
-    makeSimpleFlat(agtail(e), aghead(e), edges, cnt, et);
+    makeSimpleFlat(g, agtail(e), aghead(e), edges, cnt, et);
     return 0;
   }
 

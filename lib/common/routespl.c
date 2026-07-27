@@ -1230,7 +1230,7 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
     node_t *head = aghead(e);
     dumb[1] = dumb[0] = add_pointf(ND_coord(n), ED_tail_port(e).p);
     dumb[2] = dumb[3] = add_pointf(ND_coord(head), ED_head_port(e).p);
-    if (e_cnt == 1) {
+    if (e_cnt == 1 || Concentrate) {
 	if (curved) bend(dumb,get_cycle_centroid(g, edge_list[0]));
 	clip_and_install(e, aghead(e), dumb, 4, sinfo);
 	addEdgeLabels(e);
