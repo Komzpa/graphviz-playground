@@ -298,13 +298,6 @@ static void init_added_edge(edge_t *e) {
   dot_bundle_load_init_original(e);
 }
 
-static void reserve_labelled_trunk_rank(edge_t *trunk) {
-  if (ED_label(trunk) == NULL) {
-    return;
-  }
-  ED_minlen(trunk) = MAX(ED_minlen(trunk), 2);
-}
-
 static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
                        junction_kind_t kind, bool reverse) {
   edge_t *rep = group->edges[0];
@@ -374,7 +367,6 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agsafeset(trunk, "_concentrate_junction_internal", "true", "");
   init_added_edge(trunk);
   ED_concentrate_junction_internal(trunk) = true;
-  reserve_labelled_trunk_rank(trunk);
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
     const int orig_weight = ED_weight(orig);
