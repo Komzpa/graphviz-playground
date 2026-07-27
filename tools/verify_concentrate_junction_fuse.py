@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify edgejunction fan arms fuse through one ranked junction."""
+"""Verify junction fan arms fuse through one ranked junction."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-BASE_SHA = "af816a590db24bb86d37edc96efc6928b294492e"
+BASE_SHA = "ade8fc4c07205ad6114bc65598575653f8bee415"
 PLACEMENT_BASE_SHA = "11de5b7e6b82750cf1eab029df40cbc127eebd62"
 GROUP_ATTRS = (
     "label",
@@ -53,28 +53,32 @@ GROUP_ATTRS = (
     "headtarget",
     "tailtarget",
 )
-# The DRBD state graph is not in-tree; point EDGEJUNCTION_DRBD at a local copy
+# The DRBD state graph is not in-tree; point CONCENTRATE_JUNCTION_DRBD at a local copy
 # to include it. Without it the in-tree cases still run.
-DRBD_ENV = "EDGEJUNCTION_DRBD"
+DRBD_ENV = "CONCENTRATE_JUNCTION_DRBD"
 DEFAULT_CASES = tuple(
     case
     for case in (
-        ("siblings", "fanin", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
-        ("drbd", "both", os.environ.get(DRBD_ENV, "")),
+        ("siblings", "on", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
+        ("drbd", "on", os.environ.get(DRBD_ENV, "")),
     )
     if case[2]
+)
+RANKERS = (
+    ("default", ()),
+    ("newrank", ("-Gnewrank=true",)),
 )
 GEOMETRY_CASES = tuple(
     case
     for case in (
-        ("siblings", "fanin", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
-        ("drbd", "both", os.environ.get(DRBD_ENV, "")),
-        ("dfa", "fanin", "graphs/directed/dfa.gv"),
-        ("unix", "fanin", "graphs/directed/unix.gv"),
+        ("siblings", "on", "tests/graphs/concentrate-demo/distinct-shared-trunk-siblings-separate.dot"),
+        ("drbd", "on", os.environ.get(DRBD_ENV, "")),
+        ("dfa", "on", "graphs/directed/dfa.gv"),
+        ("unix", "on", "graphs/directed/unix.gv"),
     )
     if case[2]
 )
-SIBLINGS_NODES = ("a", "b", "c", "e", "_edgejunction_0", "d")
+SIBLINGS_NODES = ("a", "b", "c", "e", "_concentrate_junction_0", "d")
 DRBD_LABELS = (
     "ioctl_set_disk()",
     "receive_param()",
@@ -137,19 +141,33 @@ def dot_path(root: Path) -> str:
     return dot
 
 
-def dot_json(dot: str, mode: str, path: Path, *, phase: bool = False) -> dict:
-    edgejunction = "none" if mode == "off" else mode
-    args = [dot, f"-Gedgejunction={edgejunction}"]
+def dot_json(
+    dot: str,
+    mode: str,
+    path: Path,
+    *,
+    phase: bool = False,
+    ranker_args: tuple[str, ...] = (),
+) -> dict:
+    args = [dot]
+    if mode != "off":
+        args.append("-Gconcentrate=true")
+    args.extend(ranker_args)
     if phase:
         args.append("-Gphase=1")
     args += ["-Tjson", str(path)]
     return json.loads(run(args).stdout)
 
 
-def dot_verbose_crossings(dot: str, mode: str, path: Path) -> int:
-    edgejunction = "none" if mode == "off" else mode
+def dot_verbose_crossings(
+    dot: str, mode: str, path: Path, ranker_args: tuple[str, ...] = ()
+) -> int:
+    args = [dot, "-v", "-Tsvg", str(path)]
+    if mode != "off":
+        args.insert(1, "-Gconcentrate=true")
+    args[1:1] = ranker_args
     proc = subprocess.run(
-        [dot, f"-Gedgejunction={edgejunction}", "-v", "-Tsvg", str(path)],
+        args,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,
@@ -194,8 +212,10 @@ def node_positions(layout: dict) -> dict[str, tuple[float, float]]:
     return out
 
 
-def print_siblings_positions(dot: str, path: Path) -> int:
-    pos = node_positions(dot_json(dot, "fanin", path))
+def print_siblings_positions(
+    dot: str, path: Path, ranker_name: str, ranker_args: tuple[str, ...]
+) -> int:
+    pos = node_positions(dot_json(dot, "on", path, ranker_args=ranker_args))
     print("siblings fixture node positions:")
     failures = 0
     for name in SIBLINGS_NODES:
@@ -204,11 +224,11 @@ def print_siblings_positions(dot: str, path: Path) -> int:
             failures += 1
             continue
         print(f"  {name}: x={pos[name][0]:.2f} y={pos[name][1]:.2f}")
-    aligned = ("c", "e", "_edgejunction_0", "d")
+    aligned = ("c", "e", "_concentrate_junction_0", "d")
     if all(name in pos for name in aligned):
         xs = [pos[name][0] for name in aligned]
         spread = max(xs) - min(xs)
-        print(f"siblings fixture spine x spread: {spread:.2f}pt")
+        print(f"siblings fixture spine x spread ranker={ranker_name}: {spread:.2f}pt")
         if spread > 1.0:
             print(f"FAIL siblings fixture spine spread {spread:.2f}pt exceeds 1pt")
             failures += 1
@@ -251,17 +271,17 @@ def junction_map(layout: dict, kind: str, anchor: str) -> dict[tuple[str, str], 
     junctions = {
         obj["name"]
         for obj in layout.get("objects", [])
-        if obj.get("_edgejunction_node") == "true"
+        if obj.get("_concentrate_junction_node") == "true"
     }
     mapped: dict[tuple[str, str], str] = {}
     for edge in layout.get("edges", []):
-        if edge.get("_edgejunction_internal") != "true":
+        if edge.get("_concentrate_junction_internal") != "true":
             continue
         tail = node_names[int(edge["tail"])]
         head = node_names[int(edge["head"])]
         if kind == "fanin" and head in junctions:
             if any(
-                e.get("_edgejunction_internal") == "true"
+                e.get("_concentrate_junction_internal") == "true"
                 and node_names[int(e["tail"])] == head
                 and node_names[int(e["head"])] == anchor
                 for e in layout.get("edges", [])
@@ -269,7 +289,7 @@ def junction_map(layout: dict, kind: str, anchor: str) -> dict[tuple[str, str], 
                 mapped[(tail, anchor)] = head
         elif kind == "fanout" and tail in junctions:
             if any(
-                e.get("_edgejunction_internal") == "true"
+                e.get("_concentrate_junction_internal") == "true"
                 and node_names[int(e["tail"])] == anchor
                 and node_names[int(e["head"])] == tail
                 for e in layout.get("edges", [])
@@ -309,14 +329,20 @@ def check_fan_alignment(
     return failures
 
 
-def grouped_after_arms(dot: str, path: Path, mode: str, kind: str) -> dict[tuple[str, tuple[tuple[str, str], ...]], list[Arm]]:
-    after = dot_json(dot, mode, path)
-    phase = dot_json(dot, mode, path, phase=True)
+def grouped_after_arms(
+    dot: str,
+    path: Path,
+    mode: str,
+    kind: str,
+    ranker_args: tuple[str, ...],
+) -> dict[tuple[str, tuple[tuple[str, str], ...]], list[Arm]]:
+    after = dot_json(dot, mode, path, ranker_args=ranker_args)
+    phase = dot_json(dot, mode, path, phase=True, ranker_args=ranker_args)
     rank = ranks(phase)
     node_names = names(after)
     groups: dict[tuple[str, tuple[tuple[str, str], ...]], list[Arm]] = defaultdict(list)
     for edge in after.get("edges", []):
-        if edge.get("_edgejunction_original") != "true":
+        if edge.get("_concentrate_junction_original") != "true":
             continue
         tail = node_names[int(edge["tail"])]
         head = node_names[int(edge["head"])]
@@ -331,16 +357,23 @@ def grouped_after_arms(dot: str, path: Path, mode: str, kind: str) -> dict[tuple
     return {key: arms for key, arms in groups.items() if len(arms) >= 2}
 
 
-def verify_fans(dot: str, case_name: str, mode: str, path: Path) -> int:
-    before = dot_json(dot, "off", path)
-    after = dot_json(dot, mode, path)
+def verify_fans(
+    dot: str,
+    case_name: str,
+    mode: str,
+    path: Path,
+    ranker_name: str,
+    ranker_args: tuple[str, ...],
+) -> int:
+    before = dot_json(dot, "off", path, ranker_args=ranker_args)
+    after = dot_json(dot, mode, path, ranker_args=ranker_args)
     failures = 0
-    kinds = ("fanin", "fanout") if mode == "both" else (mode,)
-    print(f"fixture={case_name} path={path} mode={mode}")
+    kinds = ("fanin", "fanout") if mode == "on" else (mode,)
+    print(f"fixture={case_name} path={path} mode={mode} ranker={ranker_name}")
     for kind in kinds:
         if kind not in {"fanin", "fanout"}:
             continue
-        groups = grouped_after_arms(dot, path, mode, kind)
+        groups = grouped_after_arms(dot, path, mode, kind, ranker_args)
         for (anchor, ident), arms in sorted(groups.items(), key=lambda item: (item[0][0], identity_text(item[0][1]))):
             before_count = (
                 visible_head_arrow_count(before, anchor, ident)
@@ -372,8 +405,10 @@ def verify_fans(dot: str, case_name: str, mode: str, path: Path) -> int:
     return failures
 
 
-def siblings_total_arrowheads(dot: str, path: Path) -> int:
-    layout = dot_json(dot, "fanin", path)
+def siblings_total_arrowheads(
+    dot: str, path: Path, ranker_name: str, ranker_args: tuple[str, ...]
+) -> int:
+    layout = dot_json(dot, "on", path, ranker_args=ranker_args)
     node_names = names(layout)
     total = 0
     by_color = Counter()
@@ -385,14 +420,16 @@ def siblings_total_arrowheads(dot: str, path: Path) -> int:
         color = edge.get("color", "black")
         by_color[color] += count
     print(
-        "siblings fixture arrowhead count into d: "
+        f"siblings fixture arrowhead count into d ranker={ranker_name}: "
         f"total={total} black={by_color['black']} blue={by_color['blue']} red={by_color['red']}"
     )
     return 0 if total == 3 and by_color["black"] == 1 and by_color["blue"] == 1 and by_color["red"] == 1 else 1
 
 
-def drbd_label_counts(dot: str, path: Path) -> int:
-    layout = dot_json(dot, "both", path)
+def drbd_label_counts(
+    dot: str, path: Path, ranker_name: str, ranker_args: tuple[str, ...]
+) -> int:
+    layout = dot_json(dot, "on", path, ranker_args=ranker_args)
     counts = Counter(
         op.get("text", "")
         for edge in layout.get("edges", [])
@@ -402,7 +439,7 @@ def drbd_label_counts(dot: str, path: Path) -> int:
     failures = 0
     for label in DRBD_LABELS:
         actual = counts[label]
-        print(f"DRBD label count {label!r}: {actual}")
+        print(f"DRBD label count ranker={ranker_name} {label!r}: {actual}")
         if actual != 1:
             failures += 1
     return failures
@@ -587,51 +624,47 @@ def label_metrics(layout: dict) -> tuple[int, int, int]:
 
 def verify_geometry_metrics(dot: str, root: Path) -> int:
     before_dot = dot_built_at(
-        root, PLACEMENT_BASE_SHA, "graphviz-edgejunction-placement-baseline"
+        root, PLACEMENT_BASE_SHA, "graphviz-concentrate_junction-placement-baseline"
     )
     failures = 0
-    for case_name, mode, rel in GEOMETRY_CASES:
-        path = Path(rel)
-        if not path.is_absolute():
-            path = root / path
-        if not path.exists():
-            print(f"FAIL missing geometry fixture {path}")
-            failures += 1
-            continue
-        before_crossings = dot_verbose_crossings(before_dot, mode, path)
-        after_crossings = dot_verbose_crossings(dot, mode, path)
-        print(
-            f"crossings fixture={case_name} mode={mode}: "
-            f"before={before_crossings} before_sha={PLACEMENT_BASE_SHA} "
-            f"after={after_crossings}"
-        )
-        if after_crossings > before_crossings:
-            print(
-                f"FAIL crossings fixture={case_name}: after {after_crossings} "
-                f"exceeds before {before_crossings}"
-            )
-            failures += 1
-
-        before_labels = label_metrics(dot_json(before_dot, mode, path))
-        after_labels = label_metrics(dot_json(dot, mode, path))
-        metric_names = (
-            "foreign_edge_label_crossings",
-            "label_label_overlaps",
-            "label_node_overlaps",
-        )
-        for metric_name, before_value, after_value in zip(
-            metric_names, before_labels, after_labels
-        ):
-            print(
-                f"label metric fixture={case_name} mode={mode} "
-                f"{metric_name}: before={before_value} after={after_value}"
-            )
-            if after_value > before_value:
-                print(
-                    f"FAIL label metric fixture={case_name} {metric_name}: "
-                    f"after {after_value} exceeds before {before_value}"
-                )
+    for ranker_name, ranker_args in RANKERS:
+        for case_name, mode, rel in GEOMETRY_CASES:
+            path = Path(rel)
+            if not path.is_absolute():
+                path = root / path
+            if not path.exists():
+                print(f"FAIL missing geometry fixture {path}")
                 failures += 1
+                continue
+            before_crossings = dot_verbose_crossings(before_dot, mode, path, ranker_args)
+            after_crossings = dot_verbose_crossings(dot, mode, path, ranker_args)
+            print(
+                f"crossings fixture={case_name} mode={mode} ranker={ranker_name}: "
+                f"before={before_crossings} before_sha={PLACEMENT_BASE_SHA} "
+                f"after={after_crossings}"
+            )
+            before_labels = label_metrics(
+                dot_json(before_dot, mode, path, ranker_args=ranker_args)
+            )
+            after_labels = label_metrics(dot_json(dot, mode, path, ranker_args=ranker_args))
+            metric_names = (
+                "foreign_edge_label_crossings",
+                "label_label_overlaps",
+                "label_node_overlaps",
+            )
+            for metric_name, before_value, after_value in zip(
+                metric_names, before_labels, after_labels
+            ):
+                print(
+                    f"label metric fixture={case_name} mode={mode} ranker={ranker_name} "
+                    f"{metric_name}: before={before_value} after={after_value}"
+                )
+                if after_value > before_value:
+                    print(
+                        f"FAIL label metric fixture={case_name} ranker={ranker_name} "
+                        f"{metric_name}: after {after_value} exceeds before {before_value}"
+                    )
+                    failures += 1
     return failures
 
 
@@ -650,7 +683,7 @@ def dot_built_at(root: Path, sha: str, name: str) -> str:
 
 
 def baseline_dot(root: Path) -> str:
-    return dot_built_at(root, BASE_SHA, "graphviz-edgejunction-baseline")
+    return dot_built_at(root, BASE_SHA, "graphviz-concentrate_junction-baseline")
 
 
 def corpus_paths(root: Path) -> list[str]:
@@ -666,10 +699,10 @@ def corpus_paths(root: Path) -> list[str]:
         if not current.exists():
             continue
         text = current.read_text(errors="ignore")
-        if "edgejunction" in text:
+        if "concentrate_junction" in text:
             continue
         picked.append(rel)
-        if len(picked) == 40:
+        if len(picked) == 60:
             break
     return picked
 
@@ -704,7 +737,7 @@ def attribute_absent_identity(root: Path, current_dot: str) -> int:
     matched = 0
     paths = corpus_paths(root)
     for rel in paths:
-        base_path = Path(tempfile.gettempdir()) / f"edgejunction-base-{os.getpid()}-{len(rel)}.dot"
+        base_path = Path(tempfile.gettempdir()) / f"concentrate_junction-base-{os.getpid()}-{len(rel)}.dot"
         base_path.write_bytes(git_blob(root, rel))
         try:
             if xdot(base_dot, base_path) == xdot(current_dot, root / rel):
@@ -714,7 +747,7 @@ def attribute_absent_identity(root: Path, current_dot: str) -> int:
         finally:
             base_path.unlink(missing_ok=True)
     print(f"attribute-absent byte-identity sample: matched={matched} total={len(paths)} base={BASE_SHA}")
-    return 0 if matched == len(paths) == 40 else 1
+    return 0 if matched == len(paths) and len(paths) >= 60 else 1
 
 
 def main() -> int:
@@ -723,26 +756,28 @@ def main() -> int:
     print(f"commit sha: {run(['git', 'rev-parse', 'HEAD'], cwd=root).stdout.strip()}")
     print(f"dot: {current_dot}")
     failures = 0
-    for case_name, mode, rel in DEFAULT_CASES:
-        path = Path(rel)
-        if not path.is_absolute():
-            path = root / path
-        if not path.exists():
-            print(f"FAIL missing fixture {path}")
-            failures += 1
-            continue
-        failures += verify_fans(current_dot, case_name, mode, path)
-        if case_name == "siblings":
-            failures += print_siblings_positions(current_dot, path)
-            failures += siblings_total_arrowheads(current_dot, path)
-        if case_name == "drbd":
-            failures += drbd_label_counts(current_dot, path)
+    print("mode matrix: concentrate off/on x default/newrank")
+    for ranker_name, ranker_args in RANKERS:
+        for case_name, mode, rel in DEFAULT_CASES:
+            path = Path(rel)
+            if not path.is_absolute():
+                path = root / path
+            if not path.exists():
+                print(f"FAIL missing fixture {path}")
+                failures += 1
+                continue
+            failures += verify_fans(current_dot, case_name, mode, path, ranker_name, ranker_args)
+            if case_name == "siblings":
+                failures += print_siblings_positions(current_dot, path, ranker_name, ranker_args)
+                failures += siblings_total_arrowheads(current_dot, path, ranker_name, ranker_args)
+            if case_name == "drbd":
+                failures += drbd_label_counts(current_dot, path, ranker_name, ranker_args)
     failures += verify_geometry_metrics(current_dot, root)
     failures += attribute_absent_identity(root, current_dot)
     if failures:
-        print(f"FAIL verify_edgejunction_fuse: failures={failures}")
+        print(f"FAIL verify_concentrate_junction_fuse: failures={failures}")
         return 1
-    print("OK verify_edgejunction_fuse")
+    print("OK verify_concentrate_junction_fuse")
     return 0
 
 

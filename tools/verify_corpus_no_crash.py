@@ -12,16 +12,11 @@ import sys
 import time
 
 
-DEFAULT_CORPUS = (
-    "~/tmp/graphviz-pr1-cleanup-20260719/defects/route-curls/"
-    "census/frozen-inputs"
-)
 MODES = (
-    ("default", ()),
-    ("concentrate", ("-Gconcentrate=true",)),
-    ("edgejunction_fanin", ("-Gedgejunction=fanin",)),
-    ("edgejunction_fanout", ("-Gedgejunction=fanout",)),
-    ("edgejunction_both", ("-Gedgejunction=both",)),
+    ("off-default", ("-Gconcentrate=false",)),
+    ("off-newrank", ("-Gconcentrate=false", "-Gnewrank=true")),
+    ("on-default", ("-Gconcentrate=true",)),
+    ("on-newrank", ("-Gconcentrate=true", "-Gnewrank=true")),
 )
 
 
@@ -57,7 +52,10 @@ def _run_one(dot: str, timeout: float, item: tuple[str, tuple[str, ...], Path]):
 
 
 def main() -> int:
-    corpus = Path(os.environ.get("GRAPHVIZ_JUNCTION_CORPUS", DEFAULT_CORPUS)).expanduser()
+    corpus_env = os.environ.get("GRAPHVIZ_JUNCTION_CORPUS")
+    if corpus_env is None:
+        sys.exit("set GRAPHVIZ_JUNCTION_CORPUS to the frozen corpus directory")
+    corpus = Path(corpus_env).expanduser()
     if not corpus.is_dir():
         sys.exit(f"corpus directory not found: {corpus}")
 

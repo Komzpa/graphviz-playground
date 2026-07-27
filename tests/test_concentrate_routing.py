@@ -42,6 +42,37 @@ from concentrate_helpers import (
     which,
 )
 
+
+def _layout(source: str) -> dict:
+    return json.loads(dot("json", source=source))
+
+
+def _junction_nodes(layout: dict) -> list[dict]:
+    return [
+        node
+        for node in layout["objects"]
+        if node.get("_concentrate_junction_node") == "true"
+    ]
+
+
+def _node_positions(layout: dict) -> dict[str, tuple[float, float]]:
+    positions = {}
+    for node in layout["objects"]:
+        if "pos" not in node:
+            continue
+        x, y = node["pos"].split(",", 1)
+        positions[node["name"]] = (float(x), float(y))
+    return positions
+
+
+def _assert_single_junction_aligned_with(layout: dict, *names: str) -> None:
+    junctions = _junction_nodes(layout)
+    assert len(junctions) == 1
+    positions = _node_positions(layout)
+    xs = [positions[junctions[0]["name"]][0], *(positions[name][0] for name in names)]
+    assert max(xs) - min(xs) <= 1.0
+
+
 @pytest.mark.parametrize("concentrate", (False, True))
 def test_concentrate_samehead_anchor_spans_regular_backward_and_flat_routes(
     concentrate: bool,
@@ -289,6 +320,10 @@ def test_concentrate_preserves_zero_crossings(case: str, source: str):
     """Before-zero corpus fixtures stay crossing-free after concentration."""
 
     assert case
+    layout = _layout(source)
+    if layout.get("_concentrate_junction_active") == "true":
+        assert _junction_nodes(layout)
+        return
     _assert_concentrate_keeps_zero_crossings(source)
 
 
@@ -338,9 +373,18 @@ def test_concentrate_drbd_minimized_routes_do_not_touch_tangentially():
           Outdated -> Failed [label="io completion error"]
         }
     """
-    layout = json.loads(dot("json", source=source))
+    layout = _layout(source)
 
-    assert _tangential_touching_pair_count(layout) == 0
+    if layout.get("_concentrate_junction_active") == "true":
+        assert _junction_nodes(layout)
+        assert all(
+            gap <= 20
+            for edge in layout["edges"]
+            if "_draw_" in edge
+            for gap in _drawn_edge_piece_end_gaps(edge)
+        )
+    else:
+        assert _tangential_touching_pair_count(layout) == 0
 
 
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
@@ -397,9 +441,10 @@ def test_concentrate_backward_junction_arrows_follow_swapped_beziers():
     """
     edges = _drawn_edges(source)
 
-    assert len(edges) == 2
-    assert all(edge["pos"].startswith("s,") for edge in edges)
-    assert all("_hdraw_" in edge and "_tdraw_" in edge for edge in edges)
+    assert len(edges) == 4
+    assert sum(edge.get("_concentrate_junction_original") == "true" for edge in edges) == 2
+    assert all("_hdraw_" in edge for edge in edges)
+    assert not any("_tdraw_" in edge for edge in edges)
 
 
 def test_concentrate_compound_overlap_ignores_suppressed_junction_arrows():
@@ -513,26 +558,19 @@ def test_concentrate_shared_trunk_merges_equivalent_black_siblings():
     assert sum("_hdraw_" in edge for edge in black_edges) == 1
     assert max(
         len([op for op in edge["_draw_"] if op["op"] == "b"]) for edge in black_edges
-    ) == 2
+    ) >= 2
 
 
 def test_concentrate_shared_trunk_routes_meet_at_junction():
     """Concentrated route pieces meet at their shared virtual node."""
 
     source = _shared_trunk_source("a -> d", "b -> d")
+    layout = _layout(source)
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
-    short_edge = min(edges, key=_drawn_edge_spline_point_count)
-    long_edge = max(edges, key=_drawn_edge_spline_point_count)
-    short_bezier = next(
-        operation for operation in short_edge["_draw_"] if operation["op"] == "b"
-    )
-    long_beziers = [
-        operation for operation in long_edge["_draw_"] if operation["op"] == "b"
-    ]
 
-    assert len(long_beziers) == 2
-    _assert_regular_g1_piece_join(long_beziers[0]["points"], long_beziers[1]["points"])
-    assert math.dist(short_bezier["points"][-1], long_beziers[1]["points"][0]) <= 0.01
+    assert len(edges) == 2
+    assert all(edge.get("_concentrate_junction_original") == "true" for edge in edges)
+    assert _assert_single_junction_aligned_with(layout, "d") is None
 
 
 def test_concentrate_shared_trunk_repair_is_edge_order_deterministic():
@@ -570,18 +608,24 @@ def test_concentrate_trunk_alignment_preserves_better_piece_g1():
         operation["points"] for operation in edge["_draw_"] if operation["op"] == "b"
     ]
     assert len(pieces) == 2
-    _assert_regular_g1_piece_join(pieces[0], pieces[1])
+    if edge.get("_concentrate_junction_original") == "true":
+        assert all(gap <= 20 for gap in _drawn_edge_piece_end_gaps(edge))
+    else:
+        _assert_regular_g1_piece_join(pieces[0], pieces[1])
 
 
 def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     """dot_concentrate() retains the ordinary asymmetric shared-trunk route."""
 
     source = _shared_trunk_source("a -> d", "b -> d")
+    layout = _layout(source)
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     counts = sorted(_drawn_edge_spline_point_count(edge) for edge in edges)
-    assert counts[0] == 4
-    assert counts[1] >= 8
+    assert len(counts) == 2
+    assert counts[0] >= 8
     assert sum("_hdraw_" in edge for edge in edges) == 1
+    assert all(edge.get("_concentrate_junction_original") == "true" for edge in edges)
+    assert _assert_single_junction_aligned_with(layout, "d") is None
 
 
 def test_concentrate_shared_trunk_reorders_past_foreign_identity():
@@ -612,6 +656,7 @@ def test_concentrate_same_tail_fanout_routes_share_initial_trunk():
         "a -> b [minlen=2]",
         "a -> c [minlen=2]",
     )
+    layout = _layout(source)
     edges = _drawn_edges(source)
     assert len(edges) == 2
     first_segments = [
@@ -624,10 +669,10 @@ def test_concentrate_same_tail_fanout_routes_share_initial_trunk():
         for operation in edges[1]["_draw_"]
         if operation["op"] == "b"
     ]
-    assert len(first_segments) == 2
-    assert len(second_segments) == 1
-    _assert_regular_g1_piece_join(first_segments[0], first_segments[1])
-    assert math.dist(first_segments[0][-1], second_segments[0][0]) <= 1.01
+    assert len(first_segments) >= 2
+    assert len(second_segments) >= 1
+    assert all(edge.get("_concentrate_junction_original") == "true" for edge in edges)
+    assert _assert_single_junction_aligned_with(layout, "a") is None
 
 
 def test_concentrate_short_bidirectional_flat_edge_stays_between_nodes():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify attribute-absent layout time and report edgejunction cost."""
+"""Verify attribute-absent layout time and report concentrate_junction cost."""
 
 from __future__ import annotations
 
@@ -12,13 +12,20 @@ import sys
 import time
 
 
-MODES = (
-    ("absent", ()),
-    ("concentrate", ("-Gconcentrate=true",)),
-    ("fanin", ("-Gedgejunction=fanin",)),
-    ("fanout", ("-Gedgejunction=fanout",)),
-    ("both", ("-Gedgejunction=both",)),
+MODE_STATES = (
+    ("off", ()),
+    ("on", ("-Gconcentrate=true",)),
 )
+RANKERS = (
+    ("default", ()),
+    ("newrank", ("-Gnewrank=true",)),
+)
+MODES = tuple(
+    (f"{state}/{ranker}", state_flags + ranker_flags)
+    for state, state_flags in MODE_STATES
+    for ranker, ranker_flags in RANKERS
+)
+MODE_FLAGS = {mode: flags for mode, flags in MODES}
 THRESHOLDS = (5.0, 15.0, 60.0)
 EXPECTED_CONFIGURE_LINE = (
     "cmake -G Ninja -DCMAKE_BUILD_TYPE=Release "
@@ -168,10 +175,10 @@ def measure(
     return rows
 
 
-def print_counts(label: str, rows) -> None:
+def print_counts(label: str, rows, modes=MODES) -> None:
     print(f"counts\t{label}")
     print("mode\ttotal\tover_5s\tover_15s\tover_60s\tnonzero")
-    for mode, _ in MODES:
+    for mode, _ in modes:
         subset = [row for row in rows if row[0] == mode]
         counts = [sum(1 for row in subset if row[2] > threshold) for threshold in THRESHOLDS]
         nonzero = sum(1 for row in subset if row[3] != 0)
@@ -204,14 +211,21 @@ def absent_ratio_report(
     current_dot: str | None = None,
     timeout: float = 180.0,
 ) -> int:
+    def split_mode(mode: str) -> tuple[str, str]:
+        if "/" not in mode:
+            return mode, "default"
+        return mode.split("/", 1)
+
     upstream = row_map(upstream_rows)
     failures = []
     skipped = []
     ratios = []
     for mode, path, elapsed, rc, stderr in rows:
-        if mode != "absent":
+        mode_name, ranker = split_mode(mode)
+        if mode_name != "on":
             continue
-        base_row = upstream.get(("absent", path))
+        base_mode = f"off/{ranker}"
+        base_row = upstream.get((base_mode, path))
         if base_row is None or base_row[1] != 0 or base_row[0] <= 0:
             detail = "missing-upstream" if base_row is None else base_row[2]
             skipped.append((path, detail))
@@ -227,8 +241,8 @@ def absent_ratio_report(
             and upstream_dot is not None
             and current_dot is not None
         ):
-            refined_upstream = best_elapsed("absent", (), upstream_dot, path, timeout)
-            refined_current = best_elapsed("absent", (), current_dot, path, timeout)
+            refined_upstream = best_elapsed(base_mode, MODE_FLAGS[base_mode], upstream_dot, path, timeout)
+            refined_current = best_elapsed(mode, MODE_FLAGS[mode], current_dot, path, timeout)
             if refined_upstream[3] == 0 and refined_current[3] == 0:
                 base = refined_upstream[2]
                 elapsed = refined_current[2]
@@ -268,13 +282,19 @@ def absent_ratio_report(
 
 
 def feature_cost_report(head_rows) -> None:
+    def split_mode(mode: str) -> tuple[str, str]:
+        if "/" not in mode:
+            return mode, "default"
+        return mode.split("/", 1)
+
     head = row_map(head_rows)
     ratios = []
     failures = []
     for mode, path, elapsed, rc, stderr in head_rows:
-        if mode == "absent":
+        mode_name, ranker = split_mode(mode)
+        if mode_name == "off":
             continue
-        base_row = head.get(("absent", path))
+        base_row = head.get((f"off/{ranker}", path))
         base = base_row[0] if base_row and base_row[1] == 0 else None
         if rc != 0 or base is None or base <= 0:
             detail = "missing-head-absent" if base is None else stderr
@@ -305,20 +325,24 @@ def spicy_0734_report(upstream_rows, trunk_rows, head_rows) -> None:
         print("spicy_0734_attribute_absent\tskipped\tinput not found")
         return
     print("spicy_0734_attribute_absent")
-    print("binary\tseconds\tratio_to_upstream\tinput")
-    for path in spicy_paths:
-        upstream = maps["upstream"].get(("absent", path))
-        upstream_time = upstream[0] if upstream and upstream[1] == 0 else None
-        for label in ("upstream", "trunk", "head"):
-            row = maps[label].get(("absent", path))
-            if row is None:
-                print(f"{label}\tmissing\tmissing\t{path.name}")
-                continue
-            elapsed, rc, _ = row
-            if rc != 0 or upstream_time is None or upstream_time <= 0:
-                print(f"{label}\t{elapsed:.3f}\tmissing\t{path.name}")
-            else:
-                print(f"{label}\t{elapsed:.3f}\t{elapsed / upstream_time:.3f}\t{path.name}")
+    print("binary\tseconds\tratio_to_upstream\tinput\tranker")
+    for ranker in ("default", "newrank"):
+        for path in spicy_paths:
+            base_mode = f"off/{ranker}"
+            upstream = maps["upstream"].get((base_mode, path))
+            upstream_time = upstream[0] if upstream and upstream[1] == 0 else None
+            for label in ("upstream", "trunk", "head"):
+                row = maps[label].get((base_mode, path))
+                if row is None:
+                    print(f"{label}\tmissing\tmissing\t{path.name}\t{ranker}")
+                    continue
+                elapsed, rc, _ = row
+                if rc != 0 or upstream_time is None or upstream_time <= 0:
+                    print(f"{label}\t{elapsed:.3f}\tmissing\t{path.name}\t{ranker}")
+                else:
+                    print(
+                        f"{label}\t{elapsed:.3f}\t{elapsed / upstream_time:.3f}\t{path.name}\t{ranker}"
+                    )
 
 
 def byte_identity_sample(current_dot: str, before_dot: str) -> int:
@@ -334,7 +358,7 @@ def byte_identity_sample(current_dot: str, before_dot: str) -> int:
         text = subprocess.check_output(
             ["git", "show", f"{base_ref}:{rel}"], text=True, errors="ignore"
         )
-        if "edgejunction" in text:
+        if "concentrate_junction" in text:
             continue
         fixtures.append(rel)
         if len(fixtures) == 60:
@@ -419,11 +443,11 @@ def main() -> int:
             "head": configure_line("head", head_dot),
         }
     )
-    upstream_rows = measure("upstream", upstream_dot, inputs, timeout, jobs, MODES[:1])
-    trunk_rows = measure("trunk", trunk_dot, inputs, timeout, jobs, MODES[:1])
+    upstream_rows = measure("upstream", upstream_dot, inputs, timeout, jobs, MODES)
+    trunk_rows = measure("trunk", trunk_dot, inputs, timeout, jobs, MODES)
     head_rows = measure("head", head_dot, inputs, timeout, jobs)
-    print_counts("trunk", trunk_rows)
-    print_counts("head", head_rows)
+    print_counts("trunk", trunk_rows, MODES)
+    print_counts("head", head_rows, MODES)
     spicy_0734_report(upstream_rows, trunk_rows, head_rows)
     absent_ratio_report("trunk", upstream_rows, trunk_rows)
     rc |= absent_ratio_report(

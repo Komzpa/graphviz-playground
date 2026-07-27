@@ -305,7 +305,7 @@ static int dotLayout(Agraph_t *g) {
     dot_init_subg(g,g);
     dot_init_node_edge(g);
     gv_concentration_plan_diagnose_if_enabled(g);
-    dot_edgejunction(g);
+    dot_concentrate_junction(g);
 
     GV_INFO("Starting phase 1 [dot_rank]");
     dot_rank(g);
@@ -340,7 +340,7 @@ static int dotLayout(Agraph_t *g) {
     if (r != 0) {
 	return r;
     }
-    dot_edgejunction_splines(g);
+    dot_concentrate_junction_splines(g);
     if (mapbool(agget(g, "compound")))
 	dot_compoundEdges(g);
     return 0;
