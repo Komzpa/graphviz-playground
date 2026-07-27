@@ -19,6 +19,14 @@ def _svg(source):
     return dot("svg", source=source)
 
 
+def _fixture_svg(path, *args):
+    return run("dot", *args, "-Tsvg", path, timeout=10)
+
+
+def _assert_fixture_refuses_edgejunction(path):
+    assert _fixture_svg(path) == _fixture_svg(path, "-Gedgejunction=both")
+
+
 def _edge_objects(layout, **attrs):
     edges = layout["edges"]
     for key, value in attrs.items():
@@ -421,6 +429,74 @@ def test_edgejunction_fanin_keeps_distinct_colours_separate():
     assert {edge["color"] for edge in coloured} == {"blue", "red"}
     assert all("_draw_" in edge for edge in coloured)
     assert all("_hdraw_" in edge for edge in coloured)
+
+
+def test_edgejunction_refuses_curved_attributed_concentrated_edges():
+    fixture = (
+        Path(__file__).parent
+        / "graphs"
+        / "concentrate-demo"
+        / "curved-concentrated-attributed-chain.dot"
+    )
+
+    _assert_fixture_refuses_edgejunction(fixture)
+
+
+def test_edgejunction_refuses_flat_same_rank_edges():
+    fixture = Path(__file__).parents[1] / "graphs" / "directed" / "longflat.gv"
+
+    _assert_fixture_refuses_edgejunction(fixture)
+
+
+def test_edgejunction_refuses_self_loops():
+    fixture = (
+        Path(__file__).parent
+        / "graphs"
+        / "concentrate-demo"
+        / "self-loop-label-beside-loop.dot"
+    )
+
+    _assert_fixture_refuses_edgejunction(fixture)
+
+
+def test_edgejunction_refuses_record_endpoints():
+    fixture = Path(__file__).parents[1] / "graphs" / "directed" / "record2.gv"
+
+    _assert_fixture_refuses_edgejunction(fixture)
+
+
+def test_edgejunction_refuses_port_endpoints():
+    fixture = (
+        Path(__file__).parents[1] / "graphs" / "directed" / "honda-tokoro.gv"
+    )
+
+    _assert_fixture_refuses_edgejunction(fixture)
+
+
+def test_edgejunction_refuses_labelled_concentrated_fans():
+    fixture = Path(__file__).parent / "drbd-anchor.dot"
+
+    _assert_fixture_refuses_edgejunction(fixture)
+
+
+def test_edgejunction_refusal_does_not_disable_safe_fan():
+    source = """
+        digraph {
+          graph [edgejunction=fanin]
+          edge [label=shared, minlen=2]
+          a -> d
+          b -> d
+          unsafe -> unsafe
+        }
+    """
+    layout = _layout(source)
+    junctions = [
+        obj
+        for obj in layout["objects"]
+        if obj.get("_edgejunction_node") == "true"
+    ]
+
+    assert len(junctions) == 1
 
 
 def test_edgejunction_fanin_fuses_rank_adjacent_shared_trunk_siblings():

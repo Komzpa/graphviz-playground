@@ -10,6 +10,7 @@
 
 #include "config.h"
 
+#include <common/concentrate_plan.h>
 #include <common/render.h>
 #include <common/utils.h>
 #include <dotgen/dot.h>
@@ -49,6 +50,8 @@ typedef struct {
   bool fanout;
 } junction_mode_t;
 
+static node_t *group_anchor(edge_t *e, junction_kind_t kind);
+
 static char *group_attrs[] = {
     "label",       "color",        "style",        "penwidth",    "fontname",
     "fontsize",    "fontcolor",    "dir",          "arrowhead",   "arrowtail",
@@ -67,6 +70,21 @@ static char *attr(edge_t *e, attrsym_t *sym, char *fallback) {
   return s == NULL ? fallback : s;
 }
 
+static bool node_has_record_endpoint_geometry(node_t *n) {
+  return shapeOf(n) == SH_RECORD || (ND_label(n) != NULL && ND_label(n)->html);
+}
+
+static bool edge_has_record_endpoint_geometry(edge_t *e) {
+  return node_has_record_endpoint_geometry(agtail(e)) ||
+         node_has_record_endpoint_geometry(aghead(e));
+}
+
+static bool endpoint_has_port(edge_t *e) {
+  return ED_tail_port(e).defined || ED_head_port(e).defined ||
+         attr(e, agfindedgeattr(agraphof(agtail(e)), "tailport"), "")[0] ||
+         attr(e, agfindedgeattr(agraphof(agtail(e)), "headport"), "")[0];
+}
+
 static bool eligible(edge_t *e) {
   if (agtail(e) == aghead(e)) {
     return false;
@@ -77,8 +95,7 @@ static bool eligible(edge_t *e) {
   if (ED_head_label(e) || ED_tail_label(e) || ED_xlabel(e)) {
     return false;
   }
-  if (attr(e, agfindedgeattr(agraphof(agtail(e)), "tailport"), "")[0] ||
-      attr(e, agfindedgeattr(agraphof(agtail(e)), "headport"), "")[0]) {
+  if (endpoint_has_port(e)) {
     return false;
   }
   const char *dir = attr(e, agfindedgeattr(agraphof(agtail(e)), "dir"), "");
@@ -86,6 +103,100 @@ static bool eligible(edge_t *e) {
     return false;
   }
   return true;
+}
+
+static bool graph_has_same_rank_edge(graph_t *subg, edge_t *e) {
+  const char *rank = agget(subg, "rank");
+  if (rank != NULL && streq(rank, "same") && agcontains(subg, agtail(e)) &&
+      agcontains(subg, aghead(e))) {
+    return true;
+  }
+  for (graph_t *child = agfstsubg(subg); child; child = agnxtsubg(child)) {
+    if (graph_has_same_rank_edge(child, e)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool graph_uses_curved_splines(graph_t *g) {
+  const char *splines_attr = agget(g, "splines");
+  return splines_attr != NULL && streq(splines_attr, "curved");
+}
+
+static bool edge_has_primary_label(edge_t *e) {
+  return ED_label(e) != NULL || ED_xlabel(e) != NULL;
+}
+
+static bool edge_has_copied_junction_attribute(edge_t *e) {
+  for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
+    attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), group_attrs[i]);
+    if (attr(e, sym, "")[0]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool same_concentration_endpoints(edge_t *a, edge_t *b) {
+  return agtail(a) == agtail(b) && aghead(a) == aghead(b);
+}
+
+static bool edge_has_concentrated_peer(edge_t *e) {
+  for (node_t *n = agfstnode(agraphof(e)); n; n = agnxtnode(agraphof(e), n)) {
+    for (edge_t *other = agfstout(agraphof(e), n); other;
+         other = agnxtout(agraphof(e), other)) {
+      if (other != e && same_concentration_endpoints(e, other) &&
+          gv_concentration_edges_have_equal_rendered_identity(
+              e, other, GV_CONCENTRATION_SAME_DIRECTION)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool edge_has_junction_peer(edge_t *e, junction_kind_t kind) {
+  for (node_t *n = agfstnode(agraphof(e)); n; n = agnxtnode(agraphof(e), n)) {
+    for (edge_t *other = agfstout(agraphof(e), n); other;
+         other = agnxtout(agraphof(e), other)) {
+      if (other != e && eligible(other) &&
+          group_anchor(e, kind) == group_anchor(other, kind)) {
+        bool same_attrs = true;
+        for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
+          attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), group_attrs[i]);
+          if (!streq(attr(e, sym, ""), attr(other, sym, ""))) {
+            same_attrs = false;
+            break;
+          }
+        }
+        if (same_attrs) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+static bool graph_has_refused_concentrated_edge(edge_t *e) {
+  graph_t *g = agraphof(agtail(e));
+  if (!Concentrate) {
+    return false;
+  }
+  if (edge_has_primary_label(e) &&
+      (edge_has_junction_peer(e, JUNCTION_FANIN) ||
+       edge_has_junction_peer(e, JUNCTION_FANOUT))) {
+    return true;
+  }
+  return edge_has_concentrated_peer(e) && graph_uses_curved_splines(g) &&
+         edge_has_copied_junction_attribute(e);
+}
+
+static bool refused_edge_kind(graph_t *g, edge_t *e) {
+  return agtail(e) == aghead(e) || edge_has_record_endpoint_geometry(e) ||
+         endpoint_has_port(e) || graph_has_same_rank_edge(g, e) ||
+         graph_has_refused_concentrated_edge(e);
 }
 
 static node_t *group_anchor(edge_t *e, junction_kind_t kind) {
@@ -345,7 +456,7 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
 
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (!eligible(e) || ED_edgejunction(e)) {
+      if (!eligible(e) || refused_edge_kind(g, e) || ED_edgejunction(e)) {
         continue;
       }
       size_t i = 0;
@@ -404,16 +515,15 @@ void dot_edgejunction(graph_t *g) {
     return;
   }
 
-  // Junction routing replaces legacy concentrate for this graph even when a
-  // v1 eligibility restriction makes the transform itself a no-op.
-  Concentrate = false;
-
   size_t made = 0;
   if (mode.fanin) {
     make_groups(g, JUNCTION_FANIN, &made);
   }
   if (mode.fanout) {
     make_groups(g, JUNCTION_FANOUT, &made);
+  }
+  if (made > 0) {
+    Concentrate = false;
   }
 }
 
