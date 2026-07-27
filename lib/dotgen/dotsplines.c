@@ -1963,23 +1963,8 @@ static void makeSimpleFlat(node_t *tn, node_t *hn, edge_t **edges, unsigned cnt,
     size_t pointn = 0;
     if (et == EDGETYPE_SPLINE || et == EDGETYPE_LINE) {
       points[pointn++] = tp;
-      const double arrow_length = NOMINAL_ARROW_LENGTH;
-      const double clear_span = fabs(hp.x - tp.x) - ND_rw(tn) - ND_lw(hn);
-      if (et == EDGETYPE_SPLINE && cnt == 1 && ED_conc_opp_flag(e) &&
-          ((ED_head_label(e) != NULL || ED_tail_label(e) != NULL) ||
-           clear_span < 2 * arrow_length)) {
-        const double lift = MAX(2 * arrow_length, MAX(ND_ht(tn), ND_ht(hn)));
-        const double middle = (tp.x + hp.x) / 2;
-        const double arm = MAX(arrow_length, fabs(hp.x - tp.x) / 6);
-        points[pointn++] = (pointf){tp.x + arm, tp.y};
-        points[pointn++] = (pointf){middle, tp.y + lift};
-        points[pointn++] = (pointf){middle, tp.y + lift};
-        points[pointn++] = (pointf){middle, hp.y + lift};
-        points[pointn++] = (pointf){hp.x - arm, hp.y};
-      } else {
-        points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
-        points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
-      }
+      points[pointn++] = (pointf){(2 * tp.x + hp.x) / 3, dy};
+      points[pointn++] = (pointf){(2 * hp.x + tp.x) / 3, dy};
       points[pointn++] = hp;
     } else { /* EDGETYPE_PLINE */
       points[pointn++] = tp;

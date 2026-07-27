@@ -14,7 +14,6 @@ from concentrate_helpers import (
     _assert_regular_g1_piece_join,
     _concentrated_graph,
     _crossing_angle,
-    _drawn_edge_arc_length,
     _drawn_edge_between,
     _drawn_edge_color,
     _drawn_edge_piece_end_gaps,
@@ -631,8 +630,8 @@ def test_concentrate_same_tail_fanout_routes_share_initial_trunk():
     assert math.dist(first_segments[0][-1], second_segments[0][0]) <= 1.01
 
 
-def test_concentrate_short_bidirectional_flat_edge_bows_to_three_arrows():
-    """A short folded same-rank reverse edge has a visible middle shaft."""
+def test_concentrate_short_bidirectional_flat_edge_stays_between_nodes():
+    """A short folded same-rank reverse edge stays flat between its nodes."""
 
     source = """
         strict digraph {
@@ -642,13 +641,23 @@ def test_concentrate_short_bidirectional_flat_edge_bows_to_three_arrows():
           b -> a
         }
     """
-    drawn_edges = _drawn_edges(source)
+    layout = json.loads(dot("json", source=source))
+    drawn_edges = [edge for edge in layout["edges"] if "_draw_" in edge]
     assert len(drawn_edges) == 1
     edge = drawn_edges[0]
     assert "_hdraw_" in edge
     assert "_tdraw_" in edge
 
-    assert _drawn_edge_arc_length(edge) >= 30
+    objects = {node["_gvid"]: node for node in layout["objects"] if "pos" in node}
+    tail = objects[edge["tail"]]
+    head = objects[edge["head"]]
+    tail_bottom = float(tail["pos"].split(",")[1]) - float(tail["height"]) * 36
+    tail_top = float(tail["pos"].split(",")[1]) + float(tail["height"]) * 36
+    head_bottom = float(head["pos"].split(",")[1]) - float(head["height"]) * 36
+    head_top = float(head["pos"].split(",")[1]) + float(head["height"]) * 36
+    low = max(tail_bottom, head_bottom)
+    high = min(tail_top, head_top)
+    assert all(low <= point[1] <= high for point in _edge_bezier_points(edge))
 
 
 def test_concentrate_multiedge_arrowheads_follow_shaft_tangents():

@@ -363,8 +363,8 @@ def test_flat_grouped_routes_preserve_head_direction_under_rankdir_flip(
         _assert_endpoint_departure(layout, edge, "head")
 
 
-def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
-    """A short merged flat route arcs enough for both endpoint arrows."""
+def test_concentrate_flat_bidirectional_arrows_stay_between_nodes():
+    """A short merged flat route stays between endpoints with both arrows."""
 
     source = _concentrated_graph(
         "",
@@ -376,9 +376,16 @@ def test_concentrate_flat_bidirectional_arrows_use_distinct_clip_ends():
     edge = next(edge for edge in layout["edges"] if "_draw_" in edge)
     assert len([edge for edge in layout["edges"] if "_draw_" in edge]) == 1
 
-    head_box = _point_box(_edge_arrow_polygon(edge, "_hdraw_"))
-    tail_box = _point_box(_edge_arrow_polygon(edge, "_tdraw_"))
-    assert _boxes_are_disjoint(head_box, tail_box)
+    objects = {node["_gvid"]: node for node in layout["objects"] if "pos" in node}
+    tail = objects[edge["tail"]]
+    head = objects[edge["head"]]
+    tail_bottom = float(tail["pos"].split(",")[1]) - float(tail["height"]) * 36
+    tail_top = float(tail["pos"].split(",")[1]) + float(tail["height"]) * 36
+    head_bottom = float(head["pos"].split(",")[1]) - float(head["height"]) * 36
+    head_top = float(head["pos"].split(",")[1]) + float(head["height"]) * 36
+    low = max(tail_bottom, head_bottom)
+    high = min(tail_top, head_top)
+    assert all(low <= point[1] <= high for point in _edge_bezier_points(edge))
 
     for endpoint in ("tail", "head"):
         node_id = edge[endpoint]

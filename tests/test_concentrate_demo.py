@@ -27,6 +27,17 @@ def _render_xdot_json(path: Path) -> dict:
     return json.loads(dot("json", source_file=path))
 
 
+def _render_json_with_args(path: Path, extra_args: list[str]) -> dict:
+    proc = subprocess.run(
+        ["dot", "-Kdot", "-Tjson", *extra_args, path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+    return json.loads(proc.stdout)
+
+
 def _run_xdot(path: Path, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["dot", "-Kdot", "-Txdot", path],
@@ -85,6 +96,13 @@ def _route_bbox(edge: dict) -> tuple[float, float, float, float]:
     xs = [point[0] for point in points]
     ys = [point[1] for point in points]
     return min(xs), min(ys), max(xs), max(ys)
+
+
+def _node_box(node: dict) -> tuple[float, float, float, float]:
+    x, y = (float(value) for value in node["pos"].split(","))
+    half_width = float(node["width"]) * 72 / 2
+    half_height = float(node["height"]) * 72 / 2
+    return x - half_width, y - half_height, x + half_width, y + half_height
 
 
 def _route_distance(left: dict, right: dict) -> float:
@@ -157,6 +175,25 @@ def test_same_rank_equivalent_edges_still_concentrate():
     assert len(_arrow_polygons(edges[0], "_hdraw_")) == 1
     assert len(_arrow_polygons(edges[0], "_tdraw_")) == 1
     assert len(_bezier_pieces(edges[0])) == 1
+
+
+def test_same_rank_equivalent_edges_route_between_endpoints():
+    """A concentrated same-rank reverse pair remains a flat between-node edge."""
+
+    fixture = _fixture("same-rank-equivalent-edges-concentrate.dot")
+    for extra_args in ([], ["-Gnewrank=true"]):
+        layout = _render_json_with_args(fixture, extra_args)
+        objects = {node["name"]: node for node in layout["objects"] if "pos" in node}
+        low = max(_node_box(objects["a"])[1], _node_box(objects["b"])[1])
+        high = min(_node_box(objects["a"])[3], _node_box(objects["b"])[3])
+        edges = _drawn_edges(layout)
+        points = [point for piece in _bezier_pieces(edges[0]) for point in piece]
+
+        assert len(edges) == 1
+        assert len(_arrow_polygons(edges[0], "_hdraw_")) == 1
+        assert len(_arrow_polygons(edges[0], "_tdraw_")) == 1
+        assert points
+        assert all(low <= point[1] <= high for point in points)
 
 
 def test_malformed_nodesep_rejected_without_oversized_canvas():
