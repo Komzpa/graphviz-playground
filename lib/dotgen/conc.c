@@ -592,7 +592,8 @@ static int rebuild_vlists(graph_t *g) {
   for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
     lead = GD_rankleader(g)[r];
     if (lead == NULL) {
-      if (mapbool(agget(dot_root(g), "_concentrate_junction_clustered_fallback"))) {
+      if (mapbool(
+              agget(dot_root(g), "_concentrate_junction_clustered_fallback"))) {
         agwarningf("degenerate concentrated rank %s,%d\n", agnameof(g), r);
         GD_rank(g)[r].v = NULL;
         GD_rank(g)[r].n = 0;
