@@ -29,6 +29,8 @@
 #include <util/alloc.h>
 #include <util/gv_math.h>
 
+#define FLAT_BOTH_ARROW_MARGIN 2.0
+
 static int nsiter2(graph_t * g);
 static void create_aux_edges(graph_t * g);
 static void remove_aux_edges(graph_t * g);
@@ -200,6 +202,16 @@ edge_t *make_aux_edge(node_t * u, node_t * v, double len, int wt)
     return e;
 }
 
+static double flat_both_arrow_room(edge_t *e) {
+    const double start_length = edge_arrow_length(e, EDGE_ARROW_START);
+    const double end_length = edge_arrow_length(e, EDGE_ARROW_END);
+    if (start_length == 0 || end_length == 0)
+	return 0;
+
+    /* Reserve a visible shaft during layout; spline clipping uses this room. */
+    return start_length + end_length + FLAT_BOTH_ARROW_MARGIN;
+}
+
 static void allocate_aux_edges(graph_t * g)
 {
     int i, j, n_in;
@@ -304,12 +316,14 @@ make_LR_constraints(graph_t * g)
 		}
 
 		width = ND_rw(t0) + ND_lw(h0);
-		m0 = ED_minlen(e) * GD_nodesep(g) + width;
+		const double arrow_room = flat_both_arrow_room(e);
+		m0 = MAX(ED_minlen(e) * GD_nodesep(g) + width,
+			 width + arrow_room);
 
 		if ((e0 = find_fast_edge(t0, h0))) {
 		    /* flat edge between adjacent neighbors 
-                     * ED_dist contains the largest label width.
-                     */
+		     * ED_dist contains the largest label width.
+		     */
 		    m0 = MAX(m0, width + GD_nodesep(g) + ROUND(ED_dist(e)));
 		    ED_minlen(e0) = MAX(ED_minlen(e0), m0);
 		    ED_weight(e0) = MAX(ED_weight(e0), ED_weight(e));

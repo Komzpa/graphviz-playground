@@ -88,6 +88,8 @@ RENDER_API void free_concentrated_edge_arrow_snapshot(
     gv_concentrated_arrow_snapshot_t *snapshot);
 RENDER_API double edge_arrow_arrowsize(Agedge_t *edge,
                                        edge_arrow_endpoint_t endpoint);
+RENDER_API double edge_arrow_length(Agedge_t *edge,
+                                    edge_arrow_endpoint_t endpoint);
 RENDER_API char *edge_arrow_fillcolor(Agedge_t *edge,
                                       edge_arrow_endpoint_t endpoint);
 typedef enum {

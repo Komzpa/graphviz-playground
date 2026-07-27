@@ -80,23 +80,10 @@ static bool arrow_decoration_is_empty(const arrow_decoration_t *decoration) {
   return decoration->shape_flags == 0;
 }
 
-/*
- * This private record is the accumulated arrow-decoration fold for a retained
- * edge. Each endpoint is either absent or one complete rendered record
- * {shape flags, arrowsize, fillcolor}. Absence is neutral, equal records are
- * idempotent, and unequal records conflict before concentration suppresses an
- * edge.
- *
- * The record stores complete state, including the retained edge's own arrows,
- * because later candidates must be checked against the accumulated route, not
- * merely against the first input edge. Keeping scalars beside shapes also lets
- * clipping and emission use the contributor's values when the retained edge
- * had no arrow there.
- *
- * Agrec_t must remain first. move_to_front=false preserves Agedgeinfo_t as the
- * front record expected by ED_* macros. Unborrowed fillcolor points into
- * Cgraph-owned attribute storage (or a static default); borrowed colors that
- * parsed successfully use the inline, scheme-independent resolved_fillcolor.
+/* Accumulated concentration arrow fold for a retained edge. Endpoints are
+ * absent or complete {shape flags, arrowsize, fillcolor} records. Agrec_t must
+ * remain first, and move_to_front=false preserves Agedgeinfo_t as the front
+ * record expected by ED_* macros.
  */
 typedef struct {
   Agrec_t header;
@@ -225,7 +212,6 @@ static bool explicit_edge_fillcolor(Agedge_t *edge) {
   }
   return agxget(edge, fillcolor_attribute)[0] != '\0';
 }
-
 /*
  * Remove a weighted color-list suffix in-place and return its parsed fraction.
  * The caller only needs the first explicit fraction to decide endpoint color.
@@ -814,6 +800,24 @@ static double arrow_length(edge_t *e, uint32_t flag, double arrowsize) {
     }
   }
   return length;
+}
+
+double edge_arrow_length(Agedge_t *edge, edge_arrow_endpoint_t endpoint) {
+  while (ED_to_orig(edge) != NULL) {
+    edge = ED_to_orig(edge);
+  }
+  uint32_t start_flags = ARR_TYPE_NONE, end_flags = ARR_TYPE_NONE;
+  double arrowsize = late_double(edge, E_arrowsz, 1.0, 0.0);
+  edge_arrow_flags(edge, &start_flags, &end_flags);
+  uint32_t flags = endpoint == EDGE_ARROW_START ? start_flags : end_flags;
+  const arrow_decoration_t *const decorations =
+      concentrated_arrow_decoration_record(edge, false);
+  if (decorations != NULL &&
+      !arrow_decoration_is_empty(&decorations[endpoint])) {
+    flags = decorations[endpoint].shape_flags;
+    arrowsize = decorations[endpoint].arrowsize;
+  }
+  return arrow_length(edge, flags, arrowsize);
 }
 
 /* inside function for calls to bezier_clip */
