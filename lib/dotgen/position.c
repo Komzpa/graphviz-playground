@@ -29,6 +29,11 @@
 #include <util/alloc.h>
 #include <util/gv_math.h>
 
+/* Room between the two arrowheads of a both-ended flat edge, on top of their
+ * own lengths. 2.0 left a 1.1pt shaft and the heads met into a diamond —
+ * Darafei, 2026-07-28: "ромб вместо стрелок - надо ещё раздвинуть". One
+ * arrowhead length is the smallest gap that reads as a shaft rather than a
+ * join, so scale with the arrows instead of using a constant. */
 #define FLAT_BOTH_ARROW_MARGIN 2.0
 
 static int nsiter2(graph_t * g);
@@ -209,7 +214,7 @@ static double flat_both_arrow_room(edge_t *e) {
 	return 0;
 
     /* Reserve a visible shaft during layout; spline clipping uses this room. */
-    return start_length + end_length + FLAT_BOTH_ARROW_MARGIN;
+    return start_length + end_length + MAX(start_length, end_length);
 }
 
 static void allocate_aux_edges(graph_t * g)
