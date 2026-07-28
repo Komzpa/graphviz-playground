@@ -343,6 +343,23 @@ static int rank_reorder_merge_count(graph_t *graph, int rank, int direction,
   return merge_count;
 }
 
+static int rank_reorder_max_travel(node_t **candidates, node_t **reordered,
+                                   int *positions, int candidate_count) {
+  int max_travel = 0;
+  for (int i = 0; i < candidate_count; i++) {
+    if (candidates[i] == reordered[i]) {
+      continue;
+    }
+    for (int j = 0; j < candidate_count; j++) {
+      if (candidates[i] == reordered[j]) {
+        max_travel = MAX(max_travel, abs(positions[i] - positions[j]));
+        break;
+      }
+    }
+  }
+  return max_travel;
+}
+
 static bool
 reorder_rank_concentration_candidates(graph_t *graph, int rank, int direction,
                                       gv_concentration_transaction_t *handle) {
@@ -399,7 +416,10 @@ reorder_rank_concentration_candidates(graph_t *graph, int rank, int direction,
       rank_reorder_merge_count(graph, rank, direction, NULL, NULL, 0);
   const int reordered_merge_count = rank_reorder_merge_count(
       graph, rank, direction, reordered, positions, candidate_count);
-  if (reordered_merge_count <= original_merge_count) {
+  const int merge_gain = reordered_merge_count - original_merge_count;
+  const int max_travel = rank_reorder_max_travel(candidates, reordered,
+                                                 positions, candidate_count);
+  if (merge_gain <= 0 || max_travel > 1) {
     free(identity_run);
     free(bucket_used);
     free(bucket);
