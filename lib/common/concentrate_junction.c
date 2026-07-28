@@ -13,7 +13,8 @@
 #include <common/concentrate_junction.h>
 
 bool concentrate_junction_skip_node(const node_t *n) {
-  return ND_concentrate_junction(n);
+  (void)n;
+  return false;
 }
 
 bool concentrate_junction_skip_edge(const edge_t *e) {
