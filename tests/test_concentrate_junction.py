@@ -263,8 +263,9 @@ def test_concentrate_junction_fanin_draws_one_labelled_trunk_with_one_arrowhead(
     assert len(re.findall(r"<polygon fill=\"black\" stroke=\"black\"", svg)) == 1
     assert len(junctions) == 1
     assert junctions[0]["shape"] == "point"
-    assert float(junctions[0]["width"]) == pytest.approx(0.02)
-    assert float(junctions[0]["height"]) == pytest.approx(0.02)
+    assert float(junctions[0]["width"]) == pytest.approx(0.035)
+    assert any(op.get("op") == "E" for op in junctions[0]["_draw_"])
+    assert float(junctions[0]["height"]) == pytest.approx(0.035)
 
 
 def test_concentrate_junction_fanout_draws_one_labelled_trunk_with_head_arrowheads():
@@ -292,8 +293,9 @@ def test_concentrate_junction_fanout_draws_one_labelled_trunk_with_head_arrowhea
     assert len(re.findall(r"<polygon fill=\"black\" stroke=\"black\"", svg)) == 2
     assert len(junctions) == 1
     assert junctions[0]["shape"] == "point"
-    assert float(junctions[0]["width"]) == pytest.approx(0.02)
-    assert float(junctions[0]["height"]) == pytest.approx(0.02)
+    assert float(junctions[0]["width"]) == pytest.approx(0.035)
+    assert any(op.get("op") == "E" for op in junctions[0]["_draw_"])
+    assert float(junctions[0]["height"]) == pytest.approx(0.035)
 
 
 def test_concentrate_junction_both_handles_fanin_and_fanout():

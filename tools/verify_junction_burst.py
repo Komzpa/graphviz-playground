@@ -198,6 +198,30 @@ def support_turn(polyline: list[Point], center: Point) -> float:
     return sum(turn_angle(a, b, c) for a, b, c in zip(local, local[1:], local[2:]))
 
 
+def _has_nonempty_color(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    return stripped != "" and stripped.lower() != "none"
+
+
+def has_filled_ellipse_marker(node: dict) -> bool:
+    draw = node.get("_draw_", [])
+    if not isinstance(draw, list) or not draw:
+        return False
+    has_ellipse = False
+    has_fill = False
+    for op in draw:
+        if not isinstance(op, dict):
+            continue
+        op_type = op.get("op", "")
+        if op_type in {"e", "E"}:
+            has_ellipse = True
+        if op_type == "C" and _has_nonempty_color(op.get("color")):
+            has_fill = True
+    return has_ellipse and has_fill
+
+
 def edge_names(layout: dict) -> dict[int, str]:
     return {int(obj["_gvid"]): obj["name"] for obj in layout.get("objects", [])}
 
