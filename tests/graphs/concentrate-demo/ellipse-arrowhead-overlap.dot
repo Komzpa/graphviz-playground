@@ -1,0 +1,27 @@
+digraph G {
+  graph [concentrate=true, nodesep=0.02, ranksep=0.05]
+  node [margin=0.02, shape=ellipse]
+
+  sink [height=0.32, label="sink", width=1.2]
+
+  {
+    rank=same
+    n1
+    n2
+    n3
+    n4
+    n5
+  }
+
+  n1 [height=0.2, label="1", shape=box, width=0.25]
+  n2 [height=0.2, label="2", shape=box, width=0.25]
+  n3 [height=0.2, label="3", shape=box, width=0.25]
+  n4 [height=0.2, label="4", shape=box, width=0.25]
+  n5 [height=0.2, label="5", shape=box, width=0.25]
+
+  n1 -> sink [color=red]
+  n2 -> sink [color=blue]
+  n3 -> sink [color=green]
+  n4 -> sink [color=orange]
+  n5 -> sink [color=purple]
+}
