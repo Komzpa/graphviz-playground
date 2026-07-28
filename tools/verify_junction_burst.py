@@ -217,7 +217,7 @@ def has_filled_ellipse_marker(node: dict) -> bool:
         op_type = op.get("op", "")
         if op_type in {"e", "E"}:
             has_ellipse = True
-        if op_type == "C" and _has_nonempty_color(op.get("color")):
+        if _has_nonempty_color(op.get("fill")) or _has_nonempty_color(op.get("fillcolor")):
             has_fill = True
     return has_ellipse and has_fill
 
@@ -281,6 +281,14 @@ def original_junction_count(layout: dict) -> int:
     return count
 
 
+def junction_node_map(layout: dict) -> dict[str, dict]:
+    return {
+        obj["name"]: obj
+        for obj in layout.get("objects", [])
+        if "name" in obj and "pos" in obj and is_junction_node(obj)
+    }
+
+
 def render_json(dot: Path, graph: Path, root: Path, *extra: str) -> dict:
     proc = run([str(dot), *extra, "-Tjson", str(graph)], root)
     return json.loads(proc.stdout)
@@ -318,6 +326,7 @@ def main() -> int:
     root = repo_root()
     label, layout = layout_for_mode(root, args.mode)
     js = junctions(layout)
+    junction_nodes = junction_node_map(layout)
     found = arms(layout)
     failures = []
     by_junction = {j.name: [] for j in js}
@@ -346,6 +355,13 @@ def main() -> int:
         print(
             "FAIL verify_junction_burst: no junction arms within the rendered point "
             f"plus one pen width; candidate_edges={original_junction_count(layout)}"
+        )
+        return 1
+    marker_failures = [name for name in sorted(junction_nodes) if not has_filled_ellipse_marker(junction_nodes[name])]
+    if marker_failures:
+        print(
+            "FAIL verify_junction_burst: junction marker missing filled ellipse "
+            f"in _draw_ for {', '.join(marker_failures)}"
         )
         return 1
     if failures:
