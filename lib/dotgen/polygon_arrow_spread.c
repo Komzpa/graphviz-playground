@@ -12,6 +12,7 @@
 
 #include <common/edgeattr.h>
 #include <common/geomprocs.h>
+#include <common/globals.h>
 #include <common/render.h>
 #include <dotgen/polygon_arrow_spread.h>
 #include <math.h>
@@ -31,12 +32,18 @@ typedef struct {
   pointf centroid;
   pointf control;
   double spacing;
+  double grouping_distance;
   bool at_start;
+  bool curved_outline;
 } arrow_landing_t;
 
-static bool node_has_polygon_outline(node_t *node) {
+static polygon_t *node_spread_outline(node_t *node) {
   polygon_t *const polygon = ND_shape_info(node);
-  return polygon != NULL && polygon->vertices != NULL && polygon->sides >= 3;
+  if (polygon == NULL || polygon->vertices == NULL || polygon->peripheries == 0)
+    return NULL;
+  if (polygon->sides < 2)
+    return NULL;
+  return polygon;
 }
 
 static edge_t *normal_edge(edge_t *edge) {
@@ -69,15 +76,27 @@ static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
       at_start ? spline->list[0] : spline->list[spline->size - 1];
   const pointf control =
       at_start ? spline->list[1] : spline->list[spline->size - 2];
-  if (!node_has_polygon_outline(node))
+  polygon_t *const outline = node_spread_outline(node);
+  if (outline == NULL)
+    return;
+  if (at_start && E_sametail != NULL &&
+      agxget(main_edge, E_sametail)[0] != '\0')
+    return;
+  if (!at_start && E_samehead != NULL &&
+      agxget(main_edge, E_samehead)[0] != '\0')
     return;
 
   const double arrow_length = edge_arrow_length(
       main_edge, at_start ? EDGE_ARROW_START : EDGE_ARROW_END);
   const double penwidth = late_double(main_edge, E_penwidth, 1.0, 0.0);
   const double side_length = hypot(ND_lw(node) + ND_rw(node), ND_ht(node));
+  const bool curved_outline = outline->sides < 3;
+  if (curved_outline && !Concentrate)
+    return;
   const double spacing =
-      MIN(side_length / 6.0, MAX(arrow_length / 4.0, 2.0 * penwidth));
+      curved_outline
+          ? MIN(side_length / 6.0, MAX(arrow_length, 2.0 * penwidth))
+          : MIN(side_length / 6.0, MAX(arrow_length / 4.0, 2.0 * penwidth));
   if (spacing <= MILLIPOINT)
     return;
 
@@ -95,7 +114,10 @@ static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
       .centroid = scale(1.0 / 3.0, add_pointf(tip, scale(2.0, base))),
       .control = control,
       .spacing = spacing,
+      .grouping_distance =
+          curved_outline ? arrow_length : COINCIDENT_ARROWHEAD_DISTANCE,
       .at_start = at_start,
+      .curved_outline = curved_outline,
   };
 }
 
@@ -138,8 +160,25 @@ static void move_arrow_landing(arrow_landing_t *landing, pointf target) {
   }
 }
 
+static pointf project_to_ellipse_outline(node_t *node, pointf target) {
+  const pointf center = ND_coord(node);
+  const double rx = MAX((ND_lw(node) + ND_rw(node)) / 2.0, MILLIPOINT);
+  const double ry = MAX(ND_ht(node) / 2.0, MILLIPOINT);
+  const pointf ray = sub_pointf(target, center);
+  const double scale_factor = hypot(ray.x / rx, ray.y / ry);
+  if (scale_factor <= MILLIPOINT)
+    return (pointf){.x = center.x + rx, .y = center.y};
+  return (pointf){.x = center.x + ray.x / scale_factor,
+                  .y = center.y + ray.y / scale_factor};
+}
+
 static void spread_arrow_landing_group(arrow_landing_t *group, size_t count) {
-  if (count <= 2)
+  bool spread_pair = false;
+  bool curved_group = false;
+  for (size_t i = 0; i < count; i++)
+    curved_group = curved_group || group[i].curved_outline;
+  spread_pair = curved_group;
+  if (count <= 1 || (count == 2 && !spread_pair))
     return;
 
   double spacing = HUGE_VAL;
@@ -160,10 +199,14 @@ static void spread_arrow_landing_group(arrow_landing_t *group, size_t count) {
     return;
   direction = scale(1.0 / direction_length, direction);
 
+  const double center_offset =
+      curved_group ? ((double)count - 1.0) * spacing / 2.0 : 0.0;
   for (size_t i = 0; i < count; i++) {
-    move_arrow_landing(
-        &group[i],
-        add_pointf(group[0].tip, scale((double)i * spacing, direction)));
+    pointf target = add_pointf(
+        group[0].tip, scale((double)i * spacing - center_offset, direction));
+    if (group[i].curved_outline)
+      target = project_to_ellipse_outline(group[i].node, target);
+    move_arrow_landing(&group[i], target);
   }
 }
 
@@ -200,7 +243,8 @@ void dot_spread_coincident_polygon_arrowheads(graph_t *g) {
         group_end < landing_count &&
         landings[group_end].node == landings[group_start].node &&
         DIST(landings[group_end].centroid, landings[group_end - 1].centroid) <=
-            COINCIDENT_ARROWHEAD_DISTANCE) {
+            MIN(landings[group_end].grouping_distance,
+                landings[group_end - 1].grouping_distance)) {
       group_end++;
     }
     spread_arrow_landing_group(&landings[group_start], group_end - group_start);

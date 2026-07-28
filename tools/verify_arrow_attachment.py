@@ -16,7 +16,10 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DOT = ROOT / "build" / "cmd" / "dot" / "dot_builtins"
-FIXTURES = (Path("graphs/directed/pgram.gv"),)
+FIXTURES = (
+    Path("graphs/directed/pgram.gv"),
+    Path("tests/graphs/concentrate-demo/ellipse-arrowhead-overlap.dot"),
+)
 RANKERS = (("default", ()), ("newrank", ("-Gnewrank=true",)))
 TIMEOUT_SECONDS = 30
 MEMORY_LIMIT_BYTES = 2097152 * 1024
@@ -24,9 +27,12 @@ MAX_ENDPOINT_DISTANCE = 1.0
 MAX_TANGENT_ANGLE = 5.0
 COINCIDENT_CENTROID_DISTANCE = 2.0
 MAX_COINCIDENT_GROUP = 2
+MAX_ARROWHEAD_OVERLAP_AREA = 1.0
 BASELINE_ARROW_COUNTS = {
     ("graphs/directed/pgram.gv", "default"): 53,
     ("graphs/directed/pgram.gv", "newrank"): 53,
+    ("tests/graphs/concentrate-demo/ellipse-arrowhead-overlap.dot", "default"): 5,
+    ("tests/graphs/concentrate-demo/ellipse-arrowhead-overlap.dot", "newrank"): 5,
 }
 
 
@@ -44,7 +50,10 @@ class Point:
 class Arrowhead:
     edge_name: str
     label: str
+    node_gvid: int
+    node_has_ellipse_outline: bool
     centroid: Point
+    polygon: list[Point]
 
 
 def limit_memory() -> None:
@@ -185,6 +194,21 @@ def polygon_centroid(points: list[Point]) -> Point:
     )
 
 
+def polygon_bbox(points: list[Point]) -> tuple[float, float, float, float]:
+    xs = [point.x for point in points]
+    ys = [point.y for point in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def bbox_overlap_area(
+    left: tuple[float, float, float, float],
+    right: tuple[float, float, float, float],
+) -> float:
+    return max(0.0, min(left[2], right[2]) - max(left[0], right[0])) * max(
+        0.0, min(left[3], right[3]) - max(left[1], right[1])
+    )
+
+
 def coincident_groups(arrows: list[Arrowhead]) -> list[list[int]]:
     groups: set[tuple[int, ...]] = set()
     for left, left_arrow in enumerate(arrows):
@@ -200,6 +224,27 @@ def coincident_groups(arrows: list[Arrowhead]) -> list[list[int]]:
         if len(group) > 1:
             groups.add(tuple(sorted(group)))
     return [list(group) for group in sorted(groups)]
+
+
+def overlapping_head_groups(arrows: list[Arrowhead]) -> list[tuple[int, int, float]]:
+    overlaps: list[tuple[int, int, float]] = []
+    head_arrows = [
+        (index, arrow) for index, arrow in enumerate(arrows) if arrow.label == "head"
+    ]
+    for left, left_arrow in head_arrows:
+        left_bbox = polygon_bbox(left_arrow.polygon)
+        for right, right_arrow in head_arrows:
+            if right <= left or right_arrow.node_gvid != left_arrow.node_gvid:
+                continue
+            if (
+                not left_arrow.node_has_ellipse_outline
+                or not right_arrow.node_has_ellipse_outline
+            ):
+                continue
+            area = bbox_overlap_area(left_bbox, polygon_bbox(right_arrow.polygon))
+            if area > MAX_ARROWHEAD_OVERLAP_AREA:
+                overlaps.append((left, right, area))
+    return overlaps
 
 
 def check_layout(graph: Path, ranker: str, layout: dict[str, Any]) -> int:
@@ -227,7 +272,12 @@ def check_layout(graph: Path, ranker: str, layout: dict[str, Any]) -> int:
                 Arrowhead(
                     edge_name=edge_name,
                     label=label,
+                    node_gvid=int(node["_gvid"]),
+                    node_has_ellipse_outline=any(
+                        op.get("op") in {"e", "E"} for op in node.get("_draw_", [])
+                    ),
                     centroid=polygon_centroid(polygon),
+                    polygon=polygon,
                 )
             )
             base, tip = arrow_axis(polygon, endpoint)
@@ -280,6 +330,19 @@ def check_layout(graph: Path, ranker: str, layout: dict[str, Any]) -> int:
             f"FAIL {graph} [{ranker}] coincident arrowhead group "
             f"{max_group} exceeds {MAX_COINCIDENT_GROUP}"
         )
+        failures += 1
+    overlaps = overlapping_head_groups(arrows)
+    print(
+        f"overlapping head-arrow pairs for {graph} [{ranker}] "
+        f"area>{MAX_ARROWHEAD_OVERLAP_AREA:.2f}pt^2: pairs={len(overlaps)}"
+    )
+    for left, right, area in overlaps:
+        print(
+            f"  overlap area={area:.2f} "
+            f"{arrows[left].edge_name} head; {arrows[right].edge_name} head"
+        )
+    if overlaps:
+        print(f"FAIL {graph} [{ranker}] overlapping head arrowheads remain")
         failures += 1
     return failures
 
