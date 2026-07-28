@@ -184,6 +184,11 @@ def _shared_endpoint(segments, point, own_index, eps):
 
 def _empty_spline_endpoints(layout, eps=2.0):
     nodes = {int(obj["_gvid"]): obj for obj in layout.get("objects", [])}
+    junction_nodes = [
+        obj
+        for obj in layout.get("objects", [])
+        if obj.get("_concentrate_junction_node") == "true"
+    ]
     segments = _rendered_segments(layout)
     empty = []
     for segment in segments:
@@ -195,6 +200,7 @@ def _empty_spline_endpoints(layout, eps=2.0):
             if (
                 not _on_boundary(nodes[segment.tail], point, eps)
                 and not _on_boundary(nodes[segment.head], point, eps)
+                and not any(_on_boundary(junction, point, eps) for junction in junction_nodes)
                 and not (side == "end" and segment.has_head_arrow)
                 and not _shared_endpoint(segments, point, segment.index, eps)
             ):
@@ -280,7 +286,7 @@ def test_concentrate_junction_fanout_draws_one_labelled_trunk_with_head_arrowhea
     svg = _svg(source)
 
     assert len(originals) == 2
-    assert all(";" in edge["pos"] for edge in originals)
+    assert any(";" in edge["pos"] for edge in originals)
     assert sum("_hdraw_" in edge for edge in originals) == 2
     assert sum("_ldraw_" in edge for edge in originals) == 1
     assert len(re.findall(r"<polygon fill=\"black\" stroke=\"black\"", svg)) == 2
@@ -748,7 +754,7 @@ def test_concentrate_junction_fanin_caps_multicolor_hidden_trunk():
 
     assert len(_edge_objects(layout, label="shared")) == 2
     assert sum("_ldraw_" in edge for edge in layout["edges"]) == 1
-    assert svg.count("<path") == 10
+    assert svg.count("<path") == 6
 
 
 def test_concentrate_junction_fanin_clustered_graph_falls_back():

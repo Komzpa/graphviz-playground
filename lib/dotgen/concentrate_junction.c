@@ -16,7 +16,6 @@
 #include <dotgen/bundle_load.h>
 #include <dotgen/dot.h>
 #include <limits.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -283,6 +282,17 @@ static void copy_edge_attrs(edge_t *dst, edge_t *src, bool with_label,
   }
 }
 
+static void set_no_arrows(edge_t *e) {
+  attrsym_t *arrowhead = agfindedgeattr(agraphof(agtail(e)), "arrowhead");
+  if (arrowhead) {
+    agxset(e, arrowhead, "none");
+  }
+  attrsym_t *arrowtail = agfindedgeattr(agraphof(agtail(e)), "arrowtail");
+  if (arrowtail) {
+    agxset(e, arrowtail, "none");
+  }
+}
+
 static node_t *fresh_junction_node(graph_t *g, size_t *index) {
   char name[64];
   do {
@@ -316,11 +326,11 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
                        junction_kind_t kind, bool reverse) {
   edge_t *rep = group->edges[0];
 
-  agattr_text(g, AGNODE, "label", "");
-  agattr_text(g, AGNODE, "shape", "ellipse");
-  agattr_text(g, AGNODE, "style", "");
-  agattr_text(g, AGNODE, "width", "");
-  agattr_text(g, AGNODE, "height", "");
+  N_label = agattr_text(g, AGNODE, "label", "");
+  N_shape = agattr_text(g, AGNODE, "shape", "ellipse");
+  N_style = agattr_text(g, AGNODE, "style", "");
+  N_width = agattr_text(g, AGNODE, "width", "");
+  N_height = agattr_text(g, AGNODE, "height", "");
   agattr_text(g, AGNODE, "_concentrate_junction_node", "");
   agattr_text(g, AGEDGE, "color", "");
   agattr_text(g, AGEDGE, "style", "");
@@ -339,21 +349,11 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agattr_text(g, AGEDGE, "_concentrate_junction_draw_trunk", "");
 
   node_t *jn = fresh_junction_node(g, index);
-  if (N_label) {
-    agxset(jn, N_label, "");
-  }
-  if (N_shape) {
-    agxset(jn, N_shape, "point");
-  }
-  if (N_style) {
-    agxset(jn, N_style, "invis");
-  }
-  if (N_width) {
-    agxset(jn, N_width, "0.02");
-  }
-  if (N_height) {
-    agxset(jn, N_height, "0.02");
-  }
+  agxset(jn, N_label, "");
+  agxset(jn, N_shape, "point");
+  agxset(jn, N_style, "invis");
+  agxset(jn, N_width, "0.02");
+  agxset(jn, N_height, "0.02");
   agsafeset(jn, "label", "", "");
   agsafeset(jn, "shape", "point", "");
   agsafeset(jn, "style", "invis", "");
@@ -362,10 +362,6 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agsafeset(jn, "_concentrate_junction_node", "true", "");
   init_added_node(jn);
   ND_concentrate_junction(jn) = true;
-  ND_shape(jn) = bind_shape("point", jn);
-  ND_width(jn) = 0.02;
-  ND_height(jn) = 0.02;
-  gv_nodesize(jn, GD_flip(g));
 
   int weight = 0;
   edge_t *trunk = NULL;
@@ -373,6 +369,7 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     trunk = reverse ? agedge(g, jn, group->anchor, NULL, 1)
                     : agedge(g, group->anchor, jn, NULL, 1);
     copy_edge_attrs(trunk, rep, true, false, false, reverse);
+    set_no_arrows(trunk);
   } else {
     trunk = reverse ? agedge(g, group->anchor, jn, NULL, 1)
                     : agedge(g, jn, group->anchor, NULL, 1);
@@ -397,6 +394,7 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
       arm = reverse ? agedge(g, jn, agtail(orig), NULL, 1)
                     : agedge(g, agtail(orig), jn, NULL, 1);
       copy_edge_attrs(arm, orig, false, false, false, reverse);
+      set_no_arrows(arm);
     }
     agsafeset(arm, "_concentrate_junction_internal", "true", "");
     init_added_edge(arm);
@@ -533,89 +531,6 @@ static void reverse_bezier(bezier *bz) {
   bz->ep = p;
 }
 
-static pointf bezier_start(const bezier *bz) { return bz->list[0]; }
-
-static pointf bezier_end(const bezier *bz) { return bz->list[bz->size - 1]; }
-
-static double point_distance(pointf a, pointf b) {
-  const double dx = a.x - b.x;
-  const double dy = a.y - b.y;
-  return hypot(dx, dy);
-}
-
-static pointf subtract_points(pointf a, pointf b) {
-  return (pointf){a.x - b.x, a.y - b.y};
-}
-
-static pointf add_points(pointf a, pointf b) {
-  return (pointf){a.x + b.x, a.y + b.y};
-}
-
-static double vector_length(pointf v) { return hypot(v.x, v.y); }
-
-static pointf scale_vector(pointf v, double scale) {
-  return (pointf){v.x * scale, v.y * scale};
-}
-
-static pointf vector_with_length(pointf direction, double length,
-                                 pointf fallback) {
-  const double direction_length = vector_length(direction);
-  if (direction_length > 1e-6) {
-    return scale_vector(direction, length / direction_length);
-  }
-  const double fallback_length = vector_length(fallback);
-  if (fallback_length > 1e-6) {
-    return scale_vector(fallback, length / fallback_length);
-  }
-  return (pointf){0, 0};
-}
-
-static void pull_cubic_start_to_joint(bezier *cubic, pointf joint,
-                                      pointf incoming_direction) {
-  if (cubic->size < 2) {
-    return;
-  }
-  const pointf old_start = cubic->list[0];
-  const pointf old_handle = cubic->list[1];
-  const double handle_length = point_distance(old_start, old_handle);
-  const pointf old_direction = subtract_points(old_handle, old_start);
-  cubic->list[0] = joint;
-  cubic->list[1] =
-      add_points(joint, vector_with_length(incoming_direction, handle_length,
-                                           old_direction));
-}
-
-static void pull_cubic_end_to_joint(bezier *cubic, pointf joint,
-                                    pointf outgoing_direction) {
-  if (cubic->size < 2) {
-    return;
-  }
-  const pointf old_end = cubic->list[cubic->size - 1];
-  const pointf old_handle = cubic->list[cubic->size - 2];
-  const double handle_length = point_distance(old_end, old_handle);
-  const pointf old_direction = subtract_points(old_handle, old_end);
-  cubic->list[cubic->size - 1] = joint;
-  cubic->list[cubic->size - 2] =
-      add_points(joint, vector_with_length(outgoing_direction, handle_length,
-                                           old_direction));
-}
-
-static bezier connector_bezier(pointf start, pointf end, pointf start_direction,
-                               pointf end_direction) {
-  bezier bz = {0};
-  bz.size = 4;
-  bz.list = gv_calloc(bz.size, sizeof(pointf));
-  const double length = point_distance(start, end);
-  bz.list[0] = start;
-  bz.list[1] =
-      add_points(start, vector_with_length(start_direction, length / 3,
-                                           subtract_points(end, start)));
-  bz.list[2] = add_points(end, vector_with_length(end_direction, length / 3,
-                                                  subtract_points(start, end)));
-  bz.list[3] = end;
-  return bz;
-}
-
 static bezier copy_bezier(const splines *part, size_t part_index,
                           bool reverse) {
   const size_t source_index =
@@ -644,36 +559,15 @@ static splines *copy_joined_splines(const splines *arm, const splines *trunk,
     trunk_list[i] = copy_bezier(trunk, i, reverse);
   }
 
-  const pointf arm_end = bezier_end(&arm_list[arm->size - 1]);
-  const pointf trunk_start = bezier_start(&trunk_list[0]);
-  pointf incoming_direction = {0, 0};
-  if (arm_list[arm->size - 1].size >= 2) {
-    const bezier *last_arm = &arm_list[arm->size - 1];
-    incoming_direction =
-        subtract_points(arm_end, last_arm->list[last_arm->size - 2]);
-  }
-  pointf outgoing_direction = {0, 0};
-  if (trunk_list[0].size >= 2) {
-    outgoing_direction = subtract_points(trunk_list[0].list[1], trunk_start);
-  }
-  const bool needs_join = point_distance(arm_end, trunk_start) > 0.01;
-  if (!needs_join) {
-    pull_cubic_start_to_joint(&trunk_list[0], arm_end, incoming_direction);
-  }
-  *arm_size = arm->size + (needs_join ? 1 : 0);
+  *arm_size = arm->size;
 
   splines *joined = gv_calloc(1, sizeof(splines));
-  joined->size = *arm_size + trunk->size;
+  joined->size = arm->size + trunk->size;
   joined->list = gv_calloc(joined->size, sizeof(bezier));
 
   size_t out = 0;
   for (size_t i = 0; i < arm->size; ++i) {
     joined->list[out++] = arm_list[i];
-  }
-  if (needs_join) {
-    joined->list[out++] =
-        connector_bezier(arm_end, trunk_start, incoming_direction,
-                         scale_vector(outgoing_direction, -1.0));
   }
   for (size_t i = 0; i < trunk->size; ++i) {
     joined->list[out++] = trunk_list[i];
@@ -681,10 +575,6 @@ static splines *copy_joined_splines(const splines *arm, const splines *trunk,
 
   joined->bb = arm->bb;
   EXPANDBB(&joined->bb, trunk->bb);
-  if (point_distance(arm_end, trunk_start) > 0.01) {
-    expandbp(&joined->bb, arm_end);
-    expandbp(&joined->bb, trunk_start);
-  }
   free(arm_list);
   free(trunk_list);
   return joined;
@@ -703,50 +593,9 @@ static splines *copy_splines(const splines *part, bool reverse) {
 
 static splines *copy_connected_arm_splines(const splines *trunk,
                                            const splines *arm, bool reverse) {
-  splines *trunk_copy = copy_splines(trunk, reverse);
   splines *arm_copy = copy_splines(arm, reverse);
-  const pointf trunk_end = bezier_end(&trunk_copy->list[trunk_copy->size - 1]);
-  const pointf arm_start = bezier_start(&arm_copy->list[0]);
-  pointf outgoing_direction = {0, 0};
-  if (arm_copy->list[0].size >= 2) {
-    outgoing_direction = subtract_points(arm_copy->list[0].list[1], arm_start);
-  }
-  pull_cubic_end_to_joint(&trunk_copy->list[trunk_copy->size - 1], trunk_end,
-                          outgoing_direction);
-  const bool needs_join = point_distance(trunk_end, arm_start) > 0.01;
-  if (!needs_join) {
-    pull_cubic_start_to_joint(&arm_copy->list[0], trunk_end,
-                              outgoing_direction);
-  }
-
-  splines *connected = gv_calloc(1, sizeof(splines));
-  connected->size = arm_copy->size + (needs_join ? 1 : 0);
-  connected->list = gv_calloc(connected->size, sizeof(bezier));
-
-  size_t out = 0;
-  if (needs_join) {
-    connected->list[out++] =
-        connector_bezier(trunk_end, arm_start, outgoing_direction,
-                         scale_vector(outgoing_direction, -1.0));
-  }
-  for (size_t i = 0; i < arm_copy->size; ++i) {
-    connected->list[out++] = arm_copy->list[i];
-  }
-
-  connected->bb = arm_copy->bb;
-  if (point_distance(trunk_end, arm_start) > 0.01) {
-    expandbp(&connected->bb, trunk_end);
-    expandbp(&connected->bb, arm_start);
-  }
-
-  for (size_t i = 0; i < trunk_copy->size; ++i) {
-    free(trunk_copy->list[i].list);
-  }
-  free(trunk_copy->list);
-  free(trunk_copy);
-  free(arm_copy->list);
-  free(arm_copy);
-  return connected;
+  (void)trunk;
+  return arm_copy;
 }
 
 void dot_concentrate_junction_splines(graph_t *g) {
