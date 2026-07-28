@@ -10,6 +10,7 @@ import hashlib
 import subprocess
 import sys
 import re
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,12 +18,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOT = ROOT / "build" / "cmd" / "dot" / "dot_builtins"
-BASELINE_DOT = ROOT.parent / "baseline-1597" / "build" / "cmd" / "dot" / "dot_builtins"
 FIXTURE = ROOT / "graphs" / "directed" / "honda-tokoro.gv"
 CANDIDATE_MARGIN_PT = 1.0
 RANKERS = (("default", ()), ("newrank=true", ("-Gnewrank=true",)))
 
-BASELINE_SHA = "1597f2926"
+BASELINE_SHA = "e1b2e4bc83df341910ca353bba715f74420a9bae"
 UPSTREAM = {
     "off": {"labels": 17, "ambiguous": 4, "wrong": 4},
     "on": {"labels": 16, "ambiguous": 4, "wrong": 4},
@@ -36,6 +36,47 @@ EXPECTED = {
     "on": {"labels": 17, "ambiguous_max": 1, "wrong": 0},
 }
 P1_U_IDENTITY = "n005->n002:_hldraw_::u::0"
+P2_SAME_OWNER_KNOWN_OPEN_TEXTS = frozenset([":s:", ":u:"])
+P2_SAME_OWNER_KNOWN_OPEN_EDGE = "n007->n006"
+
+
+def run(command: list[str], cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        cwd=cwd,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def dot_built_at(sha: str) -> Path:
+    base = Path(tempfile.gettempdir()) / f"graphviz-port-label-baseline-{sha[:9]}"
+    if not base.exists():
+        run(["git", "worktree", "add", "--detach", str(base), sha])
+    head = run(["git", "rev-parse", "HEAD"], cwd=base).stdout.strip()
+    if head != sha:
+        raise RuntimeError(f"baseline worktree {base} is at {head}, expected {sha}")
+    exe = base / "build" / "cmd" / "dot" / "dot_builtins"
+    if not exe.exists():
+        run(
+            [
+                "cmake",
+                "-G",
+                "Ninja",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DBUILD_SHARED_LIBS=ON",
+                "-DBUILD_TESTING=ON",
+                "-S",
+                str(base),
+                "-B",
+                str(base / "build"),
+            ],
+            cwd=base,
+        )
+    run(["cmake", "--build", str(base / "build"), "--target", "dot_builtins", "-j", "4"], cwd=base)
+    return exe
 
 
 @dataclass(frozen=True)
@@ -71,6 +112,17 @@ class LabelReport:
         return self.nearest_edge_index != self.label.edge_index
 
 
+@dataclass(frozen=True)
+class LabelOverlap:
+    left: Label
+    right: Label
+    same_owner: bool
+
+
+def same_owner(left: Label, right: Label) -> bool:
+    return left.tail == right.tail and left.head == right.head
+
+
 def render_json(
     dot: Path = DOT,
     fixture: Path = FIXTURE,
@@ -88,7 +140,7 @@ def render_json(
     command = [
         "bash",
         "-lc",
-        "ulimit -v 2097152; exec timeout 20 \"$@\"",
+        "ulimit -v 2097152; exec timeout -k 5s 20s \"$@\"",
         "dot-ulimit",
         str(dot),
         f"-Gconcentrate={mode}",
@@ -113,7 +165,7 @@ def render_bytes(
         [
             "bash",
             "-lc",
-            "ulimit -v 2097152; exec timeout 20 \"$@\"",
+            "ulimit -v 2097152; exec timeout -k 5s 20s \"$@\"",
             "dot-ulimit",
             str(dot),
             f"-Gconcentrate={mode}",
@@ -226,6 +278,18 @@ def segment_intersects_box(
     return any(
         segments_intersect(start, end, corners[index], corners[(index + 1) % 4])
         for index in range(4)
+    )
+
+
+def boxes_overlap(
+    left: tuple[float, float, float, float],
+    right: tuple[float, float, float, float],
+) -> bool:
+    return (
+        left[0] < right[2]
+        and left[2] > right[0]
+        and left[1] < right[3]
+        and left[3] > right[1]
     )
 
 
@@ -437,6 +501,52 @@ def print_reports(title: str, label_reports: list[LabelReport]) -> None:
         )
 
 
+def _overlap_text(label: Label, box: tuple[float, float, float, float] | None = None) -> str:
+    box = box_for_label(label, 0.0) if box is None else box
+    return (
+        f"{label.identity} {label.tail}->{label.head} "
+        f"anchor={label.center[0]:.2f},{label.center[1]:.2f} "
+        f"box=({box[0]:.2f},{box[1]:.2f},{box[2]:.2f},{box[3]:.2f})"
+    )
+
+
+def find_label_box_overlaps(label_reports: list[LabelReport]) -> list[LabelOverlap]:
+    boxed: list[tuple[Label, tuple[float, float, float, float]]] = [
+        (report.label, box_for_label(report.label, 0.0)) for report in label_reports
+    ]
+    overlaps: list[LabelOverlap] = []
+    for index in range(len(boxed)):
+        left_label, left_box = boxed[index]
+        for right_index in range(index + 1, len(boxed)):
+            right_label, right_box = boxed[right_index]
+            if boxes_overlap(left_box, right_box):
+                left = left_label
+                right = right_label
+                if left.identity > right.identity:
+                    left, right = right, left
+                overlaps.append(
+                    LabelOverlap(
+                        left=left,
+                        right=right,
+                        same_owner=same_owner(left_label, right_label),
+                    )
+                )
+    return overlaps
+
+
+def is_known_open_same_owner_overlap(left: Label, right: Label) -> bool:
+    if not same_owner(left, right):
+        return False
+    if f"{left.tail}->{left.head}" != P2_SAME_OWNER_KNOWN_OPEN_EDGE:
+        return False
+    if f"{right.tail}->{right.head}" != P2_SAME_OWNER_KNOWN_OPEN_EDGE:
+        return False
+    return {
+        left.text,
+        right.text,
+    } == P2_SAME_OWNER_KNOWN_OPEN_TEXTS
+
+
 def summary(label_reports: list[LabelReport]) -> dict[str, int]:
     return {
         "labels": len(label_reports),
@@ -462,17 +572,6 @@ def tracked_graphs() -> list[Path]:
     ]
 
 
-def has_shared_endpoint_port_label(layout: dict) -> bool:
-    groups = shared_endpoint_groups(layout)
-    if not groups:
-        return False
-    for label in label_rows(layout):
-        group = group_for_label(label, layout)
-        if group in groups:
-            return True
-    return False
-
-
 def edge_statements(text: str) -> list[str]:
     statements = []
     current = []
@@ -491,25 +590,12 @@ def edge_statements(text: str) -> list[str]:
     return statements
 
 
-def source_has_shared_endpoint_port_label(path: Path) -> bool:
+def source_has_port_label(path: Path) -> bool:
     try:
         text = path.read_text(errors="ignore")
     except OSError:
         return False
-    groups: dict[tuple[str, str], list[bool]] = {}
-    for statement in edge_statements(text):
-        if "->" not in statement or "[" not in statement:
-            continue
-        for endpoint, group_attr, label_attr in (
-            ("head", "samehead", "headlabel"),
-            ("tail", "sametail", "taillabel"),
-        ):
-            match = re.search(rf"\b{group_attr}\s*=\s*\"?([^\",\]\s]+)", statement)
-            if not match:
-                continue
-            has_label = re.search(rf"\b{label_attr}\s*=", statement) is not None
-            groups.setdefault((endpoint, match.group(1)), []).append(has_label)
-    return any(len(members) > 1 and any(members) for members in groups.values())
+    return re.search(r"\b(headlabel|taillabel)\s*=", text) is not None
 
 
 def digest(data: bytes | None) -> str:
@@ -518,33 +604,29 @@ def digest(data: bytes | None) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def identity_sweep() -> tuple[int, dict[str, tuple[int, int]], list[str]]:
-    if not BASELINE_DOT.exists():
-        print("identity sweep: baseline dot missing; skipped")
-        return 0, {}, []
-
+def identity_sweep(baseline_dot: Path) -> tuple[int, dict[str, tuple[int, int]], list[str]]:
     failures = 0
     stats = {ranker: [0, 0] for ranker, _ in RANKERS}
-    changed_shared: set[str] = set()
+    changed_port_label: set[str] = set()
     changed_unexpected: list[str] = []
     paths = tracked_graphs()
-    shared_by_source = {path for path in paths if source_has_shared_endpoint_port_label(path)}
+    port_label_by_source = {path for path in paths if source_has_port_label(path)}
 
     def compare_one(item: tuple[str, tuple[str, ...], Path]) -> tuple[str, bool, bool, str]:
         ranker, ranker_args, path = item
         before = render_bytes(
-            BASELINE_DOT, path, concentrate=True, ranker_args=ranker_args
+            baseline_dot, path, concentrate=True, ranker_args=ranker_args
         )
         after = render_bytes(DOT, path, concentrate=True, ranker_args=ranker_args)
         rel = str(path.relative_to(ROOT))
         if before is None or after is None:
-            return ranker, path in shared_by_source, True, rel
+            return ranker, path in port_label_by_source, True, rel
         if before != after:
             before_hashes = {digest(before)}
             after_hashes = {digest(after)}
             for _ in range(2):
                 retry_before = render_bytes(
-                    BASELINE_DOT, path, concentrate=True, ranker_args=ranker_args
+                    baseline_dot, path, concentrate=True, ranker_args=ranker_args
                 )
                 retry_after = render_bytes(
                     DOT, path, concentrate=True, ranker_args=ranker_args
@@ -554,8 +636,8 @@ def identity_sweep() -> tuple[int, dict[str, tuple[int, int]], list[str]]:
                 if retry_after is not None:
                     after_hashes.add(digest(retry_after))
             if before_hashes & after_hashes:
-                return ranker, path in shared_by_source, True, rel
-        return ranker, path in shared_by_source, before == after, (
+                return ranker, path in port_label_by_source, True, rel
+        return ranker, path in port_label_by_source, before == after, (
             f"{rel} [{ranker}] before={digest(before)} after={digest(after)}"
         )
 
@@ -565,14 +647,14 @@ def identity_sweep() -> tuple[int, dict[str, tuple[int, int]], list[str]]:
         for path in paths
     ]
     with ThreadPoolExecutor(max_workers=8) as executor:
-        for done, (ranker, shared_port_label, same, detail) in enumerate(
+        for done, (ranker, port_label, same, detail) in enumerate(
             executor.map(compare_one, tasks), start=1
         ):
             if done % 200 == 0:
                 print(f"identity progress graph/rankers={done}/{len(tasks)}", flush=True)
-            if shared_port_label:
+            if port_label:
                 if not same:
-                    changed_shared.add(detail.split(" [", 1)[0])
+                    changed_port_label.add(detail.split(" [", 1)[0])
                 continue
             stats[ranker][1] += 1
             if same:
@@ -581,31 +663,33 @@ def identity_sweep() -> tuple[int, dict[str, tuple[int, int]], list[str]]:
                 changed_unexpected.append(detail)
     for ranker, (matched, total) in stats.items():
         print(
-            f"byte-identical graph/rankers without shared endpoint port labels "
+            f"byte-identical graph/rankers without port labels "
             f"[{ranker}]: {matched}/{total}"
         )
-    if changed_shared:
-        print("changed graphs with shared endpoint port labels:")
-        for rel in sorted(changed_shared):
+    if changed_port_label:
+        print("changed graphs with port labels:")
+        for rel in sorted(changed_port_label):
             print(f"  {rel}")
     else:
-        print("changed graphs with shared endpoint port labels: []")
+        print("changed graphs with port labels: []")
     for item in changed_unexpected:
         print(f"FAIL unexpected identity change: {item}")
     failures += len(changed_unexpected)
-    return failures, {key: tuple(value) for key, value in stats.items()}, sorted(changed_shared)
+    return failures, {key: tuple(value) for key, value in stats.items()}, sorted(changed_port_label)
 
 
 def main() -> int:
     mode_reports = {}
     baseline_reports = {}
+    mode_overlaps: dict[str, list[LabelOverlap]] = {}
     try:
+        baseline_dot = dot_built_at(BASELINE_SHA)
         for mode, concentrate in (("off", False), ("on", True)):
             mode_reports[mode] = reports(render_json(concentrate=concentrate))
-            if BASELINE_DOT.exists():
-                baseline_reports[mode] = reports(
-                    render_json(BASELINE_DOT, concentrate=concentrate)
-                )
+            mode_overlaps[mode] = find_label_box_overlaps(mode_reports[mode])
+            baseline_reports[mode] = reports(
+                render_json(baseline_dot, concentrate=concentrate)
+            )
     except (subprocess.CalledProcessError, json.JSONDecodeError, RuntimeError) as err:
         print(f"FAIL verify_port_labels: {err}")
         return 1
@@ -645,6 +729,52 @@ def main() -> int:
             f"{UPSTREAM[mode]['ambiguous']} {UPSTREAM[mode]['wrong']} n/a n/a"
         )
         print_reports(f"# honda-tokoro concentrate={str(mode == 'on').lower()}", mode_reports[mode])
+    for mode, overlaps in mode_overlaps.items():
+        competing_overlaps = [overlap for overlap in overlaps if not overlap.same_owner]
+        known_open_overlaps = [
+            overlap for overlap in overlaps
+            if overlap.same_owner
+            and is_known_open_same_owner_overlap(overlap.left, overlap.right)
+        ]
+        hidden_overlaps = [
+            overlap for overlap in overlaps
+            if overlap.same_owner
+            and not is_known_open_same_owner_overlap(overlap.left, overlap.right)
+        ]
+        print(
+            f"{mode} label-box-overlaps total={len(overlaps)} "
+            f"competing={len(competing_overlaps)} same_owner={len(overlaps) - len(competing_overlaps)}"
+        )
+        if known_open_overlaps:
+            print(f"{mode} known-open same-owner overlaps:")
+            for overlap in known_open_overlaps:
+                left_box = box_for_label(overlap.left, 0.0)
+                right_box = box_for_label(overlap.right, 0.0)
+                print(
+                    f"  OPEN {overlap.left.identity} <-> {overlap.right.identity} "
+                    f"at {overlap.left.center[0]:.2f},{overlap.left.center[1]:.2f} "
+                    f"and {overlap.right.center[0]:.2f},{overlap.right.center[1]:.2f} "
+                    f"boxes=({left_box[0]:.2f},{left_box[1]:.2f},{left_box[2]:.2f},{left_box[3]:.2f}) "
+                    f"({right_box[0]:.2f},{right_box[1]:.2f},{right_box[2]:.2f},{right_box[3]:.2f})"
+                )
+        if competing_overlaps:
+            print(f"{mode} competing-owner overlaps:")
+            for overlap in competing_overlaps:
+                print(
+                    "  COMPETE "
+                    + _overlap_text(overlap.left, box_for_label(overlap.left, 0.0))
+                    + " <-> "
+                    + _overlap_text(overlap.right, box_for_label(overlap.right, 0.0))
+                )
+        if hidden_overlaps:
+            print(f"{mode} same-owner overlaps (not known-open): {len(hidden_overlaps)}")
+            for overlap in hidden_overlaps:
+                print(
+                    "  SAME-OWNER "
+                    + _overlap_text(overlap.left, box_for_label(overlap.left, 0.0))
+                    + " <-> "
+                    + _overlap_text(overlap.right, box_for_label(overlap.right, 0.0))
+                )
 
     for mode in ("off", "on"):
         current_summary = summary(mode_reports[mode])
@@ -661,6 +791,16 @@ def main() -> int:
                 f"{mode} ambiguous labels {current_summary['ambiguous']} "
                 f"> {expected['ambiguous_max']}"
             )
+        if len([overlap for overlap in mode_overlaps[mode] if not overlap.same_owner]):
+            failures.append(
+                f"{mode} competing-owner label-box overlaps="
+                f"{len([overlap for overlap in mode_overlaps[mode] if not overlap.same_owner])}"
+            )
+        if mode == "on" and not any(
+            is_known_open_same_owner_overlap(overlap.left, overlap.right)
+            for overlap in mode_overlaps[mode]
+        ):
+            failures.append("on p2 same-owner known-open overlap not reported")
 
     for mode, label_reports in mode_reports.items():
         p1_reports = [
@@ -673,7 +813,7 @@ def main() -> int:
                 f"{mode} p1 :u: candidates={p1_reports[0].candidate_count}"
             )
 
-    identity_failures, _, _ = identity_sweep()
+    identity_failures, _, _ = identity_sweep(baseline_dot)
     if identity_failures:
         failures.append(f"identity sweep failures={identity_failures}")
 
