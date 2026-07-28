@@ -1372,8 +1372,8 @@ int place_portlabel(edge_t *e, bool head_p) {
   const double angle =
       atan2(pf.y - pe.y, pf.x - pe.x) +
       RADIANS(late_double(e, E_labelangle, PORT_LABEL_ANGLE, -180.0));
-  const double dist =
-      PORT_LABEL_DISTANCE * late_double(e, E_labeldistance, 1.0, 0.0);
+  const double dist = PORT_LABEL_DISTANCE * (Concentrate ? 0.65 : 1.0) *
+                      late_double(e, E_labeldistance, 1.0, 0.0);
   l->pos.x = pe.x + dist * cos(angle);
   l->pos.y = pe.y + dist * sin(angle);
   l->set = true;
