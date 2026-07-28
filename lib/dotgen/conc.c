@@ -126,6 +126,16 @@ static bool downcandidate(node_t *v) {
          ND_out(v).size == 1 && ND_label(v) == NULL;
 }
 
+/* A downward fuse keeps the shared trunk only when the outgoing arms stay
+ * adjacent on the next rank. Otherwise one arm reaches sideways before it can
+ * continue downward, which is exactly the detour concentrate should avoid. */
+static bool downward_arm_travel_is_local(node_t *u, node_t *v) {
+  edge_t *const e = ND_out(u).list[0];
+  edge_t *const f = ND_out(v).list[0];
+  return e != NULL && f != NULL &&
+         abs(ND_order(aghead(e)) - ND_order(aghead(f))) <= 1;
+}
+
 static bool bothdowncandidates(node_t *u, node_t *v) {
   edge_t *e, *f;
   e = ND_in(u).list[0];
@@ -137,6 +147,7 @@ static bool bothdowncandidates(node_t *u, node_t *v) {
            rendered_edges_are_equal(f0, e0) &&
            gv_edge_tail_ports_are_equal(e, f) && e0 != NULL && f0 != NULL &&
            dense_same_head_labeled_fan_can_join_at(e0, f0, u) &&
+           downward_arm_travel_is_local(u, v) &&
            gv_edge_tail_ports_are_equal(e0, f0);
   }
   return false;
@@ -145,6 +156,16 @@ static bool bothdowncandidates(node_t *u, node_t *v) {
 static bool upcandidate(node_t *v) {
   return ND_node_type(v) == VIRTUAL && ND_out(v).size == 1 &&
          ND_in(v).size == 1 && ND_label(v) == NULL;
+}
+
+/* The upward pass is the same geometry with the rank direction reversed:
+ * the incoming arms must be adjacent before their virtual nodes share a trunk.
+ */
+static bool upward_arm_travel_is_local(node_t *u, node_t *v) {
+  edge_t *const e = ND_in(u).list[0];
+  edge_t *const f = ND_in(v).list[0];
+  return e != NULL && f != NULL &&
+         abs(ND_order(agtail(e)) - ND_order(agtail(f))) <= 1;
 }
 
 static bool bothupcandidates(node_t *u, node_t *v) {
@@ -158,6 +179,7 @@ static bool bothupcandidates(node_t *u, node_t *v) {
            rendered_edges_are_equal(f0, e0) &&
            gv_edge_head_ports_are_equal(e, f) && e0 != NULL && f0 != NULL &&
            dense_same_head_labeled_fan_can_join_at(e0, f0, u) &&
+           upward_arm_travel_is_local(u, v) &&
            (agtail(e0) != agtail(f0) || gv_edge_ports_are_equal(e0, f0));
   }
   return false;
