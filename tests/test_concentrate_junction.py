@@ -532,6 +532,29 @@ def test_concentrate_junction_refusal_does_not_disable_safe_fan():
     assert len(junctions) == 1
 
 
+def test_concentrate_junction_refuses_true_multiedges_inside_mixed_fan():
+    source = """
+        digraph {
+          graph [concentrate=true]
+          a -> b
+          a -> b
+          a -> c
+        }
+    """
+    layout = _layout(source)
+
+    assert not [
+        obj
+        for obj in layout["objects"]
+        if obj.get("_concentrate_junction_node") == "true"
+    ]
+    assert not [
+        edge
+        for edge in layout["edges"]
+        if edge.get("_concentrate_junction_original") == "true"
+    ]
+
+
 def test_concentrate_junction_fanin_fuses_rank_adjacent_shared_trunk_siblings():
     fixture = (
         Path(__file__).parent
