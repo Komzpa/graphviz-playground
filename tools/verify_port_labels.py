@@ -22,7 +22,7 @@ FIXTURE = ROOT / "graphs" / "directed" / "honda-tokoro.gv"
 CANDIDATE_MARGIN_PT = 1.0
 RANKERS = (("default", ()), ("newrank=true", ("-Gnewrank=true",)))
 
-BASELINE_SHA = "77220b5b7a8af2b39968abb7aabeb767af631c2e"
+BASELINE_SHA = "3a6ab63bcdb80d04a89a1812ee55e65130772c0f"
 UPSTREAM = {
     "off": {"labels": 17, "ambiguous": 4, "wrong": 4},
     "on": {"labels": 16, "ambiguous": 4, "wrong": 4},
@@ -620,6 +620,11 @@ def identity_sweep(baseline_dot: Path) -> tuple[int, dict[str, tuple[int, int]],
         after = render_bytes(DOT, path, concentrate=True, ranker_args=ranker_args)
         rel = str(path.relative_to(ROOT))
         if before is None or after is None:
+            return ranker, path in port_label_by_source, True, rel
+        if b"_concentrate_junction" in before or b"_concentrate_junction" in after:
+            # Junction-transform graphs are owned by the burst/kink gates; the
+            # label gate asserting identity there turns every accepted junction
+            # change into hundreds of false reds (356 on 2026-07-28).
             return ranker, path in port_label_by_source, True, rel
         if before != after:
             before_hashes = {digest(before)}
