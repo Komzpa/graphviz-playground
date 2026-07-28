@@ -135,6 +135,18 @@ static bool same_concentration_endpoints(edge_t *a, edge_t *b) {
   return agtail(a) == agtail(b) && aghead(a) == aghead(b);
 }
 
+static bool edge_has_true_multiedge_peer(edge_t *e) {
+  for (edge_t *other = agfstout(agraphof(e), agtail(e)); other;
+       other = agnxtout(agraphof(e), other)) {
+    if (other != e && same_concentration_endpoints(e, other) &&
+        gv_concentration_edges_have_equal_rendered_identity(
+            e, other, GV_CONCENTRATION_SAME_DIRECTION)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool edge_has_concentrated_peer(edge_t *e) {
   for (node_t *n = agfstnode(agraphof(e)); n; n = agnxtnode(agraphof(e), n)) {
     for (edge_t *other = agfstout(agraphof(e), n); other;
@@ -164,7 +176,8 @@ static bool graph_has_refused_concentrated_edge(edge_t *e) {
 
 static bool refused_edge_kind(graph_t *g, edge_t *e) {
   return agtail(e) == aghead(e) || edge_has_record_endpoint_geometry(e) ||
-         endpoint_has_port(e) || graph_has_same_rank_edge(g, e) ||
+         endpoint_has_port(e) || edge_has_true_multiedge_peer(e) ||
+         graph_has_same_rank_edge(g, e) ||
          graph_has_refused_concentrated_edge(e);
 }
 
