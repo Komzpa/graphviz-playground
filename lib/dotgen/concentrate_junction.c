@@ -45,6 +45,10 @@ typedef enum {
   JUNCTION_FANOUT,
 } junction_kind_t;
 
+enum {
+  GROUP_ATTR_COLOR = 1,
+};
+
 static node_t *group_anchor(edge_t *e, junction_kind_t kind);
 
 static char *group_attrs[] = {
@@ -301,6 +305,15 @@ static node_t *fresh_junction_node(graph_t *g, size_t *index) {
   return agnode(g, name, 1);
 }
 
+static const char *junction_marker_color(const junction_group_t *group) {
+  const char *color = group->attrs[GROUP_ATTR_COLOR];
+  if (color == NULL || color[0] == '\0' || strchr(color, ':') ||
+      strchr(color, ';')) {
+    return "black";
+  }
+  return color;
+}
+
 static void init_added_node(node_t *n) {
   agbindrec(n, "Agnodeinfo_t", sizeof(Agnodeinfo_t), true);
   common_init_node(n);
@@ -327,6 +340,8 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   edge_t *rep = group->edges[0];
 
   N_label = agattr_text(g, AGNODE, "label", "");
+  N_color = agattr_text(g, AGNODE, "color", "");
+  N_fillcolor = agattr_text(g, AGNODE, "fillcolor", "");
   N_shape = agattr_text(g, AGNODE, "shape", "ellipse");
   N_style = agattr_text(g, AGNODE, "style", "");
   N_width = agattr_text(g, AGNODE, "width", "");
@@ -349,16 +364,21 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agattr_text(g, AGEDGE, "_concentrate_junction_draw_trunk", "");
 
   node_t *jn = fresh_junction_node(g, index);
+  const char *marker_color = junction_marker_color(group);
   agxset(jn, N_label, "");
+  agxset(jn, N_color, marker_color);
+  agxset(jn, N_fillcolor, marker_color);
   agxset(jn, N_shape, "point");
-  agxset(jn, N_style, "invis");
-  agxset(jn, N_width, "0.02");
-  agxset(jn, N_height, "0.02");
+  agxset(jn, N_style, "");
+  agxset(jn, N_width, "0.035");
+  agxset(jn, N_height, "0.035");
   agsafeset(jn, "label", "", "");
+  agsafeset(jn, "color", marker_color, "");
+  agsafeset(jn, "fillcolor", marker_color, "");
   agsafeset(jn, "shape", "point", "");
-  agsafeset(jn, "style", "invis", "");
-  agsafeset(jn, "width", "0.02", "");
-  agsafeset(jn, "height", "0.02", "");
+  agsafeset(jn, "style", "", "");
+  agsafeset(jn, "width", "0.035", "");
+  agsafeset(jn, "height", "0.035", "");
   agsafeset(jn, "_concentrate_junction_node", "true", "");
   init_added_node(jn);
   ND_concentrate_junction(jn) = true;
