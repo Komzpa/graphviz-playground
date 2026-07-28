@@ -18,7 +18,9 @@
 #include "config.h"
 
 #include <common/geomprocs.h>
+#include <common/globals.h>
 #include <common/render.h>
+#include <common/utils.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -49,6 +51,12 @@ static void showPoints(pointf ps[], int pn) {
   LIST_APPEND(&Show_boxes, gv_strdup("grestore"));
 }
 #endif
+
+static double endpoint_route_clearance(edge_t *e) {
+  if (E_penwidth == NULL)
+    return 0.5;
+  return late_double(e, E_penwidth, 1.0, 0.0) / 2.0;
+}
 
 /* Clip arrow to node boundary.
  * The real work is done elsewhere. Here we get the real edge,
@@ -631,10 +639,12 @@ void endpath(path *P, edge_t *e, int et, pathend_t *endp, bool merge) {
       ++P->end.p.y;
     } else if (side & BOTTOM) {
       endp->sidemask = BOTTOM;
+      const double clearance =
+          shapeOf(n) == SH_RECORD ? endpoint_route_clearance(e) : 0.0;
       if (P->end.p.x < ND_coord(n).x) { /* go left */
         b0.LL.x = b.LL.x - 1;
         /* b0.UR.y = ND_coord(n).y - HT2(n); */
-        b0.UR.y = P->end.p.y;
+        b0.UR.y = P->end.p.y - clearance;
         b0.UR.x = b.UR.x;
         b0.LL.y = ND_coord(n).y - HT2(n) - GD_ranksep(agraphof(n)) / 2;
         b.UR.x = ND_coord(n).x - ND_lw(n) - (FUDGE - 2);
@@ -645,7 +655,7 @@ void endpath(path *P, edge_t *e, int et, pathend_t *endp, bool merge) {
         endp->boxes[1] = b;
       } else {
         b0.LL.x = b.LL.x;
-        b0.UR.y = P->end.p.y;
+        b0.UR.y = P->end.p.y - clearance;
         /* b0.UR.y = ND_coord(n).y - HT2(n); */
         b0.UR.x = b.UR.x + 1;
         b0.LL.y = ND_coord(n).y - HT2(n) - GD_ranksep(agraphof(n)) / 2;
