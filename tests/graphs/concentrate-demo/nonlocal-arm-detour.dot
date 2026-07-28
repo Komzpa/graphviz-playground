@@ -1,0 +1,52 @@
+digraph {
+  graph [ranksep=1.2 nodesep=1.5]
+  node [shape=box width=0.35 height=0.25]
+
+  s0 [shape=circle]
+  s1 [shape=circle]
+  s2 [shape=circle]
+
+  { rank=same; t0 t1 t2 t3 }
+
+  s0 -> t0 [minlen=2]
+  s1 -> t1 [minlen=2]
+  s2 -> t2 [minlen=2]
+  s0 -> t3 [minlen=2]
+
+  t0 -> t1 [style=invis weight=80]
+  t1 -> t2 [style=invis weight=80]
+  t2 -> t3 [style=invis weight=80]
+
+  b0 [shape=point width=0.01 height=0.01]
+  b0 -> t0 [style=invis weight=20]
+  s0 -> b0 [style=invis weight=5]
+
+  b1 [shape=point width=0.01 height=0.01]
+  b1 -> t2 [style=invis weight=20]
+  s1 -> b1 [style=invis weight=5]
+
+  b2 [shape=point width=0.01 height=0.01]
+  b2 -> t0 [style=invis weight=20]
+  s2 -> b2 [style=invis weight=5]
+
+  b3 [shape=point width=0.01 height=0.01]
+  b3 -> t2 [style=invis weight=20]
+  s0 -> b3 [style=invis weight=5]
+
+  b4 [shape=point width=0.01 height=0.01]
+  b4 -> t0 [style=invis weight=20]
+  s1 -> b4 [style=invis weight=5]
+
+  b5 [shape=point width=0.01 height=0.01]
+  b5 -> t2 [style=invis weight=20]
+  s2 -> b5 [style=invis weight=5]
+
+  b6 [shape=point width=0.01 height=0.01]
+  b6 -> t0 [style=invis weight=20]
+  s0 -> b6 [style=invis weight=5]
+
+  x0 -> t3 [style=invis weight=30 minlen=2]
+  x1 -> t2 [style=invis weight=30 minlen=2]
+  x2 -> t1 [style=invis weight=30 minlen=2]
+  x3 -> t0 [style=invis weight=30 minlen=2]
+}
