@@ -216,8 +216,14 @@ def has_filled_ellipse_marker(node: dict) -> bool:
             continue
         op_type = op.get("op", "")
         if op_type in {"e", "E"}:
-            has_ellipse = True
-        if _has_nonempty_color(op.get("fill")) or _has_nonempty_color(op.get("fillcolor")):
+            rect = op.get("rect", [])
+            has_ellipse = (
+                isinstance(rect, list)
+                and len(rect) == 4
+                and float(rect[2]) > 0.0
+                and float(rect[3]) > 0.0
+            )
+        if op_type == "C" and _has_nonempty_color(op.get("color")):
             has_fill = True
     return has_ellipse and has_fill
 
