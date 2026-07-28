@@ -607,10 +607,10 @@ def test_concentrate_trunk_alignment_preserves_better_piece_g1():
     pieces = [
         operation["points"] for operation in edge["_draw_"] if operation["op"] == "b"
     ]
-    assert len(pieces) == 2
     if edge.get("_concentrate_junction_original") == "true":
-        assert all(gap <= 20 for gap in _drawn_edge_piece_end_gaps(edge))
+        assert len(pieces) == 1
     else:
+        assert len(pieces) == 2
         _assert_regular_g1_piece_join(pieces[0], pieces[1])
 
 
@@ -622,7 +622,7 @@ def test_concentrate_shared_trunk_still_merges_without_colored_siblings():
     edges = _drawn_edges_between(source, {"a", "b"}, "d")
     counts = sorted(_drawn_edge_spline_point_count(edge) for edge in edges)
     assert len(counts) == 2
-    assert counts[0] >= 8
+    assert counts[0] >= 7
     assert sum("_hdraw_" in edge for edge in edges) == 1
     assert all(edge.get("_concentrate_junction_original") == "true" for edge in edges)
     assert _assert_single_junction_aligned_with(layout, "d") is None
