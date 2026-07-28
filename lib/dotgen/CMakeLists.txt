@@ -17,6 +17,7 @@ add_library(dotgen STATIC
   fastgr.c
   flat.c
   mincross.c
+  polygon_arrow_spread.c
   position.c
   rank.c
   sameport.c

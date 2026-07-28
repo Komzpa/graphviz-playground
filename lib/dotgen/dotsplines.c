@@ -24,6 +24,7 @@
 #include <dotgen/concentrate_splines.h>
 #include <dotgen/dot.h>
 #include <dotgen/flat_edge_splines.h>
+#include <dotgen/polygon_arrow_spread.h>
 #include <dotgen/spline_tuning.h>
 #include <float.h>
 #include <math.h>
@@ -984,6 +985,10 @@ static int dot_splines_(graph_t *g, int normalize) {
 finish:
 #endif
   align_flat_arrow_tangents_in_graph(g);
+  // Splitting a visible blob can expose the remaining adjacent half of a
+  // clamped fan, so settle the same geometry rule twice.
+  dot_spread_coincident_polygon_arrowheads(g);
+  dot_spread_coincident_polygon_arrowheads(g);
   dedupe_concentrated_edge_labels(g);
 
   /* place port labels */
