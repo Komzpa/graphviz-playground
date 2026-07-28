@@ -15,14 +15,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DOT = ROOT / "build" / "cmd" / "dot" / "dot_builtins"
 FIXTURE = ROOT / "graphs" / "directed" / "honda-tokoro.gv"
-MARGIN_PT = 1.0
+CANDIDATE_MARGIN_PT = 1.0
+UPSTREAM_AMBIGUOUS = 2
 
-# Ambiguous on 73b8ef683 with MARGIN_PT=2.0. This lets the gate reject new
-# ambiguous endpoint labels without requiring an old binary in the test run.
-BASELINE_AMBIGUOUS = {
-    "n007->n006:_hldraw_::u::0",
-    "n012->n011:_hldraw_::s::0",
-    "n016->n015:_hldraw_::u::0",
+# Drawn -Tjson baseline at 3cade507e with -Gconcentrate=true.
+BASELINE_SHA = "3cade507e"
+BASELINE_LABELS = 17
+BASELINE_AMBIGUOUS = 4
+BASELINE_WRONG_OWNER = 1
+BASELINE_CANDIDATES = {
+    "n005->n002:_hldraw_::u::0": 2,
+    "n007->n006:_hldraw_::u::0": 2,
+    "n012->n011:_hldraw_::s::0": 2,
+    "n016->n015:_hldraw_::u::0": 2,
 }
 
 
@@ -35,32 +40,38 @@ class Label:
     stream: str
     text: str
     center: tuple[float, float]
-    width: float
-    height: float
+
+
+@dataclass(frozen=True)
+class LabelReport:
+    label: Label
+    candidate_count: int
+    own_distance: float
+    nearest_foreign_distance: float
+    nearest_edge_index: int
+    nearest_edge_owner: str
 
     @property
-    def box(self) -> tuple[float, float, float, float]:
-        x, y = self.center
-        return (
-            x - self.width / 2.0,
-            y - self.height / 2.0,
-            x + self.width / 2.0,
-            y + self.height / 2.0,
-        )
+    def ambiguous(self) -> bool:
+        return self.candidate_count > 1
+
+    @property
+    def wrong_owner(self) -> bool:
+        return self.nearest_edge_index != self.label.edge_index
 
 
-def render_json() -> dict:
-    if not DOT.exists():
-        sys.exit(f"missing dot binary: {DOT.relative_to(ROOT)}")
-    if not FIXTURE.exists():
-        sys.exit(f"missing fixture: {FIXTURE.relative_to(ROOT)}")
+def render_json(dot: Path = DOT, fixture: Path = FIXTURE) -> dict:
+    if not dot.exists():
+        sys.exit(f"missing dot binary: {dot.relative_to(ROOT)}")
+    if not fixture.exists():
+        sys.exit(f"missing fixture: {fixture.relative_to(ROOT)}")
 
     command = [
         "bash",
         "-lc",
         "ulimit -v 2097152; exec timeout 20 \"$0\" -Gconcentrate=true -Tjson \"$1\"",
-        str(DOT),
-        str(FIXTURE),
+        str(dot),
+        str(fixture),
     ]
     output = subprocess.check_output(command, cwd=ROOT)
     return json.loads(output)
@@ -123,25 +134,22 @@ def distance_to_edge(
     )
 
 
-def labels(layout: dict) -> list[Label]:
+def label_rows(layout: dict) -> list[Label]:
     names = {node["_gvid"]: node["name"] for node in layout["objects"]}
-    labels_seen = []
+    rows = []
     per_edge_stream_text: dict[tuple[int, str, str], int] = {}
     for edge_index, edge in enumerate(layout["edges"]):
         tail = names[edge["tail"]]
         head = names[edge["head"]]
         for stream in ("_ldraw_", "_hldraw_", "_tldraw_"):
-            font_size = 14.0
             for operation in edge.get(stream, []):
-                if operation.get("op") == "F":
-                    font_size = float(operation["size"])
                 if operation.get("op") != "T":
                     continue
                 text = operation["text"]
                 key = (edge_index, stream, text)
                 occurrence = per_edge_stream_text.get(key, 0)
                 per_edge_stream_text[key] = occurrence + 1
-                labels_seen.append(
+                rows.append(
                     Label(
                         identity=f"{tail}->{head}:{stream}:{text}:{occurrence}",
                         edge_index=edge_index,
@@ -150,56 +158,127 @@ def labels(layout: dict) -> list[Label]:
                         stream=stream,
                         text=text,
                         center=tuple(map(float, operation["pt"])),
-                        width=float(operation.get("width", 0.0)),
-                        height=font_size,
                     )
                 )
-    return labels_seen
+    return rows
+
+
+def edge_owner_names(layout: dict) -> list[str]:
+    names = {node["_gvid"]: node["name"] for node in layout["objects"]}
+    return [f"{names[edge['tail']]}->{names[edge['head']]}" for edge in layout["edges"]]
+
+
+def reports(layout: dict) -> list[LabelReport]:
+    rows = label_rows(layout)
+    if not any(label.stream in {"_hldraw_", "_tldraw_"} for label in rows):
+        raise RuntimeError("endpoint label streams are empty")
+
+    segments_by_edge = [edge_segments(edge) for edge in layout["edges"]]
+    owner_names = edge_owner_names(layout)
+    label_reports = []
+    for label in rows:
+        distances = [
+            distance_to_edge(label.center, segments)
+            for segments in segments_by_edge
+        ]
+        nearest_distance = min(distances, default=math.inf)
+        nearest_edge_index = min(range(len(distances)), key=distances.__getitem__)
+        candidate_limit = 2.0 * nearest_distance + CANDIDATE_MARGIN_PT
+        candidate_count = sum(distance < candidate_limit for distance in distances)
+        foreign_distances = [
+            distance
+            for index, distance in enumerate(distances)
+            if index != label.edge_index
+        ]
+        label_reports.append(
+            LabelReport(
+                label=label,
+                candidate_count=candidate_count,
+                own_distance=distances[label.edge_index],
+                nearest_foreign_distance=min(foreign_distances, default=math.inf),
+                nearest_edge_index=nearest_edge_index,
+                nearest_edge_owner=owner_names[nearest_edge_index],
+            )
+        )
+    return label_reports
+
+
+def print_reports(title: str, label_reports: list[LabelReport]) -> None:
+    print(title)
+    print(
+        "stream label owner anchor candidate_count own_edge_distance_pt "
+        "nearest_foreign_distance_pt nearest_edge"
+    )
+    for report in label_reports:
+        label = report.label
+        anchor = f"{label.center[0]:.2f},{label.center[1]:.2f}"
+        print(
+            f"{label.stream} {label.text!r} {label.tail}->{label.head} "
+            f"anchor={anchor} candidates={report.candidate_count} "
+            f"own={report.own_distance:.2f} "
+            f"foreign={report.nearest_foreign_distance:.2f} "
+            f"nearest={report.nearest_edge_owner}"
+        )
 
 
 def main() -> int:
-    layout = render_json()
-    label_rows = labels(layout)
-    if not any(label.stream in {"_hldraw_", "_tldraw_"} for label in label_rows):
-        print("FAIL verify_port_labels: endpoint label streams are empty")
+    try:
+        label_reports = reports(render_json())
+    except (subprocess.CalledProcessError, json.JSONDecodeError, RuntimeError) as err:
+        print(f"FAIL verify_port_labels: {err}")
         return 1
 
-    segments_by_edge = [edge_segments(edge) for edge in layout["edges"]]
-    ambiguous = set()
-    print(
-        "stream label owner box own_edge_distance_pt nearest_foreign_distance_pt "
-        f"delta_pt ambiguous_margin_pt={MARGIN_PT:.2f}"
+    print_reports(
+        f"# honda-tokoro concentrate=true current candidate-owner rule "
+        f"limit=2*nearest+{CANDIDATE_MARGIN_PT:.1f}pt",
+        label_reports,
     )
-    for label in label_rows:
-        own = distance_to_edge(label.center, segments_by_edge[label.edge_index])
-        foreign_distances = [
-            distance_to_edge(label.center, segments)
-            for index, segments in enumerate(segments_by_edge)
-            if index != label.edge_index and segments
-        ]
-        nearest_foreign = min(foreign_distances, default=math.inf)
-        delta = nearest_foreign - own
-        is_ambiguous = delta < MARGIN_PT
-        if is_ambiguous:
-            ambiguous.add(label.identity)
-        box = ",".join(f"{value:.2f}" for value in label.box)
-        print(
-            f"{label.stream} {label.text!r} {label.tail}->{label.head} "
-            f"box=[{box}] own={own:.2f} foreign={nearest_foreign:.2f} "
-            f"delta={delta:.2f} ambiguous={'yes' if is_ambiguous else 'no'}"
+
+    ambiguous = [report for report in label_reports if report.ambiguous]
+    wrong_owner = [report for report in label_reports if report.wrong_owner]
+    regressions = [
+        report
+        for report in label_reports
+        if report.candidate_count
+        > BASELINE_CANDIDATES.get(report.label.identity, 1)
+    ]
+
+    print(
+        f"summary labels={len(label_reports)} ambiguous={len(ambiguous)} "
+        f"wrong_owner={len(wrong_owner)} upstream_ambiguous={UPSTREAM_AMBIGUOUS} "
+        f"baseline={BASELINE_SHA}:labels={BASELINE_LABELS},"
+        f"ambiguous={BASELINE_AMBIGUOUS},wrong_owner={BASELINE_WRONG_OWNER}"
+    )
+
+    failures = []
+    if len(label_reports) != BASELINE_LABELS:
+        failures.append(
+            f"label count changed from {BASELINE_LABELS} to {len(label_reports)}"
         )
+    if wrong_owner:
+        failures.append("nearest edge is not the owning edge")
+    if len(ambiguous) >= UPSTREAM_AMBIGUOUS:
+        failures.append(
+            f"ambiguous labels {len(ambiguous)} is not below upstream {UPSTREAM_AMBIGUOUS}"
+        )
+    if regressions:
+        failures.append(f"candidate-count regressions against {BASELINE_SHA}")
 
-    new_ambiguous = ambiguous - BASELINE_AMBIGUOUS
-    if new_ambiguous:
-        print("FAIL verify_port_labels: new ambiguous labels:")
-        for identity in sorted(new_ambiguous):
-            print(f"  {identity}")
+    if failures:
+        print("FAIL verify_port_labels:")
+        for failure in failures:
+            print(f"  {failure}")
+        for report in wrong_owner:
+            print(f"  wrong-owner {report.label.identity}")
+        for report in regressions:
+            print(
+                f"  regression {report.label.identity}: "
+                f"{BASELINE_CANDIDATES.get(report.label.identity, 1)}"
+                f"->{report.candidate_count}"
+            )
         return 1
 
-    print(
-        f"OK verify_port_labels: labels={len(label_rows)} "
-        f"ambiguous={len(ambiguous)} baseline_allowed={len(BASELINE_AMBIGUOUS)}"
-    )
+    print("OK verify_port_labels")
     return 0
 
 
