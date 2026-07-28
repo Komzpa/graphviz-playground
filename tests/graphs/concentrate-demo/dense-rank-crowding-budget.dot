@@ -1,0 +1,25 @@
+digraph {
+  graph [nodesep=0.08, ranksep=0.25]
+  node [shape=point, width=0.04, height=0.04, label=""]
+
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+  source -> sink
+}
