@@ -22,7 +22,7 @@ FIXTURE = ROOT / "graphs" / "directed" / "honda-tokoro.gv"
 CANDIDATE_MARGIN_PT = 1.0
 RANKERS = (("default", ()), ("newrank=true", ("-Gnewrank=true",)))
 
-BASELINE_SHA = "e1b2e4bc83df341910ca353bba715f74420a9bae"
+BASELINE_SHA = "77220b5b7a8af2b39968abb7aabeb767af631c2e"
 UPSTREAM = {
     "off": {"labels": 17, "ambiguous": 4, "wrong": 4},
     "on": {"labels": 16, "ambiguous": 4, "wrong": 4},
