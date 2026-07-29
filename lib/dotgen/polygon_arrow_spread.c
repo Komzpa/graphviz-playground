@@ -172,14 +172,16 @@ static pointf project_to_ellipse_outline(node_t *node, pointf target) {
                   .y = center.y + ray.y / scale_factor};
 }
 
-static void spread_arrow_landing_group(arrow_landing_t *group, size_t count) {
+/// Spread one group of arrowheads that landed on top of each other, and report
+/// whether anything actually moved so the caller knows if the drawing settled.
+static bool spread_arrow_landing_group(arrow_landing_t *group, size_t count) {
   bool spread_pair = false;
   bool curved_group = false;
   for (size_t i = 0; i < count; i++)
     curved_group = curved_group || group[i].curved_outline;
   spread_pair = curved_group;
   if (count <= 1 || (count == 2 && !spread_pair))
-    return;
+    return false;
 
   double spacing = HUGE_VAL;
   for (size_t i = 0; i < count; i++) {
@@ -196,21 +198,27 @@ static void spread_arrow_landing_group(arrow_landing_t *group, size_t count) {
     direction_length = hypot(direction.x, direction.y);
   }
   if (direction_length <= MILLIPOINT)
-    return;
+    return false;
   direction = scale(1.0 / direction_length, direction);
 
   const double center_offset =
       curved_group ? ((double)count - 1.0) * spacing / 2.0 : 0.0;
+  bool moved = false;
   for (size_t i = 0; i < count; i++) {
     pointf target = add_pointf(
         group[0].tip, scale((double)i * spacing - center_offset, direction));
     if (group[i].curved_outline)
       target = project_to_ellipse_outline(group[i].node, target);
+    moved = moved || DIST(group[i].tip, target) > MILLIPOINT;
     move_arrow_landing(&group[i], target);
   }
+  return moved;
 }
 
-void dot_spread_coincident_polygon_arrowheads(graph_t *g) {
+/// One sweep over every arrowhead landing in the graph. Returns true when it
+/// moved something: splitting a visible blob can uncover the remaining adjacent
+/// half of a clamped fan, which is only reachable on a later sweep.
+static bool spread_coincident_arrowheads_once(graph_t *g) {
   arrow_landing_t *landings = NULL;
   size_t landing_count = 0;
   size_t landing_capacity = 0;
@@ -237,6 +245,7 @@ void dot_spread_coincident_polygon_arrowheads(graph_t *g) {
     qsort(landings, landing_count, sizeof(*landings), compare_arrow_landings);
 
   size_t group_start = 0;
+  bool moved = false;
   while (group_start < landing_count) {
     size_t group_end = group_start + 1;
     while (
@@ -247,9 +256,29 @@ void dot_spread_coincident_polygon_arrowheads(graph_t *g) {
                 landings[group_end - 1].grouping_distance)) {
       group_end++;
     }
-    spread_arrow_landing_group(&landings[group_start], group_end - group_start);
+    moved = spread_arrow_landing_group(&landings[group_start],
+                                       group_end - group_start) ||
+            moved;
     group_start = group_end;
   }
 
   free(landings);
+  return moved;
+}
+
+/// Two sweeps, and deliberately not "until nothing moves".
+///
+/// The second sweep earns its keep: splitting a visible blob uncovers the
+/// remaining adjacent half of a clamped fan, worth 3 fewer coincident
+/// arrowheads on graphs/directed/pgram.gv (9 -> 6). A third does not — each
+/// sweep re-anchors a group on its own first landing, so on self-edges the
+/// group keeps drifting and pushes duplicate self-edge labels into the node
+/// they belong to (measured on tests/graphs/sb_circle_dbl.gv). This is a
+/// bounded refinement, not a fixpoint, and the bound is the measurement.
+void dot_spread_coincident_polygon_arrowheads(graph_t *g) {
+  enum { SPREAD_SWEEPS = 2 };
+  for (int sweep = 0; sweep < SPREAD_SWEEPS; sweep++) {
+    if (!spread_coincident_arrowheads_once(g))
+      return;
+  }
 }
