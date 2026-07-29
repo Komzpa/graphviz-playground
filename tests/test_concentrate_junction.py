@@ -487,11 +487,47 @@ def test_concentrate_junction_refuses_record_endpoints():
 
 
 def test_concentrate_junction_refuses_port_endpoints():
-    fixture = (
-        Path(__file__).parents[1] / "graphs" / "directed" / "honda-tokoro.gv"
-    )
+    source = """
+        digraph {
+          graph [concentrate=true]
+          a -> c:port
+          b -> c:port
+        }
+    """
+    layout = _layout(source)
 
-    _assert_fixture_refuses_concentrate_junction(fixture)
+    assert not [
+        obj
+        for obj in layout.get("objects", [])
+        if obj.get("_concentrate_junction_node") == "true"
+    ]
+
+
+def test_concentrate_junction_fuses_samehead_groups_on_honda_tokoro():
+    fixture = Path(__file__).parents[1] / "graphs" / "directed" / "honda-tokoro.gv"
+    layout = _fixture_json(fixture, "-Gconcentrate=true")
+    names = {int(obj["_gvid"]): obj["name"] for obj in layout["objects"]}
+    junctions = [
+        obj for obj in layout["objects"] if obj.get("_concentrate_junction_node") == "true"
+    ]
+    p1_group = [
+        edge
+        for edge in layout["edges"]
+        if edge.get("_concentrate_junction_original") == "true"
+        and edge.get("samehead") == "m000"
+    ]
+    p2_group = [
+        edge
+        for edge in layout["edges"]
+        if edge.get("_concentrate_junction_original") == "true"
+        and edge.get("samehead") == "m001"
+    ]
+
+    assert len(junctions) >= 2
+    assert {names[int(edge["tail"])] for edge in p1_group} == {"n003", "n005"}
+    assert {names[int(edge["tail"])] for edge in p2_group} == {"n007", "n009", "n010"}
+    assert sum("_hldraw_" in edge for edge in p1_group) == 1
+    assert sum("_hldraw_" in edge for edge in p2_group) == 1
 
 
 def test_concentrate_junction_allows_labelled_concentrated_fans():
