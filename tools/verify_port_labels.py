@@ -36,6 +36,7 @@ EXPECTED = {
     "on": {"labels": 17, "ambiguous_max": 1, "wrong": 0},
 }
 P1_U_IDENTITY = "n005->n002:_hldraw_::u::0"
+P2_U_IDENTITY = "n007->n006:_hldraw_::u::0"
 P2_SAME_OWNER_KNOWN_OPEN_TEXTS = frozenset([":s:", ":u:"])
 P2_SAME_OWNER_KNOWN_OPEN_EDGE = "n007->n006"
 
@@ -801,22 +802,17 @@ def main() -> int:
                 f"{mode} competing-owner label-box overlaps="
                 f"{len([overlap for overlap in mode_overlaps[mode] if not overlap.same_owner])}"
             )
-        if mode == "on" and not any(
-            is_known_open_same_owner_overlap(overlap.left, overlap.right)
-            for overlap in mode_overlaps[mode]
-        ):
-            failures.append("on p2 same-owner known-open overlap not reported")
+        if mode == "on" and mode_overlaps[mode]:
+            failures.append(f"on label-box overlaps={len(mode_overlaps[mode])}")
 
+    tracked = (("p1", P1_U_IDENTITY), ("p2", P2_U_IDENTITY))
     for mode, label_reports in mode_reports.items():
-        p1_reports = [
-            report for report in label_reports if report.label.identity == P1_U_IDENTITY
-        ]
-        if len(p1_reports) != 1:
-            failures.append(f"{mode} p1 :u: label count={len(p1_reports)}")
-        elif p1_reports[0].candidate_count != 1:
-            failures.append(
-                f"{mode} p1 :u: candidates={p1_reports[0].candidate_count}"
-            )
+        for name, identity in tracked:
+            found = [report for report in label_reports if report.label.identity == identity]
+            if len(found) != 1:
+                failures.append(f"{mode} {name} :u: label count={len(found)}")
+            elif found[0].candidate_count != 1:
+                failures.append(f"{mode} {name} :u: candidates={found[0].candidate_count}")
 
     identity_failures, _, _ = identity_sweep(baseline_dot)
     if identity_failures:
