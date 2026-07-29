@@ -1419,6 +1419,16 @@ int place_portlabel(edge_t *e, bool head_p) {
   return 1;
 }
 
+static bool has_pending_concentrate_junction_spline(edge_t *e) {
+  for (edge_t *le = e; le != NULL; le = ED_to_orig(le)) {
+    if (ED_concentrate_junction(le) != NULL)
+      return true;
+    if (ED_edge_type(le) == NORMAL)
+      break;
+  }
+  return false;
+}
+
 splines *getsplinepoints(edge_t *e) {
   edge_t *le;
   splines *sp;
@@ -1426,7 +1436,7 @@ splines *getsplinepoints(edge_t *e) {
   for (le = e; !(sp = ED_spl(le)) && ED_edge_type(le) != NORMAL;
        le = ED_to_orig(le))
     ;
-  if (sp == NULL)
+  if (sp == NULL && !has_pending_concentrate_junction_spline(e))
     agerrorf("getsplinepoints: no spline points available for edge (%s,%s)\n",
              agnameof(agtail(e)), agnameof(aghead(e)));
   return sp;

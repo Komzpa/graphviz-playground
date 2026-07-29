@@ -31,6 +31,10 @@ def _fixture_json(path, *args):
     return json.loads(run("dot", *args, "-Tjson", path, timeout=10))
 
 
+def _node_name(layout, node_id):
+    return layout["objects"][int(node_id)]["name"]
+
+
 def _assert_fixture_refuses_concentrate_junction(path):
     layout = _fixture_json(path, "-Gconcentrate=true")
     assert not [
@@ -842,4 +846,37 @@ def test_concentrate_junction_fanout_clustered_graph_falls_back():
         obj
         for obj in layout["objects"]
         if obj.get("name", "").startswith("_concentrate_junction_")
+    ]
+
+
+def test_concentrate_junction_oldarrows_samearrow_fan_renders():
+    path = Path(__file__).parents[1] / "graphs" / "directed" / "oldarrows.gv"
+
+    on = _fixture_json(path, "-Gconcentrate=true")
+    off = _fixture_json(path, "-Gconcentrate=false")
+
+    def z_fan(layout):
+        return [
+            edge
+            for edge in layout["edges"]
+            if _node_name(layout, edge["tail"]) == "Z"
+            and _node_name(layout, edge["head"]) in "ABCDEFGHIJKLMNOPQ"
+        ]
+
+    on_fan = z_fan(on)
+    off_fan = z_fan(off)
+
+    assert len(on_fan) == len(off_fan) == 17
+    assert sum("_draw_" in edge for edge in on_fan) == 17
+    assert sum("_hdraw_" in edge for edge in on_fan) == sum(
+        "_hdraw_" in edge for edge in off_fan
+    )
+    assert [
+        _node_name(on, edge["head"])
+        for edge in on_fan
+        if "_hdraw_" in edge
+    ] == [
+        _node_name(off, edge["head"])
+        for edge in off_fan
+        if "_hdraw_" in edge
     ]
