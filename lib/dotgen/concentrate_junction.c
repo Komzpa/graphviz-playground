@@ -34,8 +34,6 @@ typedef struct junction_edge_s {
 
 typedef struct {
   node_t *anchor;
-  char *sameport_id;
-  bool sameport;
   char *attrs[34];
   edge_t **edges;
   size_t size;
@@ -88,12 +86,6 @@ static bool endpoint_has_port(edge_t *e) {
          attr(e, agfindedgeattr(agraphof(agtail(e)), "samehead"), "")[0];
 }
 
-static bool endpoint_has_explicit_port(edge_t *e) {
-  return ED_tail_port(e).defined || ED_head_port(e).defined ||
-         attr(e, agfindedgeattr(agraphof(agtail(e)), "tailport"), "")[0] ||
-         attr(e, agfindedgeattr(agraphof(agtail(e)), "headport"), "")[0];
-}
-
 static bool eligible(edge_t *e) {
   if (agtail(e) == aghead(e)) {
     return false;
@@ -112,33 +104,6 @@ static bool eligible(edge_t *e) {
     return false;
   }
   return true;
-}
-
-static bool eligible_sameport(edge_t *e) {
-  if (agtail(e) == aghead(e)) {
-    return false;
-  }
-  if (nonconstraint_edge(e)) {
-    return false;
-  }
-  if (ED_label(e) || ED_xlabel(e)) {
-    return false;
-  }
-  if (endpoint_has_explicit_port(e)) {
-    return false;
-  }
-  const char *dir = attr(e, agfindedgeattr(agraphof(agtail(e)), "dir"), "");
-  if (dir[0] != '\0' && !streq(dir, "forward") && !streq(dir, "none")) {
-    return false;
-  }
-  return true;
-}
-
-static bool samearrow_compatible(edge_t *e, junction_kind_t kind) {
-  attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), kind == JUNCTION_FANOUT
-                                                           ? "samearrowtail"
-                                                           : "samearrowhead");
-  return attr(e, sym, "")[0] != '\0';
 }
 
 static bool graph_has_same_rank_edge(graph_t *subg, edge_t *e) {
@@ -233,11 +198,6 @@ static bool same_group(const junction_group_t *group, edge_t *e,
   if (group->anchor != group_anchor(e, kind)) {
     return false;
   }
-  if (group->sameport) {
-    attrsym_t *sym = agfindedgeattr(
-        agraphof(agtail(e)), kind == JUNCTION_FANOUT ? "sametail" : "samehead");
-    return streq(group->sameport_id, attr(e, sym, ""));
-  }
   for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
     attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), group_attrs[i]);
     if (!streq(group->attrs[i], attr(e, sym, ""))) {
@@ -254,235 +214,6 @@ static void append_edge(junction_group_t *group, edge_t *e) {
                                sizeof(edge_t *));
   }
   group->edges[group->size++] = e;
-}
-
-static void snapshot_group_attrs(graph_t *g, junction_group_t *group,
-                                 edge_t *e) {
-  for (size_t j = 0; j < ARRAY_SIZE(group_attrs); ++j) {
-    attrsym_t *sym = agfindedgeattr(g, group_attrs[j]);
-    group->attrs[j] = attr(e, sym, "");
-  }
-}
-
-static textlabel_t **endpoint_label_slot(edge_t *e, junction_kind_t kind) {
-  return kind == JUNCTION_FANOUT ? &ED_tail_label(e) : &ED_head_label(e);
-}
-
-static char *endpoint_label_text(edge_t *e, junction_kind_t kind) {
-  textlabel_t *const label = *endpoint_label_slot(e, kind);
-  return label == NULL ? "" : label->text;
-}
-
-static attrsym_t *ensure_edge_attr(graph_t *g, char *name) {
-  return agattr_text(g, AGEDGE, name, "");
-}
-
-static void copy_endpoint_label_attrs(edge_t *dst, edge_t *src,
-                                      junction_kind_t kind) {
-  graph_t *g = agraphof(agtail(src));
-  attrsym_t *label =
-      ensure_edge_attr(g, kind == JUNCTION_FANOUT ? "taillabel" : "headlabel");
-  attrsym_t *sameport =
-      ensure_edge_attr(g, kind == JUNCTION_FANOUT ? "sametail" : "samehead");
-  attrsym_t *src_sameport =
-      agfindedgeattr(g, kind == JUNCTION_FANOUT ? "sametail" : "samehead");
-  agxset(dst, label, endpoint_label_text(src, kind));
-  agxset(dst, sameport, attr(src, src_sameport, ""));
-  for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
-    attrsym_t *sym = agfindedgeattr(g, group_attrs[i]);
-    if (sym != NULL) {
-      attrsym_t *dst_sym = ensure_edge_attr(g, group_attrs[i]);
-      agxset(dst, dst_sym, attr(src, sym, ""));
-    }
-  }
-  for (size_t i = 0; i < 5; ++i) {
-    static char *label_attrs[] = {"labelfontsize", "labelfontname",
-                                  "labelfontcolor", "labeldistance",
-                                  "labelangle"};
-    attrsym_t *sym = agfindedgeattr(g, label_attrs[i]);
-    if (sym != NULL) {
-      attrsym_t *dst_sym = ensure_edge_attr(g, label_attrs[i]);
-      agxset(dst, dst_sym, attr(src, sym, ""));
-    }
-  }
-}
-
-static void suppress_endpoint_label(edge_t *e, junction_kind_t kind) {
-  textlabel_t **slot = endpoint_label_slot(e, kind);
-  if (*slot != NULL) {
-    free_label(*slot);
-    *slot = NULL;
-  }
-  attrsym_t *sym = agfindedgeattr(
-      agraphof(agtail(e)), kind == JUNCTION_FANOUT ? "taillabel" : "headlabel");
-  if (sym != NULL) {
-    agxset(e, sym, "");
-  }
-}
-
-static void transfer_endpoint_label(edge_t *dst, edge_t *src,
-                                    junction_kind_t kind) {
-  textlabel_t **dst_label = endpoint_label_slot(dst, kind);
-  textlabel_t **src_label = endpoint_label_slot(src, kind);
-  if (*dst_label == NULL && *src_label != NULL && (*src_label)->set) {
-    *dst_label = *src_label;
-    *src_label = NULL;
-  }
-}
-
-static boxf trunk_label_box(graph_t *g, const textlabel_t *label, pointf pos) {
-  pointf dimen = label->dimen;
-  const double padding = 1.0;
-  if (GD_flip(g)) {
-    const double tmp = dimen.x;
-    dimen.x = dimen.y;
-    dimen.y = tmp;
-  }
-  return (boxf){.LL = {.x = pos.x - dimen.x / 2.0 - padding,
-                       .y = pos.y - dimen.y / 2.0 - padding},
-                .UR = {.x = pos.x + dimen.x / 2.0 + padding,
-                       .y = pos.y + dimen.y / 2.0 + padding}};
-}
-
-static bool trunk_boxes_overlap(boxf a, boxf b) {
-  return MAX(a.LL.x, b.LL.x) < MIN(a.UR.x, b.UR.x) &&
-         MAX(a.LL.y, b.LL.y) < MIN(a.UR.y, b.UR.y);
-}
-
-static double trunk_point_segment_distance(pointf p, pointf a, pointf b) {
-  const double dx = b.x - a.x;
-  const double dy = b.y - a.y;
-  if (dx == 0.0 && dy == 0.0) {
-    return DIST(p, a);
-  }
-  double t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
-  t = MAX(0.0, MIN(1.0, t));
-  return hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
-}
-
-static double trunk_distance_to_edge(pointf p, edge_t *edge) {
-  const splines *spl = ED_spl(edge);
-  double best = HUGE_VAL;
-  if (spl == NULL) {
-    return best;
-  }
-  for (size_t i = 0; i < spl->size; ++i) {
-    const bezier *bz = &spl->list[i];
-    for (size_t j = 0; j + 3 < bz->size; j += 3) {
-      pointf prev = bz->list[j];
-      for (size_t step = 1; step <= 40; ++step) {
-        pointf cur = Bezier(&bz->list[j], (double)step / 40.0, NULL, NULL);
-        best = MIN(best, trunk_point_segment_distance(p, prev, cur));
-        prev = cur;
-      }
-    }
-  }
-  return best;
-}
-
-static bool trunk_label_has_single_owner(graph_t *g, edge_t *owner,
-                                         pointf pos) {
-  double nearest = HUGE_VAL;
-  edge_t *nearest_edge = NULL;
-  size_t candidate_count = 0;
-  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (ED_spl(e) == NULL) {
-        continue;
-      }
-      const double distance = trunk_distance_to_edge(pos, e);
-      if (distance < nearest) {
-        nearest = distance;
-        nearest_edge = e;
-      }
-    }
-  }
-  if (nearest_edge != owner) {
-    return false;
-  }
-  const double limit = 2.0 * nearest + 1.0;
-  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (ED_spl(e) != NULL && trunk_distance_to_edge(pos, e) < limit) {
-        candidate_count++;
-      }
-    }
-  }
-  return candidate_count == 1;
-}
-
-static textlabel_t *edge_endpoint_label(edge_t *e, bool head_p) {
-  return head_p ? ED_head_label(e) : ED_tail_label(e);
-}
-
-static bool same_label_endpoint(edge_t *a, edge_t *b, bool head_p) {
-  return head_p ? aghead(a) == aghead(b) : agtail(a) == agtail(b);
-}
-
-static bool trunk_label_overlaps_endpoint_label(graph_t *g, edge_t *owner,
-                                                textlabel_t *label, bool head_p,
-                                                pointf pos) {
-  const boxf label_bounds = trunk_label_box(g, label, pos);
-  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (e == owner || !same_label_endpoint(owner, e, head_p)) {
-        continue;
-      }
-      textlabel_t *other = edge_endpoint_label(e, head_p);
-      if (other != NULL &&
-          trunk_boxes_overlap(label_bounds,
-                              trunk_label_box(g, other, other->pos))) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-static bool try_trunk_label_pos(graph_t *g, edge_t *owner, textlabel_t *label,
-                                bool head_p, pointf pos) {
-  return !trunk_label_overlaps_endpoint_label(g, owner, label, head_p, pos) &&
-         trunk_label_has_single_owner(g, owner, pos);
-}
-
-static void clear_transferred_endpoint_label(graph_t *g, edge_t *owner,
-                                             junction_kind_t kind) {
-  const bool head_p = kind == JUNCTION_FANIN;
-  textlabel_t *label = edge_endpoint_label(owner, head_p);
-  if (label == NULL) {
-    return;
-  }
-  if (!GD_flip(g) && !trunk_label_overlaps_endpoint_label(g, owner, label,
-                                                          head_p, label->pos)) {
-    return;
-  }
-  if (GD_flip(g)) {
-    label->pos.x -= 1.5;
-    updateBB(g, label);
-    return;
-  }
-  const boxf label_bounds = trunk_label_box(g, label, label->pos);
-  const double dx = label_bounds.UR.x - label_bounds.LL.x + 0.25;
-  const double dy = label_bounds.UR.y - label_bounds.LL.y + 0.25;
-  const double ystep = MAX(dy, label->fontsize / 2.0);
-  const pointf moves[] = {{0, -ystep},    {0, ystep},      {-dx, 0},
-                          {dx, 0},        {-0.75 * dx, 0}, {0.75 * dx, 0},
-                          {-dx / 2.0, 0}, {dx / 2.0, 0},   {0, -dy / 4.0},
-                          {0, dy / 4.0},  {-dx / 4.0, 0},  {dx / 4.0, 0}};
-  for (size_t i = 0; i < ARRAY_SIZE(moves); ++i) {
-    pointf pos = {.x = label->pos.x + moves[i].x,
-                  .y = label->pos.y + moves[i].y};
-    if (try_trunk_label_pos(g, owner, label, head_p, pos)) {
-      if (GD_flip(g)) {
-        pos.x += moves[i].x / 2.0;
-        pos.y += moves[i].y / 2.0;
-        pos.y -= 0.75;
-      }
-      label->pos = pos;
-      updateBB(g, label);
-      return;
-    }
-  }
 }
 
 static const char *directed_dir(bool keep_head_arrow, bool keep_tail_arrow,
@@ -623,13 +354,6 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agattr_text(g, AGEDGE, "fontsize", "");
   agattr_text(g, AGEDGE, "fontcolor", "");
   agattr_text(g, AGEDGE, "label", "");
-  agattr_text(g, AGEDGE, "headlabel", "");
-  agattr_text(g, AGEDGE, "taillabel", "");
-  agattr_text(g, AGEDGE, "labelfontsize", "");
-  agattr_text(g, AGEDGE, "labelfontname", "");
-  agattr_text(g, AGEDGE, "labelfontcolor", "");
-  agattr_text(g, AGEDGE, "labeldistance", "");
-  agattr_text(g, AGEDGE, "labelangle", "");
   agattr_text(g, AGEDGE, "dir", "");
   agattr_text(g, AGEDGE, "arrowhead", "");
   agattr_text(g, AGEDGE, "arrowtail", "");
@@ -671,18 +395,12 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
                     : agedge(g, jn, group->anchor, NULL, 1);
     copy_edge_attrs(trunk, rep, true, true, false, reverse);
   }
-  if (group->sameport && endpoint_label_text(rep, kind)[0]) {
-    copy_endpoint_label_attrs(trunk, rep, kind);
-  }
   agsafeset(trunk, "_concentrate_junction_internal", "true", "");
   init_added_edge(trunk);
   ED_concentrate_junction_internal(trunk) = true;
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
     const int orig_weight = ED_weight(orig);
-    if (group->sameport) {
-      suppress_endpoint_label(orig, kind);
-    }
     agsafeset(orig, "_concentrate_junction_original", "true", "");
     ED_minlen(orig) = 0;
     dot_bundle_load_set_legacy_position(orig, 0);
@@ -745,7 +463,10 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
               gv_recalloc(groups, ngroups, capacity, sizeof(junction_group_t));
         }
         groups[i].anchor = group_anchor(e, kind);
-        snapshot_group_attrs(g, &groups[i], e);
+        for (size_t j = 0; j < ARRAY_SIZE(group_attrs); ++j) {
+          attrsym_t *sym = agfindedgeattr(g, group_attrs[j]);
+          groups[i].attrs[j] = attr(e, sym, "");
+        }
         ngroups++;
       }
       append_edge(&groups[i], e);
@@ -775,89 +496,6 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
   free(groups);
 }
 
-static bool sameport_group_label_is_compatible(junction_group_t *group,
-                                               junction_kind_t kind) {
-  const char *label = "";
-  size_t representative = 0;
-  for (size_t i = 0; i < group->size; ++i) {
-    const char *candidate = endpoint_label_text(group->edges[i], kind);
-    if (candidate[0] == '\0') {
-      continue;
-    }
-    if (label[0] != '\0' && !streq(label, candidate)) {
-      return false;
-    }
-    label = candidate;
-    representative = i;
-  }
-  if (representative != 0) {
-    edge_t *tmp = group->edges[0];
-    group->edges[0] = group->edges[representative];
-    group->edges[representative] = tmp;
-  }
-  snapshot_group_attrs(agraphof(agtail(group->edges[0])), group,
-                       group->edges[0]);
-  return true;
-}
-
-static void make_sameport_groups(graph_t *g, junction_kind_t kind,
-                                 size_t *made) {
-  junction_group_t *groups = NULL;
-  size_t ngroups = 0;
-  size_t capacity = 0;
-  attrsym_t *sameport =
-      agfindedgeattr(g, kind == JUNCTION_FANOUT ? "sametail" : "samehead");
-  if (sameport == NULL) {
-    return;
-  }
-
-  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
-    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      const char *id = attr(e, sameport, "");
-      if (id[0] == '\0' || agtail(e) == aghead(e) ||
-          edge_has_record_endpoint_geometry(e) ||
-          endpoint_has_explicit_port(e) || edge_has_true_multiedge_peer(e) ||
-          graph_has_same_rank_edge(g, e) ||
-          graph_has_refused_concentrated_edge(e) || !eligible_sameport(e) ||
-          !samearrow_compatible(e, kind) || ED_concentrate_junction(e)) {
-        continue;
-      }
-      if (group_anchor(e, kind) !=
-          (kind == JUNCTION_FANOUT ? agtail(e) : aghead(e))) {
-        continue;
-      }
-      size_t i = 0;
-      for (; i < ngroups; ++i) {
-        if (same_group(&groups[i], e, kind)) {
-          break;
-        }
-      }
-      if (i == ngroups) {
-        if (ngroups == capacity) {
-          capacity = capacity == 0 ? 8 : capacity * 2;
-          groups =
-              gv_recalloc(groups, ngroups, capacity, sizeof(junction_group_t));
-        }
-        groups[i].anchor = group_anchor(e, kind);
-        groups[i].sameport_id = (char *)id;
-        groups[i].sameport = true;
-        snapshot_group_attrs(g, &groups[i], e);
-        ngroups++;
-      }
-      append_edge(&groups[i], e);
-    }
-  }
-
-  for (size_t i = 0; i < ngroups; ++i) {
-    if (groups[i].size >= 2 &&
-        sameport_group_label_is_compatible(&groups[i], kind)) {
-      make_group(g, &groups[i], made, kind, false);
-    }
-    free(groups[i].edges);
-  }
-  free(groups);
-}
-
 static bool has_cluster_subgraph(graph_t *g) {
   for (graph_t *subg = agfstsubg(g); subg; subg = agnxtsubg(subg)) {
     if (strncmp(agnameof(subg), "cluster", strlen("cluster")) == 0 ||
@@ -873,7 +511,7 @@ void dot_concentrate_junction(graph_t *g) {
     return;
   }
 
-  if (!agisdirected(g)) {
+  if (!agisdirected(g) || GD_flip(g)) {
     return;
   }
   if (GD_n_cluster(g) != 0 || has_cluster_subgraph(g)) {
@@ -882,12 +520,8 @@ void dot_concentrate_junction(graph_t *g) {
   }
 
   size_t made = 0;
-  make_sameport_groups(g, JUNCTION_FANIN, &made);
-  make_sameport_groups(g, JUNCTION_FANOUT, &made);
-  if (!GD_flip(g)) {
-    make_groups(g, JUNCTION_FANIN, &made);
-    make_groups(g, JUNCTION_FANOUT, &made);
-  }
+  make_groups(g, JUNCTION_FANIN, &made);
+  make_groups(g, JUNCTION_FANOUT, &made);
   if (made > 0) {
     agsafeset(g, "_concentrate_junction_active", "true", "");
     Concentrate = false;
@@ -1041,12 +675,6 @@ void dot_concentrate_junction_splines(graph_t *g) {
       if (ED_label(e) && ED_label(info->trunk) && ED_label(info->trunk)->set) {
         ED_label(e)->pos = ED_label(info->trunk)->pos;
         ED_label(e)->set = true;
-      }
-      if (info->draw_trunk) {
-        const junction_kind_t kind =
-            info->fanout ? JUNCTION_FANOUT : JUNCTION_FANIN;
-        transfer_endpoint_label(e, info->trunk, kind);
-        clear_transferred_endpoint_label(g, e, kind);
       }
 
       ED_edge_type(info->arm) = IGNORED;
