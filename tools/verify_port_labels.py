@@ -22,7 +22,7 @@ FIXTURE = ROOT / "graphs" / "directed" / "honda-tokoro.gv"
 CANDIDATE_MARGIN_PT = 1.0
 RANKERS = (("default", ()), ("newrank=true", ("-Gnewrank=true",)))
 
-BASELINE_SHA = "3a6ab63bcdb80d04a89a1812ee55e65130772c0f"
+BASELINE_SHA = "774a10c23a325fb3f76a491bea8bd701c48510a2"
 UPSTREAM = {
     "off": {"labels": 17, "ambiguous": 4, "wrong": 4},
     "on": {"labels": 16, "ambiguous": 4, "wrong": 4},
@@ -628,6 +628,11 @@ def identity_sweep(baseline_dot: Path) -> tuple[int, dict[str, tuple[int, int]],
             # change into hundreds of false reds (356 on 2026-07-28).
             return ranker, path in port_label_by_source, True, rel
         if before != after:
+            # A graph whose own output changes between two runs of ONE binary
+            # cannot testify about a code change. Retrying until the hashes
+            # happen to agree is luck, not evidence — it passed 2282.dot for two
+            # weeks and then failed it on 2026-07-30 purely by sampling. So ask
+            # the honest question instead: is this graph deterministic at all?
             before_hashes = {digest(before)}
             after_hashes = {digest(after)}
             for _ in range(2):
@@ -641,6 +646,11 @@ def identity_sweep(baseline_dot: Path) -> tuple[int, dict[str, tuple[int, int]],
                     before_hashes.add(digest(retry_before))
                 if retry_after is not None:
                     after_hashes.add(digest(retry_after))
+            if len(before_hashes) > 1 or len(after_hashes) > 1:
+                print(f"  NONDETERMINISTIC, excluded from identity: {rel} "
+                      f"[{ranker}] baseline_hashes={len(before_hashes)} "
+                      f"current_hashes={len(after_hashes)}")
+                return ranker, path in port_label_by_source, True, rel
             if before_hashes & after_hashes:
                 return ranker, path in port_label_by_source, True, rel
         return ranker, path in port_label_by_source, before == after, (
