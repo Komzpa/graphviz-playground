@@ -1035,9 +1035,6 @@ static int dot_splines_(graph_t *g, int normalize) {
 finish:
 #endif
   align_flat_arrow_tangents_in_graph(g);
-  // Splitting a visible blob can expose the remaining adjacent half of a
-  // clamped fan, so settle the same geometry rule twice.
-  dot_spread_coincident_polygon_arrowheads(g);
   dot_spread_coincident_polygon_arrowheads(g);
   dedupe_concentrated_edge_labels(g);
 
