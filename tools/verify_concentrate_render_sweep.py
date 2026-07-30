@@ -14,7 +14,11 @@ import time
 
 
 MEMORY_KB = 2 * 1024 * 1024
-TIMEOUT = 30
+# Both b100.gv and b104.gv render in ~5s on an idle machine and were on the
+# upstream allowlist only because they crossed 30s while lanes were building in
+# parallel. A wall clock is a property of this machine, not of the graph, and an
+# allowlist that absorbs load spikes hides the failures it exists to catch.
+TIMEOUT = 120
 JOBS = 16
 UPSTREAM_SHA = "561b579e5"
 MODES = (
@@ -30,8 +34,6 @@ UPSTREAM_ALLOWLIST: dict[str, set[str]] = {
         "tests/graphs/concentrate-demo/malformed-nodesep-rejected-2758.dot",
     },
     "concentrate=true": {
-        "tests/graphs/b100.gv",
-        "tests/graphs/b104.gv",
         "tests/graphs/concentrate-demo/malformed-nodesep-rejected-2758.dot",
     },
 }
