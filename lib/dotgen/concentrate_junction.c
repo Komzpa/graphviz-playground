@@ -988,26 +988,6 @@ static bezier copy_bezier(const splines *part, size_t part_index,
   return dst;
 }
 
-static void straighten_cubic_handles(bezier *bz) {
-  if (bz->size % 3 != 1) {
-    return;
-  }
-  for (size_t i = 0; i + 3 < bz->size; i += 3) {
-    const pointf start = bz->list[i];
-    const pointf end = bz->list[i + 3];
-    bz->list[i + 1] = (pointf){.x = start.x + (end.x - start.x) / 3.0,
-                               .y = start.y + (end.y - start.y) / 3.0};
-    bz->list[i + 2] = (pointf){.x = start.x + 2.0 * (end.x - start.x) / 3.0,
-                               .y = start.y + 2.0 * (end.y - start.y) / 3.0};
-  }
-}
-
-static void straighten_spline_handles(splines *spl) {
-  for (size_t i = 0; i < spl->size; ++i) {
-    straighten_cubic_handles(&spl->list[i]);
-  }
-}
-
 static splines *copy_joined_splines(const splines *arm, const splines *trunk,
                                     bool reverse, size_t *arm_size) {
   bezier *arm_list = gv_calloc(arm->size, sizeof(bezier));
@@ -1038,7 +1018,6 @@ static splines *copy_joined_splines(const splines *arm, const splines *trunk,
 
   joined->bb = arm->bb;
   EXPANDBB(&joined->bb, trunk->bb);
-  straighten_spline_handles(joined);
   free(arm_list);
   free(trunk_list);
   return joined;
@@ -1059,7 +1038,6 @@ static splines *copy_connected_arm_splines(const splines *trunk,
                                            const splines *arm, bool reverse) {
   splines *arm_copy = copy_splines(arm, reverse);
   (void)trunk;
-  straighten_spline_handles(arm_copy);
   return arm_copy;
 }
 
