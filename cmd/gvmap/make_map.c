@@ -221,34 +221,6 @@ static SparseMatrix matrix_add_entry(SparseMatrix A, int i, int j, int val){
   return SparseMatrix_coordinate_form_add_entry(A, i1, j1, &val);
 }
 
-static void plot_dot_edges(FILE *f, SparseMatrix A){
-  int *ia, *ja, j;
-
-  
-  const size_t n = A->m;
-  ia = A->ia;
-  ja = A->ja;
-  for (size_t i = 0; i < n; i++){
-    for (j = ia[i]; j < ia[i+1]; j++){
-      if (ja[j] == (int)i) continue;
-      fprintf(f,"%" PRISIZE_T " -- %d;\n", i, ja[j]);
-    }
-  }
-}
-
-static void plot_dot_labels(FILE *f, int n, int dim, double *x, char **labels, float *fsz){
-  int i;
-
-  for (i = 0; i < n; i++){
-    if (fsz){
-      fprintf(f, "%d [label=\"%s\", pos=\"%lf,%lf\", fontsize=%f];\n",i, labels[i], x[i*dim], x[i*dim+1], fsz[i]); 
-    } else {
-      fprintf(f, "%d [label=\"%s\", pos=\"%lf,%lf\"];\n",i, labels[i], x[i*dim], x[i*dim+1]); 
-    }
-  }
-
-}
-
 typedef LIST(double) doubles_t;
 
 static void dot_polygon(agxbuf *sbuff, doubles_t xp, doubles_t yp,
@@ -331,29 +303,25 @@ void plot_dot_map(Agraph_t* gr, int n, int dim, double *x, SparseMatrix polys,
                   const char *line_color, double *x_poly, int *polys_groups,
                   char **labels, float *fsz, float *r, float *g, float *b,
                   const char* opacity, SparseMatrix A, FILE* f) {
-  /* if graph object exist, we just modify some attributes, otherwise we dump the whole graph */
+  assert(gr != NULL);
+  // we modify some attributes
   bool plot_polyQ = true;
   agxbuf sbuff = {0};
 
   if (!r || !g || !b) plot_polyQ = false;
 
-  if (!gr) {
-    fprintf(f, "graph map {\n node [margin = 0 width=0.0001 height=0.00001 shape=plaintext];\n graph [outputorder=edgesfirst, bgcolor=\"#dae2ff\"]\n edge [color=\"#55555515\",fontname=\"Helvetica-Bold\"]\n");
-  } else {
-    agattr_text(gr, AGNODE, "margin", "0"); 
-    agattr_text(gr, AGNODE, "width", "0.0001"); 
-    agattr_text(gr, AGNODE, "height", "0.0001"); 
-    agattr_text(gr, AGNODE, "shape", "plaintext"); 
-    agattr_text(gr, AGNODE, "margin", "0"); 
-    agattr_text(gr, AGNODE, "fontname", "Helvetica-Bold"); 
-    agattr_text(gr, AGRAPH, "outputorder", "edgesfirst");
-    agattr_text(gr, AGRAPH, "bgcolor", "#dae2ff");
-    if (!A) agattr_text(gr, AGEDGE, "style","invis");/* do not plot edges */
-  }
+  agattr_text(gr, AGNODE, "margin", "0"); 
+  agattr_text(gr, AGNODE, "width", "0.0001"); 
+  agattr_text(gr, AGNODE, "height", "0.0001"); 
+  agattr_text(gr, AGNODE, "shape", "plaintext"); 
+  agattr_text(gr, AGNODE, "margin", "0"); 
+  agattr_text(gr, AGNODE, "fontname", "Helvetica-Bold"); 
+  agattr_text(gr, AGRAPH, "outputorder", "edgesfirst");
+  agattr_text(gr, AGRAPH, "bgcolor", "#dae2ff");
+  if (!A) agattr_text(gr, AGEDGE, "style","invis");/* do not plot edges */
 
   /*polygons */
   if (plot_polyQ) {
-    if (!gr) fprintf(f,"_background = \"");
     plot_dot_polygons(&sbuff, -1., NULL, polys, x_poly, polys_groups, r, g, b, opacity);
   }
 
@@ -361,22 +329,8 @@ void plot_dot_map(Agraph_t* gr, int n, int dim, double *x, SparseMatrix polys,
   if (line_width >= 0){
     plot_dot_polygons(&sbuff, line_width, line_color, poly_lines, x_poly, polys_groups, NULL, NULL, NULL, NULL);
   }
-  if (!gr) {
-    fprintf(f,"%s",agxbuse(&sbuff));
-    fprintf(f,"\"\n");/* close polygons/lines */
-  } else {
-    agattr_text(gr, AGRAPH, "_background", agxbuse(&sbuff));
-    agwrite(gr, f);
-  }
-
-  /* nodes */
-  if (!gr && labels) plot_dot_labels(f, n, dim, x, labels, fsz);
-  /* edges */
-  if (!gr && A) plot_dot_edges(f, A);
-
-  /* background color + plot label?*/
-
-  if (!gr) fprintf(f, "}\n");
+  agattr_text(gr, AGRAPH, "_background", agxbuse(&sbuff));
+  agwrite(gr, f);
 
   agxbfree(&sbuff);
 }
