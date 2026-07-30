@@ -389,7 +389,7 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
   }
 
     Dot_SetClusterColor(g, rgb_r,  rgb_g,  rgb_b, grouping);
-    plot_dot_map(g, x, polys, poly_lines, pm->line_width, pm->line_color, x_poly, polys_groups, labels, fsz, rgb_r, rgb_g, rgb_b, pm->opacity,
+    plot_dot_map(g, polys, poly_lines, pm->line_width, pm->line_color, x_poly, polys_groups, labels, fsz, rgb_r, rgb_g, rgb_b, pm->opacity,
            (pm->plotedges?graph:NULL), pm->outfile);
   SparseMatrix_delete(polys);
   SparseMatrix_delete(poly_lines);
