@@ -301,7 +301,7 @@ static void plot_dot_polygons(agxbuf *sbuff, double line_width,
 void plot_dot_map(Agraph_t* gr, SparseMatrix polys,
                   SparseMatrix poly_lines, double line_width,
                   const char *line_color, double *x_poly, int *polys_groups,
-                  char **labels, float *fsz, float *r, float *g, float *b,
+                  float *fsz, float *r, float *g, float *b,
                   const char* opacity, SparseMatrix A, FILE* f) {
   assert(gr != NULL);
   // we modify some attributes
