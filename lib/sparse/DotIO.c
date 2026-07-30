@@ -262,11 +262,12 @@ void Dot_SetClusterColor(Agraph_t *g, float *rgb_r, float *rgb_g, float *rgb_b,
   agxbfree(&scluster);
 }
 
-SparseMatrix Import_coord_clusters_from_dot(
-    Agraph_t *g, int maxcluster, int dim, int *nn, double **label_sizes,
-    double **x, int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
-    float **fsz, char ***labels, int default_color_scheme,
-    int clustering_scheme, int useClusters) {
+SparseMatrix
+Import_coord_clusters_from_dot(Agraph_t *g, int maxcluster, int dim, int *nn,
+                               double **label_sizes, double **x, int **clusters,
+                               float **rgb_r, float **rgb_g, float **rgb_b,
+                               float **fsz, int default_color_scheme,
+                               int clustering_scheme, int useClusters) {
   SparseMatrix A = 0;
   Agnode_t *n;
   Agedge_t *e;
@@ -455,7 +456,6 @@ SparseMatrix Import_coord_clusters_from_dot(
     *rgb_b = NULL;
   }
   *fsz = gv_calloc(nnodes, sizeof(float));
-  *labels = gv_calloc(nnodes, sizeof(char *));
 
   for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
     gvcolor_t color;
@@ -476,14 +476,6 @@ SparseMatrix Import_coord_clusters_from_dot(
       (*fsz)[i] = ff;
     } else {
       (*fsz)[i] = 14;
-    }
-
-    if (agget(n, "label") && strcmp(agget(n, "label"), "") != 0 &&
-        strcmp(agget(n, "label"), "\\N") != 0) {
-      char *lbs = agget(n, "label");
-      (*labels)[i] = strdup(lbs);
-    } else {
-      (*labels)[i] = strdup(agnameof(n));
     }
 
     j = (*clusters)[i];
