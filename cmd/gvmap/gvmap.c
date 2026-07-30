@@ -316,7 +316,7 @@ validateCluster (int n, int* grouping, int clust_num)
 
 /// @return 0 on success
 static int makeMap(SparseMatrix graph, int n, double *x, double *width,
-                   int *grouping, char **labels, float *fsz, float *rgb_r,
+                   int *grouping, float *fsz, float *rgb_r,
                    float *rgb_g, float *rgb_b, params_t *pm, Agraph_t *g) {
   int dim = pm->dim;
   int i;
@@ -418,7 +418,7 @@ static int mapFromGraph(Agraph_t *g, params_t *pm) {
 					   &rgb_r,  &rgb_g,  &rgb_b,  &fsz, &labels, pm->color_scheme, pm->clusterMethod, pm->useClusters);
   int rc;
   if (x != NULL) {
-    rc = makeMap(graph, n, x, width, grouping, labels, fsz, rgb_r, rgb_g, rgb_b,
+    rc = makeMap(graph, n, x, width, grouping, fsz, rgb_r, rgb_g, rgb_b,
                  pm, g);
   } else { // the graph was missing position information
     rc = -1;
