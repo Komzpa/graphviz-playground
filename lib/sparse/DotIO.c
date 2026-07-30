@@ -262,12 +262,10 @@ void Dot_SetClusterColor(Agraph_t *g, float *rgb_r, float *rgb_g, float *rgb_b,
   agxbfree(&scluster);
 }
 
-SparseMatrix
-Import_coord_clusters_from_dot(Agraph_t *g, int maxcluster, int dim, int *nn,
-                               double **label_sizes, double **x, int **clusters,
-                               float **rgb_r, float **rgb_g, float **rgb_b,
-                               float **fsz, int default_color_scheme,
-                               int clustering_scheme, int useClusters) {
+SparseMatrix Import_coord_clusters_from_dot(
+    Agraph_t *g, int maxcluster, int dim, int *nn, double **label_sizes,
+    double **x, int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
+    int default_color_scheme, int clustering_scheme, int useClusters) {
   SparseMatrix A = 0;
   Agnode_t *n;
   Agedge_t *e;
@@ -279,7 +277,6 @@ Import_coord_clusters_from_dot(Agraph_t *g, int maxcluster, int dim, int *nn,
   int i, row, ic, nc, j;
   double v;
   int type = MATRIX_TYPE_REAL;
-  float ff;
 
   int MAX_GRPS, MIN_GRPS;
   bool noclusterinfo = false;
@@ -455,7 +452,6 @@ Import_coord_clusters_from_dot(Agraph_t *g, int maxcluster, int dim, int *nn,
     *rgb_g = NULL;
     *rgb_b = NULL;
   }
-  *fsz = gv_calloc(nnodes, sizeof(float));
 
   for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
     gvcolor_t color;
@@ -469,13 +465,6 @@ Import_coord_clusters_from_dot(Agraph_t *g, int maxcluster, int dim, int *nn,
     } else {
       (*label_sizes)[i * 2] = POINTS(0.75 / 2);
       (*label_sizes)[i * 2 + 1] = POINTS(0.5 * 2);
-    }
-
-    if (agget(n, "fontsize")) {
-      sscanf(agget(n, "fontsize"), "%f", &ff);
-      (*fsz)[i] = ff;
-    } else {
-      (*fsz)[i] = 14;
     }
 
     j = (*clusters)[i];
