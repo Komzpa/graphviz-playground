@@ -1,6 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
-CGRAPH_VERSION = "9:3:1"
+CGRAPH_VERSION = "10:0:0"
 
 AM_CPPFLAGS = -I$(top_srcdir)/lib -I$(top_srcdir)/lib/cdt
 

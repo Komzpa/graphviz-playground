@@ -453,8 +453,6 @@ CGRAPH_API Agraph_t *agread(void *chan, Agdisc_t *disc);
 CGRAPH_API Agraph_t *agmemread(const char *cp);
 ///< reads a graph from the input string
 
-CGRAPH_API Agraph_t *agmemconcat(Agraph_t *g, const char *cp);
-
 CGRAPH_API Agraph_t *agconcat(Agraph_t *g, const char *filename, void *chan,
                               Agdisc_t *disc);
 /**< @brief merges the file contents with a pre-existing graph

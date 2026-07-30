@@ -7593,7 +7593,6 @@ def test_negative_dpi():
     run("dot", "-Tpng", "-o", os.devnull, src, timeout=10)
 
 
-@pytest.mark.xfail(raises=subprocess.CalledProcessError, reason="FIXME", strict=True)
 def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
