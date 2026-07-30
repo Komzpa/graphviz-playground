@@ -31,7 +31,7 @@ void improve_contiguity(int n, int dim, int *grouping, SparseMatrix poly_point_m
 void plot_dot_map(Agraph_t* gr, SparseMatrix polys,
                   SparseMatrix poly_lines, double line_width,
                   const char *line_color, double *x_poly, int *polys_groups,
-                  float *fsz, float *r, float *g, float *b,
+                  float *r, float *g, float *b,
                   const char* opacity, SparseMatrix A, FILE*);
 
 void map_optimal_coloring(int seed, SparseMatrix A, float *rgb_r,  float *rgb_g, float *rgb_b);
