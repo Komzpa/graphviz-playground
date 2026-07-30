@@ -74,45 +74,28 @@ static void lexerror(htmllexstate_t *ctx, const char *name)
     agerrorf("Unknown HTML element <%s> on line %lu \n", name, htmllineno_ctx(ctx));
 }
 
-typedef int (*attrFn) (void *, char *);
-typedef int (*bcmpfn) (const void *, const void *);
-
-/* Mechanism for automatically processing attributes */
-typedef struct {
-    char *name;			/* attribute name */
-    attrFn action;		/* action to perform if name matches */
-} attr_item;
-
-#define ISIZE (sizeof(attr_item))
-
-/* icmp:
- * Compare an attr_item. Used in bsearch
- */
+/// Compare an attribute item. Used in bsearch
 static int icmp(const void *name, const void *item) {
-  const attr_item *j = item;
-  return strcasecmp(name, j->name);
+  const char *const *const j = item;
+  return strcasecmp(name, *j);
 }
 
-static int bgcolorfn(htmldata_t * p, char *v)
-{
+static int bgcolorfn(htmldata_t *p, const char *v) {
     p->bgcolor = strdup(v);
     return 0;
 }
 
-static int pencolorfn(htmldata_t * p, char *v)
-{
+static int pencolorfn(htmldata_t *p, const char *v) {
     p->pencolor = strdup(v);
     return 0;
 }
 
-static int hreffn(htmldata_t * p, char *v)
-{
+static int hreffn(htmldata_t *p, const char *v) {
     p->href = strdup(v);
     return 0;
 }
 
-static int sidesfn(htmldata_t * p, char *v)
-{
+static int sidesfn(htmldata_t *p, const char *v) {
     unsigned short flags = 0; 
     char c;
 
@@ -140,22 +123,19 @@ static int sidesfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int titlefn(htmldata_t * p, char *v)
-{
+static int titlefn(htmldata_t *p, const char *v) {
     p->title = strdup(v);
     return 0;
 }
 
-static int portfn(htmldata_t * p, char *v)
-{
+static int portfn(htmldata_t *p, const char *v) {
     p->port = strdup(v);
     return 0;
 }
 
 #define DELIM " ,"
 
-static int stylefn(htmldata_t * p, char *v)
-{
+static int stylefn(htmldata_t *p, const char *v) {
     int rv = 0;
     for (tok_t t = tok(v, DELIM); !tok_end(&t); tok_next(&t)) {
 	strview_t tk = tok_get(&t);
@@ -177,14 +157,12 @@ static int stylefn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int targetfn(htmldata_t * p, char *v)
-{
+static int targetfn(htmldata_t *p, const char *v) {
     p->target = strdup(v);
     return 0;
 }
 
-static int idfn(htmldata_t * p, char *v)
-{
+static int idfn(htmldata_t *p, const char *v) {
     p->id = strdup(v);
     return 0;
 }
@@ -196,8 +174,7 @@ static int idfn(htmldata_t * p, char *v)
  * String s is name of value.
  * Return 0 if okay; 1 otherwise.
  */
-static int doInt(char *v, char *s, int min, int max, long *ul)
-{
+static int doInt(const char *v, char *s, int min, int max, long *ul) {
     int rv = 0;
     char *ep;
     long b = strtol(v, &ep, 10);
@@ -217,8 +194,7 @@ static int doInt(char *v, char *s, int min, int max, long *ul)
 }
 
 
-static int gradientanglefn(htmldata_t * p, char *v)
-{
+static int gradientanglefn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "GRADIENTANGLE", 0, 360, &u))
@@ -228,8 +204,7 @@ static int gradientanglefn(htmldata_t * p, char *v)
 }
 
 
-static int borderfn(htmldata_t * p, char *v)
-{
+static int borderfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "BORDER", 0, UCHAR_MAX, &u))
@@ -239,8 +214,7 @@ static int borderfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int cellpaddingfn(htmldata_t * p, char *v)
-{
+static int cellpaddingfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "CELLPADDING", 0, UCHAR_MAX, &u))
@@ -250,8 +224,7 @@ static int cellpaddingfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int cellspacingfn(htmldata_t * p, char *v)
-{
+static int cellspacingfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "CELLSPACING", SCHAR_MIN, SCHAR_MAX, &u))
@@ -261,9 +234,9 @@ static int cellspacingfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int cellborderfn(htmltbl_t * p, char *v)
-{
+static int cellborderfn(htmldata_t *data, const char *v) {
     long u;
+    htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
 
     if (doInt(v, "CELLBORDER", 0, INT8_MAX, &u))
 	return 1;
@@ -271,8 +244,8 @@ static int cellborderfn(htmltbl_t * p, char *v)
     return 0;
 }
 
-static int columnsfn(htmltbl_t * p, char *v)
-{
+static int columnsfn(htmldata_t *data, const char *v) {
+    htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
     if (*v != '*') {
 	agwarningf("Unknown value %s for COLUMNS - ignored\n", v);
 	return 1;
@@ -281,8 +254,8 @@ static int columnsfn(htmltbl_t * p, char *v)
     return 0;
 }
 
-static int rowsfn(htmltbl_t * p, char *v)
-{
+static int rowsfn(htmldata_t *data, const char *v) {
+    htmltbl_t *const p = (htmltbl_t *)((uintptr_t)data - offsetof(htmltbl_t, data));
     if (*v != '*') {
 	agwarningf("Unknown value %s for ROWS - ignored\n", v);
 	return 1;
@@ -291,8 +264,7 @@ static int rowsfn(htmltbl_t * p, char *v)
     return 0;
 }
 
-static int fixedsizefn(htmldata_t * p, char *v)
-{
+static int fixedsizefn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "TRUE"))
 	p->flags |= FIXED_FLAG;
@@ -303,8 +275,7 @@ static int fixedsizefn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int valignfn(htmldata_t * p, char *v)
-{
+static int valignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "BOTTOM"))
 	p->flags |= VALIGN_BOTTOM;
@@ -317,8 +288,7 @@ static int valignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int halignfn(htmldata_t * p, char *v)
-{
+static int halignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "LEFT"))
 	p->flags |= HALIGN_LEFT;
@@ -331,8 +301,7 @@ static int halignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int cell_halignfn(htmldata_t * p, char *v)
-{
+static int cell_halignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "LEFT"))
 	p->flags |= HALIGN_LEFT;
@@ -347,8 +316,7 @@ static int cell_halignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int balignfn(htmldata_t * p, char *v)
-{
+static int balignfn(htmldata_t *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "LEFT"))
 	p->flags |= BALIGN_LEFT;
@@ -361,8 +329,7 @@ static int balignfn(htmldata_t * p, char *v)
     return rv;
 }
 
-static int heightfn(htmldata_t * p, char *v)
-{
+static int heightfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "HEIGHT", 0, USHRT_MAX, &u))
@@ -371,8 +338,7 @@ static int heightfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int widthfn(htmldata_t * p, char *v)
-{
+static int widthfn(htmldata_t *p, const char *v) {
     long u;
 
     if (doInt(v, "WIDTH", 0, USHRT_MAX, &u))
@@ -381,9 +347,9 @@ static int widthfn(htmldata_t * p, char *v)
     return 0;
 }
 
-static int rowspanfn(htmlcell_t * p, char *v)
-{
+static int rowspanfn(htmldata_t *data, const char *v) {
     long u;
+    htmlcell_t *const p = (htmlcell_t *)((uintptr_t)data - offsetof(htmlcell_t, data));
 
     if (doInt(v, "ROWSPAN", 0, UINT16_MAX, &u))
 	return 1;
@@ -395,9 +361,9 @@ static int rowspanfn(htmlcell_t * p, char *v)
     return 0;
 }
 
-static int colspanfn(htmlcell_t * p, char *v)
-{
+static int colspanfn(htmldata_t *data, const char *v) {
     long u;
+    htmlcell_t *const p = (htmlcell_t *)((uintptr_t)data - offsetof(htmlcell_t, data));
 
     if (doInt(v, "COLSPAN", 0, UINT16_MAX, &u))
 	return 1;
@@ -409,20 +375,19 @@ static int colspanfn(htmlcell_t * p, char *v)
     return 0;
 }
 
-static int fontcolorfn(textfont_t * p, char *v)
-{
-    p->color = v;
+static int fontcolorfn(textfont_t *p, const char *v) {
+    // no strdup because HTML font usage is contained
+    p->color = (char *)v;
     return 0;
 }
 
-static int facefn(textfont_t * p, char *v)
-{
-    p->name = v;
+static int facefn(textfont_t *p, const char *v) {
+    // no strdup because HTML font usage is contained
+    p->name = (char *)v;
     return 0;
 }
 
-static int ptsizefn(textfont_t * p, char *v)
-{
+static int ptsizefn(textfont_t *p, const char *v) {
     long u;
 
     if (doInt(v, "POINT-SIZE", 0, UCHAR_MAX, &u))
@@ -431,20 +396,17 @@ static int ptsizefn(textfont_t * p, char *v)
     return 0;
 }
 
-static int srcfn(htmlimg_t * p, char *v)
-{
+static int srcfn(htmlimg_t *p, const char *v) {
     p->src = strdup(v);
     return 0;
 }
 
-static int scalefn(htmlimg_t * p, char *v)
-{
+static int scalefn(htmlimg_t *p, const char *v) {
     p->scale = strdup(v);
     return 0;
 }
 
-static int alignfn(int *p, char *v)
-{
+static int alignfn(int *p, const char *v) {
     int rv = 0;
     if (!strcasecmp(v, "RIGHT"))
 	*p = 'r';
@@ -459,71 +421,103 @@ static int alignfn(int *p, char *v)
     return rv;
 }
 
+typedef struct {
+  char *name;                                ///< attribute name
+  int (*action)(htmldata_t *, const char *); ///< action to perform if name matches
+} html_item_t;
+
 /* Tables used in binary search; MUST be alphabetized */
-static attr_item tbl_items[] = {
-    {"align", (attrFn) halignfn},
-    {"bgcolor", (attrFn) bgcolorfn},
-    {"border", (attrFn) borderfn},
-    {"cellborder", (attrFn) cellborderfn},
-    {"cellpadding", (attrFn) cellpaddingfn},
-    {"cellspacing", (attrFn) cellspacingfn},
-    {"color", (attrFn) pencolorfn},
-    {"columns", (attrFn) columnsfn},
-    {"fixedsize", (attrFn) fixedsizefn},
-    {"gradientangle", (attrFn) gradientanglefn},
-    {"height", (attrFn) heightfn},
-    {"href", (attrFn) hreffn},
-    {"id", (attrFn) idfn},
-    {"port", (attrFn) portfn},
-    {"rows", (attrFn) rowsfn},
-    {"sides", (attrFn) sidesfn},
-    {"style", (attrFn) stylefn},
-    {"target", (attrFn) targetfn},
-    {"title", (attrFn) titlefn},
-    {"tooltip", (attrFn) titlefn},
-    {"valign", (attrFn) valignfn},
-    {"width", (attrFn) widthfn},
+static html_item_t tbl_items[] = {
+    {"align", halignfn},
+    {"bgcolor", bgcolorfn},
+    {"border", borderfn},
+    {"cellborder", cellborderfn},
+    {"cellpadding", cellpaddingfn},
+    {"cellspacing", cellspacingfn},
+    {"color", pencolorfn},
+    {"columns", columnsfn},
+    {"fixedsize", fixedsizefn},
+    {"gradientangle", gradientanglefn},
+    {"height", heightfn},
+    {"href", hreffn},
+    {"id", idfn},
+    {"port", portfn},
+    {"rows", rowsfn},
+    {"sides", sidesfn},
+    {"style", stylefn},
+    {"target", targetfn},
+    {"title", titlefn},
+    {"tooltip", titlefn},
+    {"valign", valignfn},
+    {"width", widthfn},
 };
 
-static attr_item cell_items[] = {
-    {"align", (attrFn) cell_halignfn},
-    {"balign", (attrFn) balignfn},
-    {"bgcolor", (attrFn) bgcolorfn},
-    {"border", (attrFn) borderfn},
-    {"cellpadding", (attrFn) cellpaddingfn},
-    {"cellspacing", (attrFn) cellspacingfn},
-    {"color", (attrFn) pencolorfn},
-    {"colspan", (attrFn) colspanfn},
-    {"fixedsize", (attrFn) fixedsizefn},
-    {"gradientangle", (attrFn) gradientanglefn},
-    {"height", (attrFn) heightfn},
-    {"href", (attrFn) hreffn},
-    {"id", (attrFn) idfn},
-    {"port", (attrFn) portfn},
-    {"rowspan", (attrFn) rowspanfn},
-    {"sides", (attrFn) sidesfn},
-    {"style", (attrFn) stylefn},
-    {"target", (attrFn) targetfn},
-    {"title", (attrFn) titlefn},
-    {"tooltip", (attrFn) titlefn},
-    {"valign", (attrFn) valignfn},
-    {"width", (attrFn) widthfn},
+static html_item_t cell_items[] = {
+    {"align", cell_halignfn},
+    {"balign", balignfn},
+    {"bgcolor", bgcolorfn},
+    {"border", borderfn},
+    {"cellpadding", cellpaddingfn},
+    {"cellspacing", cellspacingfn},
+    {"color", pencolorfn},
+    {"colspan", colspanfn},
+    {"fixedsize", fixedsizefn},
+    {"gradientangle", gradientanglefn},
+    {"height", heightfn},
+    {"href", hreffn},
+    {"id", idfn},
+    {"port", portfn},
+    {"rowspan", rowspanfn},
+    {"sides", sidesfn},
+    {"style", stylefn},
+    {"target", targetfn},
+    {"title", titlefn},
+    {"tooltip", titlefn},
+    {"valign", valignfn},
+    {"width", widthfn},
 };
 
-static attr_item font_items[] = {
-    {"color", (attrFn) fontcolorfn},
-    {"face", (attrFn) facefn},
-    {"point-size", (attrFn) ptsizefn},
+typedef struct {
+  char *name;                                ///< attribute name
+  int (*action)(textfont_t *, const char *); ///< action to perform if name matches
+} font_item_t;
+
+static font_item_t font_items[] = {
+    {"color", fontcolorfn},
+    {"face", facefn},
+    {"point-size", ptsizefn},
 };
 
-static attr_item img_items[] = {
-    {"scale", (attrFn) scalefn},
-    {"src", (attrFn) srcfn},
+typedef struct {
+  char *name;                               ///< attribute name
+  int (*action)(htmlimg_t *, const char *); ///< action to perform if name matches
+} img_item_t;
+
+static img_item_t img_items[] = {
+    {"scale", scalefn},
+    {"src", srcfn},
 };
 
-static attr_item br_items[] = {
-    {"align", (attrFn) alignfn},
+typedef struct {
+  char *name;                         ///< attribute name
+  int (*action)(int *, const char *); ///< action to perform if name matches
+} br_item_t;
+
+static br_item_t br_items[] = {
+    {"align", alignfn},
 };
+
+/// convert `elem` to its appropriate type and invoke `elem->action(tp, val)`
+///
+/// This is essentially a constrained C11 version of
+/// `((typeof(&list[0]))elem)->action(tp, val)`.
+#define CALL_ACTION(list, elem, tp, val)                                       \
+  (_Generic((list), html_item_t *                                              \
+            : (html_item_t *)(elem), font_item_t *                             \
+            : (font_item_t *)(elem), img_item_t *                              \
+            : (img_item_t *)(elem), br_item_t *                                \
+            : (br_item_t *)(elem))                                             \
+       ->action((tp), (val)))
 
 /* doAttrs:
  * General function for processing list of name/value attributes.
@@ -533,41 +527,36 @@ static attr_item br_items[] = {
  * Name/value pairs are in array atts, which is null terminated.
  * s is the name of the HTML element being processed.
  */
-static void doAttrs(htmllexstate_t *ctx, void *tp, attr_item *items, size_t nel, char **atts,
-                    char *s) {
-    char *name;
-    char *val;
-    attr_item *ip;
+#define doAttrs(ctx, tp, items, nel, atts, s) do { \
+    const char *name; \
+\
+    while ((name = *(atts)++) != NULL) { \
+	const char *val = *(atts)++; \
+	void *const ip = bsearch(name, (items), (nel), sizeof((items)[0]), icmp); \
+	if (ip) \
+	    (ctx)->warn |= CALL_ACTION((items), ip, (tp), val); \
+	else { \
+	    agwarningf("Illegal attribute %s in %s - ignored\n", name, \
+		  (s)); \
+	    (ctx)->warn = 1; \
+	} \
+    } \
+} while (0)
 
-    while ((name = *atts++) != NULL) {
-	val = *atts++;
-	ip = bsearch(name, items, nel, ISIZE, icmp);
-	if (ip)
-	    ctx->warn |= ip->action(tp, val);
-	else {
-	    agwarningf("Illegal attribute %s in %s - ignored\n", name,
-		  s);
-	    ctx->warn = 1;
-	}
-    }
-}
-
-static void mkBR(htmllexstate_t *ctx, char **atts)
-{
+static void mkBR(htmllexstate_t *ctx, const char **atts) {
     ctx->htmllval->i = UNSET_ALIGN;
-    doAttrs(ctx, &ctx->htmllval->i, br_items, sizeof(br_items) / ISIZE, atts, "<BR>");
+    doAttrs(ctx, &ctx->htmllval->i, br_items, sizeof(br_items) / sizeof(br_items[0]), atts, "<BR>");
 }
 
-static htmlimg_t *mkImg(htmllexstate_t *ctx, char **atts)
-{
+static htmlimg_t *mkImg(htmllexstate_t *ctx, const char **atts) {
     htmlimg_t *img = gv_alloc(sizeof(htmlimg_t));
 
-    doAttrs(ctx, img, img_items, sizeof(img_items) / ISIZE, atts, "<IMG>");
+    doAttrs(ctx, img, img_items, sizeof(img_items) / sizeof(img_items[0]), atts, "<IMG>");
 
     return img;
 }
 
-static textfont_t *mkFont(htmllexstate_t *ctx, char **atts, unsigned char flags) {
+static textfont_t *mkFont(htmllexstate_t *ctx, const char **atts, unsigned char flags) {
     textfont_t tf = {NULL,NULL,NULL,0.0,0,0};
 
     tf.size = -1.0;		/* unassigned */
@@ -575,36 +564,33 @@ static textfont_t *mkFont(htmllexstate_t *ctx, char **atts, unsigned char flags)
     assert(flags <= FLAGS_MAX);
     tf.flags = (unsigned char)(flags & FLAGS_MAX);
     if (atts)
-	doAttrs(ctx, &tf, font_items, sizeof(font_items) / ISIZE, atts, "<FONT>");
+	doAttrs(ctx, &tf, font_items, sizeof(font_items) / sizeof(font_items[0]), atts, "<FONT>");
 
     return dtinsert(ctx->gvc->textfont_dt, &tf);
 }
 
-static htmlcell_t *mkCell(htmllexstate_t *ctx, char **atts)
-{
+static htmlcell_t *mkCell(htmllexstate_t *ctx, const char **atts) {
     htmlcell_t *cell = gv_alloc(sizeof(htmlcell_t));
 
     cell->colspan = 1;
     cell->rowspan = 1;
-    doAttrs(ctx, cell, cell_items, sizeof(cell_items) / ISIZE, atts, "<TD>");
+    doAttrs(ctx, &cell->data, cell_items, sizeof(cell_items) / sizeof(cell_items[0]), atts, "<TD>");
 
     return cell;
 }
 
-static htmltbl_t *mkTbl(htmllexstate_t *ctx, char **atts)
-{
+static htmltbl_t *mkTbl(htmllexstate_t *ctx, const char **atts) {
     htmltbl_t *tbl = gv_alloc(sizeof(htmltbl_t));
 
     tbl->row_count = SIZE_MAX; // flag that table is a raw, parsed table
     tbl->rows = (rows_t){.dtor = free_ritem};
     tbl->cellborder = -1; // unset cell border attribute
-    doAttrs(ctx, tbl, tbl_items, sizeof(tbl_items) / ISIZE, atts, "<TABLE>");
+    doAttrs(ctx, &tbl->data, tbl_items, sizeof(tbl_items) / sizeof(tbl_items[0]), atts, "<TABLE>");
 
     return tbl;
 }
 
-static void startElement(void *user, const char *name, char **atts)
-{
+static void startElement(void *user, const char *name, const char **atts) {
     htmllexstate_t *ctx = user;
 
     if (strcasecmp(name, "TABLE") == 0) {
@@ -758,9 +744,7 @@ int initHTMLlexer(htmlscan_t *scanner, char *src, agxbuf * xb, htmlenv_t *env)
     ctx->parser = XML_ParserCreate(charsetToStr(GD_charset(env->g)));
     ctx->gvc = GD_gvc(env->g);
     XML_SetUserData(ctx->parser, ctx);
-    XML_SetElementHandler(ctx->parser,
-			  (XML_StartElementHandler) startElement,
-			  endElement);
+    XML_SetElementHandler(ctx->parser, startElement, endElement);
     XML_SetCharacterDataHandler(ctx->parser, characterData);
     return 0;
 #else

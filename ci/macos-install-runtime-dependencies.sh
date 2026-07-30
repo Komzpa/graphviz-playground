@@ -52,8 +52,8 @@ brew install libxaw || brew upgrade libxaw
 
 # install MacPorts for libANN
 curl --retry 3 --location --no-progress-meter -O \
-  https://github.com/macports/macports-base/releases/download/v2.10.5/MacPorts-2.10.5-14-Sonoma.pkg
-sudo installer -package MacPorts-2.10.5-14-Sonoma.pkg -target /
+  https://github.com/macports/macports-base/releases/download/v2.10.5/MacPorts-2.10.5-15-Sequoia.pkg
+sudo installer -package MacPorts-2.10.5-15-Sequoia.pkg -target /
 export PATH=/opt/local/bin:${PATH}
 
 # lib/mingle dependency
