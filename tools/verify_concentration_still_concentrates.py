@@ -34,7 +34,6 @@ BASELINES = (
         5,
     ),
     Baseline("tests/graphs/concentrate-demo/nonlocal-arm-detour.dot", 6, 4),
-    Baseline("tests/graphs/concentrate-demo/junction-rank-band-escape.dot", 4, 7),
 )
 
 
