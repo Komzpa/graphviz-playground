@@ -53,7 +53,7 @@ def cap_memory() -> None:
 
 def render_json(dot: Path, graph: Path, flag: str) -> dict[str, Any]:
     args = [str(dot), flag, "-Tjson", str(graph)]
-    with tempfile.NamedTemporaryFile(prefix="mesivo-", suffix=".json") as out:
+    with tempfile.NamedTemporaryFile(prefix="concentrate-readability-", suffix=".json") as out:
         proc = subprocess.run(
             args,
             stdout=out,
