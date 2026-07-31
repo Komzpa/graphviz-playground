@@ -550,10 +550,15 @@ static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
   Agedge_t *cure;
   Agedge_t *nxte;
   Agraph_t *g = state->curgraph;
+  const size_t nodeseq_limit = aggetseq(g, AGNODE);
+  const size_t edgeseq_limit = aggetseq(g, AGEDGE);
 
   nodes.oldroot = 0;
   nodes.prev = 0;
   while ((n = nextNode(state, &nodes))) {
+    if (AGSEQ(n) > nodeseq_limit) {
+      continue;
+    }
     nd = nData(n);
     if (MARKED(nd))
       continue;
@@ -569,6 +574,9 @@ static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
         continue;
       for (cure = agfstedge(g, n); cure; cure = nxte) {
         nxte = agnxtedge(g, cure, n);
+        if (AGSEQ(cure) > edgeseq_limit) {
+          continue;
+        }
         nd = nData(cure->node);
         if (MARKED(nd))
           continue;
@@ -596,6 +604,8 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
   ndata *nd;
   nodestream nodes;
   Agedgepair_t seed;
+  const size_t nodeseq_limit = aggetseq(state->curgraph, AGNODE);
+  const size_t edgeseq_limit = aggetseq(state->curgraph, AGEDGE);
 
   nodes.oldroot = 0;
   nodes.prev = 0;
@@ -603,6 +613,9 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
     nd = nData(n);
     if (MARKED(nd))
       continue;
+    if (AGSEQ(n) > nodeseq_limit) {
+      continue;
+    }
     seed.out.node = n;
     seed.in.node = 0;
     curn = n;
@@ -619,6 +632,9 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
       else
         cure = fns->fstedge(state->curgraph, curn);
       if (cure) {
+        if (AGSEQ(cure) > edgeseq_limit) {
+          continue;
+        }
         if (entry == agopp(cure)) /* skip edge used to get here */
           continue;
         nd = nData(cure->node);
@@ -696,13 +712,21 @@ static void travFlat(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
   Agedge_t *e;
   Agedge_t *nexte;
   Agraph_t *g = state->curgraph;
+  const size_t nodeseq_limit = aggetseq(g, AGNODE);
+  const size_t edgeseq_limit = aggetseq(g, AGEDGE);
   for (n = agfstnode(g); n; n = next) {
     next = agnxtnode(g, n);
+    if (AGSEQ(n) > nodeseq_limit) {
+      continue;
+    }
     if (!evalNode(state, prog, xprog, n))
       continue;
     if (xprog->n_estmts > 0) {
       for (e = agfstout(g, n); e; e = nexte) {
         nexte = agnxtout(g, e);
+        if (AGSEQ(e) > edgeseq_limit) {
+          continue;
+        }
         evalEdge(state, prog, xprog, e);
       }
     }
