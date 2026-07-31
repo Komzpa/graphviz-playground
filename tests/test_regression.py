@@ -6553,6 +6553,27 @@ def test_2835():
     assert graph_style is None, "style attribute was added to the root graph"
 
 
+@pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
+@pytest.mark.xfail(
+    raises=subprocess.TimeoutExpired,
+    reason="https://gitlab.com/graphviz/graphviz/-/work_items/2849",
+    strict=True,
+)
+def test_2849():
+    """
+    gvpr should not infinite-loop on this input
+    https://gitlab.com/graphviz/graphviz/-/work_items/2849
+    """
+
+    # find our test sources
+    program = Path(__file__).parent / "2849.gvpr"
+    graph = Path(__file__).parent / "2849.dot"
+
+    # run this through gvpr
+    gvpr_bin = which("gvpr")
+    run_raw(gvpr_bin, "-f", program, graph, timeout=10)
+
+
 def test_698066():
     """
     Graphviz should not crash when processing this graph
