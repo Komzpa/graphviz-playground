@@ -15,6 +15,7 @@
 #include <util/gv_math.h>
 #include <util/list-private.h>
 #include <util/prisize_t.h>
+#include <util/unused.h>
 
 static const void *slot_from_const_list(const list_t_ *list, size_t index,
                                         size_t stride) {
@@ -299,7 +300,24 @@ list_t_ gv_list_copy_(const list_t_ list, size_t item_size) {
   return ret;
 }
 
-bool gv_list_is_contiguous_(const list_t_ list) {
+/// does the list not wrap past its end?
+///
+/// This checks whether the list is discontiguous in how its elements
+/// appear in memory:
+///
+///                         ┌───┬───┬───┬───┬───┬───┬───┬───┐
+///   a contiguous list:    │   │   │ w │ x │ y │ z │   │   │
+///                         └───┴───┴───┴───┴───┴───┴───┴───┘
+///                                   0   1   2   3
+///
+///                         ┌───┬───┬───┬───┬───┬───┬───┬───┐
+///   a discontiguous list: │ y │ z │   │   │   │   │ w │ x │
+///                         └───┴───┴───┴───┴───┴───┴───┴───┘
+///                           2   3                   0   1
+///
+/// @param list List to inspect
+/// @return True if the list is contiguous
+static UNUSED bool is_contiguous(const list_t_ list) {
   return list.head + list.size <= list.capacity;
 }
 
@@ -327,7 +345,7 @@ void gv_list_sync_(list_t_ *list, size_t item_size) {
   }
 
   /* synchronization should have ensured the list no longer wraps */
-  assert(gv_list_is_contiguous_(*list));
+  assert(is_contiguous(*list));
 
   /* re-establish access restrictions */
   void *end = INDEX_TO(list, list->size, item_size);
