@@ -122,9 +122,7 @@ def run(args: list[Union[str, Path]], root: Union[str, Path]):
     argv = [arg0] + args[1:] + ["-o", os.devnull]
 
     print(f"+ env {prefix} {shlex.join(str(x) for x in argv)}", flush=True)
-    proc = subprocess.run(argv, check=False)
-    if proc.returncode != 0:
-        print(f"warning: command returned {proc.returncode}", file=sys.stderr)
+    subprocess.run(argv, check=True)
 
 
 def pretty_time(duration: float):
