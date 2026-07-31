@@ -228,6 +228,29 @@ static node_t *group_outer_endpoint(edge_t *e, junction_kind_t kind) {
   return kind == JUNCTION_FANOUT ? aghead(e) : agtail(e);
 }
 
+static bool node_has_incoming_edges(node_t *n) {
+  return agfstin(agraphof(n), n) != NULL;
+}
+
+static bool node_has_outgoing_edges(node_t *n) {
+  return agfstout(agraphof(n), n) != NULL;
+}
+
+static bool group_has_edge_label(const junction_group_t *group) {
+  for (size_t i = 0; i < group->size; ++i) {
+    if (ED_label(group->edges[i]) != NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool labelled_group_has_terminal_anchor(const junction_group_t *group,
+                                               junction_kind_t kind) {
+  return kind == JUNCTION_FANOUT ? !node_has_incoming_edges(group->anchor)
+                                 : !node_has_outgoing_edges(group->anchor);
+}
+
 static bool same_group(const junction_group_t *group, edge_t *e,
                        junction_kind_t kind) {
   if (group->anchor != group_anchor(e, kind)) {
@@ -767,7 +790,9 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
         distinct_outer++;
       }
     }
-    if (distinct_outer >= 2) {
+    if (distinct_outer >= 2 &&
+        (!group_has_edge_label(&groups[i]) ||
+         labelled_group_has_terminal_anchor(&groups[i], kind))) {
       make_group(g, &groups[i], made, kind, false);
     }
     free(groups[i].edges);
