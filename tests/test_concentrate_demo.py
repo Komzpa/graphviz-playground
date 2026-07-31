@@ -91,6 +91,19 @@ def _edge_label_ops(edge: dict) -> list[dict]:
     return [op for op in edge.get("_ldraw_", []) if op["op"] == "T"]
 
 
+def _visible_edge_label_count(layout: dict) -> int:
+    return sum(
+        len(_edge_label_ops(edge))
+        for edge in _drawn_edges(layout)
+        if edge.get("_concentrate_junction_internal") != "true"
+    )
+
+
+def _graph_width(layout: dict) -> float:
+    left, _bottom, right, _top = (float(value) for value in layout["bb"].split(","))
+    return right - left
+
+
 def _route_bbox(edge: dict) -> tuple[float, float, float, float]:
     points = [point for piece in _bezier_pieces(edge) for point in piece]
     xs = [point[0] for point in points]
@@ -247,6 +260,17 @@ def test_cluster_rank_fallback_renders():
     assert "AddressSanitizer" not in proc.stderr
     assert "degenerate concentrated rank" in proc.stderr
     assert "pos=" in proc.stdout
+
+
+def test_labelled_cyclic_fans_keep_label_space():
+    """Cyclic labelled fans do not collapse into one narrow junction stack."""
+
+    fixture = _fixture("labelled-cyclic-fans-keep-label-space.dot")
+    off = _render_json_with_args(fixture, ["-Gconcentrate=false"])
+    on = _render_json_with_args(fixture, ["-Gconcentrate=true"])
+
+    assert _visible_edge_label_count(on) >= _visible_edge_label_count(off)
+    assert _graph_width(on) >= 0.9 * _graph_width(off)
 
 
 def test_self_loop_label_sits_beside_loop():
