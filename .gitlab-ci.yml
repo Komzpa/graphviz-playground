@@ -1462,6 +1462,8 @@ lint_cpplint:
     # check file formatting
     - git ls-files -z -- lib/cgraph++ lib/gvc++ | xargs -0 -- cpplint
     - git ls-files -z -- lib/xdot | xargs -0 -- cpplint --filter=-readability/casting
+    # check for use of banned functions
+    - git ls-files -z -- '**/*.c' '**/*.h' '**/*.hpp' '**/*.cpp' '**/*.C' '**/*.c++' '**/*.cxx' '**/*.cc' '**/*.m' | { xargs -0 grep -H '\<\(str.*cat\|strcpy\)\>' || exit 0 && exit 1; }
   except:
     - tags
   retry:
