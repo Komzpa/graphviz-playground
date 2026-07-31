@@ -40,7 +40,11 @@ Layout::Layout(char *fontname, double fontsize, char* string)
 	DeviceContext reference;
 	LOGFONTA font_to_find;
 	font_to_find.lfCharSet = ANSI_CHARSET;
-	strncpy(font_to_find.lfFaceName, fontname, sizeof(font_to_find.lfFaceName) - 1);
+	size_t font_len = strlen(fontname);
+	if (font_len > sizeof(font_to_find.lfFaceName) - 1) {
+		font_len = sizeof(font_to_find.lfFaceName) - 1;
+	}
+	memcpy(font_to_find.lfFaceName, fontname, font_len);
 	font_to_find.lfFaceName[sizeof(font_to_find.lfFaceName) - 1] = '\0';
 	font_to_find.lfPitchAndFamily = 0;
 	LOGFONTA found_font;
