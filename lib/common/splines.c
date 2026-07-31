@@ -83,9 +83,7 @@ arrow_clip(edge_t * fe, node_t * hn,
 	sflag = ARR_NONE;
     /* swap the two ends */
     if (j) {
-	uint32_t i = sflag;
-	sflag = eflag;
-	eflag = i;
+	SWAP(&sflag, &eflag);
     }
     if (info->isOrtho) {
 	if (eflag || sflag)
