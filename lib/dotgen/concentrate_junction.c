@@ -256,54 +256,6 @@ static void append_edge(junction_group_t *group, edge_t *e) {
   group->edges[group->size++] = e;
 }
 
-static bool group_needs_rank_band_slack(graph_t *g,
-                                        const junction_group_t *group,
-                                        junction_kind_t kind) {
-  node_t **stack = gv_calloc((size_t)agnnodes(g), sizeof(node_t *));
-  node_t **seen = gv_calloc((size_t)agnnodes(g), sizeof(node_t *));
-  for (size_t i = 0; i < group->size; ++i) {
-    node_t *anchor = group_anchor(group->edges[i], kind);
-    node_t *outer = group_outer_endpoint(group->edges[i], kind);
-    node_t *start = kind == JUNCTION_FANIN ? anchor : outer;
-    node_t *target = kind == JUNCTION_FANIN ? outer : anchor;
-    size_t nstack = 0;
-    size_t nseen = 0;
-    stack[nstack++] = start;
-    seen[nseen++] = start;
-    while (nstack > 0) {
-      node_t *n = stack[--nstack];
-      for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-        if (ED_concentrate_junction_internal(e)) {
-          continue;
-        }
-        node_t *next = aghead(e);
-        if (ND_concentrate_junction(next)) {
-          continue;
-        }
-        if (next == target) {
-          free(stack);
-          free(seen);
-          return true;
-        }
-        bool already_seen = false;
-        for (size_t j = 0; j < nseen; ++j) {
-          if (seen[j] == next) {
-            already_seen = true;
-            break;
-          }
-        }
-        if (!already_seen) {
-          seen[nseen++] = next;
-          stack[nstack++] = next;
-        }
-      }
-    }
-  }
-  free(stack);
-  free(seen);
-  return false;
-}
-
 static void snapshot_group_attrs(graph_t *g, junction_group_t *group,
                                  edge_t *e) {
   for (size_t j = 0; j < ARRAY_SIZE(group_attrs); ++j) {
@@ -653,8 +605,7 @@ static void init_added_edge(edge_t *e) {
 }
 
 static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
-                       junction_kind_t kind, bool reverse,
-                       bool rank_band_slack) {
+                       junction_kind_t kind, bool reverse) {
   edge_t *rep = group->edges[0];
 
   N_label = agattr_text(g, AGNODE, "label", "");
@@ -725,9 +676,6 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   }
   agsafeset(trunk, "_concentrate_junction_internal", "true", "");
   init_added_edge(trunk);
-  if (rank_band_slack) {
-    ED_minlen(trunk) = 0;
-  }
   ED_concentrate_junction_internal(trunk) = true;
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
@@ -752,9 +700,6 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     }
     agsafeset(arm, "_concentrate_junction_internal", "true", "");
     init_added_edge(arm);
-    if (rank_band_slack) {
-      ED_minlen(arm) = 0;
-    }
     ED_concentrate_junction_internal(arm) = true;
     dot_bundle_load_set_legacy_position(arm, orig_weight);
     weight += orig_weight;
@@ -823,8 +768,7 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
       }
     }
     if (distinct_outer >= 2) {
-      make_group(g, &groups[i], made, kind, false,
-                 group_needs_rank_band_slack(g, &groups[i], kind));
+      make_group(g, &groups[i], made, kind, false);
     }
     free(groups[i].edges);
   }
@@ -907,8 +851,7 @@ static void make_sameport_groups(graph_t *g, junction_kind_t kind,
   for (size_t i = 0; i < ngroups; ++i) {
     if (groups[i].size >= 2 &&
         sameport_group_label_is_compatible(&groups[i], kind)) {
-      make_group(g, &groups[i], made, kind, false,
-                 group_needs_rank_band_slack(g, &groups[i], kind));
+      make_group(g, &groups[i], made, kind, false);
     }
     free(groups[i].edges);
   }
