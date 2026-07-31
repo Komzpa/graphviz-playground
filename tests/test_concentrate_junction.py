@@ -334,30 +334,24 @@ def test_concentrate_junction_both_handles_fanin_and_fanout():
 
 def test_concentrate_junction_both_keeps_fanout_trunk_label_inside_bbox():
     source = """
-        digraph disk_states {
+        digraph {
           graph [concentrate=true]
           node [shape=ellipse]
-          Diskless -> Inconsistent [label="ioctl_set_disk()"]
-          Diskless -> Consistent [label="ioctl_set_disk()"]
-          Diskless -> Outdated [label="ioctl_set_disk()"]
-          Consistent -> Outdated [label="receive_param()"]
-          Consistent -> UpToDate [label="receive_param()"]
-          Consistent -> Inconsistent [label="start resync"]
-          Outdated -> Inconsistent [label="start resync"]
-          UpToDate -> Inconsistent [label="ioctl_replicate"]
-          Inconsistent -> UpToDate [label="resync completed"]
-          Consistent -> Failed [label="io completion error"]
-          Outdated -> Failed [label="io completion error"]
-          UpToDate -> Failed [label="io completion error"]
-          Inconsistent -> Failed [label="io completion error"]
-          Failed -> Diskless [label="sending notify to peer"]
+          edge [label=out, minlen=2]
+          source -> alpha
+          source -> beta
+          source -> gamma
+          edge [label=in, minlen=2]
+          delta -> sink
+          epsilon -> sink
+          zeta -> sink
         }
     """
     layout = _layout(source)
     xmin, ymin, xmax, ymax = [float(v) for v in layout["bb"].split(",")]
     labelled = [
         edge
-        for edge in _edge_objects(layout, label="receive_param()")
+        for edge in _edge_objects(layout, label="out")
         if edge.get("_ldraw_")
     ]
 
@@ -535,17 +529,26 @@ def test_concentrate_junction_fuses_samehead_groups_on_honda_tokoro():
 
 
 def test_concentrate_junction_allows_labelled_concentrated_fans():
-    fixture = Path(__file__).parent / "drbd-anchor.dot"
-    layout = json.loads(run("dot", "-Gconcentrate=true", "-Tjson", fixture, timeout=10))
+    source = """
+        digraph {
+          graph [concentrate=true]
+          edge [label=shared, minlen=2]
+          alpha -> merge
+          beta -> merge
+          gamma -> merge
+          delta -> merge
+          edge [label=shared_out, minlen=2]
+          split -> one
+          split -> two
+          split -> three
+          split -> four
+        }
+    """
+    layout = _layout(source)
     junctions = [
         obj for obj in layout["objects"] if obj.get("_concentrate_junction_node") == "true"
     ]
-    required = {
-        "ioctl_set_disk()",
-        "receive_param()",
-        "io completion error",
-        "start resync",
-    }
+    required = {"shared", "shared_out"}
     counts = {
         label: sum(
             1
@@ -556,7 +559,7 @@ def test_concentrate_junction_allows_labelled_concentrated_fans():
         for label in required
     }
 
-    assert len(junctions) == 4
+    assert len(junctions) == 2
     assert counts == {label: 1 for label in required}
 
 

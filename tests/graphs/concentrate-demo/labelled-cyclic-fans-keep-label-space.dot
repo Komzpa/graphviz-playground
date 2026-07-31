@@ -1,0 +1,18 @@
+digraph {
+  graph [concentrate=true]
+
+  a -> d [label="alpha"]
+  a -> b [label="alpha"]
+  a -> c [label="alpha"]
+  b -> c [label="beta"]
+  b -> e [label="beta"]
+  b -> d [label="gamma"]
+  c -> d [label="gamma"]
+  e -> d [label="delta"]
+  d -> e [label="epsilon"]
+  b -> f [label="zeta"]
+  c -> f [label="zeta"]
+  e -> f [label="zeta"]
+  d -> f [label="zeta"]
+  f -> a [label="eta"]
+}
