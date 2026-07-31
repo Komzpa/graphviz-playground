@@ -34,6 +34,12 @@ BASELINES = (
         5,
     ),
     Baseline("tests/graphs/concentrate-demo/nonlocal-arm-detour.dot", 6, 4),
+    # A recorded refusal. nhg.gv is a labelled cyclic fan: fusing its arms left
+    # the labels nowhere to go and the drawing collapsed, so the transform now
+    # declines it and 0 is the correct, deliberate count. It is listed here for
+    # the same reason the others are -- so that a later change cannot quietly
+    # move it, in either direction, without this file being edited on purpose.
+    Baseline("tests/graphs/nhg.gv", 0, 6),
 )
 
 
