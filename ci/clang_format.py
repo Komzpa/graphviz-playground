@@ -165,7 +165,6 @@ EXCLUDE = (
     "lib/common/geomprocs.h",
     "lib/common/htmllex.h",
     "lib/common/htmltable.c",
-    "lib/common/htmltable.h",
     "lib/common/input.c",
     "lib/common/labels.c",
     "lib/common/macros.h",
