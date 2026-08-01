@@ -503,7 +503,7 @@ typedef struct {
   int (*action)(int *, const char *); ///< action to perform if name matches
 } br_item_t;
 
-static br_item_t br_items[] = {
+static const br_item_t br_items[] = {
     {"align", alignfn},
 };
 
@@ -515,8 +515,8 @@ static br_item_t br_items[] = {
   (_Generic((list), const html_item_t *                                        \
             : (const html_item_t *)(elem), const font_item_t *                 \
             : (const font_item_t *)(elem), const img_item_t *                  \
-            : (const img_item_t *)(elem), br_item_t *                          \
-            : (br_item_t *)(elem))                                             \
+            : (const img_item_t *)(elem), const br_item_t *                    \
+            : (const br_item_t *)(elem))                                       \
        ->action((tp), (val)))
 
 /* doAttrs:
