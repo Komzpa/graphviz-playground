@@ -47,6 +47,87 @@ def _layout(source: str) -> dict:
     return json.loads(dot("json", source=source))
 
 
+def _fixture_layout(path: Path) -> dict:
+    return json.loads(run(which("dot"), "-Tjson", path))
+
+
+def _signed_polygon_area(points: list[list[float]]) -> float:
+    return (
+        sum(
+            points[i][0] * points[(i + 1) % len(points)][1]
+            - points[(i + 1) % len(points)][0] * points[i][1]
+            for i in range(len(points))
+        )
+        / 2
+    )
+
+
+def _inside_halfplane(
+    point: list[float], start: list[float], end: list[float], clockwise: bool
+) -> bool:
+    cross = (end[0] - start[0]) * (point[1] - start[1]) - (end[1] - start[1]) * (
+        point[0] - start[0]
+    )
+    return cross <= 1e-9 if clockwise else cross >= -1e-9
+
+
+def _segment_intersection(
+    a: list[float], b: list[float], c: list[float], d: list[float]
+) -> list[float]:
+    den = (a[0] - b[0]) * (c[1] - d[1]) - (a[1] - b[1]) * (c[0] - d[0])
+    if abs(den) < 1e-9:
+        return b
+    left = a[0] * b[1] - a[1] * b[0]
+    right = c[0] * d[1] - c[1] * d[0]
+    return [
+        (left * (c[0] - d[0]) - (a[0] - b[0]) * right) / den,
+        (left * (c[1] - d[1]) - (a[1] - b[1]) * right) / den,
+    ]
+
+
+def _convex_polygon_intersection_area(
+    subject: list[list[float]], clip: list[list[float]]
+) -> float:
+    out = subject
+    clockwise = _signed_polygon_area(clip) < 0
+    for index, start in enumerate(clip):
+        end = clip[(index + 1) % len(clip)]
+        incoming = out
+        out = []
+        if not incoming:
+            return 0
+        previous = incoming[-1]
+        previous_inside = _inside_halfplane(previous, start, end, clockwise)
+        for current in incoming:
+            current_inside = _inside_halfplane(current, start, end, clockwise)
+            if current_inside:
+                if not previous_inside:
+                    out.append(_segment_intersection(previous, current, start, end))
+                out.append(current)
+            elif previous_inside:
+                out.append(_segment_intersection(previous, current, start, end))
+            previous = current
+            previous_inside = current_inside
+    return abs(_signed_polygon_area(out)) if len(out) >= 3 else 0
+
+
+def _same_head_arrowhead_overlap_area(layout: dict, head_name: str) -> float:
+    node_ids = {node["name"]: node["_gvid"] for node in layout["objects"]}
+    head_id = node_ids[head_name]
+    polygons = [
+        operation["points"]
+        for edge in layout["edges"]
+        if edge.get("head") == head_id
+        for operation in edge.get("_hdraw_", [])
+        if operation["op"] == "P"
+    ]
+    return sum(
+        _convex_polygon_intersection_area(left, right)
+        for index, left in enumerate(polygons)
+        for right in polygons[index + 1 :]
+    )
+
+
 def _junction_nodes(layout: dict) -> list[dict]:
     return [
         node
@@ -853,6 +934,14 @@ def test_vee_arrowhead_polygon_does_not_cross_itself_at_wide_penwidth():
     )
     assert len(polygon) == 8
     assert _polygon_self_intersections(polygon) == []
+
+
+def test_awilliams_arrow_spread_does_not_create_same_head_collision():
+    """Spreading the node_27 fan must not merge two neighboring arrowheads."""
+
+    fixture = Path(__file__).parent / "graphs/awilliams.gv"
+    layout = _fixture_layout(fixture)
+    assert _same_head_arrowhead_overlap_area(layout, "node_27") == pytest.approx(0)
 
 
 def test_concentrate_edge_helpers_are_exported_to_windows_plugins():

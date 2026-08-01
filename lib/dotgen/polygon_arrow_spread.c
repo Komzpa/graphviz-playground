@@ -32,10 +32,14 @@ typedef struct {
   bezier *spline;
   node_t *node;
   pointf tip;
+  pointf base;
   pointf centroid;
   pointf control;
   double spacing;
   double grouping_distance;
+  double arrowsize;
+  double penwidth;
+  uint32_t arrow_flags;
   bool at_start;
   bool curved_outline;
   bool smooth_curved_move;
@@ -146,7 +150,12 @@ static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
 
   const double arrow_length = edge_arrow_length(
       main_edge, at_start ? EDGE_ARROW_START : EDGE_ARROW_END);
+  const double arrowsize = edge_arrow_arrowsize(
+      main_edge, at_start ? EDGE_ARROW_START : EDGE_ARROW_END);
   const double penwidth = late_double(main_edge, E_penwidth, 1.0, 0.0);
+  uint32_t start_flags = 0;
+  uint32_t end_flags = 0;
+  edge_arrow_flags(main_edge, &start_flags, &end_flags);
   const double side_length = hypot(ND_lw(node) + ND_rw(node), ND_ht(node));
   const bool curved_outline = outline->sides < 3;
   const bool requested_concentrate = mapbool(agget(agroot(edge), "concentrate"));
@@ -173,11 +182,15 @@ static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
       .spline = spline,
       .node = node,
       .tip = tip,
+      .base = base,
       .centroid = scale(1.0 / 3.0, add_pointf(tip, scale(2.0, base))),
       .control = control,
       .spacing = spacing,
       .grouping_distance =
           curved_outline ? arrow_length : COINCIDENT_ARROWHEAD_DISTANCE,
+      .arrowsize = arrowsize,
+      .penwidth = penwidth,
+      .arrow_flags = at_start ? start_flags : end_flags,
       .at_start = at_start,
       .curved_outline = curved_outline,
       .smooth_curved_move = curved_outline && !requested_concentrate,
@@ -311,9 +324,151 @@ static pointf project_to_ellipse_outline(node_t *node, pointf target) {
                   .y = center.y + ray.y / scale_factor};
 }
 
+static double signed_polygon_area(const pointf *poly, size_t count) {
+  double area = 0.0;
+  for (size_t i = 0; i < count; i++) {
+    const pointf a = poly[i];
+    const pointf b = poly[(i + 1) % count];
+    area += a.x * b.y - b.x * a.y;
+  }
+  return area / 2.0;
+}
+
+static bool inside_halfplane(pointf p, pointf start, pointf end, bool clockwise) {
+  const double cross =
+      (end.x - start.x) * (p.y - start.y) - (end.y - start.y) * (p.x - start.x);
+  return clockwise ? cross <= 1e-9 : cross >= -1e-9;
+}
+
+static pointf segment_intersection(pointf a, pointf b, pointf c, pointf d) {
+  const double den = (a.x - b.x) * (c.y - d.y) - (a.y - b.y) * (c.x - d.x);
+  if (fabs(den) < 1e-9)
+    return b;
+  const double left = a.x * b.y - a.y * b.x;
+  const double right = c.x * d.y - c.y * d.x;
+  return (pointf){.x = (left * (c.x - d.x) - (a.x - b.x) * right) / den,
+                  .y = (left * (c.y - d.y) - (a.y - b.y) * right) / den};
+}
+
+static double convex_intersection_area(const pointf *subject, size_t subject_count,
+                                       const pointf *clip, size_t clip_count) {
+  if (subject_count < 3 || clip_count < 3)
+    return 0.0;
+
+  pointf in[16];
+  pointf out[16];
+  if (subject_count > ARRAY_SIZE(in) || clip_count > ARRAY_SIZE(out))
+    return 0.0;
+
+  size_t in_count = subject_count;
+  for (size_t i = 0; i < subject_count; i++)
+    in[i] = subject[i];
+
+  const bool clockwise = signed_polygon_area(clip, clip_count) < 0.0;
+  for (size_t i = 0; i < clip_count; i++) {
+    const pointf start = clip[i];
+    const pointf end = clip[(i + 1) % clip_count];
+    if (in_count == 0)
+      return 0.0;
+
+    size_t out_count = 0;
+    pointf prev = in[in_count - 1];
+    bool prev_inside = inside_halfplane(prev, start, end, clockwise);
+    for (size_t j = 0; j < in_count; j++) {
+      const pointf current = in[j];
+      const bool current_inside = inside_halfplane(current, start, end, clockwise);
+      if (current_inside) {
+        if (!prev_inside)
+          out[out_count++] = segment_intersection(prev, current, start, end);
+        out[out_count++] = current;
+      } else if (prev_inside) {
+        out[out_count++] = segment_intersection(prev, current, start, end);
+      }
+      if (out_count >= ARRAY_SIZE(out))
+        return 0.0;
+      prev = current;
+      prev_inside = current_inside;
+    }
+
+    in_count = out_count;
+    for (size_t j = 0; j < in_count; j++)
+      in[j] = out[j];
+  }
+
+  return fabs(signed_polygon_area(in, in_count));
+}
+
+static size_t landing_arrow_polygons(const arrow_landing_t *landing, pointf tip,
+                                     pointf polygons[8][9],
+                                     size_t polygon_counts[8]) {
+  arrow_geometry_t geometry;
+  const pointf delta = sub_pointf(tip, landing->tip);
+  const pointf base = add_pointf(landing->base, delta);
+  arrow_geometry(tip, base, landing->arrowsize, landing->penwidth,
+                 landing->arrow_flags, &geometry);
+
+  size_t count = 0;
+  for (size_t i = 0; i < geometry.nprimitives && count < 8; i++) {
+    const arrow_primitive_t *const primitive = &geometry.primitives[i];
+    if (primitive->kind != ARROW_PRIMITIVE_POLYGON || primitive->npoints < 3)
+      continue;
+    polygon_counts[count] = primitive->npoints;
+    for (size_t j = 0; j < primitive->npoints; j++)
+      polygons[count][j] = primitive->points[j];
+    count++;
+  }
+  return count;
+}
+
+static bool arrow_polygons_overlap(const arrow_landing_t *left, pointf left_tip,
+                                   const arrow_landing_t *right,
+                                   pointf right_tip) {
+  pointf left_polygons[8][9];
+  pointf right_polygons[8][9];
+  size_t left_counts[8];
+  size_t right_counts[8];
+  const size_t left_count =
+      landing_arrow_polygons(left, left_tip, left_polygons, left_counts);
+  const size_t right_count =
+      landing_arrow_polygons(right, right_tip, right_polygons, right_counts);
+
+  for (size_t i = 0; i < left_count; i++) {
+    for (size_t j = 0; j < right_count; j++) {
+      if (convex_intersection_area(left_polygons[i], left_counts[i],
+                                   right_polygons[j], right_counts[j]) > 1e-6)
+        return true;
+    }
+  }
+  return false;
+}
+
+static bool target_would_create_neighbor_overlap(const arrow_landing_t *landings,
+                                                 size_t landing_count,
+                                                 size_t group_start,
+                                                 size_t group_end,
+                                                 size_t group_index,
+                                                 pointf target) {
+  const arrow_landing_t *const landing = &landings[group_start + group_index];
+  for (size_t i = 0; i < landing_count; i++) {
+    if (i >= group_start && i < group_end)
+      continue;
+    if (landings[i].node != landing->node)
+      continue;
+    if (arrow_polygons_overlap(landing, target, &landings[i], landings[i].tip) &&
+        !arrow_polygons_overlap(landing, landing->tip, &landings[i],
+                                landings[i].tip))
+      return true;
+  }
+  return false;
+}
+
 /// Spread one group of arrowheads that landed on top of each other, and report
 /// whether anything actually moved so the caller knows if the drawing settled.
-static bool spread_arrow_landing_group(arrow_landing_t *group, size_t count) {
+static bool spread_arrow_landing_group(arrow_landing_t *landings,
+                                       size_t landing_count, size_t group_start,
+                                       size_t group_end) {
+  arrow_landing_t *const group = &landings[group_start];
+  const size_t count = group_end - group_start;
   bool spread_pair = false;
   bool curved_group = false;
   for (size_t i = 0; i < count; i++)
@@ -348,6 +503,10 @@ static bool spread_arrow_landing_group(arrow_landing_t *group, size_t count) {
         group[0].tip, scale((double)i * spacing - center_offset, direction));
     if (group[i].curved_outline)
       target = project_to_ellipse_outline(group[i].node, target);
+    if (group[i].smooth_curved_move &&
+        target_would_create_neighbor_overlap(landings, landing_count,
+                                             group_start, group_end, i, target))
+      continue;
     moved = moved || DIST(group[i].tip, target) > MILLIPOINT;
     move_arrow_landing_smoothly(&group[i], target);
   }
@@ -395,8 +554,8 @@ static bool spread_coincident_arrowheads_once(graph_t *g) {
                 landings[group_end - 1].grouping_distance)) {
       group_end++;
     }
-    moved = spread_arrow_landing_group(&landings[group_start],
-                                       group_end - group_start) ||
+    moved = spread_arrow_landing_group(landings, landing_count, group_start,
+                                       group_end) ||
             moved;
     group_start = group_end;
   }
