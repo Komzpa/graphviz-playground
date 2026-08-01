@@ -13,6 +13,7 @@
 #pragma once
 
 #include <common/textspan.h>
+#include <common/types.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
