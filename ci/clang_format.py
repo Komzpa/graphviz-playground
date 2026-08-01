@@ -163,7 +163,6 @@ EXCLUDE = (
     "lib/common/geom.c",
     "lib/common/geom.h",
     "lib/common/geomprocs.h",
-    "lib/common/htmllex.c",
     "lib/common/htmllex.h",
     "lib/common/htmltable.c",
     "lib/common/htmltable.h",
