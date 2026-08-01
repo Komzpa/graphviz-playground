@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "geom.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
