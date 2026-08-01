@@ -482,7 +482,7 @@ typedef struct {
   int (*action)(textfont_t *, const char *); ///< action to perform if name matches
 } font_item_t;
 
-static font_item_t font_items[] = {
+static const font_item_t font_items[] = {
     {"color", fontcolorfn},
     {"face", facefn},
     {"point-size", ptsizefn},
@@ -513,8 +513,8 @@ static br_item_t br_items[] = {
 /// `((typeof(&list[0]))elem)->action(tp, val)`.
 #define CALL_ACTION(list, elem, tp, val)                                       \
   (_Generic((list), const html_item_t *                                        \
-            : (const html_item_t *)(elem), font_item_t *                       \
-            : (font_item_t *)(elem), img_item_t *                              \
+            : (const html_item_t *)(elem), const font_item_t *                 \
+            : (const font_item_t *)(elem), img_item_t *                        \
             : (img_item_t *)(elem), br_item_t *                                \
             : (br_item_t *)(elem))                                             \
        ->action((tp), (val)))
