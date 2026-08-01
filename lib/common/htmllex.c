@@ -427,7 +427,7 @@ typedef struct {
 } html_item_t;
 
 /* Tables used in binary search; MUST be alphabetized */
-static html_item_t tbl_items[] = {
+static const html_item_t tbl_items[] = {
     {"align", halignfn},
     {"bgcolor", bgcolorfn},
     {"border", borderfn},
@@ -512,7 +512,8 @@ static br_item_t br_items[] = {
 /// This is essentially a constrained C11 version of
 /// `((typeof(&list[0]))elem)->action(tp, val)`.
 #define CALL_ACTION(list, elem, tp, val)                                       \
-  (_Generic((list), html_item_t *                                              \
+  (_Generic((list), const html_item_t *                                        \
+            : (const html_item_t *)(elem), html_item_t *                       \
             : (html_item_t *)(elem), font_item_t *                             \
             : (font_item_t *)(elem), img_item_t *                              \
             : (img_item_t *)(elem), br_item_t *                                \
