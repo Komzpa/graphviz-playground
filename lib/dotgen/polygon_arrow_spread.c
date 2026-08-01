@@ -25,7 +25,14 @@
 
 #define COINCIDENT_ARROWHEAD_DISTANCE 2.0
 #define MAX_SPREAD_TURN_DEGREES 30.0
+#define REGRESSION_TURN_DEGREES 35.0
 #define SPREAD_TURN_SAMPLES 24
+
+typedef struct {
+  size_t count;
+  size_t regression_count;
+  double worst;
+} turn_score_t;
 
 typedef struct {
   edge_t *edge;
@@ -95,11 +102,11 @@ static pointf cubic_point(pointf p0, pointf p1, pointf p2, pointf p3,
 /// Score the drawn Bezier curve, not the control polygon. The corner this pass
 /// can introduce is visible on sampled curve points where a moved endpoint-side
 /// segment rejoins the untouched spline body.
-static size_t sampled_sharp_turns(bezier *spline) {
+static turn_score_t sampled_sharp_turns(bezier *spline) {
   if (spline->size < 4)
-    return 0;
+    return (turn_score_t){0};
 
-  size_t sharp_turns = 0;
+  turn_score_t score = {0};
   pointf before = {0};
   pointf joint = {0};
   bool have_before = false;
@@ -112,9 +119,16 @@ static size_t sampled_sharp_turns(bezier *spline) {
           cubic_point(spline->list[i], spline->list[i + 1], spline->list[i + 2],
                       spline->list[i + 3],
                       (double)sample / (double)SPREAD_TURN_SAMPLES);
-      if (have_before && have_joint)
-        sharp_turns +=
-            turn_degrees(before, joint, current) > MAX_SPREAD_TURN_DEGREES;
+      if (have_before && have_joint) {
+        const double turn = turn_degrees(before, joint, current);
+        if (turn > MAX_SPREAD_TURN_DEGREES) {
+          score.count++;
+          if (turn > REGRESSION_TURN_DEGREES) {
+            score.regression_count++;
+            score.worst = MAX(score.worst, turn);
+          }
+        }
+      }
       before = joint;
       joint = current;
       if (have_joint)
@@ -122,7 +136,21 @@ static size_t sampled_sharp_turns(bezier *spline) {
       have_joint = true;
     }
   }
-  return sharp_turns;
+  return score;
+}
+
+static bool turn_score_no_worse(turn_score_t after, turn_score_t before) {
+  if (after.count != before.count)
+    return after.count < before.count;
+  if (after.regression_count != before.regression_count)
+    return after.regression_count < before.regression_count;
+  return after.worst <= before.worst + 1e-9;
+}
+
+static bool turn_score_no_regression(turn_score_t after, turn_score_t before) {
+  if (after.regression_count != before.regression_count)
+    return after.regression_count < before.regression_count;
+  return after.worst <= before.worst + 1e-9;
 }
 
 static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
@@ -260,8 +288,15 @@ static pointf scaled_target(pointf source, pointf target, double scale_factor) {
   return add_pointf(source, scale(scale_factor, sub_pointf(target, source)));
 }
 
+static void move_arrow_landing_by_kind(arrow_landing_t *landing, pointf target) {
+  if (landing->smooth_curved_move)
+    move_arrow_landing_with_falloff(landing, target);
+  else
+    move_arrow_landing(landing, target);
+}
+
 static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target) {
-  if (!landing->smooth_curved_move) {
+  if (Concentrate) {
     move_arrow_landing(landing, target);
     return;
   }
@@ -276,10 +311,22 @@ static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target)
   for (size_t i = 0; i < spline->size; i++)
     old_points[i] = spline->list[i];
 
-  const size_t old_sharp_turns = sampled_sharp_turns(spline);
+  const turn_score_t old_sharp_turns = sampled_sharp_turns(spline);
 
-  move_arrow_landing_with_falloff(landing, target);
-  if (sampled_sharp_turns(spline) <= old_sharp_turns) {
+  if (!landing->smooth_curved_move) {
+    move_arrow_landing(landing, target);
+    if (!turn_score_no_regression(sampled_sharp_turns(spline), old_sharp_turns)) {
+      spline->sp = old_sp;
+      spline->ep = old_ep;
+      for (size_t i = 0; i < spline->size; i++)
+        spline->list[i] = old_points[i];
+    }
+    free(old_points);
+    return;
+  }
+
+  move_arrow_landing_by_kind(landing, target);
+  if (turn_score_no_worse(sampled_sharp_turns(spline), old_sharp_turns)) {
     free(old_points);
     return;
   }
@@ -293,22 +340,20 @@ static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target)
   double high = 1.0;
   for (int step = 0; step < 12; step++) {
     const double mid = (low + high) / 2.0;
-    move_arrow_landing_with_falloff(landing,
-                                    scaled_target(original_tip, target, mid));
-    const size_t sharp_turns = sampled_sharp_turns(spline);
+    move_arrow_landing_by_kind(landing, scaled_target(original_tip, target, mid));
+    const turn_score_t sharp_turns = sampled_sharp_turns(spline);
     spline->sp = old_sp;
     spline->ep = old_ep;
     for (size_t i = 0; i < spline->size; i++)
       spline->list[i] = old_points[i];
-    if (sharp_turns <= old_sharp_turns)
+    if (turn_score_no_worse(sharp_turns, old_sharp_turns))
       low = mid;
     else
       high = mid;
   }
 
   if (low > MILLIPOINT)
-    move_arrow_landing_with_falloff(landing,
-                                    scaled_target(original_tip, target, low));
+    move_arrow_landing_by_kind(landing, scaled_target(original_tip, target, low));
   free(old_points);
 }
 
@@ -503,7 +548,7 @@ static bool spread_arrow_landing_group(arrow_landing_t *landings,
         group[0].tip, scale((double)i * spacing - center_offset, direction));
     if (group[i].curved_outline)
       target = project_to_ellipse_outline(group[i].node, target);
-    if (group[i].smooth_curved_move &&
+    if (!Concentrate && group[i].smooth_curved_move &&
         target_would_create_neighbor_overlap(landings, landing_count,
                                              group_start, group_end, i, target))
       continue;
