@@ -52,6 +52,7 @@ enum {
 };
 
 static node_t *group_anchor(edge_t *e, junction_kind_t kind);
+static bool edge_dir_is_both(edge_t *e);
 
 static char *group_attrs[] = {
     "label",       "color",        "style",        "penwidth",    "fontname",
@@ -268,6 +269,25 @@ static bool same_group(const junction_group_t *group, edge_t *e,
     }
   }
   return true;
+}
+
+static bool fanout_edge_shares_bidirectional_target(edge_t *e) {
+  node_t *const anchor = agtail(e);
+  node_t *const outer = aghead(e);
+  for (edge_t *anchor_edge = agfstout(agraphof(e), anchor); anchor_edge;
+       anchor_edge = agnxtout(agraphof(e), anchor_edge)) {
+    if (!edge_dir_is_both(anchor_edge)) {
+      continue;
+    }
+    for (edge_t *outer_edge = agfstout(agraphof(e), outer); outer_edge;
+         outer_edge = agnxtout(agraphof(e), outer_edge)) {
+      if (edge_dir_is_both(outer_edge) &&
+          aghead(anchor_edge) == aghead(outer_edge)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 static void append_edge(junction_group_t *group, edge_t *e) {
@@ -755,6 +775,9 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
       if (!eligible(e) || ED_concentrate_junction(e)) {
         continue;
       }
+      if (kind == JUNCTION_FANOUT && fanout_edge_shares_bidirectional_target(e)) {
+        continue;
+      }
       size_t i = 0;
       for (; i < ngroups; ++i) {
         if (same_group(&groups[i], e, kind)) {
@@ -883,6 +906,30 @@ static void make_sameport_groups(graph_t *g, junction_kind_t kind,
   free(groups);
 }
 
+static bool edge_dir_is_both(edge_t *e) {
+  return streq(attr(e, agfindedgeattr(agraphof(agtail(e)), "dir"), ""), "both");
+}
+
+static void suppress_duplicate_bidirectional_edges(graph_t *g) {
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    for (edge_t *retained = agfstout(g, n); retained;
+         retained = agnxtout(g, retained)) {
+      if (ED_edge_type(retained) != NORMAL || !edge_dir_is_both(retained)) {
+        continue;
+      }
+      for (edge_t *candidate = agnxtout(g, retained); candidate;
+           candidate = agnxtout(g, candidate)) {
+        if (ED_edge_type(candidate) == NORMAL && edge_dir_is_both(candidate) &&
+            same_concentration_endpoints(retained, candidate) &&
+            gv_concentration_edges_have_equal_rendered_identity(
+                retained, candidate, GV_CONCENTRATION_SAME_DIRECTION)) {
+          ED_edge_type(candidate) = IGNORED;
+        }
+      }
+    }
+  }
+}
+
 static bool has_cluster_subgraph(graph_t *g) {
   for (graph_t *subg = agfstsubg(g); subg; subg = agnxtsubg(subg)) {
     if (strncmp(agnameof(subg), "cluster", strlen("cluster")) == 0 ||
@@ -914,6 +961,7 @@ void dot_concentrate_junction(graph_t *g) {
     make_groups(g, JUNCTION_FANOUT, &made);
   }
   if (made > 0) {
+    suppress_duplicate_bidirectional_edges(g);
     agsafeset(g, "_concentrate_junction_active", "true", "");
     Concentrate = false;
   }
