@@ -493,7 +493,7 @@ typedef struct {
   int (*action)(htmlimg_t *, const char *); ///< action to perform if name matches
 } img_item_t;
 
-static img_item_t img_items[] = {
+static const img_item_t img_items[] = {
     {"scale", scalefn},
     {"src", srcfn},
 };
@@ -514,8 +514,8 @@ static br_item_t br_items[] = {
 #define CALL_ACTION(list, elem, tp, val)                                       \
   (_Generic((list), const html_item_t *                                        \
             : (const html_item_t *)(elem), const font_item_t *                 \
-            : (const font_item_t *)(elem), img_item_t *                        \
-            : (img_item_t *)(elem), br_item_t *                                \
+            : (const font_item_t *)(elem), const img_item_t *                  \
+            : (const img_item_t *)(elem), br_item_t *                          \
             : (br_item_t *)(elem))                                             \
        ->action((tp), (val)))
 
