@@ -176,16 +176,16 @@ typedef LIST(row_t *) rows_t;
         bool objid_set;
     } htmlenv_t;
 
-    extern htmllabel_t *parseHTML(char *, int *, htmlenv_t *);
+    htmllabel_t *parseHTML(char *, int *, htmlenv_t *);
 
-    extern int make_html_label(void *obj, textlabel_t * lp);
-    extern void emit_html_label(GVJ_t * job, htmllabel_t * lp, textlabel_t *);
+    int make_html_label(void *obj, textlabel_t * lp);
+    void emit_html_label(GVJ_t * job, htmllabel_t * lp, textlabel_t *);
 
-    extern void free_html_label(htmllabel_t *, int);
-    extern void free_html_data(htmldata_t *);
-    extern void free_html_text(htmltxt_t *);
+    void free_html_label(htmllabel_t *, int);
+    void free_html_data(htmldata_t *);
+    void free_html_text(htmltxt_t *);
 
-    extern boxf *html_port(node_t *n, char *pname, unsigned char *sides);
+    boxf *html_port(node_t *n, char *pname, unsigned char *sides);
 
 #ifdef __cplusplus
 }
