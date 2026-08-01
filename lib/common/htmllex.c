@@ -452,7 +452,7 @@ static const html_item_t tbl_items[] = {
     {"width", widthfn},
 };
 
-static html_item_t cell_items[] = {
+static const html_item_t cell_items[] = {
     {"align", cell_halignfn},
     {"balign", balignfn},
     {"bgcolor", bgcolorfn},
@@ -513,8 +513,7 @@ static br_item_t br_items[] = {
 /// `((typeof(&list[0]))elem)->action(tp, val)`.
 #define CALL_ACTION(list, elem, tp, val)                                       \
   (_Generic((list), const html_item_t *                                        \
-            : (const html_item_t *)(elem), html_item_t *                       \
-            : (html_item_t *)(elem), font_item_t *                             \
+            : (const html_item_t *)(elem), font_item_t *                       \
             : (font_item_t *)(elem), img_item_t *                              \
             : (img_item_t *)(elem), br_item_t *                                \
             : (br_item_t *)(elem))                                             \
