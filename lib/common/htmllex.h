@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <common/htmltable.h>
 #include <util/agxbuf.h>
 
 #ifdef __cplusplus
