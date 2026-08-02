@@ -387,7 +387,7 @@ xdot *parseXDotF(char *s, drawfunc_t fns[], size_t sz) {
   return parseXDotFOn(s, fns, sz, NULL);
 }
 
-xdot *parseXDot(char *s) { return parseXDotF(s, 0, 0); }
+xdot *parseXDot(char *s) { return parseXDotF(s, NULL, 0); }
 
 typedef int (*pf)(void *, char *, ...);
 
