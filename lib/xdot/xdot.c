@@ -21,7 +21,7 @@
 #include <xdot/xdot.h>
 
 /* the parse functions should return NULL on error */
-static char *parseReal(char *s, double *fp) {
+static char *parseReal(const char *s, double *fp) {
   char *p;
 
   const double d = strtod(s, &p);
