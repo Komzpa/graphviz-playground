@@ -699,7 +699,7 @@ static void jsonXDot_Op(xdot_op *op, pf print, void *info, int more) {
   agxbfree(&xb);
 }
 
-static void _printXDot(xdot *x, pf print, void *info, print_op ofn) {
+static void printXDot(xdot *x, pf print, void *info, print_op ofn) {
   xdot_op *op;
   char *base = (char *)x->ops;
   for (size_t i = 0; i < x->cnt; i++) {
@@ -710,7 +710,7 @@ static void _printXDot(xdot *x, pf print, void *info, print_op ofn) {
 
 char *sprintXDot(xdot *x) {
   agxbuf xb = {0};
-  _printXDot(x, pf_agxbprint, &xb, printXDot_Op);
+  printXDot(x, pf_agxbprint, &xb, printXDot_Op);
   return agxbdisown(&xb);
 }
 
@@ -724,12 +724,12 @@ static int pf_fprintf(void *stream, char *format, ...) {
 }
 
 void fprintXDot(FILE *fp, xdot *x) {
-  _printXDot(x, pf_fprintf, fp, printXDot_Op);
+  printXDot(x, pf_fprintf, fp, printXDot_Op);
 }
 
 void jsonXDot(FILE *fp, xdot *x) {
   fputs("[\n", fp);
-  _printXDot(x, pf_fprintf, fp, jsonXDot_Op);
+  printXDot(x, pf_fprintf, fp, jsonXDot_Op);
   fputs("]\n", fp);
 }
 
