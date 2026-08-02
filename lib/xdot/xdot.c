@@ -32,7 +32,7 @@ static char *parseReal(const char *s, double *fp) {
   return p;
 }
 
-static char *parseInt(char *s, int *ip) {
+static char *parseInt(const char *s, int *ip) {
   char *endp;
 
   *ip = (int)strtol(s, &endp, 10);
