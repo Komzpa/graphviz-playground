@@ -956,15 +956,13 @@ char *parseXDotColor(char *cp, xdot_color *clr) {
 }
 
 void freeXDotColor(xdot_color *cp) {
-  int i;
-
   if (cp->type == xd_linear) {
-    for (i = 0; i < cp->u.ling.n_stops; i++) {
+    for (int i = 0; i < cp->u.ling.n_stops; i++) {
       free(cp->u.ling.stops[i].color);
     }
     free(cp->u.ling.stops);
   } else if (cp->type == xd_radial) {
-    for (i = 0; i < cp->u.ring.n_stops; i++) {
+    for (int i = 0; i < cp->u.ring.n_stops; i++) {
       free(cp->u.ring.stops[i].color);
     }
     free(cp->u.ring.stops);
