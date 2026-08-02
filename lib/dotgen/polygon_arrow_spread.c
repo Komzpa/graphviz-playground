@@ -39,6 +39,7 @@ typedef struct {
   bezier *spline;
   node_t *node;
   pointf tip;
+  pointf source;
   pointf base;
   pointf centroid;
   pointf control;
@@ -50,6 +51,7 @@ typedef struct {
   bool at_start;
   bool curved_outline;
   bool smooth_curved_move;
+  bool source_order_repaired;
 } arrow_landing_t;
 
 static polygon_t *node_spread_outline(node_t *node) {
@@ -164,6 +166,8 @@ static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
   const pointf tip = at_start ? spline->sp : spline->ep;
   const pointf base =
       at_start ? spline->list[0] : spline->list[spline->size - 1];
+  const pointf source =
+      at_start ? spline->list[spline->size - 1] : spline->list[0];
   const pointf control =
       at_start ? spline->list[1] : spline->list[spline->size - 2];
   polygon_t *const outline = node_spread_outline(node);
@@ -210,6 +214,7 @@ static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
       .spline = spline,
       .node = node,
       .tip = tip,
+      .source = source,
       .base = base,
       .centroid = scale(1.0 / 3.0, add_pointf(tip, scale(2.0, base))),
       .control = control,
@@ -289,7 +294,7 @@ static pointf scaled_target(pointf source, pointf target, double scale_factor) {
 }
 
 static void move_arrow_landing_by_kind(arrow_landing_t *landing, pointf target) {
-  if (landing->smooth_curved_move)
+  if (landing->smooth_curved_move && !landing->source_order_repaired)
     move_arrow_landing_with_falloff(landing, target);
   else
     move_arrow_landing(landing, target);
@@ -507,6 +512,40 @@ static bool target_would_create_neighbor_overlap(const arrow_landing_t *landings
   return false;
 }
 
+static double projected_order(pointf p, pointf direction) {
+  return p.x * direction.x + p.y * direction.y;
+}
+
+static void order_small_arrow_landing_group_by_source(arrow_landing_t *group,
+                                                      size_t count,
+                                                      pointf direction) {
+  if (count < 3 || count > 5)
+    return;
+  for (size_t i = 0; i < count; i++) {
+    if (group[i].penwidth < 2.5)
+      return;
+  }
+
+  for (size_t i = 1; i < count; i++) {
+    arrow_landing_t current = group[i];
+    const double current_order = projected_order(current.source, direction);
+    size_t j = i;
+    while (j > 0) {
+      const double previous_order =
+          projected_order(group[j - 1].source, direction);
+      if (previous_order < current_order ||
+          (previous_order == current_order &&
+           AGSEQ(group[j - 1].edge) <= AGSEQ(current.edge)))
+        break;
+      group[j] = group[j - 1];
+      j--;
+    }
+    group[j] = current;
+  }
+  for (size_t i = 0; i < count; i++)
+    group[i].source_order_repaired = true;
+}
+
 /// Spread one group of arrowheads that landed on top of each other, and report
 /// whether anything actually moved so the caller knows if the drawing settled.
 static bool spread_arrow_landing_group(arrow_landing_t *landings,
@@ -539,13 +578,16 @@ static bool spread_arrow_landing_group(arrow_landing_t *landings,
   if (direction_length <= MILLIPOINT)
     return false;
   direction = scale(1.0 / direction_length, direction);
+  const pointf spread_anchor = group[0].tip;
+  if (!Concentrate)
+    order_small_arrow_landing_group_by_source(group, count, direction);
 
   const double center_offset =
       curved_group ? ((double)count - 1.0) * spacing / 2.0 : 0.0;
   bool moved = false;
   for (size_t i = 0; i < count; i++) {
     pointf target = add_pointf(
-        group[0].tip, scale((double)i * spacing - center_offset, direction));
+        spread_anchor, scale((double)i * spacing - center_offset, direction));
     if (group[i].curved_outline)
       target = project_to_ellipse_outline(group[i].node, target);
     if (!Concentrate && group[i].smooth_curved_move &&
