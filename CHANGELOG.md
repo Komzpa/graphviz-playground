@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased (15.1.2)]
 
+### Changed
+
+- The core plugin’s JSON renderer no longer overwrites the graph’s IO
+  discipline. This will only be relevant to users writing their own plugin-using
+  code.
+
 ### Fixed
 
 - Rendering multiple graphs with the core plugin’s FIG renderer no longer

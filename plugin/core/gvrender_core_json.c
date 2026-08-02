@@ -692,23 +692,10 @@ static void write_graph(Agraph_t *g, GVJ_t *job, bool top, state_t *sp) {
 	gvputs(job, "}");
 }
 
-// wrappers to handle calling convention differences
-static int gvputs_(void *chan, const char *str) { return gvputs(chan, str); }
-static int gvflush_(void *chan) { return gvflush(chan); }
-
 static void json_end_graph(GVJ_t *job)
 {
     graph_t *g = job->obj->u.g;
     state_t sp;
-    static Agiodisc_t io;
-
-    if (io.afread == NULL) {
-	io.afread = AgIoDisc.afread;
-	io.putstr = gvputs_;
-	io.flush = gvflush_;
-    }
-
-    g->clos->disc.io = &io;
 
     set_attrwf(g, true, false);
     sp.Level = 0;
