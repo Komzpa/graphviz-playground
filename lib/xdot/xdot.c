@@ -896,7 +896,6 @@ static char *radGradient(char *cp, xdot_color *clr) {
  */
 static char *linGradient(char *cp, xdot_color *clr) {
   char *s = cp;
-  int i;
   double d;
   xdot_color_stop *stops = NULL;
 
@@ -913,7 +912,7 @@ static char *linGradient(char *cp, xdot_color *clr) {
   CHK1(s);
 
   stops = gv_calloc(clr->u.ling.n_stops, sizeof(stops[0]));
-  for (i = 0; i < clr->u.ling.n_stops; i++) {
+  for (int i = 0; i < clr->u.ling.n_stops; i++) {
     s = parseReal(s, &d);
     CHK1(s);
     stops[i].frac = d;
