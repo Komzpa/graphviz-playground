@@ -16,7 +16,14 @@ import subprocess
 import sys
 
 
-BASE_SHA = "f1a5100c028c2b25b19399faa80fe90b9495a018"
+# The commit this check is a regression test FOR. It was first written against
+# f1a5100c0, which was reverted the same day for putting sharp corners on 36
+# fixtures with concentrate on; anchored there, this gate reported 55 "changed"
+# fixtures that were the revert's differences, not this change's, and failed for
+# a reason that had nothing to do with trunk corners.
+# A gate's base must be the commit its subject applies to, never a commit that
+# happens to be in the reflog.
+BASE_SHA = "130d2bc53d38fc68f00bad355a1395a8ff792738"
 TARGET = "tests/graphs/concentrate-demo/trunk-corner-anonymous-state.dot"
 ANGLE = 35.0
 SAMPLES = 24
@@ -361,12 +368,16 @@ def main() -> int:
     print(f"crash_fixture_rc={crash_rc}")
     if render_failures:
         print(f"render_failures={render_failures[:20]}")
+    # Assert the property, not the delta. As first written this checked that the
+    # target went from a sharp corner to none BETWEEN base and current, which can
+    # only ever be true in the single commit that fixed it: once landed, the base
+    # already carries the fix and the same check reports FAIL on a healthy tree.
+    # A regression test asks "is it still right", so: the target must be smooth
+    # now, and nothing may get worse than the base.
     ok = (
-        target_old[0][1] > ANGLE
-        and target_new[0][1] < ANGLE
+        target_new[0][1] < ANGLE
         and not turn_increases
         and not overlap_increases
-        and changed == [TARGET]
         and not y_drops
         and all(rc == 0 for _rel, rc in crash_rc)
         and not render_failures
