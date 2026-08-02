@@ -24,6 +24,7 @@
 #include <common/utils.h>
 #include <common/color.h>
 #include <util/agxbuf.h>
+#include <util/alloc.h>
 #include <util/prisize_t.h>
 #include <util/streq.h>
 #include <util/unreachable.h>
@@ -33,7 +34,25 @@
 
 enum { FORMAT_FIG, };
 
+#define maxColors 512
+
+typedef struct {
+  int top;
+  unsigned char red[maxColors];
+  unsigned char green[maxColors];
+  unsigned char blue[maxColors];
+} fig_state_t;
+
 static int Depth;
+
+static void fig_begin_job(GVJ_t *job) {
+  job->window = gv_alloc(sizeof(fig_state_t));
+}
+
+static void fig_end_job(GVJ_t *job) {
+  free(job->window);
+  job->window = NULL;
+}
 
 static void figptarray(GVJ_t *job, pointf *A, size_t n, int close) {
     for (size_t i = 0; i < n; i++) {
@@ -45,22 +64,19 @@ static void figptarray(GVJ_t *job, pointf *A, size_t n, int close) {
     gvputs(job, "\n");
 }
 
-static int figColorResolve(bool *new, unsigned char r, unsigned char g,
-  unsigned char b)
-{
-#define maxColors 512
-    static int top = 0;
-    static unsigned char red[maxColors], green[maxColors], blue[maxColors];
+/// @param st Tracker of allocated colors
+static int figColorResolve(fig_state_t *st, bool *new, unsigned char r,
+                           unsigned char g, unsigned char b) {
     int c;
     int ct = -1;
     long rd, gd, bd, dist;
     long mindist = 3 * 255 * 255;       /* init to max poss dist */
 
     *new = false; // in case it is not a new color
-    for (c = 0; c < top; c++) {
-        rd = (long)red[c] - r;
-        gd = (long)green[c] - g;
-        bd = (long)blue[c] - b;
+    for (c = 0; c < st->top; c++) {
+        rd = (long)st->red[c] - r;
+        gd = (long)st->green[c] - g;
+        bd = (long)st->blue[c] - b;
         dist = rd * rd + gd * gd + bd * bd;
         if (dist < mindist) {
             if (dist == 0)
@@ -70,12 +86,12 @@ static int figColorResolve(bool *new, unsigned char r, unsigned char g,
         }
     }
     /* no exact match.  We now know closest, but first try to allocate exact */
-    if (top == maxColors)
+    if (st->top == maxColors)
         return ct;              /* Return closest available color */
-    ++top;
-    red[c] = r;
-    green[c] = g;
-    blue[c] = b;
+    ++st->top;
+    st->red[c] = r;
+    st->green[c] = g;
+    st->blue[c] = b;
     *new = true; // flag new color
     return c;                   /* Return newly allocated color */
 }
@@ -100,7 +116,7 @@ static void fig_resolve_color(GVJ_t *job, gvcolor_t * color)
 	    break;
 	case RGBA_BYTE: {
 	    bool new;
-	    i = 32 + figColorResolve(&new,
+	    i = 32 + figColorResolve(job->window, &new,
 			color->u.rgba[0],
 			color->u.rgba[1],
 			color->u.rgba[2]);
@@ -430,8 +446,8 @@ static void fig_polyline(GVJ_t *job, pointf *A, size_t n) {
 }
 
 static gvrender_engine_t fig_engine = {
-    0,				/* fig_begin_job */
-    0,				/* fig_end_job */
+    fig_begin_job,
+    fig_end_job,
     fig_begin_graph,
     fig_end_graph,
     0,				/* fig_begin_layer */

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased (15.1.2)]
+
+### Fixed
+
+- Rendering multiple graphs with the core plugin’s FIG renderer no longer
+  results in later outputs referring to colors defined in earlier outputs.
+
 ## [15.1.1] – 2026-08-05
 
 ### Changed
@@ -3554,6 +3561,7 @@ March 13, 2000: Use AM_PROG_LIBTOOL instead of AC_PROG_LIBTOOL
    in configure.in.  John Ellson <ellson@graphviz.org>
 ```
 
+[Unreleased (15.1.2)]: https://gitlab.com/graphviz/graphviz/compare/15.1.1...main
 [15.1.1]: https://gitlab.com/graphviz/graphviz/compare/15.1.0...15.1.1
 [15.1.0]: https://gitlab.com/graphviz/graphviz/compare/15.0.0...15.1.0
 [15.0.0]: https://gitlab.com/graphviz/graphviz/compare/14.1.5...15.0.0
