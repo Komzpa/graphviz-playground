@@ -38,8 +38,7 @@ static char *parseInt(const char *s, int *ip) {
   *ip = (int)strtol(s, &endp, 10);
   if (s == endp)
     return NULL;
-  else
-    return endp;
+  return endp;
 }
 
 static char *parseUInt(char *s, unsigned int *ip) {
