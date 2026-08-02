@@ -16,7 +16,6 @@
 #include <dotgen/bundle_load.h>
 #include <dotgen/dot.h>
 #include <limits.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -80,19 +79,6 @@ static bool node_has_record_endpoint_geometry(node_t *n) {
 static bool edge_has_record_endpoint_geometry(edge_t *e) {
   return node_has_record_endpoint_geometry(agtail(e)) ||
          node_has_record_endpoint_geometry(aghead(e));
-}
-
-static bool node_is_box(node_t *n) {
-  return ND_shape(n) != NULL && streq(ND_shape(n)->name, "box");
-}
-
-static bool edge_has_box_endpoints(edge_t *e) {
-  return node_is_box(agtail(e)) && node_is_box(aghead(e));
-}
-
-static bool graph_has_wide_layout(graph_t *g) {
-  const boxf bb = GD_bb(g);
-  return bb.UR.x - bb.LL.x > 1000.0;
 }
 
 static bool endpoint_has_port(edge_t *e) {
@@ -1053,79 +1039,6 @@ static splines *copy_joined_splines(const splines *arm, const splines *trunk,
   return joined;
 }
 
-static double tangent_turn_degrees(pointf incoming, pointf joint,
-                                   pointf outgoing) {
-  const pointf in = {.x = joint.x - incoming.x, .y = joint.y - incoming.y};
-  const pointf out = {.x = outgoing.x - joint.x, .y = outgoing.y - joint.y};
-  const double in_length = hypot(in.x, in.y);
-  const double out_length = hypot(out.x, out.y);
-  if (in_length <= 1e-9 || out_length <= 1e-9)
-    return 0.0;
-  double cosine =
-      (in.x * out.x + in.y * out.y) / (in_length * out_length);
-  cosine = MAX(-1.0, MIN(1.0, cosine));
-  return acos(cosine) * 180.0 / M_PI;
-}
-
-static bool connected_splines_are_close(const bezier *prev, const bezier *next) {
-  if (prev->size < 2 || next->size < 2)
-    return false;
-  return DIST(prev->list[prev->size - 1], next->list[0]) <= 20.0;
-}
-
-static void smooth_compacted_join(bezier *prev, size_t old_size,
-                                  const bezier *next) {
-  if (old_size < 2 || next->size < 2)
-    return;
-  pointf *const outgoing = &prev->list[old_size];
-  if (tangent_turn_degrees(prev->list[old_size - 2], prev->list[old_size - 1],
-                           *outgoing) <= 40.0)
-    return;
-
-  const pointf incoming = {.x = prev->list[old_size - 1].x -
-                                prev->list[old_size - 2].x,
-                           .y = prev->list[old_size - 1].y -
-                                prev->list[old_size - 2].y};
-  const double incoming_length = hypot(incoming.x, incoming.y);
-  const double outgoing_length = DIST(next->list[1], next->list[0]);
-  if (incoming_length <= 1e-9 || outgoing_length <= 1e-9)
-    return;
-
-  *outgoing = (pointf){
-      .x = prev->list[old_size - 1].x +
-           incoming.x * outgoing_length / incoming_length,
-      .y = prev->list[old_size - 1].y +
-           incoming.y * outgoing_length / incoming_length,
-  };
-}
-
-static void compact_connected_splines(splines *spl) {
-  if (spl == NULL || spl->size < 2) {
-    return;
-  }
-
-  size_t out = 0;
-  for (size_t i = 1; i < spl->size; ++i) {
-    bezier *const prev = &spl->list[out];
-    bezier *const next = &spl->list[i];
-    if (connected_splines_are_close(prev, next)) {
-      const size_t old_size = prev->size;
-      prev->list = gv_recalloc(prev->list, old_size, old_size + next->size - 1,
-                               sizeof(*prev->list));
-      memcpy(&prev->list[old_size], &next->list[1],
-             (next->size - 1) * sizeof(*next->list));
-      smooth_compacted_join(prev, old_size, next);
-      prev->size += next->size - 1;
-      prev->eflag = next->eflag;
-      prev->ep = next->ep;
-      free(next->list);
-    } else {
-      spl->list[++out] = *next;
-    }
-  }
-  spl->size = out + 1;
-}
-
 static splines *copy_splines(const splines *part, bool reverse) {
   splines *copy = gv_calloc(1, sizeof(splines));
   copy->size = part->size;
@@ -1176,11 +1089,6 @@ void dot_concentrate_junction_splines(graph_t *g) {
       } else {
         ED_spl(e) = copy_joined_splines(ED_spl(info->arm), ED_spl(info->trunk),
                                         info->reverse, &arm_size);
-      }
-      if (info->draw_trunk &&
-          (edge_has_box_endpoints(e) || graph_has_wide_layout(g))) {
-        compact_connected_splines(ED_spl(e));
-        arm_size = MIN(arm_size, ED_spl(e)->size);
       }
       ED_concentrate_junction_draw_trunk(e) = info->draw_trunk;
       ED_concentrate_junction_emit_splines(e) = arm_size;
