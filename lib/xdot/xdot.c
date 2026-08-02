@@ -787,13 +787,12 @@ void freeXDot(xdot *x) {
 
 int statXDot(xdot *x, xdot_stats *sp) {
   xdot_op *op;
-  char *base;
 
   if (!x || !sp)
     return 1;
   *sp = (xdot_stats){0};
   sp->cnt = x->cnt;
-  base = (char *)x->ops;
+  char *const base = (char *)x->ops;
   for (size_t i = 0; i < x->cnt; i++) {
     op = (xdot_op *)(base + i * x->sz);
     switch (op->kind) {
