@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   successfully discovers the plugin directory. Previously if the
   `dl_iterate_phdr` search failed, the plugin directory would be considered the
   empty string.
+- The cells of an HTML table are now emitted _after_ the table border and rules.
+  The main effect of this is, when post-styling a table with CSS, cell content
+  remains visible. I.e. Z-ordering is more intuitive.
 
 ## [15.1.0] – 2026-06-17
 

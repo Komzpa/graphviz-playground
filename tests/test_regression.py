@@ -2589,7 +2589,7 @@ def test_2159():
     # load it as XML
     root = ET.fromstring(svg)
 
-    # the first node is expected to contain:
+    # this node is expected to contain:
     #   • 1 polygon for the top column-spanning cell
     #   • 5 polygons for the bottom row’s cells
     #   • 1 polygon for the outer table border
@@ -2598,36 +2598,44 @@ def test_2159():
     )
     assert len(polygons) == 7
 
-    # extract the points delimiting the top row
-    top_row = polygons[0]
-    points = [
-        [float(n) for n in p.split(",")] for p in top_row.get("points").split(" ")
-    ]
-    assert len(points) == 5, "polygon not rectangular"
-    (ul_x, _), (ll_x, _), (lr_x, _), (ur_x, _), (orig_x, _) = points
-    assert ul_x == ll_x, "polygon left edge is not vertical"
-    assert lr_x == ur_x, "polygon right edge is not vertical"
-    assert orig_x == ul_x, "polygon is not closed"
-    left = ul_x
-    right = ur_x
-
-    # extract the points for each cell in the bottom row
-    bottom_row = []
-    for cell in polygons[1:-1]:
-        bottom_row += [
-            [[float(n) for n in p.split(",")] for p in cell.get("points").split(" ")]
+    # Polygon emission order is not stable across render backends/changes.
+    # Build geometry for each rectangular polygon and identify rows by position.
+    rects = []
+    for polygon in polygons:
+        points = [
+            [float(n) for n in p.split(",")] for p in polygon.get("points").split(" ")
         ]
-        assert len(bottom_row[-1]) == 5, "polygon not rectangular"
+        assert len(points) == 5, "polygon not rectangular"
+        (ul_x, _), (ll_x, _), (lr_x, _), (ur_x, _), (orig_x, _) = points
+        assert ul_x == ll_x, "polygon left edge is not vertical"
+        assert lr_x == ur_x, "polygon right edge is not vertical"
+        assert orig_x == ul_x, "polygon is not closed"
 
-    # extract the widths of each cell in the bottom row
-    widths = []
-    for cell in bottom_row:
-        (ul_x, _), _, _, (ur_x, _), _ = cell
-        widths += [ur_x - ul_x]
+        xs = [p[0] for p in points[:-1]]
+        ys = [p[1] for p in points[:-1]]
+        rects.append(
+            {
+                "top": min(ys),
+                "width": max(xs) - min(xs),
+                "area": (max(xs) - min(xs)) * (max(ys) - min(ys)),
+            }
+        )
+
+    # Exclude the table border (largest area), then identify the single top row
+    # cell and the five bottom-row cells by y-position.
+    border = max(rects, key=lambda r: r["area"])
+    cells = [r for r in rects if r is not border]
+    assert len(cells) == 6, "unexpected cell polygon count"
+
+    top_row = min(cells, key=lambda r: r["top"])
+    bottom_row = [r for r in cells if r is not top_row]
+    assert len(bottom_row) == 5, "unexpected number of bottom-row cells"
+
+    widths = [cell["width"] for cell in bottom_row]
 
     # these should approximately sum to the width of the top row
     assert math.isclose(
-        sum(widths), right - left, abs_tol=10
+        sum(widths), top_row["width"], abs_tol=10
     ), "bottom row not expanded to fill the space"
 
     # the width of each cell should be approximately equal
