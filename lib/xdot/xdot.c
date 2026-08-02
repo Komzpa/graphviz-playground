@@ -316,12 +316,12 @@ static char *parseOp(xdot_op *op, char *s, drawfunc_t ops[], int *error) {
     break;
 
   case '\0':
-    s = 0;
+    s = NULL;
     break;
 
   default:
     *error = 1;
-    s = 0;
+    s = NULL;
     break;
   }
   return s;
