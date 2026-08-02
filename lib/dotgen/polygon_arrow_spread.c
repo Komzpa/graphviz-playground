@@ -300,9 +300,30 @@ static void move_arrow_landing_by_kind(arrow_landing_t *landing, pointf target) 
     move_arrow_landing(landing, target);
 }
 
-static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target) {
+static void aim_arrow_landing_at_curve(arrow_landing_t *landing) {
+  if (!landing->smooth_curved_move)
+    return;
+  bezier *const spline = landing->spline;
+  if (landing->at_start)
+    align_control_arm(&spline->list[1], spline->list[0], spline->sp);
+  else
+    align_control_arm(&spline->list[spline->size - 2],
+                      spline->list[spline->size - 1], spline->ep);
+}
+
+static size_t landing_arrow_polygons(const arrow_landing_t *landing, pointf tip,
+                                     pointf polygons[8][9],
+                                     size_t polygon_counts[8]);
+static bool arrow_polygons_overlap(const arrow_landing_t *left, pointf left_tip,
+                                   const arrow_landing_t *right,
+                                   pointf right_tip);
+
+static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target,
+                                        bool preserve_curve_aim) {
   if (Concentrate) {
     move_arrow_landing(landing, target);
+    if (preserve_curve_aim)
+      aim_arrow_landing_at_curve(landing);
     return;
   }
 
@@ -320,6 +341,8 @@ static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target)
 
   if (!landing->smooth_curved_move) {
     move_arrow_landing(landing, target);
+    if (preserve_curve_aim)
+      aim_arrow_landing_at_curve(landing);
     if (!turn_score_no_regression(sampled_sharp_turns(spline), old_sharp_turns)) {
       spline->sp = old_sp;
       spline->ep = old_ep;
@@ -331,6 +354,8 @@ static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target)
   }
 
   move_arrow_landing_by_kind(landing, target);
+  if (preserve_curve_aim)
+    aim_arrow_landing_at_curve(landing);
   if (turn_score_no_worse(sampled_sharp_turns(spline), old_sharp_turns)) {
     free(old_points);
     return;
@@ -346,6 +371,8 @@ static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target)
   for (int step = 0; step < 12; step++) {
     const double mid = (low + high) / 2.0;
     move_arrow_landing_by_kind(landing, scaled_target(original_tip, target, mid));
+    if (preserve_curve_aim)
+      aim_arrow_landing_at_curve(landing);
     const turn_score_t sharp_turns = sampled_sharp_turns(spline);
     spline->sp = old_sp;
     spline->ep = old_ep;
@@ -359,6 +386,8 @@ static void move_arrow_landing_smoothly(arrow_landing_t *landing, pointf target)
 
   if (low > MILLIPOINT)
     move_arrow_landing_by_kind(landing, scaled_target(original_tip, target, low));
+  if (preserve_curve_aim)
+    aim_arrow_landing_at_curve(landing);
   free(old_points);
 }
 
@@ -492,6 +521,53 @@ static bool arrow_polygons_overlap(const arrow_landing_t *left, pointf left_tip,
   return false;
 }
 
+static double arrow_polygon_overlap_area(const arrow_landing_t *left,
+                                         pointf left_tip,
+                                         const arrow_landing_t *right,
+                                         pointf right_tip) {
+  pointf left_polygons[8][9];
+  pointf right_polygons[8][9];
+  size_t left_counts[8];
+  size_t right_counts[8];
+  const size_t left_count =
+      landing_arrow_polygons(left, left_tip, left_polygons, left_counts);
+  const size_t right_count =
+      landing_arrow_polygons(right, right_tip, right_polygons, right_counts);
+
+  double area = 0.0;
+  for (size_t i = 0; i < left_count; i++) {
+    for (size_t j = 0; j < right_count; j++) {
+      area += convex_intersection_area(left_polygons[i], left_counts[i],
+                                       right_polygons[j], right_counts[j]);
+    }
+  }
+  return area;
+}
+
+static double node_arrow_overlap_area_for_targets(
+    const arrow_landing_t *landings, size_t landing_count, node_t *node,
+    size_t group_start, size_t group_end, const pointf *targets) {
+  double area = 0.0;
+  for (size_t i = 0; i < landing_count; i++) {
+    if (landings[i].node != node)
+      continue;
+    const pointf left_tip = targets != NULL && i >= group_start && i < group_end
+                                ? targets[i - group_start]
+                                : landings[i].tip;
+    for (size_t j = i + 1; j < landing_count; j++) {
+      if (landings[j].node != node)
+        continue;
+      const pointf right_tip =
+          targets != NULL && j >= group_start && j < group_end
+              ? targets[j - group_start]
+              : landings[j].tip;
+      area += arrow_polygon_overlap_area(&landings[i], left_tip, &landings[j],
+                                         right_tip);
+    }
+  }
+  return area;
+}
+
 static bool target_would_create_neighbor_overlap(const arrow_landing_t *landings,
                                                  size_t landing_count,
                                                  size_t group_start,
@@ -558,6 +634,9 @@ static bool spread_arrow_landing_group(arrow_landing_t *landings,
   for (size_t i = 0; i < count; i++)
     curved_group = curved_group || group[i].curved_outline;
   spread_pair = curved_group;
+  if (count == 2 && curved_group && !Concentrate &&
+      !arrow_polygons_overlap(&group[0], group[0].tip, &group[1], group[1].tip))
+    return false;
   if (count <= 1 || (count == 2 && !spread_pair))
     return false;
 
@@ -584,19 +663,55 @@ static bool spread_arrow_landing_group(arrow_landing_t *landings,
 
   const double center_offset =
       curved_group ? ((double)count - 1.0) * spacing / 2.0 : 0.0;
+  pointf *planned_targets = NULL;
+  if (curved_group && !Concentrate) {
+    planned_targets = gv_calloc(count, sizeof(*planned_targets));
+    if (planned_targets == NULL)
+      return false;
+    for (size_t i = 0; i < count; i++) {
+      planned_targets[i] = add_pointf(
+          spread_anchor, scale((double)i * spacing - center_offset, direction));
+      if (group[i].curved_outline)
+        planned_targets[i] =
+            project_to_ellipse_outline(group[i].node, planned_targets[i]);
+    }
+    const double before = node_arrow_overlap_area_for_targets(
+        landings, landing_count, group[0].node, group_start, group_end, NULL);
+    const double after = node_arrow_overlap_area_for_targets(
+        landings, landing_count, group[0].node, group_start, group_end,
+        planned_targets);
+    if (before > 5.0 && before <= 100.0 && after > before + 1e-6) {
+      free(planned_targets);
+      return false;
+    }
+  }
   bool moved = false;
   for (size_t i = 0; i < count; i++) {
-    pointf target = add_pointf(
-        spread_anchor, scale((double)i * spacing - center_offset, direction));
-    if (group[i].curved_outline)
-      target = project_to_ellipse_outline(group[i].node, target);
+    // Both halves of this merge matter: the plan below decides WHERE each head
+    // goes so the fan does not gain overlap, and `spread_anchor` is the tip the
+    // fan is measured from -- captured before the group was reordered by source,
+    // so ordering the arms does not also slide the whole fan sideways.
+    pointf target;
+    if (planned_targets != NULL) {
+      target = planned_targets[i];
+    } else {
+      target = add_pointf(
+          spread_anchor, scale((double)i * spacing - center_offset, direction));
+      if (group[i].curved_outline)
+        target = project_to_ellipse_outline(group[i].node, target);
+    }
     if (!Concentrate && group[i].smooth_curved_move &&
         target_would_create_neighbor_overlap(landings, landing_count,
                                              group_start, group_end, i, target))
       continue;
     moved = moved || DIST(group[i].tip, target) > MILLIPOINT;
-    move_arrow_landing_smoothly(&group[i], target);
+    // Curved outlines can create large heading mismatches when a fan is moved
+    // across an ellipse; keep the terminal control arm aimed for every
+    // relocated curved endpoint.
+    const bool preserve_curve_aim = group[i].curved_outline;
+    move_arrow_landing_smoothly(&group[i], target, preserve_curve_aim);
   }
+  free(planned_targets);
   return moved;
 }
 
