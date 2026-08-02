@@ -113,13 +113,13 @@ static char *parseString(char *s, char **sp) {
   int i;
   s = parseInt(s, &i);
   if (!s || i <= 0)
-    return 0;
+    return NULL;
   while (*s && *s != '-')
     s++;
   if (*s) {
     s++;
   } else {
-    return 0;
+    return NULL;
   }
 
   // The leading number we just read indicates the count of originating
@@ -131,7 +131,7 @@ static char *parseString(char *s, char **sp) {
   for (int accounted = 0; accounted < i; ++j) {
     if (s[j] == '\0') {
       agxbfree(&c);
-      return 0;
+      return NULL;
     }
     agxbputc(&c, s[j]);
     // only count this character if it was not an escape prefix
