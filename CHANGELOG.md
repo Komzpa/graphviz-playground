@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rendering multiple graphs with the core plugin’s FIG renderer no longer
   results in later outputs referring to colors defined in earlier outputs.
-- libxdot rejects parsing of radial gradients that claim a negative number of
-  stops.
+- libxdot rejects parsing of linear and radial gradients that claim a negative
+  number of stops.
 
 ## [15.1.1] – 2026-08-05
 

@@ -909,8 +909,13 @@ static char *linGradient(char *cp, xdot_color *clr) {
   CHK1(s);
   s = parseInt(s, &clr->u.ling.n_stops);
   CHK1(s);
+  // FIXME: at the next API break, make `n_stops` an `unsigned` to avoid this
+  // error case by construction
+  if (clr->u.ling.n_stops < 0) {
+    return NULL;
+  }
 
-  stops = gv_calloc(clr->u.ling.n_stops, sizeof(stops[0]));
+  stops = gv_calloc((size_t)clr->u.ling.n_stops, sizeof(stops[0]));
   for (int i = 0; i < clr->u.ling.n_stops; i++) {
     s = parseReal(s, &stops[i].frac);
     CHK1(s);
