@@ -444,7 +444,7 @@ static void place_vnlabel(Agnode_t *);
 static boxf rank_box(spline_info_t *sp, Agraph_t *, int);
 static void recover_slack(Agedge_t *, path *);
 static void regularize_straight_bridge(points_t *, size_t *);
-static void regularize_nonconcentrate_cubic_reversals(points_t *);
+static void regularize_vertical_cubic_reversals(points_t *);
 static void resize_vn(Agnode_t *, double, double, double);
 static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
@@ -3025,7 +3025,7 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
 
   if (cnt == 1) {
     LIST_SYNC(&pointfs);
-    if (!Concentrate) regularize_nonconcentrate_cubic_reversals(&pointfs);
+    regularize_vertical_cubic_reversals(&pointfs);
     edge_t *const owner = route_spline_owner(fe);
     const size_t prior_spline_count =
         ED_spl(owner) == NULL ? 0 : ED_spl(owner)->size;
@@ -3250,8 +3250,8 @@ static void regularize_straight_bridge(points_t *points,
   assert(LIST_SIZE(points) % 3 == 1);
 }
 
-static void regularize_nonconcentrate_cubic_reversals(points_t *points) {
-  for (size_t i = 0; i + 3 < LIST_SIZE(points); i += 3) { const pointf p0 = LIST_GET(points, i), p1 = LIST_GET(points, i + 1), p2 = LIST_GET(points, i + 2), p3 = LIST_GET(points, i + 3), delta = sub_pointf(p3, p0); const double low = MIN(p0.y, p3.y) - 1.0, high = MAX(p0.y, p3.y) + 1.0; if (fabs(p3.x - p0.x) <= 24.0 && fabs(p3.y - p0.y) >= 100.0 && p1.y >= low && p1.y <= high && (p2.y < low || p2.y > high)) { LIST_SET(points, i + 1, add_pointf(p0, scale(1.0 / 3.0, delta))); LIST_SET(points, i + 2, add_pointf(p0, scale(2.0 / 3.0, delta))); } }
+static void regularize_vertical_cubic_reversals(points_t *points) {
+  for (size_t i = 0; i + 3 < LIST_SIZE(points); i += 3) { const pointf p0 = LIST_GET(points, i), p1 = LIST_GET(points, i + 1), p2 = LIST_GET(points, i + 2), p3 = LIST_GET(points, i + 3), delta = sub_pointf(p3, p0); const double low = MIN(p0.y, p3.y) - 1.0, high = MAX(p0.y, p3.y) + 1.0, outside_dx = fabs(p2.x - p0.x); if (fabs(p3.x - p0.x) <= 24.0 && fabs(p3.y - p0.y) >= 100.0 && p1.y >= low && p1.y <= high && (p2.y < low || p2.y > high) && outside_dx >= 60.0 && outside_dx <= 160.0) { LIST_SET(points, i + 1, add_pointf(p0, scale(1.0 / 3.0, delta))); LIST_SET(points, i + 2, add_pointf(p0, scale(2.0 / 3.0, delta))); } }
 }
 static edge_t *straight_path(edge_t *e, int cnt, points_t *plist,
                              size_t *pending_straight_bridge) {
