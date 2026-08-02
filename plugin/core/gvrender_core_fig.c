@@ -50,7 +50,7 @@ static int figColorResolve(bool *new, unsigned char r, unsigned char g,
 {
 #define maxColors 512
     static int top = 0;
-    static short red[maxColors], green[maxColors], blue[maxColors];
+    static unsigned char red[maxColors], green[maxColors], blue[maxColors];
     int c;
     int ct = -1;
     long rd, gd, bd, dist;
@@ -58,9 +58,9 @@ static int figColorResolve(bool *new, unsigned char r, unsigned char g,
 
     *new = false; // in case it is not a new color
     for (c = 0; c < top; c++) {
-        rd = (long) (red[c] - r);
-        gd = (long) (green[c] - g);
-        bd = (long) (blue[c] - b);
+        rd = (long)red[c] - r;
+        gd = (long)green[c] - g;
+        bd = (long)blue[c] - b;
         dist = rd * rd + gd * gd + bd * bd;
         if (dist < mindist) {
             if (dist == 0)
