@@ -11,6 +11,7 @@
 #include "config.h"
 #include <math.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -122,7 +123,9 @@ static void tkgen_begin_job(GVJ_t * job)
            job->common->info[1], job->common->info[2]);
 }
 
-static int first_periphery;
+// constants stored in `window` to note what we are traversing
+static const uintptr_t WITHIN_NODE = 1;
+static const uintptr_t WITHIN_EDGE = 2;
 
 static void tkgen_begin_graph(GVJ_t * job)
 {
@@ -134,21 +137,17 @@ static void tkgen_begin_graph(GVJ_t * job)
     }
     gvprintf(job, " Pages: %d\n", job->pagesArraySize.x * job->pagesArraySize.y);
 
-    first_periphery = 0;
+    job->window = 0;
 }
 
 static void tkgen_begin_node(GVJ_t * job)
 {
-	(void)job;
-
-	first_periphery = 1;     /* FIXME - this is an ugly hack! */
+	job->window = (void *)WITHIN_NODE;
 }
 
 static void tkgen_begin_edge(GVJ_t * job)
 {
-	(void)job;
-
-	first_periphery = -1;     /* FIXME - this is an ugly ugly hack!  Need this one for arrowheads. */
+	job->window = (void *)WITHIN_EDGE;
 }
 
 static void tkgen_textspan(GVJ_t * job, pointf p, textspan_t * span)
@@ -216,15 +215,16 @@ static void tkgen_ellipse(GVJ_t * job, pointf * A, int filled)
         gvputs(job, " -fill ");
         if (filled)
             tkgen_print_color(job, obj->fillcolor);
-        else if (first_periphery)
+        else if ((uintptr_t)job->window == WITHIN_NODE ||
+                 (uintptr_t)job->window == WITHIN_EDGE)
 	    /* tk ovals default to no fill, some fill
              * is necessary else "canvas find overlapping" doesn't
              * work as expected, use white instead */
 	    gvputs(job, "white");
 	else 
 	    gvputs(job, "\"\"");
-	if (first_periphery == 1)
-	    first_periphery = 0;
+	if ((uintptr_t)job->window == WITHIN_NODE)
+	    job->window = 0;
         gvputs(job, " -width ");
         gvprintdouble(job, obj->penwidth);
         gvputs(job, " -outline ");
@@ -271,15 +271,16 @@ static void tkgen_polygon(GVJ_t *job, pointf *A, size_t n, int filled) {
         gvputs(job, " -fill ");
         if (filled)
             tkgen_print_color(job, obj->fillcolor);
-        else if (first_periphery)
+        else if ((uintptr_t)job->window == WITHIN_NODE ||
+                 (uintptr_t)job->window == WITHIN_EDGE)
             /* tk polygons default to black fill, some fill
 	     * is necessary else "canvas find overlapping" doesn't
 	     * work as expected, use white instead */
             gvputs(job, "white");
         else
             gvputs(job, "\"\"");
-	if (first_periphery == 1) 
-	    first_periphery = 0;
+	if ((uintptr_t)job->window == WITHIN_NODE) 
+	    job->window = 0;
         gvputs(job, " -width ");
         gvprintdouble(job, obj->penwidth);
         gvputs(job, " -outline ");
