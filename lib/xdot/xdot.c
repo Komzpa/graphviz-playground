@@ -37,7 +37,7 @@ static char *parseInt(const char *s, int *ip) {
 
   *ip = (int)strtol(s, &endp, 10);
   if (s == endp)
-    return 0;
+    return NULL;
   else
     return endp;
 }
