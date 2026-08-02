@@ -55,25 +55,25 @@ static char *parseRect(char *s, xdot_rect *rp) {
 
   rp->x = strtod(s, &endp);
   if (s == endp)
-    return 0;
+    return NULL;
   else
     s = endp;
 
   rp->y = strtod(s, &endp);
   if (s == endp)
-    return 0;
+    return NULL;
   else
     s = endp;
 
   rp->w = strtod(s, &endp);
   if (s == endp)
-    return 0;
+    return NULL;
   else
     s = endp;
 
   rp->h = strtod(s, &endp);
   if (s == endp)
-    return 0;
+    return NULL;
   else
     s = endp;
 
