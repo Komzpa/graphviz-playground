@@ -41,9 +41,8 @@ typedef struct {
   unsigned char red[maxColors];
   unsigned char green[maxColors];
   unsigned char blue[maxColors];
+  int Depth;
 } fig_state_t;
-
-static int Depth;
 
 static void fig_begin_job(GVJ_t *job) {
   job->window = gv_alloc(sizeof(fig_state_t));
@@ -187,48 +186,44 @@ static void fig_end_graph(GVJ_t * job)
 
 static void fig_begin_page(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 2;
+    fig_state_t *const st = job->window;
+    st->Depth = 2;
 }
 
 static void fig_begin_node(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 1;
+    fig_state_t *const st = job->window;
+    st->Depth = 1;
 }
 
 static void fig_end_node(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 2;
+    fig_state_t *const st = job->window;
+    st->Depth = 2;
 }
 
 static void fig_begin_edge(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 0;
+    fig_state_t *const st = job->window;
+    st->Depth = 0;
 }
 
 static void fig_end_edge(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 2;
+    fig_state_t *const st = job->window;
+    st->Depth = 2;
 }
 
 static void fig_textspan(GVJ_t * job, pointf p, textspan_t * span)
 {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
     PostscriptAlias *pA;
 
     int object_code = 4;        /* always 4 for text */
     int sub_type = 0;           /* text justification */
     int color = obj->pencolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int font = -1;		/* init to xfig's default font */
     double font_size = span->font->size * job->zoom;
@@ -277,6 +272,7 @@ static void fig_textspan(GVJ_t * job, pointf p, textspan_t * span)
 static void fig_ellipse(GVJ_t * job, pointf * A, int filled)
 {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 1;        /* always 1 for ellipse */
     int sub_type = 1;           /* ellipse defined by radii */
@@ -284,7 +280,7 @@ static void fig_ellipse(GVJ_t * job, pointf * A, int filled)
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = obj->fillcolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill = filled ? 20 : -1;
     double style_val;
@@ -312,6 +308,7 @@ static void fig_ellipse(GVJ_t * job, pointf * A, int filled)
 
 static void fig_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 3;        /* always 3 for spline */
     int sub_type;
@@ -319,7 +316,7 @@ static void fig_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = obj->fillcolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill;
     double style_val;
@@ -387,6 +384,7 @@ static void fig_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
 
 static void fig_polygon(GVJ_t *job, pointf *A, size_t n, int filled) {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 2;        /* always 2 for polyline */
     int sub_type = 3;           /* always 3 for polygon */
@@ -394,7 +392,7 @@ static void fig_polygon(GVJ_t *job, pointf *A, size_t n, int filled) {
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = obj->fillcolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill = filled ? 20 : -1;
     double style_val;
@@ -417,6 +415,7 @@ static void fig_polygon(GVJ_t *job, pointf *A, size_t n, int filled) {
 
 static void fig_polyline(GVJ_t *job, pointf *A, size_t n) {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 2;        /* always 2 for polyline */
     int sub_type = 1;           /* always 1 for polyline */
@@ -424,7 +423,7 @@ static void fig_polyline(GVJ_t *job, pointf *A, size_t n) {
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = 0;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill = 0;
     double style_val;
