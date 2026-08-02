@@ -700,10 +700,9 @@ static void jsonXDot_Op(xdot_op *op, pf print, void *info, int more) {
 }
 
 static void printXDot(xdot *x, pf print, void *info, print_op ofn) {
-  xdot_op *op;
   char *base = (char *)x->ops;
   for (size_t i = 0; i < x->cnt; i++) {
-    op = (xdot_op *)(base + i * x->sz);
+    xdot_op *const op = (xdot_op *)(base + i * x->sz);
     ofn(op, print, info, i < x->cnt - 1);
   }
 }
