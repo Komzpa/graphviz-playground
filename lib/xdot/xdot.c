@@ -41,7 +41,7 @@ static char *parseInt(const char *s, int *ip) {
   return endp;
 }
 
-static char *parseUInt(char *s, unsigned int *ip) {
+static char *parseUInt(const char *s, unsigned int *ip) {
   char *endp;
 
   *ip = (unsigned int)strtoul(s, &endp, 10);
