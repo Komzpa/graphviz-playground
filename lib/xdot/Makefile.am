@@ -1,6 +1,6 @@
 # ## Process this file with automake to produce Makefile.in
 
-XDOT_VERSION = "4:2:0"
+XDOT_VERSION = "4:3:0"
 
 pkginclude_HEADERS = xdot.h
 

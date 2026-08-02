@@ -23,9 +23,8 @@
 /* the parse functions should return NULL on error */
 static char *parseReal(char *s, double *fp) {
   char *p;
-  double d;
 
-  d = strtod(s, &p);
+  const double d = strtod(s, &p);
   if (p == s)
     return 0;
 
