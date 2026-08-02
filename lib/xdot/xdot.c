@@ -786,15 +786,13 @@ void freeXDot(xdot *x) {
 }
 
 int statXDot(xdot *x, xdot_stats *sp) {
-  xdot_op *op;
-
   if (!x || !sp)
     return 1;
   *sp = (xdot_stats){0};
   sp->cnt = x->cnt;
   char *const base = (char *)x->ops;
   for (size_t i = 0; i < x->cnt; i++) {
-    op = (xdot_op *)(base + i * x->sz);
+    xdot_op *const op = (xdot_op *)(base + i * x->sz);
     switch (op->kind) {
     case xd_filled_ellipse:
     case xd_unfilled_ellipse:
