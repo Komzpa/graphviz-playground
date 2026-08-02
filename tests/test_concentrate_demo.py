@@ -127,6 +127,70 @@ def _route_distance(left: dict, right: dict) -> float:
     )
 
 
+def _sample_cubic(p0, p1, p2, p3, t: float) -> tuple[float, float]:
+    u = 1.0 - t
+    return (
+        u * u * u * p0[0]
+        + 3 * u * u * t * p1[0]
+        + 3 * u * t * t * p2[0]
+        + t * t * t * p3[0],
+        u * u * u * p0[1]
+        + 3 * u * u * t * p1[1]
+        + 3 * u * t * t * p2[1]
+        + t * t * t * p3[1],
+    )
+
+
+def _sampled_drawn_turns(layout: dict) -> tuple[int, float]:
+    turns = 0
+    worst = 0.0
+    for edge in _drawn_edges(layout):
+        polyline = []
+        for piece in _bezier_pieces(edge):
+            for index in range(0, len(piece) - 3, 3):
+                segment = [
+                    _sample_cubic(
+                        piece[index],
+                        piece[index + 1],
+                        piece[index + 2],
+                        piece[index + 3],
+                        step / 24,
+                    )
+                    for step in range(25)
+                ]
+                if polyline:
+                    segment = segment[1:]
+                polyline.extend(segment)
+        for index in range(1, len(polyline) - 1):
+            incoming = (
+                polyline[index][0] - polyline[index - 1][0],
+                polyline[index][1] - polyline[index - 1][1],
+            )
+            outgoing = (
+                polyline[index + 1][0] - polyline[index][0],
+                polyline[index + 1][1] - polyline[index][1],
+            )
+            incoming_len = math.hypot(*incoming)
+            outgoing_len = math.hypot(*outgoing)
+            if incoming_len < 1e-6 or outgoing_len < 1e-6:
+                continue
+            cosine = max(
+                -1.0,
+                min(
+                    1.0,
+                    (
+                        incoming[0] * outgoing[0]
+                        + incoming[1] * outgoing[1]
+                    )
+                    / (incoming_len * outgoing_len),
+                ),
+            )
+            angle = math.degrees(math.acos(cosine))
+            worst = max(worst, angle)
+            turns += angle > 35.0
+    return turns, worst
+
+
 def test_distinct_parallel_colors_stay_distinct():
     """Two rendered-distinct parallel edges remain two visible colored routes."""
 
@@ -236,6 +300,16 @@ def test_record_port_concentrate_crash_repro_renders():
     assert "AddressSanitizer" not in proc.stderr
     assert re.search(r"\w+\s*->\s*\w+\s+\[", proc.stdout) is not None
     assert "pos=" in proc.stdout
+
+
+def test_concentrated_trunk_corner_fixture_is_smooth():
+    """A concentrated trunk route has no sampled drawn turn above 35 degrees."""
+
+    layout = _render_xdot_json(_fixture("trunk-corner-anonymous-state.dot"))
+    turns, worst = _sampled_drawn_turns(layout)
+
+    assert turns == 0
+    assert worst < 35.0
 
 
 def test_rollback_probe_exercises_successful_shared_transaction_path():
