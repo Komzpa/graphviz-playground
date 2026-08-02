@@ -855,7 +855,6 @@ int statXDot(xdot *x, xdot_stats *sp) {
  */
 static char *radGradient(char *cp, xdot_color *clr) {
   char *s = cp;
-  double d;
   xdot_color_stop *stops = NULL;
 
   clr->type = xd_radial;
@@ -876,9 +875,8 @@ static char *radGradient(char *cp, xdot_color *clr) {
 
   stops = gv_calloc(clr->u.ring.n_stops, sizeof(stops[0]));
   for (int i = 0; i < clr->u.ring.n_stops; i++) {
-    s = parseReal(s, &d);
+    s = parseReal(s, &stops[i].frac);
     CHK1(s);
-    stops[i].frac = d;
     s = parseString(s, &stops[i].color);
     CHK1(s);
   }
