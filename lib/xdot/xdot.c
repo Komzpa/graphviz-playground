@@ -46,7 +46,7 @@ static char *parseUInt(const char *s, unsigned int *ip) {
 
   *ip = (unsigned int)strtoul(s, &endp, 10);
   if (s == endp)
-    return 0;
+    return NULL;
   else
     return endp;
 }
