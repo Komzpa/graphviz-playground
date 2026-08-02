@@ -385,13 +385,6 @@ def is_ubuntu() -> bool:
     return freedesktop_os_release().get("ID") == "ubuntu"
 
 
-def is_ubuntu_2510() -> bool:
-    """is the current environment Ubuntu 25.10?"""
-    if not is_ubuntu():
-        return False
-    return freedesktop_os_release().get("VERSION_ID") == "25.10"
-
-
 def is_ubuntu_2604() -> bool:
     """is the current environment Ubuntu 26.04?"""
     if not is_ubuntu():
