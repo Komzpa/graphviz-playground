@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <cgraph/cghdr.h>
-#include <limits.h>
 #include <math.h>
 #include <neatogen/dijkstra.h>
 #include <neatogen/neato.h>
@@ -55,12 +54,10 @@ static graph_sgd *extract_adjacency(graph_t *G, int model) {
   graph->weights = gv_calloc(n_edges, sizeof(float));
 
   graph->n = n_nodes;
-  assert(n_edges <= INT_MAX);
   graph->sources[graph->n] = n_edges; // to make looping nice
 
   n_nodes = 0, n_edges = 0;
   for (node_t *np = agfstnode(G); np; np = agnxtnode(G, np)) {
-    assert(n_edges <= INT_MAX);
     graph->sources[n_nodes] = n_edges;
     bitarray_set(&graph->pinneds, n_nodes, isFixed(np));
     for (edge_t *ep = agfstedge(G, np); ep; ep = agnxtedge(G, ep, np)) {
@@ -78,7 +75,6 @@ static graph_sgd *extract_adjacency(graph_t *G, int model) {
     n_nodes++;
   }
   assert(n_nodes == graph->n);
-  assert(n_edges <= INT_MAX);
   assert(n_edges == graph->sources[graph->n]);
   graph->sources[n_nodes] = n_edges;
 
