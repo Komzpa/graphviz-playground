@@ -39,7 +39,7 @@ static void fisheryates_shuffle(term_sgd *terms, int n_terms,
 static graph_sgd *extract_adjacency(graph_t *G, int model) {
   size_t n_nodes = 0, n_edges = 0;
   for (node_t *np = agfstnode(G); np; np = agnxtnode(G, np)) {
-    assert(ND_id(np) == n_nodes);
+    assert(ND_id(np) >= 0 && (size_t)ND_id(np) == n_nodes);
     n_nodes++;
     for (edge_t *ep = agfstedge(G, np); ep; ep = agnxtedge(G, ep, np)) {
       if (agtail(ep) != aghead(ep)) { // ignore self-loops and double edges
