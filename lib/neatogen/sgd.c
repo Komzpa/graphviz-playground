@@ -173,7 +173,7 @@ void sgd(graph_t *G, /* input graph */
   graph_sgd *graph = extract_adjacency(G, model);
   for (size_t i = 0; i < n; i++) {
     if (!isFixed(GD_neato_nlist(G)[i])) {
-      offset += dijkstra_sgd(graph, (int)i, terms + offset);
+      offset += dijkstra_sgd(graph, i, terms + offset);
     }
   }
   assert((size_t)offset == n_terms);
