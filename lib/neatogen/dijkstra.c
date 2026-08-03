@@ -295,7 +295,7 @@ void dijkstra_f(int vertex, vtx_data * graph, int n, float *dist)
 // single source shortest paths that also builds terms as it goes
 // mostly copied from dijkstra_f above
 // returns the number of terms built
-int dijkstra_sgd(graph_sgd *graph, size_t source, term_sgd *terms) {
+size_t dijkstra_sgd(graph_sgd *graph, size_t source, term_sgd *terms) {
     float *dists = gv_calloc(graph->n, sizeof(float));
     for (size_t i= 0; i < graph->n; i++) {
         dists[i] = FLT_MAX;
@@ -309,7 +309,8 @@ int dijkstra_sgd(graph_sgd *graph, size_t source, term_sgd *terms) {
     assert(graph->n <= INT_MAX);
     heap h = initHeap_f((int)source, dists, (int)graph->n);
 
-    int closest = 0, offset = 0;
+    int closest = 0;
+    size_t offset = 0;
     while (extractMax_f(&h, &closest, dists)) {
         float d = dists[closest];
         if (d == FLT_MAX) {
