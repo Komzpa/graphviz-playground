@@ -13,10 +13,11 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <util/gv_math.h>
 
 /// convert an RGB color to grayscale
-static int rgb_to_grayscale(unsigned red, unsigned green, unsigned blue) {
+static uint8_t rgb_to_grayscale(unsigned red, unsigned green, unsigned blue) {
 
   /// use “perceptual” scaling,
   /// https://en.wikipedia.org/wiki/Grayscale#Colorimetric_(perceptual_luminance-preserving)_conversion_to_grayscale
@@ -27,7 +28,7 @@ static int rgb_to_grayscale(unsigned red, unsigned green, unsigned blue) {
 
   const double y_linear =
       0.2126 * r_linear + 0.7152 * g_linear + 0.0722 * b_linear;
-  return (int)(y_linear * 255.999);
+  return (uint8_t)(y_linear * 255.999);
 }
 
 /// does the given range only contain space characters?
@@ -78,9 +79,8 @@ static void process(GVJ_t *job) {
       const unsigned green = data[offset + 1];
       const unsigned blue = data[offset];
 
-      const int gray = rgb_to_grayscale(red, green, blue);
+      const uint8_t gray = rgb_to_grayscale(red, green, blue);
 
-      assert(gray >= 0 && gray < 256);
       aa_putpixel(ctx, (int)x, (int)y, gray);
     }
   }
