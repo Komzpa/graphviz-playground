@@ -158,11 +158,12 @@ void sgd(graph_t *G, /* input graph */
     start_timer();
   }
   // calculate how many terms will be needed as fixed nodes can be ignored
-  int n_fixed = 0, n_terms = 0;
+  int n_fixed = 0;
+  size_t n_terms = 0;
   for (int i = 0; i < n; i++) {
     if (!isFixed(GD_neato_nlist(G)[i])) {
       n_fixed++;
-      n_terms += n - n_fixed;
+      n_terms += (size_t)(n - n_fixed);
     }
   }
   term_sgd *terms = gv_calloc(n_terms, sizeof(term_sgd));
@@ -174,7 +175,7 @@ void sgd(graph_t *G, /* input graph */
       offset += dijkstra_sgd(graph, i, terms + offset);
     }
   }
-  assert(offset == n_terms);
+  assert((size_t)offset == n_terms);
   free_adjacency(graph);
   if (Verbose) {
     fprintf(stderr, " %.2f sec\n", elapsed_sec());
@@ -182,7 +183,7 @@ void sgd(graph_t *G, /* input graph */
 
   // initialise annealing schedule
   float w_min = terms[0].w, w_max = terms[0].w;
-  for (int ij = 1; ij < n_terms; ij++) {
+  for (size_t ij = 1; ij < n_terms; ij++) {
     w_min = fminf(w_min, terms[ij].w);
     w_max = fmaxf(w_max, terms[ij].w);
   }
@@ -214,9 +215,9 @@ void sgd(graph_t *G, /* input graph */
   rk_state rstate;
   rk_seed(0, &rstate); // TODO: get seed from graph
   for (int t = 0; t < MaxIter; t++) {
-    fisheryates_shuffle(terms, n_terms, &rstate);
+    fisheryates_shuffle(terms, (int)n_terms, &rstate);
     const double eta = eta_max * exp(-lambda * t);
-    for (int ij = 0; ij < n_terms; ij++) {
+    for (size_t ij = 0; ij < n_terms; ij++) {
       // cap step size
       const double mu = fmin(eta * terms[ij].w, 1);
 
@@ -238,7 +239,7 @@ void sgd(graph_t *G, /* input graph */
       }
     }
     if (Verbose) {
-      fprintf(stderr, " %.3f", calculate_stress(pos, terms, n_terms));
+      fprintf(stderr, " %.3f", calculate_stress(pos, terms, (int)n_terms));
     }
   }
   if (Verbose) {
