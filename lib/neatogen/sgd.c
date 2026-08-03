@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <cgraph/cghdr.h>
 #include <limits.h>
 #include <math.h>
 #include <neatogen/dijkstra.h>
@@ -151,7 +152,7 @@ void sgd(graph_t *G, /* input graph */
                "shortpath model\n");
     model = MODEL_SHORTPATH;
   }
-  int n = agnnodes(G);
+  const size_t n = agnnodes_z(G);
 
   if (Verbose) {
     fprintf(stderr, "calculating shortest paths and setting up stress terms:");
@@ -160,19 +161,19 @@ void sgd(graph_t *G, /* input graph */
   // calculate how many terms will be needed as fixed nodes can be ignored
   size_t n_fixed = 0;
   size_t n_terms = 0;
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     if (!isFixed(GD_neato_nlist(G)[i])) {
       n_fixed++;
-      n_terms += (size_t)n - n_fixed;
+      n_terms += n - n_fixed;
     }
   }
   term_sgd *terms = gv_calloc(n_terms, sizeof(term_sgd));
   // calculate term values through shortest paths
   int offset = 0;
   graph_sgd *graph = extract_adjacency(G, model);
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     if (!isFixed(GD_neato_nlist(G)[i])) {
-      offset += dijkstra_sgd(graph, i, terms + offset);
+      offset += dijkstra_sgd(graph, (int)i, terms + offset);
     }
   }
   assert((size_t)offset == n_terms);
@@ -196,11 +197,11 @@ void sgd(graph_t *G, /* input graph */
   const double lambda = log(eta_max / eta_min) / (MaxIter - 1);
 
   // initialise starting positions (from neatoprocs)
-  initial_positions(G, n);
+  initial_positions(G, (int)n);
   // copy initial positions and state into temporary space for speed
   double *const pos = gv_calloc(2 * n, sizeof(double));
   bool *unfixed = gv_calloc(n, sizeof(bool));
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     node_t *node = GD_neato_nlist(G)[i];
     pos[2 * i] = ND_pos(node)[0];
     pos[2 * i + 1] = ND_pos(node)[1];
@@ -248,7 +249,7 @@ void sgd(graph_t *G, /* input graph */
   free(terms);
 
   // copy temporary positions back into graph_t
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     node_t *node = GD_neato_nlist(G)[i];
     ND_pos(node)[0] = pos[2 * i];
     ND_pos(node)[1] = pos[2 * i + 1];
