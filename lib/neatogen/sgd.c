@@ -15,9 +15,9 @@
 #include <util/gv_math.h>
 #include <util/unreachable.h>
 
-static double calculate_stress(double *pos, term_sgd *terms, int n_terms) {
+static double calculate_stress(double *pos, term_sgd *terms, size_t n_terms) {
   double stress = 0;
-  for (int ij = 0; ij < n_terms; ij++) {
+  for (size_t ij = 0; ij < n_terms; ij++) {
     const double dx = pos[2 * terms[ij].i] - pos[2 * terms[ij].j];
     const double dy = pos[2 * terms[ij].i + 1] - pos[2 * terms[ij].j + 1];
     const double r = hypot(dx, dy) - terms[ij].d;
@@ -240,7 +240,7 @@ void sgd(graph_t *G, /* input graph */
       }
     }
     if (Verbose) {
-      fprintf(stderr, " %.3f", calculate_stress(pos, terms, (int)n_terms));
+      fprintf(stderr, " %.3f", calculate_stress(pos, terms, n_terms));
     }
   }
   if (Verbose) {
