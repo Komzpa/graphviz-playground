@@ -158,12 +158,12 @@ void sgd(graph_t *G, /* input graph */
     start_timer();
   }
   // calculate how many terms will be needed as fixed nodes can be ignored
-  int n_fixed = 0;
+  size_t n_fixed = 0;
   size_t n_terms = 0;
   for (int i = 0; i < n; i++) {
     if (!isFixed(GD_neato_nlist(G)[i])) {
       n_fixed++;
-      n_terms += (size_t)(n - n_fixed);
+      n_terms += (size_t)n - n_fixed;
     }
   }
   term_sgd *terms = gv_calloc(n_terms, sizeof(term_sgd));
