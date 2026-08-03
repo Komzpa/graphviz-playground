@@ -27,9 +27,9 @@ static double calculate_stress(double *pos, term_sgd *terms, int n_terms) {
 }
 // it is much faster to shuffle term rather than pointers to term, even though
 // the swap is more expensive
-static void fisheryates_shuffle(term_sgd *terms, int n_terms,
+static void fisheryates_shuffle(term_sgd *terms, size_t n_terms,
                                 rk_state *rstate) {
-  for (int i = n_terms - 1; i >= 1; i--) {
+  for (size_t i = n_terms - 1; n_terms > 0 && i >= 1; i--) {
     int j = rk_interval(i, rstate);
 
     SWAP(&terms[i], &terms[j]);
@@ -216,7 +216,7 @@ void sgd(graph_t *G, /* input graph */
   rk_state rstate;
   rk_seed(0, &rstate); // TODO: get seed from graph
   for (int t = 0; t < MaxIter; t++) {
-    fisheryates_shuffle(terms, (int)n_terms, &rstate);
+    fisheryates_shuffle(terms, n_terms, &rstate);
     const double eta = eta_max * exp(-lambda * t);
     for (size_t ij = 0; ij < n_terms; ij++) {
       // cap step size
