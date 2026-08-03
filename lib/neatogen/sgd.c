@@ -30,7 +30,7 @@ static double calculate_stress(double *pos, term_sgd *terms, int n_terms) {
 static void fisheryates_shuffle(term_sgd *terms, size_t n_terms,
                                 rk_state *rstate) {
   for (size_t i = n_terms - 1; n_terms > 0 && i >= 1; i--) {
-    int j = rk_interval(i, rstate);
+    const unsigned long j = rk_interval(i, rstate);
 
     SWAP(&terms[i], &terms[j]);
   }
