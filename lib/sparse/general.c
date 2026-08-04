@@ -16,6 +16,7 @@
 #include <sparse/general.h>
 #include <errno.h>
 #include <util/alloc.h>
+#include <util/sort.h>
 
 #ifdef DEBUG
 double _statistics[10];
@@ -49,25 +50,32 @@ double *vector_saxpy2(size_t n, double *x, double *y, double beta) {
   return x;
 }
 
-void vector_float_take(size_t n, float *v, size_t m, int *p, float **u) {
+void vector_float_take(size_t n, float *v, size_t m, size_t *p, float **u) {
   /* take m elements v[p[i]]],i=1,...,m and oput in u */
   if (!*u) *u = gv_calloc(m, sizeof(float));
 
   for (size_t i = 0; i < m; i++) {
-    assert(p[i] >= 0 && (size_t)p[i] < n);
+    assert(p[i] < n);
     (void)n;
     (*u)[i] = v[p[i]];
   }
   
 }
 
-static int comp_ascend(const void *s1, const void *s2){
-  const double *ss1 = s1;
-  const double *ss2 = s2;
+/// compare two double vector values’ indices
+///
+/// @param s1 Index of the first value
+/// @param s2 Index of the second value
+/// @param values Values themselves
+/// @return Comparison result
+static int comp_ascend(const void *s1, const void *s2, void *values) {
+  const size_t *const ss1 = s1;
+  const size_t *const ss2 = s2;
+  const double *const v = values;
 
-  if (ss1[0] > ss2[0]){
+  if (v[*ss1] > v[*ss2]) {
     return 1;
-  } else if (ss1[0] < ss2[0]){
+  } else if (v[*ss1] < v[*ss2]) {
     return -1;
   }
   return 0;
@@ -85,23 +93,15 @@ static int comp_ascend_int(const void *s1, const void *s2){
   return 0;
 }
 
-void vector_ordering(size_t n, double *v, int **p) {
-  /* give the position of the smallest, second smallest etc in vector v.
-     results in p. If *p == NULL, p is assigned.
-  */
-
-  if (!*p) *p = gv_calloc(n, sizeof(int));
-  double *u = gv_calloc(2 * n, sizeof(double));
+size_t *vector_ordering(size_t n, double *v) {
+  size_t *const p = gv_calloc(n, sizeof(size_t));
 
   for (size_t i = 0; i < n; i++) {
-    u[2 * i + 1] = (double)i;
-    u[2 * i] = v[i];
+    p[i] = i;
   }
 
-  qsort(u, n, sizeof(double)*2, comp_ascend);
-
-  for (size_t i = 0; i < n; i++) (*p)[i] = (int)u[2 * i + 1];
-  free(u);
+  gv_sort(p, n, sizeof(p[0]), comp_ascend, v);
+  return p;
 }
 
 void vector_sort_int(int n, int *v){

@@ -95,11 +95,10 @@ void map_palette_optimal_coloring(char *color_scheme, SparseMatrix A0,
 }
 
 void map_optimal_coloring(int seed, SparseMatrix A, float *rgb_r,  float *rgb_g, float *rgb_b){
-  int *p = NULL;
   float *u = NULL;
   const size_t n = A->m;
 
-  country_graph_coloring(seed, A, &p);
+  size_t *const p = country_graph_coloring(seed, A);
 
   rgb_r++; rgb_b++; rgb_g++;/* seems necessary, but need to better think about cases when clusters are not contiguous */
   vector_float_take(n, rgb_r, n, p, &u);

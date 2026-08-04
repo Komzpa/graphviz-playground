@@ -20,17 +20,23 @@
 #include <util/gv_math.h>
 #include <util/prisize_t.h>
 
+static size_t zabs(size_t a, size_t b) {
+  if (a > b)
+    return a - b;
+  return b - a;
+}
+
 static size_t get_local_12_norm(size_t n, size_t i, const int *ia,
-                                const int *ja, const int *p) {
+                                const int *ja, const size_t *p) {
   size_t norm = n;
   for (int j = ia[i]; j < ia[i+1]; j++){
     if (ja[j] >= 0 && (size_t)ja[j] == i) continue;
-    norm = zmin(norm, (size_t)abs(p[i] - p[ja[j]]));
+    norm = zmin(norm, zabs(p[i], p[ja[j]]));
   }
   return norm;
 }
 
-static void get_12_norm(size_t n, const int *ia, const int *ja, int *p,
+static void get_12_norm(size_t n, const int *ia, const int *ja, const size_t *p,
                         size_t *norm) {
   /* norm[0] := antibandwidth
      norm[1] := (\sum_{i\in V} (Min_{{j,i}\in E} |p[i] - p[j]|)/|V|
@@ -40,15 +46,15 @@ static void get_12_norm(size_t n, const int *ia, const int *ja, int *p,
     size_t tmp = n;
     for (int j = ia[i]; j < ia[i+1]; j++){
       if (ja[j] >= 0 && (size_t)ja[j] == i) continue;
-      norm[0] = zmin(norm[0], (size_t)abs(p[i] - p[ja[j]]));
-      tmp = zmin(tmp, (size_t)abs(p[i] - p[ja[j]]));
+      norm[0] = zmin(norm[0], zabs(p[i], p[ja[j]]));
+      tmp = zmin(tmp, zabs(p[i], p[ja[j]]));
     }
     norm[1] += tmp;
   }
   norm[1] /= n;
 }
 
-void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
+void improve_antibandwidth_by_swapping(SparseMatrix A, size_t *p) {
   int cnt = 1, *ia = A->ia, *ja = A->ja;
   const size_t n = A->m;
   size_t norm1[2];
@@ -67,8 +73,8 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
       for (size_t j = 0; j < n; j++) {
 	if (j == i) continue;
 	const size_t norm2 = get_local_12_norm(n, j, ia, ja, p);
-	const int pi = p[i];
-	const int pj = p[j];
+	const size_t pi = p[i];
+	const size_t pj = p[j];
 	p[i] = pj;
 	p[j] = pi;
 	const size_t norm11 = get_local_12_norm(n, i, ia, ja, p);
@@ -99,7 +105,7 @@ void improve_antibandwidth_by_swapping(SparseMatrix A, int *p){
   }
 }
   
-void country_graph_coloring(int seed, SparseMatrix A, int **p) {
+size_t *country_graph_coloring(int seed, SparseMatrix A) {
   const size_t n = A->m;
 
   clock_t start = clock();
@@ -130,7 +136,7 @@ void country_graph_coloring(int seed, SparseMatrix A, int **p) {
   /* largest eigen vector */
   double *v = power_method(L, L->n, seed);
 
-  vector_ordering(n, v, p);
+  size_t *const p = vector_ordering(n, v);
   free(v);
   if (Verbose)
     fprintf(stderr, "cpu time for spectral ordering (before greedy) = %f\n",
@@ -138,7 +144,7 @@ void country_graph_coloring(int seed, SparseMatrix A, int **p) {
 
   clock_t start2 = clock();
   /* swapping */
-  improve_antibandwidth_by_swapping(A2, *p);
+  improve_antibandwidth_by_swapping(A2, p);
   if (Verbose) {
     fprintf(stderr, "cpu time for greedy refinement = %f\n",
             ((double)(clock() - start2)) / CLOCKS_PER_SEC);
@@ -150,4 +156,5 @@ void country_graph_coloring(int seed, SparseMatrix A, int **p) {
 
   if (A2 != A) SparseMatrix_delete(A2);
   SparseMatrix_delete(L);
+  return p;
 }
