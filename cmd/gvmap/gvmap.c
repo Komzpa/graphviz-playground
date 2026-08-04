@@ -316,7 +316,7 @@ validateCluster (int n, int* grouping, int clust_num)
 
 /// @return 0 on success
 static int makeMap(SparseMatrix graph, int n, double *x, double *width,
-                   int *grouping, char **labels, float *fsz, float *rgb_r,
+                   int *grouping, float *rgb_r,
                    float *rgb_g, float *rgb_b, params_t *pm, Agraph_t *g) {
   int dim = pm->dim;
   int i;
@@ -389,7 +389,7 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
   }
 
     Dot_SetClusterColor(g, rgb_r,  rgb_g,  rgb_b, grouping);
-    plot_dot_map(g, n, dim, x, polys, poly_lines, pm->line_width, pm->line_color, x_poly, polys_groups, labels, fsz, rgb_r, rgb_g, rgb_b, pm->opacity,
+    plot_dot_map(g, polys, poly_lines, pm->line_width, pm->line_color, x_poly, polys_groups, rgb_r, rgb_g, rgb_b, pm->opacity,
            (pm->plotedges?graph:NULL), pm->outfile);
   SparseMatrix_delete(polys);
   SparseMatrix_delete(poly_lines);
@@ -406,29 +406,22 @@ static int mapFromGraph(Agraph_t *g, params_t *pm) {
   int n;
   double* width = NULL;
   double *x = NULL;
-  char** labels = NULL;
   int *grouping = NULL;
   float* rgb_r = NULL;
   float* rgb_g = NULL;
   float* rgb_b = NULL;
-  float *fsz = NULL;
 
   initDotIO(g);
   graph = Import_coord_clusters_from_dot(g, pm->maxcluster, pm->dim, &n, &width, &x, &grouping, 
-					   &rgb_r,  &rgb_g,  &rgb_b,  &fsz, &labels, pm->color_scheme, pm->clusterMethod, pm->useClusters);
+					   &rgb_r,  &rgb_g,  &rgb_b, pm->color_scheme, pm->clusterMethod, pm->useClusters);
   int rc;
   if (x != NULL) {
-    rc = makeMap(graph, n, x, width, grouping, labels, fsz, rgb_r, rgb_g, rgb_b,
+    rc = makeMap(graph, n, x, width, grouping, rgb_r, rgb_g, rgb_b,
                  pm, g);
   } else { // the graph was missing position information
     rc = -1;
   }
   SparseMatrix_delete(graph);
-  for (int i = 0; labels != NULL && i < agnnodes(g); ++i) {
-    free(labels[i]);
-  }
-  free(labels);
-  free(fsz);
   free(rgb_r);
   free(rgb_g);
   free(rgb_b);

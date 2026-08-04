@@ -28,10 +28,10 @@ int make_map_from_rectangle_groups(bool include_OK_points, int n, int dim,
 
 void improve_contiguity(int n, int dim, int *grouping, SparseMatrix poly_point_map, double *x, SparseMatrix graph);
 
-void plot_dot_map(Agraph_t* gr, int n, int dim, double *x, SparseMatrix polys,
+void plot_dot_map(Agraph_t* gr, SparseMatrix polys,
                   SparseMatrix poly_lines, double line_width,
                   const char *line_color, double *x_poly, int *polys_groups,
-                  char **labels, float *fsz, float *r, float *g, float *b,
+                  float *r, float *g, float *b,
                   const char* opacity, SparseMatrix A, FILE*);
 
 void map_optimal_coloring(int seed, SparseMatrix A, float *rgb_r,  float *rgb_g, float *rgb_b);
