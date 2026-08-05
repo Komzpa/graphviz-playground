@@ -115,12 +115,14 @@ static int get_poly_id(int ip, SparseMatrix point_poly_map){
   return point_poly_map->ja[point_poly_map->ia[ip]];
 }
  
-void improve_contiguity(int n, int dim, int *grouping, SparseMatrix poly_point_map, double *x, SparseMatrix graph){
+void improve_contiguity(int n, int *grouping, SparseMatrix poly_point_map, double *x, SparseMatrix graph){
  /* 
      grouping: which group each of the vertex belongs to
      poly_point_map: a matrix of dimension npolys x (n + nrandom), poly_point_map[i,j] != 0 if polygon i contains the point j.
      .  If j < n, it is the original point, otherwise it is artificial point (forming the rectangle around a label) or random points.
   */
+  const int dim = 2;
+
   int i, j, *ia, *ja, u, v;
   SparseMatrix point_poly_map, D;
   double dist;

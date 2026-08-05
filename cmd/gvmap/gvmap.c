@@ -364,7 +364,7 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
      contiguous so we move point positions to improve contiguity */
   if (graph && improve_contiguity_n) {
     for (i = 0; i < improve_contiguity_n; i++){
-      improve_contiguity(n, dim, grouping, poly_point_map, x, graph);
+      improve_contiguity(n, grouping, poly_point_map, x, graph);
       nart = nart0;
       (void)make_map_from_rectangle_groups(pm->include_OK_points,
 				     n, x, width, grouping, graph, pm->bbox_margin, nrandom, &nart, pm->nedgep, 

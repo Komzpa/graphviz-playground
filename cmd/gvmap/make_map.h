@@ -26,7 +26,7 @@ int make_map_from_rectangle_groups(bool include_OK_points, int n,
                                    SparseMatrix *country_graph,
                                    int highlight_cluster);
 
-void improve_contiguity(int n, int dim, int *grouping, SparseMatrix poly_point_map, double *x, SparseMatrix graph);
+void improve_contiguity(int n, int *grouping, SparseMatrix poly_point_map, double *x, SparseMatrix graph);
 
 void plot_dot_map(Agraph_t* gr, SparseMatrix polys,
                   SparseMatrix poly_lines, double line_width,
