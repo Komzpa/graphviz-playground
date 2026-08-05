@@ -41,7 +41,6 @@ typedef struct {
     char* cmd;
     char **infiles; 
     FILE* outfile;
-    int dim;
     double shore_depth_tol;
     int nrandom; 
     double bbox_margin;
@@ -143,7 +142,6 @@ init(int argc, char **argv, params_t* pm)
   pm->opacity[0] = '\0';
   pm->color_scheme_str = NULL;
   pm->nrandom = -1;
-  pm->dim = 2;
   pm->shore_depth_tol = 0;
   pm->highlight_cluster = 0;
   pm->useClusters = 0;
@@ -318,7 +316,7 @@ validateCluster (int n, int* grouping, int clust_num)
 static int makeMap(SparseMatrix graph, int n, double *x, double *width,
                    int *grouping, float *rgb_r,
                    float *rgb_g, float *rgb_b, params_t *pm, Agraph_t *g) {
-  int dim = pm->dim;
+  const int dim = 2;
   int i;
   SparseMatrix poly_lines, polys, poly_point_map;
   int nverts, *polys_groups;
@@ -403,6 +401,7 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
 /// @return 0 on success
 static int mapFromGraph(Agraph_t *g, params_t *pm) {
     SparseMatrix graph;
+  const int dim = 2;
   int n;
   double* width = NULL;
   double *x = NULL;
@@ -412,7 +411,7 @@ static int mapFromGraph(Agraph_t *g, params_t *pm) {
   float* rgb_b = NULL;
 
   initDotIO(g);
-  graph = Import_coord_clusters_from_dot(g, pm->maxcluster, pm->dim, &n, &width, &x, &grouping, 
+  graph = Import_coord_clusters_from_dot(g, pm->maxcluster, dim, &n, &width, &x, &grouping, 
 					   &rgb_r,  &rgb_g,  &rgb_b, pm->color_scheme, pm->clusterMethod, pm->useClusters);
   int rc;
   if (x != NULL) {
