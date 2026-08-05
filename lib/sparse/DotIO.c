@@ -587,7 +587,7 @@ void attached_clustering(Agraph_t *g, int maxcluster, int clustering_scheme) {
   {
     double modularity;
     if (!clust_sym)
-      clust_sym = agattr_text(g, AGNODE, "cluster", "-1");
+      clust_sym = agattr_text(g, AGNODE, "cluster", ITOS(NO_GROUP));
 
     if (clustering_scheme == CLUSTERING_MQ) {
       mq_clustering(A, maxcluster, &nc, &clusters, &modularity);

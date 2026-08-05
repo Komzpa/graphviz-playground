@@ -12,6 +12,7 @@
 
 #define STANDALONE
 #include <assert.h>
+#include <sparse/DotIO.h>
 #include <sparse/SparseMatrix.h>
 #include <sparse/general.h>
 #include <limits.h>
@@ -398,7 +399,7 @@ static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups, int GR
   max_grp = groups[0];
   for (i = 0; i < n; i++) {
     max_grp = MAX(groups[i], max_grp);
-    if (groups[i] <= 0) {
+    if (groups[i] == INVALID_GROUP || groups[i] == NO_GROUP) {
       return NULL;
     }
   }

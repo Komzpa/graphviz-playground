@@ -50,6 +50,16 @@ void attached_clustering(Agraph_t *g, int maxcluster, int clustering_scheme);
 
 int Import_dot_splines(Agraph_t *g, int *ne, char ***xsplines);
 
+/// sentinel values for cluster grouping
+///
+/// `gvmap` stores 1-based indices for “which cluster does this node belong to?”
+/// in its grouping arrays. These values are stored for nodes that have a
+/// different treatment. So their values are arbitrary but need to be ≤ 0.
+enum {
+  INVALID_GROUP = 0, ///< group was never assigned
+  NO_GROUP = -1,     ///< inherited the default (invalid) group
+};
+
 #ifdef __cplusplus
 }
 #endif
