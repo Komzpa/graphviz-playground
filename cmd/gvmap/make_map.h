@@ -14,7 +14,7 @@
 #include <cgraph/cgraph.h>
 #include <stdbool.h>
 
-int make_map_from_rectangle_groups(bool include_OK_points, int n, int dim,
+int make_map_from_rectangle_groups(bool include_OK_points, int n,
                                    double *x, double *sizes, int *grouping,
                                    SparseMatrix graph,
                                    double bounding_box_margin, int nrandom,

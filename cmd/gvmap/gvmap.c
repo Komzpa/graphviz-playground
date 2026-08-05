@@ -336,7 +336,7 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
   if (pm->highlight_cluster) {
     pm->highlight_cluster = validateCluster (n, grouping, pm->highlight_cluster);
   }
-  if (make_map_from_rectangle_groups(pm->include_OK_points, n, dim, x, width,
+  if (make_map_from_rectangle_groups(pm->include_OK_points, n, x, width,
                                      grouping, graph, pm->bbox_margin, nrandom,
                                      &nart, pm->nedgep, pm->shore_depth_tol,
                                      &nverts, &x_poly, &poly_lines, &polys,
@@ -367,7 +367,7 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
       improve_contiguity(n, dim, grouping, poly_point_map, x, graph);
       nart = nart0;
       (void)make_map_from_rectangle_groups(pm->include_OK_points,
-				     n, dim, x, width, grouping, graph, pm->bbox_margin, nrandom, &nart, pm->nedgep, 
+				     n, x, width, grouping, graph, pm->bbox_margin, nrandom, &nart, pm->nedgep, 
 				     pm->shore_depth_tol, &nverts, &x_poly, &poly_lines, 
 				     &polys, &polys_groups, &poly_point_map, &country_graph, pm->highlight_cluster);
     }
@@ -379,7 +379,7 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
       
       nart = nart0;
       (void)make_map_from_rectangle_groups(pm->include_OK_points,
-				     n, dim, x, width, grouping, graph, pm->bbox_margin, nrandom, &nart, pm->nedgep, 
+				     n, x, width, grouping, graph, pm->bbox_margin, nrandom, &nart, pm->nedgep, 
 				     pm->shore_depth_tol, &nverts, &x_poly, &poly_lines, 
 				     &polys, &polys_groups, &poly_point_map, &country_graph, pm->highlight_cluster);
     }

@@ -1192,7 +1192,7 @@ static void get_boundingbox(int n, int dim, double *x, double *width, double *bb
 }
 
 int make_map_from_rectangle_groups(bool include_OK_points,
-				   int n, int dim, double *x, double *sizes, 
+				   int n, double *x, double *sizes, 
 				   int *grouping, SparseMatrix graph, double bounding_box_margin, int nrandom, int *nart, int nedgep, 
 				   double shore_depth_tol,
 				   int *nverts, double **x_poly, 
@@ -1209,7 +1209,6 @@ int make_map_from_rectangle_groups(bool include_OK_points,
      include_OK_points: OK points are random points inserted and found to be within shore_depth_tol of real/artificial points,
      .                  including them instead of throwing away increase realism of boundary 
      n: number of points
-     dim: dimension of the points. If dim > 2, only the first 2D is used.
      x: coordinates
      sizes: width and height
      grouping: which group each of the vertex belongs to
@@ -1252,6 +1251,10 @@ int make_map_from_rectangle_groups(bool include_OK_points,
 
      
   */
+
+  // dimension of the points
+  const int dim = 2;
+
   double *X;
   int N, nmax, i, j, igrp;
   int *groups;
