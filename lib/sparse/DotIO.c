@@ -398,6 +398,12 @@ SparseMatrix Import_coord_clusters_from_dot(
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
       i = ND_id(n);
       if (sscanf(agxget(n, clust_sym), "%d", &ic) > 0) {
+        if (ic < 0) {
+          fprintf(stderr, "WARNING: ignoring \"cluster\" attributes due to "
+                          "negative value\n");
+          noclusterinfo = true;
+          break;
+        }
         (*clusters)[i] = ic;
         nc = MAX(nc, ic);
         if (first) {
