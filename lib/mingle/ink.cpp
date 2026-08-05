@@ -15,7 +15,6 @@
 #include <cstdlib>
 #include <common/types.h>
 #include <common/globals.h>
-#include <sparse/general.h>
 #include <mingle/ink.h>
 #include <vector>
 
@@ -240,7 +239,7 @@ double ink(const std::vector<pedge> &edges, int numEdges, int *pick,
   *ink0 = 0;
 
   /* canonicalize so that edges 1,2,3 and 3,2,1 gives the same optimal ink */
-  if (pick) vector_sort_int(numEdges, pick);
+  if (pick) std::sort(pick, pick + numEdges);
 
   begin = end = Origin;
   for (i = 0; i < numEdges; i++) {
