@@ -8,7 +8,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-int stress_model(int dim, SparseMatrix B, double *x, int maxit_sm) {
+int stress_model(SparseMatrix B, double *x, int maxit_sm) {
+  const int dim = 2;
   SparseMatrix A = B;
   int rc = 0;
 

@@ -156,7 +156,7 @@ void improve_contiguity(int n, int *grouping, SparseMatrix poly_point_map, doubl
   }
 
   GV_INFO("ratio (edges among discontiguous regions vs total edges)=%f", (double)nbad / ia[n]);
-  const int flag = stress_model(dim, D, x, maxit);
+  const int flag = stress_model(D, x, maxit);
 
   assert(!flag);
 
