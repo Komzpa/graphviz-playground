@@ -55,7 +55,7 @@ public:
 	std::vector<Constraint *> in;
 	std::vector<Constraint *> out;
 private:
-	typedef enum {NONE, LEFT, RIGHT} Direction;
+	enum Direction { NONE, LEFT, RIGHT };
 	typedef std::pair<double, Constraint*> Pair;
 	void reset_active_lm(Variable *v, Variable *u);
 	double compute_dfdv(Variable *v, Variable *u, Constraint *&min_lm);
