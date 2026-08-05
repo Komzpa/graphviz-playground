@@ -388,7 +388,7 @@ static int get_tri(int n, int dim, double *x, int *nt, struct Triangle **T,
   return 0;
 }
 
-static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups, int GRP_RANDOM, int GRP_BBOX){
+static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups, int GRP_BBOX){
   /* form a graph each vertex is a group (a country), and a vertex is connected to another if the two countries shares borders.
    since the group ID may not be contiguous (e.g., only groups 2,3,5, -1), we will return NULL if one of the group has non-positive ID! */
   int *ia, *ja;
@@ -458,7 +458,7 @@ static void conn_comp(int n, SparseMatrix A, int *groups, SparseMatrix *poly_poi
 
 static void get_poly_lines(int nt, SparseMatrix E, size_t ncomps, int *comps_ptr,
                            int *comps, int *groups, SparseMatrix *poly_lines,
-                           int **polys_groups, int GRP_RANDOM, int GRP_BBOX) {
+                           int **polys_groups, int GRP_BBOX) {
   /*============================================================
 
     polygon outlines 
@@ -839,7 +839,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
   int *groups;
   int maxgrp;
   int *comps = NULL, *comps_ptr = NULL;
-  int GRP_RANDOM, GRP_BBOX;
+  int GRP_BBOX;
 
   assert(dim == 2);
   *nverts = nt;
@@ -851,7 +851,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
     groups[i] = grouping[i];
   }
 
-  GRP_RANDOM = maxgrp + 1; GRP_BBOX = maxgrp + 2;
+  GRP_BBOX = maxgrp + 2;
   for (int i = n; i < n + nrandom - 4; i++) {/* all random points in the same group */
     groups[i] = GRP_RANDOM;
   }
@@ -889,7 +889,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
 
     ============================================================*/
   get_poly_lines(nt, E, ncomps, comps_ptr, comps, groups, poly_lines,
-                 polys_groups, GRP_RANDOM, GRP_BBOX);
+                 polys_groups, GRP_BBOX);
 
   /*============================================================
 
@@ -898,7 +898,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
     ============================================================*/
   get_polygon_solids(nt, E, ncomps, comps_ptr, comps, polys);
 
-  *country_graph = get_country_graph(n, E, groups, GRP_RANDOM, GRP_BBOX);
+  *country_graph = get_country_graph(n, E, groups, GRP_BBOX);
 
   free(groups);
 }

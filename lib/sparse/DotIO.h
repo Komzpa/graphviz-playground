@@ -58,6 +58,7 @@ int Import_dot_splines(Agraph_t *g, int *ne, char ***xsplines);
 enum {
   INVALID_GROUP = 0, ///< group was never assigned
   NO_GROUP = -1,     ///< inherited the default (invalid) group
+  GRP_RANDOM = -2,   ///< randomize assignment of a node
 };
 
 #ifdef __cplusplus
