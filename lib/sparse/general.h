@@ -67,8 +67,6 @@ void vector_float_take(size_t n, float *v, size_t m, size_t *p, float **u);
 /// @return Positional order
 size_t *vector_ordering(size_t n, double *v);
 
-void vector_sort_int(int n, int *v);
-
 #define MACHINEACC 1.0e-16
 #define SQRT_MACHINEACC 1.0e-8
 
