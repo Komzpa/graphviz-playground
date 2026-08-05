@@ -263,9 +263,10 @@ void Dot_SetClusterColor(Agraph_t *g, float *rgb_r, float *rgb_g, float *rgb_b,
 }
 
 SparseMatrix Import_coord_clusters_from_dot(
-    Agraph_t *g, int maxcluster, int dim, int *nn, double **label_sizes,
-    double **x, int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
+    Agraph_t *g, int maxcluster, int *nn, double **label_sizes, double **x,
+    int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
     int default_color_scheme, int clustering_scheme, int useClusters) {
+  const int dim = 2;
   SparseMatrix A = 0;
   Agnode_t *n;
   Agedge_t *e;

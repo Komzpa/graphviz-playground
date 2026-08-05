@@ -401,7 +401,6 @@ static int makeMap(SparseMatrix graph, int n, double *x, double *width,
 /// @return 0 on success
 static int mapFromGraph(Agraph_t *g, params_t *pm) {
     SparseMatrix graph;
-  const int dim = 2;
   int n;
   double* width = NULL;
   double *x = NULL;
@@ -411,7 +410,7 @@ static int mapFromGraph(Agraph_t *g, params_t *pm) {
   float* rgb_b = NULL;
 
   initDotIO(g);
-  graph = Import_coord_clusters_from_dot(g, pm->maxcluster, dim, &n, &width, &x, &grouping, 
+  graph = Import_coord_clusters_from_dot(g, pm->maxcluster, &n, &width, &x, &grouping, 
 					   &rgb_r,  &rgb_g,  &rgb_b, pm->color_scheme, pm->clusterMethod, pm->useClusters);
   int rc;
   if (x != NULL) {

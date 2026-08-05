@@ -40,8 +40,8 @@ void attach_edge_colors(Agraph_t *g, size_t dim, double *colors);
 
 SparseMatrix SparseMatrix_import_dot(Agraph_t *g, double **x, int format);
 SparseMatrix Import_coord_clusters_from_dot(
-    Agraph_t *g, int maxcluster, int dim, int *nn, double **label_sizes,
-    double **x, int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
+    Agraph_t *g, int maxcluster, int *nn, double **label_sizes, double **x,
+    int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
     int default_color_scheme, int clustering_scheme, int useClusters);
 
 void Dot_SetClusterColor(Agraph_t *g, float *rgb_r, float *rgb_g, float *rgb_b,
