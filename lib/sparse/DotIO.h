@@ -59,6 +59,7 @@ enum {
   INVALID_GROUP = 0, ///< group was never assigned
   NO_GROUP = -1,     ///< inherited the default (invalid) group
   GRP_RANDOM = -2,   ///< randomize assignment of a node
+  GRP_BBOX = -3,     ///< last 4 randomized points that form a bounding box
 };
 
 #ifdef __cplusplus
