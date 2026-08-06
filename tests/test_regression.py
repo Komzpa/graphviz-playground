@@ -6562,6 +6562,11 @@ def test_2835():
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
+@pytest.mark.xfail(
+    raises=subprocess.TimeoutExpired,
+    reason="https://gitlab.com/graphviz/graphviz/-/work_items/2849",
+    strict=True,
+)
 def test_2849():
     """
     gvpr should not infinite-loop on this input
