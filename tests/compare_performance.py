@@ -7,7 +7,7 @@ When making changes to Graphviz’s code that may affect performance, you can
 run this script to evaluate the effect of your changes.
 
 Candidates are identified by the path to the corresponding `dot` program to run,
-although tests involve other Graphviz programs as well (e.g., neato, circo, ccomps)
+although tests involve other Graphviz programs as well (e.g., neato, circo)
 
 Example usage:
   python3 compare_performance.py \
@@ -76,7 +76,6 @@ TESTS: dict[str, list[Union[str, Path]]] = {
         "-Tsvg",
         MY_DIR / "2475_2.dot",
     ],
-    "#2593": ["ccomps", MY_DIR / "2593.dot"],
     "#2621": ["dot", "-Tpng", MY_DIR / "2621.dot"],
     "#2646": ["dot", "-Tpdf", MY_DIR / "2646.dot"],
     "!2854": ["dot", "-Tsvg", MY_DIR / "2854.dot"],
@@ -123,9 +122,7 @@ def run(args: list[Union[str, Path]], root: Union[str, Path]):
     argv = [arg0] + args[1:] + ["-o", os.devnull]
 
     print(f"+ env {prefix} {shlex.join(str(x) for x in argv)}", flush=True)
-    proc = subprocess.run(argv, check=False)
-    if proc.returncode != 0:
-        print(f"warning: command returned {proc.returncode}", file=sys.stderr)
+    subprocess.run(argv, check=True)
 
 
 def pretty_time(duration: float):

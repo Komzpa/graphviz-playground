@@ -294,36 +294,13 @@ static_assert(
   ((list_type){.impl = gv_list_copy_((src)->impl, sizeof((src)->base[0])),     \
                .dtor = (src)->dtor})
 
-/// does the list not wrap past its end?
-///
-/// This checks whether the list is discontiguous in how its elements
-/// appear in memory:
-///
-///                         ┌───┬───┬───┬───┬───┬───┬───┬───┐
-///   a contiguous list:    │   │   │ w │ x │ y │ z │   │   │
-///                         └───┴───┴───┴───┴───┴───┴───┴───┘
-///                                   0   1   2   3
-///
-///                         ┌───┬───┬───┬───┬───┬───┬───┬───┐
-///   a discontiguous list: │ y │ z │   │   │   │   │ w │ x │
-///                         └───┴───┴───┴───┴───┴───┴───┴───┘
-///                           2   3                   0   1
-///
-/// You can think of this macro as having the C type:
-///
-///   bool LIST_IS_CONTIGUOUS(const LIST(<type>>) *list);
-///
-/// @param list List to inspect
-/// @return True if the list is contiguous
-#define LIST_IS_CONTIGUOUS(list) gv_list_is_contiguous_((list)->impl);
-
 /// shuffle the populated contents to reset `head` to 0
 ///
 /// You can think of this macro as having the C type:
 ///
 ///   void LIST_SYNC(LIST(<type>) *list);
 ///
-/// See the `LIST_IS_CONTIGUOUS` leading comment for a better understanding of
+/// See the list.c:`is_contiguous` leading comment for a better understanding of
 /// what it means for `head` to be non-zero.
 ///
 /// @param list List to operate on

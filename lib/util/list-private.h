@@ -153,29 +153,10 @@ UTIL_API bool gv_list_contains_(const list_t_ list, const void *needle,
 /// @return A copy of the original list
 UTIL_API list_t_ gv_list_copy_(const list_t_ list, size_t item_size);
 
-/// does the list wrap past its end?
-///
-/// This checks whether the list is discontiguous in how its elements
-/// appear in memory:
-///
-///                         ┌───┬───┬───┬───┬───┬───┬───┬───┐
-///   a contiguous list:    │   │   │ w │ x │ y │ z │   │   │
-///                         └───┴───┴───┴───┴───┴───┴───┴───┘
-///                                   0   1   2   3
-///
-///                         ┌───┬───┬───┬───┬───┬───┬───┬───┐
-///   a discontiguous list: │ y │ z │   │   │   │   │ x │ y │
-///                         └───┴───┴───┴───┴───┴───┴───┴───┘
-///                           2   3                   0   1
-///
-/// @param list List to inspect
-/// @return True if the list is contiguous
-UTIL_API bool gv_list_is_contiguous_(const list_t_ list);
-
 /// shuffle the populated contents to reset `head` to 0
 ///
-/// See the `gv_list_is_contiguous_` leading comment for a better understanding
-/// of what it means for `head` to be non-zero.
+/// See the list.c:`is_contiguous` leading comment for a better understanding of
+/// what it means for `head` to be non-zero.
 ///
 /// @param list List to operate on
 /// @param item_size Byte size of each list item
