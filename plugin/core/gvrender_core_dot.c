@@ -454,13 +454,9 @@ static void dot_end_graph(GVJ_t *job)
 {
     graph_t *g = job->obj->u.g;
     Agiodisc_t* io_save;
-    static Agiodisc_t io;
-
-    if (io.afread == NULL) {
-	io.afread = AgIoDisc.afread;
-	io.putstr = gvputs_;
-	io.flush = gvflush_;
-    }
+    Agiodisc_t io = {.afread = AgIoDisc.afread,
+                     .putstr = gvputs_,
+                     .flush = gvflush_};
 
     io_save = g->clos->disc.io;
     g->clos->disc.io = &io;

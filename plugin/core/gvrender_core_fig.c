@@ -24,6 +24,7 @@
 #include <common/utils.h>
 #include <common/color.h>
 #include <util/agxbuf.h>
+#include <util/alloc.h>
 #include <util/prisize_t.h>
 #include <util/streq.h>
 #include <util/unreachable.h>
@@ -33,7 +34,24 @@
 
 enum { FORMAT_FIG, };
 
-static int Depth;
+#define maxColors 512
+
+typedef struct {
+  int top;
+  unsigned char red[maxColors];
+  unsigned char green[maxColors];
+  unsigned char blue[maxColors];
+  int Depth;
+} fig_state_t;
+
+static void fig_begin_job(GVJ_t *job) {
+  job->window = gv_alloc(sizeof(fig_state_t));
+}
+
+static void fig_end_job(GVJ_t *job) {
+  free(job->window);
+  job->window = NULL;
+}
 
 static void figptarray(GVJ_t *job, pointf *A, size_t n, int close) {
     for (size_t i = 0; i < n; i++) {
@@ -45,22 +63,19 @@ static void figptarray(GVJ_t *job, pointf *A, size_t n, int close) {
     gvputs(job, "\n");
 }
 
-static int figColorResolve(bool *new, unsigned char r, unsigned char g,
-  unsigned char b)
-{
-#define maxColors 512
-    static int top = 0;
-    static short red[maxColors], green[maxColors], blue[maxColors];
+/// @param st Tracker of allocated colors
+static int figColorResolve(fig_state_t *st, bool *new, unsigned char r,
+                           unsigned char g, unsigned char b) {
     int c;
     int ct = -1;
     long rd, gd, bd, dist;
     long mindist = 3 * 255 * 255;       /* init to max poss dist */
 
     *new = false; // in case it is not a new color
-    for (c = 0; c < top; c++) {
-        rd = (long) (red[c] - r);
-        gd = (long) (green[c] - g);
-        bd = (long) (blue[c] - b);
+    for (c = 0; c < st->top; c++) {
+        rd = (long)st->red[c] - r;
+        gd = (long)st->green[c] - g;
+        bd = (long)st->blue[c] - b;
         dist = rd * rd + gd * gd + bd * bd;
         if (dist < mindist) {
             if (dist == 0)
@@ -70,12 +85,12 @@ static int figColorResolve(bool *new, unsigned char r, unsigned char g,
         }
     }
     /* no exact match.  We now know closest, but first try to allocate exact */
-    if (top == maxColors)
+    if (st->top == maxColors)
         return ct;              /* Return closest available color */
-    ++top;
-    red[c] = r;
-    green[c] = g;
-    blue[c] = b;
+    ++st->top;
+    st->red[c] = r;
+    st->green[c] = g;
+    st->blue[c] = b;
     *new = true; // flag new color
     return c;                   /* Return newly allocated color */
 }
@@ -100,7 +115,7 @@ static void fig_resolve_color(GVJ_t *job, gvcolor_t * color)
 	    break;
 	case RGBA_BYTE: {
 	    bool new;
-	    i = 32 + figColorResolve(&new,
+	    i = 32 + figColorResolve(job->window, &new,
 			color->u.rgba[0],
 			color->u.rgba[1],
 			color->u.rgba[2]);
@@ -171,48 +186,44 @@ static void fig_end_graph(GVJ_t * job)
 
 static void fig_begin_page(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 2;
+    fig_state_t *const st = job->window;
+    st->Depth = 2;
 }
 
 static void fig_begin_node(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 1;
+    fig_state_t *const st = job->window;
+    st->Depth = 1;
 }
 
 static void fig_end_node(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 2;
+    fig_state_t *const st = job->window;
+    st->Depth = 2;
 }
 
 static void fig_begin_edge(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 0;
+    fig_state_t *const st = job->window;
+    st->Depth = 0;
 }
 
 static void fig_end_edge(GVJ_t * job)
 {
-    (void)job;
-
-    Depth = 2;
+    fig_state_t *const st = job->window;
+    st->Depth = 2;
 }
 
 static void fig_textspan(GVJ_t * job, pointf p, textspan_t * span)
 {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
     PostscriptAlias *pA;
 
     int object_code = 4;        /* always 4 for text */
     int sub_type = 0;           /* text justification */
     int color = obj->pencolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int font = -1;		/* init to xfig's default font */
     double font_size = span->font->size * job->zoom;
@@ -261,6 +272,7 @@ static void fig_textspan(GVJ_t * job, pointf p, textspan_t * span)
 static void fig_ellipse(GVJ_t * job, pointf * A, int filled)
 {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 1;        /* always 1 for ellipse */
     int sub_type = 1;           /* ellipse defined by radii */
@@ -268,7 +280,7 @@ static void fig_ellipse(GVJ_t * job, pointf * A, int filled)
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = obj->fillcolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill = filled ? 20 : -1;
     double style_val;
@@ -296,6 +308,7 @@ static void fig_ellipse(GVJ_t * job, pointf * A, int filled)
 
 static void fig_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 3;        /* always 3 for spline */
     int sub_type;
@@ -303,7 +316,7 @@ static void fig_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = obj->fillcolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill;
     double style_val;
@@ -371,6 +384,7 @@ static void fig_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
 
 static void fig_polygon(GVJ_t *job, pointf *A, size_t n, int filled) {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 2;        /* always 2 for polyline */
     int sub_type = 3;           /* always 3 for polygon */
@@ -378,7 +392,7 @@ static void fig_polygon(GVJ_t *job, pointf *A, size_t n, int filled) {
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = obj->fillcolor.u.index;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill = filled ? 20 : -1;
     double style_val;
@@ -401,6 +415,7 @@ static void fig_polygon(GVJ_t *job, pointf *A, size_t n, int filled) {
 
 static void fig_polyline(GVJ_t *job, pointf *A, size_t n) {
     obj_state_t *obj = job->obj;
+    const fig_state_t *const st = job->window;
 
     int object_code = 2;        /* always 2 for polyline */
     int sub_type = 1;           /* always 1 for polyline */
@@ -408,7 +423,7 @@ static void fig_polyline(GVJ_t *job, pointf *A, size_t n) {
     double thickness = round(obj->penwidth);
     int pen_color = obj->pencolor.u.index;
     int fill_color = 0;
-    int depth = Depth;
+    int depth = st->Depth;
     int pen_style = 0;          /* not used */
     int area_fill = 0;
     double style_val;
@@ -430,8 +445,8 @@ static void fig_polyline(GVJ_t *job, pointf *A, size_t n) {
 }
 
 static gvrender_engine_t fig_engine = {
-    0,				/* fig_begin_job */
-    0,				/* fig_end_job */
+    fig_begin_job,
+    fig_end_job,
     fig_begin_graph,
     fig_end_graph,
     0,				/* fig_begin_layer */
