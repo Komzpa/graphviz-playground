@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   has a negative value. This should never occur in normal operation (the
   `cluster` program only attaches non-negative `cluster` attributes), but only
   if a user has incorrectly edited dot source.
+- **Breaking**: The `gvmap` option `-p` has been removed. Its functionality was
+  never implemented and passing `-p` had no effect.
 
 ### Fixed
 

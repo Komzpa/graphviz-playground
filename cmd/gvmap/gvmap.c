@@ -91,7 +91,6 @@ static const char usestr[] =
     -m v - bounding box margin. If 0, auto-assigned (0)\n\
     -o <file> - put output in <file> (stdout)\n\
     -O   - do NOT do color assignment optimization that maximizes color difference between neighboring countries\n\
-    -p k - ignored\n\
     -r k - number of random points k used to define sea and lake boundaries. If 0, auto assigned. (0)\n\
     -s v - depth of the sea and lake shores in points. If < 0, auto assigned. (0)\n\
     -t n - improve contiguity up to n times. (0)\n\
@@ -164,7 +163,7 @@ init(int argc, char **argv, params_t* pm)
   pm->bbox_margin = 0;
 
   opterr = 0;
-  while ((c = getopt(argc, argv, ":evODQko:m:s:r:p:c:C:l:b:g:t:a:h:z:d:?")) != -1) {
+  while ((c = getopt(argc, argv, ":evODQko:m:s:r:c:C:l:b:g:t:a:h:z:d:?")) != -1) {
     switch (c) {
     case 'm':
       if (sscanf(optarg, "%lf", &s) > 0 && s != 0) {
@@ -202,8 +201,6 @@ init(int argc, char **argv, params_t* pm)
       if (sscanf(optarg, "%d", &r) > 0 && r > 0) {
         pm->improve_contiguity_n = r;
       }
-      break;
-    case 'p': // ignored
       break;
     case 'k':
       pm->include_OK_points = true;
