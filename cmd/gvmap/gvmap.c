@@ -83,7 +83,6 @@ static const char usestr[] =
     -d s - seed used to calculate Fiedler vector for optimal coloring\n\
     -D   - use top-level cluster subgraphs to specify clustering\n\
     -e   - show edges\n\
-    -g c - bounding box color. If not specified, a bounding box is not drawn.\n\
     -h k - number of artificial points added to maintain bridge between endpoints (0)\n\
     -highlight=k - only draw cluster k\n\
     -k   - increase randomness of boundary\n\
@@ -163,7 +162,7 @@ init(int argc, char **argv, params_t* pm)
   pm->bbox_margin = 0;
 
   opterr = 0;
-  while ((c = getopt(argc, argv, ":evODQko:m:s:r:c:C:l:b:g:t:a:h:z:d:?")) != -1) {
+  while ((c = getopt(argc, argv, ":evODQko:m:s:r:c:C:l:b:t:a:h:z:d:?")) != -1) {
     switch (c) {
     case 'm':
       if (sscanf(optarg, "%lf", &s) > 0 && s != 0) {
@@ -256,9 +255,6 @@ init(int argc, char **argv, params_t* pm)
       }
       else
         pm->maxcluster = v;
-      break;
-    case 'g':
-      // ignored
       break;
     case 'z': {
       pm->line_color = optarg;
