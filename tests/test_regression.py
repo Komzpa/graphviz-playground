@@ -6582,11 +6582,6 @@ def test_2849():
     run_raw(gvpr_bin, "-f", program, graph, timeout=10)
 
 
-@pytest.mark.xfail(
-    raises=subprocess.CalledProcessError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2851",
-    strict=not is_ndebug_defined(),
-)
 def test_2851():
     """
     Graphviz should handle `topsort` situations without crashing
