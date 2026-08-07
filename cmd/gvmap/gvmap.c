@@ -86,7 +86,6 @@ static const char usestr[] =
     -h k - number of artificial points added to maintain bridge between endpoints (0)\n\
     -highlight=k - only draw cluster k\n\
     -k   - increase randomness of boundary\n\
-    -l s - specify label\n\
     -m v - bounding box margin. If 0, auto-assigned (0)\n\
     -o <file> - put output in <file> (stdout)\n\
     -O   - do NOT do color assignment optimization that maximizes color difference between neighboring countries\n\
@@ -162,7 +161,7 @@ init(int argc, char **argv, params_t* pm)
   pm->bbox_margin = 0;
 
   opterr = 0;
-  while ((c = getopt(argc, argv, ":evODQko:m:s:r:c:C:l:b:t:a:h:z:d:?")) != -1) {
+  while ((c = getopt(argc, argv, ":evODQko:m:s:r:c:C:b:t:a:h:z:d:?")) != -1) {
     switch (c) {
     case 'm':
       if (sscanf(optarg, "%lf", &s) > 0 && s != 0) {
@@ -266,9 +265,6 @@ init(int argc, char **argv, params_t* pm)
       } else {
         fprintf (stderr, "%s: unexpected argument \"%s\" for -b flag\n", cmd, optarg);
       }
-      break;
-    case 'l':
-      // ignored
       break;
     case ':':
       fprintf(stderr, "gvpack: option -%c missing argument - ignored\n", optopt);
