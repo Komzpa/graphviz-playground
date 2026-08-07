@@ -21,11 +21,10 @@
 #include <xdot/xdot.h>
 
 /* the parse functions should return NULL on error */
-static char *parseReal(char *s, double *fp) {
+static char *parseReal(const char *s, double *fp) {
   char *p;
-  double d;
 
-  d = strtod(s, &p);
+  const double d = strtod(s, &p);
   if (p == s)
     return 0;
 
@@ -33,24 +32,22 @@ static char *parseReal(char *s, double *fp) {
   return p;
 }
 
-static char *parseInt(char *s, int *ip) {
+static char *parseInt(const char *s, int *ip) {
   char *endp;
 
   *ip = (int)strtol(s, &endp, 10);
   if (s == endp)
-    return 0;
-  else
-    return endp;
+    return NULL;
+  return endp;
 }
 
-static char *parseUInt(char *s, unsigned int *ip) {
+static char *parseUInt(const char *s, unsigned int *ip) {
   char *endp;
 
   *ip = (unsigned int)strtoul(s, &endp, 10);
   if (s == endp)
-    return 0;
-  else
-    return endp;
+    return NULL;
+  return endp;
 }
 
 static char *parseRect(char *s, xdot_rect *rp) {
@@ -58,27 +55,23 @@ static char *parseRect(char *s, xdot_rect *rp) {
 
   rp->x = strtod(s, &endp);
   if (s == endp)
-    return 0;
-  else
-    s = endp;
+    return NULL;
+  s = endp;
 
   rp->y = strtod(s, &endp);
   if (s == endp)
-    return 0;
-  else
-    s = endp;
+    return NULL;
+  s = endp;
 
   rp->w = strtod(s, &endp);
   if (s == endp)
-    return 0;
-  else
-    s = endp;
+    return NULL;
+  s = endp;
 
   rp->h = strtod(s, &endp);
   if (s == endp)
-    return 0;
-  else
-    s = endp;
+    return NULL;
+  s = endp;
 
   return s;
 }
@@ -120,13 +113,13 @@ static char *parseString(char *s, char **sp) {
   int i;
   s = parseInt(s, &i);
   if (!s || i <= 0)
-    return 0;
+    return NULL;
   while (*s && *s != '-')
     s++;
   if (*s) {
     s++;
   } else {
-    return 0;
+    return NULL;
   }
 
   // The leading number we just read indicates the count of originating
@@ -138,7 +131,7 @@ static char *parseString(char *s, char **sp) {
   for (int accounted = 0; accounted < i; ++j) {
     if (s[j] == '\0') {
       agxbfree(&c);
-      return 0;
+      return NULL;
     }
     agxbputc(&c, s[j]);
     // only count this character if it was not an escape prefix
@@ -323,12 +316,12 @@ static char *parseOp(xdot_op *op, char *s, drawfunc_t ops[], int *error) {
     break;
 
   case '\0':
-    s = 0;
+    s = NULL;
     break;
 
   default:
     *error = 1;
-    s = 0;
+    s = NULL;
     break;
   }
   return s;
@@ -394,7 +387,7 @@ xdot *parseXDotF(char *s, drawfunc_t fns[], size_t sz) {
   return parseXDotFOn(s, fns, sz, NULL);
 }
 
-xdot *parseXDot(char *s) { return parseXDotF(s, 0, 0); }
+xdot *parseXDot(char *s) { return parseXDotF(s, NULL, 0); }
 
 typedef int (*pf)(void *, char *, ...);
 
@@ -706,18 +699,17 @@ static void jsonXDot_Op(xdot_op *op, pf print, void *info, int more) {
   agxbfree(&xb);
 }
 
-static void _printXDot(xdot *x, pf print, void *info, print_op ofn) {
-  xdot_op *op;
+static void printXDot(xdot *x, pf print, void *info, print_op ofn) {
   char *base = (char *)x->ops;
   for (size_t i = 0; i < x->cnt; i++) {
-    op = (xdot_op *)(base + i * x->sz);
+    xdot_op *const op = (xdot_op *)(base + i * x->sz);
     ofn(op, print, info, i < x->cnt - 1);
   }
 }
 
 char *sprintXDot(xdot *x) {
   agxbuf xb = {0};
-  _printXDot(x, pf_agxbprint, &xb, printXDot_Op);
+  printXDot(x, pf_agxbprint, &xb, printXDot_Op);
   return agxbdisown(&xb);
 }
 
@@ -731,12 +723,12 @@ static int pf_fprintf(void *stream, char *format, ...) {
 }
 
 void fprintXDot(FILE *fp, xdot *x) {
-  _printXDot(x, pf_fprintf, fp, printXDot_Op);
+  printXDot(x, pf_fprintf, fp, printXDot_Op);
 }
 
 void jsonXDot(FILE *fp, xdot *x) {
   fputs("[\n", fp);
-  _printXDot(x, pf_fprintf, fp, jsonXDot_Op);
+  printXDot(x, pf_fprintf, fp, jsonXDot_Op);
   fputs("]\n", fp);
 }
 
@@ -794,16 +786,13 @@ void freeXDot(xdot *x) {
 }
 
 int statXDot(xdot *x, xdot_stats *sp) {
-  xdot_op *op;
-  char *base;
-
   if (!x || !sp)
     return 1;
   *sp = (xdot_stats){0};
   sp->cnt = x->cnt;
-  base = (char *)x->ops;
+  char *const base = (char *)x->ops;
   for (size_t i = 0; i < x->cnt; i++) {
-    op = (xdot_op *)(base + i * x->sz);
+    xdot_op *const op = (xdot_op *)(base + i * x->sz);
     switch (op->kind) {
     case xd_filled_ellipse:
     case xd_unfilled_ellipse:
@@ -866,8 +855,6 @@ int statXDot(xdot *x, xdot_stats *sp) {
  */
 static char *radGradient(char *cp, xdot_color *clr) {
   char *s = cp;
-  int i;
-  double d;
   xdot_color_stop *stops = NULL;
 
   clr->type = xd_radial;
@@ -885,12 +872,16 @@ static char *radGradient(char *cp, xdot_color *clr) {
   CHK1(s);
   s = parseInt(s, &clr->u.ring.n_stops);
   CHK1(s);
+  // FIXME: at the next API break, make `n_stops` an `unsigned` to avoid this
+  // error case by construction
+  if (clr->u.ring.n_stops < 0) {
+    return NULL;
+  }
 
-  stops = gv_calloc(clr->u.ring.n_stops, sizeof(stops[0]));
-  for (i = 0; i < clr->u.ring.n_stops; i++) {
-    s = parseReal(s, &d);
+  stops = gv_calloc((size_t)clr->u.ring.n_stops, sizeof(stops[0]));
+  for (int i = 0; i < clr->u.ring.n_stops; i++) {
+    s = parseReal(s, &stops[i].frac);
     CHK1(s);
-    stops[i].frac = d;
     s = parseString(s, &stops[i].color);
     CHK1(s);
   }
@@ -905,8 +896,6 @@ static char *radGradient(char *cp, xdot_color *clr) {
  */
 static char *linGradient(char *cp, xdot_color *clr) {
   char *s = cp;
-  int i;
-  double d;
   xdot_color_stop *stops = NULL;
 
   clr->type = xd_linear;
@@ -920,12 +909,16 @@ static char *linGradient(char *cp, xdot_color *clr) {
   CHK1(s);
   s = parseInt(s, &clr->u.ling.n_stops);
   CHK1(s);
+  // FIXME: at the next API break, make `n_stops` an `unsigned` to avoid this
+  // error case by construction
+  if (clr->u.ling.n_stops < 0) {
+    return NULL;
+  }
 
-  stops = gv_calloc(clr->u.ling.n_stops, sizeof(stops[0]));
-  for (i = 0; i < clr->u.ling.n_stops; i++) {
-    s = parseReal(s, &d);
+  stops = gv_calloc((size_t)clr->u.ling.n_stops, sizeof(stops[0]));
+  for (int i = 0; i < clr->u.ling.n_stops; i++) {
+    s = parseReal(s, &stops[i].frac);
     CHK1(s);
-    stops[i].frac = d;
     s = parseString(s, &stops[i].color);
     CHK1(s);
   }
@@ -963,15 +956,13 @@ char *parseXDotColor(char *cp, xdot_color *clr) {
 }
 
 void freeXDotColor(xdot_color *cp) {
-  int i;
-
   if (cp->type == xd_linear) {
-    for (i = 0; i < cp->u.ling.n_stops; i++) {
+    for (int i = 0; i < cp->u.ling.n_stops; i++) {
       free(cp->u.ling.stops[i].color);
     }
     free(cp->u.ling.stops);
   } else if (cp->type == xd_radial) {
-    for (i = 0; i < cp->u.ring.n_stops; i++) {
+    for (int i = 0; i < cp->u.ring.n_stops; i++) {
       free(cp->u.ring.stops[i].color);
     }
     free(cp->u.ring.stops);

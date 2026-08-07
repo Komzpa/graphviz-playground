@@ -51,6 +51,6 @@ endif()
 
 # Specify library version and soversion
 set_target_properties(xdot PROPERTIES
-  VERSION 4.0.2
+  VERSION 4.0.3
   SOVERSION 4
 )
