@@ -344,28 +344,17 @@ static void spring_electrical_embedding_fast(int dim, SparseMatrix A0,
       for (k = 0; k < dim; k++) x[i*dim+k] += step*f[k];
     }/* done vertex i */
 
-
-
-    if (qt) {
 #ifdef TIME
-      start = clock();
+    start = clock();
 #endif
-      QuadTree_delete(qt);
+    QuadTree_delete(qt);
 #ifdef TIME
-      end = clock();
-      qtree_new_cpu += (double)(end - start) / CLOCKS_PER_SEC;
+    end = clock();
+    qtree_new_cpu += (double)(end - start) / CLOCKS_PER_SEC;
 #endif
 
-      oned_optimizer_train(&qtree_level_optimizer,
-                           counts[0] + 0.85 * counts[1] + 3.3 * counts[2]);
-    } else {
-      if (Verbose) {
-        fprintf(stderr,
-                "\r                iter = %d, step = %f Fnorm = %f nz = %"
-                PRISIZE_T "  K = %f                                  ", iter,
-                step, Fnorm, A->nz, K);
-      }
-    }
+    oned_optimizer_train(&qtree_level_optimizer,
+                         counts[0] + 0.85 * counts[1] + 3.3 * counts[2]);
 
     step = update_step(adaptive_cooling, step, Fnorm, Fnorm0);
   } while (step > tol && iter < maxiter);
