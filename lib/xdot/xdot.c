@@ -466,7 +466,7 @@ static int pf_agxbprint(void *xb, char *fmt, ...) {
 }
 
 static void toGradString(agxbuf *xb, xdot_color *cp) {
-  int i, n_stops;
+  unsigned n_stops;
   xdot_color_stop *stops;
 
   if (cp->type == xd_linear) {
@@ -475,7 +475,7 @@ static void toGradString(agxbuf *xb, xdot_color *cp) {
     printFloat(cp->u.ling.y0, pf_agxbprint, xb, 1);
     printFloat(cp->u.ling.x1, pf_agxbprint, xb, 1);
     printFloat(cp->u.ling.y1, pf_agxbprint, xb, 1);
-    n_stops = (int)cp->u.ling.n_stops;
+    n_stops = cp->u.ling.n_stops;
     stops = cp->u.ling.stops;
   } else {
     agxbputc(xb, '(');
@@ -488,8 +488,8 @@ static void toGradString(agxbuf *xb, xdot_color *cp) {
     n_stops = cp->u.ring.n_stops;
     stops = cp->u.ring.stops;
   }
-  agxbprint(xb, " %d", n_stops);
-  for (i = 0; i < n_stops; i++) {
+  agxbprint(xb, " %u", n_stops);
+  for (unsigned i = 0; i < n_stops; i++) {
     printFloat(stops[i].frac, pf_agxbprint, xb, 1);
     printString(stops[i].color, pf_agxbprint, xb);
   }
@@ -870,16 +870,11 @@ static char *radGradient(char *cp, xdot_color *clr) {
   CHK1(s);
   s = parseReal(s, &clr->u.ring.r1);
   CHK1(s);
-  s = parseInt(s, &clr->u.ring.n_stops);
+  s = parseUInt(s, &clr->u.ring.n_stops);
   CHK1(s);
-  // FIXME: at the next API break, make `n_stops` an `unsigned` to avoid this
-  // error case by construction
-  if (clr->u.ring.n_stops < 0) {
-    return NULL;
-  }
 
-  stops = gv_calloc((size_t)clr->u.ring.n_stops, sizeof(stops[0]));
-  for (int i = 0; i < clr->u.ring.n_stops; i++) {
+  stops = gv_calloc(clr->u.ring.n_stops, sizeof(stops[0]));
+  for (unsigned int i = 0; i < clr->u.ring.n_stops; i++) {
     s = parseReal(s, &stops[i].frac);
     CHK1(s);
     s = parseString(s, &stops[i].color);
@@ -957,7 +952,7 @@ void freeXDotColor(xdot_color *cp) {
     }
     free(cp->u.ling.stops);
   } else if (cp->type == xd_radial) {
-    for (int i = 0; i < cp->u.ring.n_stops; i++) {
+    for (unsigned i = 0; i < cp->u.ring.n_stops; i++) {
       free(cp->u.ring.stops[i].color);
     }
     free(cp->u.ring.stops);
