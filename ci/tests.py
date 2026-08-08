@@ -21,7 +21,6 @@ from gvtest import (  # pylint: disable=wrong-import-position
     is_macos,
     is_mingw,
     is_static_build,
-    is_ubuntu_2510,
     is_ubuntu_2604,
     run,
     which,
@@ -101,7 +100,7 @@ def test_existence(binary: str):
         check_that_tool_does_not_exist(binary, os_id)
         pytest.skip("smyrna is not built on non-Linux due to lacking dependencies")
 
-    if binary == "smyrna" and (is_ubuntu_2510() or is_ubuntu_2604()):
+    if binary == "smyrna" and is_ubuntu_2604():
         check_that_tool_does_not_exist(binary, os_id)
         pytest.skip("smyrna is not built on Ubuntu ≥ 25.10 due to lacking dependencies")
 

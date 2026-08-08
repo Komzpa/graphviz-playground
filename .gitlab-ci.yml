@@ -339,18 +339,6 @@ ubuntu-24.04-build:
     variables:
       IMAGE: ubuntu-24.04
 
-ubuntu-25.10-build:
-    <<: *deb_build_definition
-    needs:
-        - job: docker_build_ubuntu-25.10
-          artifacts: false
-        - job: portable-source
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: ubuntu-25.10
-
 ubuntu-26.04-build:
     <<: *deb_build_definition
     needs:
@@ -537,23 +525,6 @@ ubuntu-24.04-cmake-build:
         - saas-linux-small-amd64
     variables:
       IMAGE: ubuntu-24.04
-
-ubuntu-25.10-cmake-build:
-    <<: *deb_build_definition
-    needs:
-        - job: docker_build_ubuntu-25.10
-          artifacts: false
-    before_script:
-        - export build_system="cmake"
-        # fail on any compiler warnings
-        - export CFLAGS="-Werror"
-        - export CXXFLAGS="-Werror"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DWITH_SMYRNA=OFF"
-        - export CMAKE_OPTIONS="$CMAKE_OPTIONS -DENABLE_RUBY=OFF"
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: ubuntu-25.10
 
 ubuntu-26.04-cmake-build:
     <<: *deb_build_definition
@@ -985,18 +956,6 @@ ubuntu-24.04-test:
     variables:
       IMAGE: ubuntu-24.04
 
-ubuntu-25.10-test:
-    <<: *linux_test_definition
-    before_script:
-        - export build_system="autotools"
-    needs:
-        - job: "ubuntu-25.10-build"
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: ubuntu-25.10
-
 ubuntu-26.04-test:
     <<: *linux_test_definition
     before_script:
@@ -1112,18 +1071,6 @@ ubuntu-24.04-cmake-test:
         - saas-linux-small-amd64
     variables:
       IMAGE: ubuntu-24.04
-
-ubuntu-25.10-cmake-test:
-    <<: *linux_test_definition
-    before_script:
-        - export build_system="cmake"
-    needs:
-        - job: "ubuntu-25.10-cmake-build"
-          artifacts: true
-    tags:
-        - saas-linux-small-amd64
-    variables:
-      IMAGE: ubuntu-25.10
 
 ubuntu-26.04-cmake-test:
     <<: *linux_test_definition
@@ -1355,11 +1302,6 @@ docker_build_ubuntu-24.04:
   variables:
     IMAGE: ubuntu-24.04
 
-docker_build_ubuntu-25.10:
-  <<: *docker_build_definition
-  variables:
-    IMAGE: ubuntu-25.10
-
 docker_build_ubuntu-26.04:
   <<: *docker_build_definition
   variables:
@@ -1413,13 +1355,6 @@ docker_push_ubuntu-24.04:
     IMAGE: ubuntu-24.04
   needs:
     - docker_build_ubuntu-24.04
-
-docker_push_ubuntu-25.10:
-  <<: *docker_push_definition
-  variables:
-    IMAGE: ubuntu-25.10
-  needs:
-    - docker_build_ubuntu-25.10
 
 docker_push_ubuntu-26.04:
   <<: *docker_push_definition
