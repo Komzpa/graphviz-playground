@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <util/api.h>
 
 #ifdef __cplusplus
@@ -21,7 +22,7 @@ extern "C" {
 
 PRIVATE void ngdijkstra(int, vtx_data *, int, DistType *);
 PRIVATE void dijkstra_f(int, vtx_data *, int, float *);
-PRIVATE int dijkstra_sgd(graph_sgd *, int, term_sgd *);
+PRIVATE size_t dijkstra_sgd(graph_sgd *, size_t, term_sgd *);
 
 #ifdef __cplusplus
 }

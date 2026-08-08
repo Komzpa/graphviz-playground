@@ -1,7 +1,7 @@
 #include "config.h"
 
 #include <assert.h>
-#include <limits.h>
+#include <cgraph/cghdr.h>
 #include <math.h>
 #include <neatogen/dijkstra.h>
 #include <neatogen/neato.h>
@@ -14,9 +14,9 @@
 #include <util/gv_math.h>
 #include <util/unreachable.h>
 
-static double calculate_stress(double *pos, term_sgd *terms, int n_terms) {
+static double calculate_stress(double *pos, term_sgd *terms, size_t n_terms) {
   double stress = 0;
-  for (int ij = 0; ij < n_terms; ij++) {
+  for (size_t ij = 0; ij < n_terms; ij++) {
     const double dx = pos[2 * terms[ij].i] - pos[2 * terms[ij].j];
     const double dy = pos[2 * terms[ij].i + 1] - pos[2 * terms[ij].j + 1];
     const double r = hypot(dx, dy) - terms[ij].d;
@@ -26,10 +26,10 @@ static double calculate_stress(double *pos, term_sgd *terms, int n_terms) {
 }
 // it is much faster to shuffle term rather than pointers to term, even though
 // the swap is more expensive
-static void fisheryates_shuffle(term_sgd *terms, int n_terms,
+static void fisheryates_shuffle(term_sgd *terms, size_t n_terms,
                                 rk_state *rstate) {
-  for (int i = n_terms - 1; i >= 1; i--) {
-    int j = rk_interval(i, rstate);
+  for (size_t i = n_terms - 1; n_terms > 0 && i >= 1; i--) {
+    const unsigned long j = rk_interval(i, rstate);
 
     SWAP(&terms[i], &terms[j]);
   }
@@ -39,7 +39,7 @@ static void fisheryates_shuffle(term_sgd *terms, int n_terms,
 static graph_sgd *extract_adjacency(graph_t *G, int model) {
   size_t n_nodes = 0, n_edges = 0;
   for (node_t *np = agfstnode(G); np; np = agnxtnode(G, np)) {
-    assert(ND_id(np) == n_nodes);
+    assert(ND_id(np) >= 0 && (size_t)ND_id(np) == n_nodes);
     n_nodes++;
     for (edge_t *ep = agfstedge(G, np); ep; ep = agnxtedge(G, ep, np)) {
       if (agtail(ep) != aghead(ep)) { // ignore self-loops and double edges
@@ -54,12 +54,10 @@ static graph_sgd *extract_adjacency(graph_t *G, int model) {
   graph->weights = gv_calloc(n_edges, sizeof(float));
 
   graph->n = n_nodes;
-  assert(n_edges <= INT_MAX);
   graph->sources[graph->n] = n_edges; // to make looping nice
 
   n_nodes = 0, n_edges = 0;
   for (node_t *np = agfstnode(G); np; np = agnxtnode(G, np)) {
-    assert(n_edges <= INT_MAX);
     graph->sources[n_nodes] = n_edges;
     bitarray_set(&graph->pinneds, n_nodes, isFixed(np));
     for (edge_t *ep = agfstedge(G, np); ep; ep = agnxtedge(G, ep, np)) {
@@ -77,7 +75,6 @@ static graph_sgd *extract_adjacency(graph_t *G, int model) {
     n_nodes++;
   }
   assert(n_nodes == graph->n);
-  assert(n_edges <= INT_MAX);
   assert(n_edges == graph->sources[graph->n]);
   graph->sources[n_nodes] = n_edges;
 
@@ -151,15 +148,16 @@ void sgd(graph_t *G, /* input graph */
                "shortpath model\n");
     model = MODEL_SHORTPATH;
   }
-  int n = agnnodes(G);
+  const size_t n = agnnodes_z(G);
 
   if (Verbose) {
     fprintf(stderr, "calculating shortest paths and setting up stress terms:");
     start_timer();
   }
   // calculate how many terms will be needed as fixed nodes can be ignored
-  int n_fixed = 0, n_terms = 0;
-  for (int i = 0; i < n; i++) {
+  size_t n_fixed = 0;
+  size_t n_terms = 0;
+  for (size_t i = 0; i < n; i++) {
     if (!isFixed(GD_neato_nlist(G)[i])) {
       n_fixed++;
       n_terms += n - n_fixed;
@@ -167,9 +165,9 @@ void sgd(graph_t *G, /* input graph */
   }
   term_sgd *terms = gv_calloc(n_terms, sizeof(term_sgd));
   // calculate term values through shortest paths
-  int offset = 0;
+  size_t offset = 0;
   graph_sgd *graph = extract_adjacency(G, model);
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     if (!isFixed(GD_neato_nlist(G)[i])) {
       offset += dijkstra_sgd(graph, i, terms + offset);
     }
@@ -182,7 +180,7 @@ void sgd(graph_t *G, /* input graph */
 
   // initialise annealing schedule
   float w_min = terms[0].w, w_max = terms[0].w;
-  for (int ij = 1; ij < n_terms; ij++) {
+  for (size_t ij = 1; ij < n_terms; ij++) {
     w_min = fminf(w_min, terms[ij].w);
     w_max = fmaxf(w_max, terms[ij].w);
   }
@@ -195,11 +193,11 @@ void sgd(graph_t *G, /* input graph */
   const double lambda = log(eta_max / eta_min) / (MaxIter - 1);
 
   // initialise starting positions (from neatoprocs)
-  initial_positions(G, n);
+  initial_positions(G, (int)n);
   // copy initial positions and state into temporary space for speed
   double *const pos = gv_calloc(2 * n, sizeof(double));
   bool *unfixed = gv_calloc(n, sizeof(bool));
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     node_t *node = GD_neato_nlist(G)[i];
     pos[2 * i] = ND_pos(node)[0];
     pos[2 * i + 1] = ND_pos(node)[1];
@@ -216,7 +214,7 @@ void sgd(graph_t *G, /* input graph */
   for (int t = 0; t < MaxIter; t++) {
     fisheryates_shuffle(terms, n_terms, &rstate);
     const double eta = eta_max * exp(-lambda * t);
-    for (int ij = 0; ij < n_terms; ij++) {
+    for (size_t ij = 0; ij < n_terms; ij++) {
       // cap step size
       const double mu = fmin(eta * terms[ij].w, 1);
 
@@ -247,7 +245,7 @@ void sgd(graph_t *G, /* input graph */
   free(terms);
 
   // copy temporary positions back into graph_t
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     node_t *node = GD_neato_nlist(G)[i];
     ND_pos(node)[0] = pos[2 * i];
     ND_pos(node)[1] = pos[2 * i + 1];
