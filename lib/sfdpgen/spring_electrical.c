@@ -886,7 +886,7 @@ static bool power_law_graph(SparseMatrix A) {
   return res;
 }
 
-void pcp_rotate(int n, int dim, double *x){
+static void pcp_rotate(int n, int dim, double *x) {
   int i, k,l;
   double y[4], axis[2], center[2], dist, x0, x1;
 
