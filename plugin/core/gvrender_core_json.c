@@ -165,11 +165,12 @@ static void write_polyline (GVJ_t * job, xdot_polyline* polyline)
 static void write_stops(GVJ_t *job, unsigned n_stops, xdot_color_stop *stp,
                         state_t *sp) {
     gvprintf(job, "\"stops\": [");
+    const char *separator = "";
     for (unsigned i = 0; i < n_stops; i++) {
-	if (i > 0) gvprintf(job, ",");
-	gvprintf(job, "{\"frac\": %.03f, \"color\": ", stp[i].frac);
+	gvprintf(job, "%s{\"frac\": %.03f, \"color\": ", separator, stp[i].frac);
 	stoj(stp[i].color, sp, job);
 	gvputc(job, '}');
+	separator = ",";
     }
     gvprintf(job, "]\n");
 } 
