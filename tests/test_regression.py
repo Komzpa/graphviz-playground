@@ -6633,6 +6633,20 @@ def test_700813():
     dot("dot", src)
 
 
+def test_894589():
+    """
+    Graphviz should not crash when processing this graph
+    https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=894589
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "894589.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    dot("svg", src)
+
+
 @pytest.mark.parametrize("package", ("Tcldot", "Tclpathplan"))
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 @pytest.mark.xfail(
