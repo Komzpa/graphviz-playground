@@ -475,7 +475,7 @@ static void toGradString(agxbuf *xb, xdot_color *cp) {
     printFloat(cp->u.ling.y0, pf_agxbprint, xb, 1);
     printFloat(cp->u.ling.x1, pf_agxbprint, xb, 1);
     printFloat(cp->u.ling.y1, pf_agxbprint, xb, 1);
-    n_stops = cp->u.ling.n_stops;
+    n_stops = (int)cp->u.ling.n_stops;
     stops = cp->u.ling.stops;
   } else {
     agxbputc(xb, '(');
@@ -907,16 +907,11 @@ static char *linGradient(char *cp, xdot_color *clr) {
   CHK1(s);
   s = parseReal(s, &clr->u.ling.y1);
   CHK1(s);
-  s = parseInt(s, &clr->u.ling.n_stops);
+  s = parseUInt(s, &clr->u.ling.n_stops);
   CHK1(s);
-  // FIXME: at the next API break, make `n_stops` an `unsigned` to avoid this
-  // error case by construction
-  if (clr->u.ling.n_stops < 0) {
-    return NULL;
-  }
 
-  stops = gv_calloc((size_t)clr->u.ling.n_stops, sizeof(stops[0]));
-  for (int i = 0; i < clr->u.ling.n_stops; i++) {
+  stops = gv_calloc(clr->u.ling.n_stops, sizeof(stops[0]));
+  for (unsigned i = 0; i < clr->u.ling.n_stops; i++) {
     s = parseReal(s, &stops[i].frac);
     CHK1(s);
     s = parseString(s, &stops[i].color);
@@ -957,7 +952,7 @@ char *parseXDotColor(char *cp, xdot_color *clr) {
 
 void freeXDotColor(xdot_color *cp) {
   if (cp->type == xd_linear) {
-    for (int i = 0; i < cp->u.ling.n_stops; i++) {
+    for (unsigned i = 0; i < cp->u.ling.n_stops; i++) {
       free(cp->u.ling.stops[i].color);
     }
     free(cp->u.ling.stops);

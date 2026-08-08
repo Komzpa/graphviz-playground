@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   if a user has incorrectly edited dot source.
 - **Breaking**: The `gvmap` options `-g`, `-l`,  and `-p` have been removed.
   Their functionality was never implemented and passing these had no effect.
+- **Breaking**: `xdot_linear_grad.n_stops` is now of type `unsigned`.
 
 ### Fixed
 

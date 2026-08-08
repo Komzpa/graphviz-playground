@@ -273,7 +273,7 @@ Graphviz core libs
 %{_libdir}/libgvc.so.*
 %{_libdir}/libgvpr.so.*
 %{_libdir}/libpathplan.so.*
-%{_libdir}/libxdot.so.4*
+%{_libdir}/libxdot.so.5*
 %exclude %{_libdir}/graphviz/*
 
 #-- graphviz-plugins-core rpm --------------------------------------------------

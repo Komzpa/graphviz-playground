@@ -192,7 +192,7 @@ static void write_linear_grad (GVJ_t * job, xdot_linear_grad* lg, state_t* sp)
     indent(job, sp->Level);
     gvprintf(job, "\"p1\": [%.03f,%.03f],\n", lg->x1, lg->y1); 
     indent(job, sp->Level);
-    write_stops (job, lg->n_stops, lg->stops, sp);
+    write_stops(job, (int)lg->n_stops, lg->stops, sp);
 }
 
 static void write_xdot (xdot_op * op, GVJ_t * job, state_t* sp)
