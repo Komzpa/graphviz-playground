@@ -72,7 +72,7 @@ memiofread(void *chan, char *buf, int bufsize)
 
 static Agiodisc_t memIoDisc = {memiofread, 0, 0};
 
-static Agraph_t *agmemread0(Agraph_t *arg_g, const char *cp)
+Agraph_t *agmemread(const char *cp)
 {
     rdr_t rdr;
     Agdisc_t disc;
@@ -85,16 +85,6 @@ static Agraph_t *agmemread0(Agraph_t *arg_g, const char *cp)
 
     disc.id = &AgIdDisc;
     disc.io = &memIoDisc;  
-    if (arg_g) return agconcat(arg_g, NULL, &rdr, &disc);
     return agread(&rdr, &disc);
 }
 
-Agraph_t *agmemread(const char *cp)
-{
-    return agmemread0(0, cp);
-}
-
-Agraph_t *agmemconcat(Agraph_t *g, const char *cp)
-{
-    return agmemread0(g, cp);
-}

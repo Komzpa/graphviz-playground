@@ -608,14 +608,6 @@ void graph_init(graph_t * g, bool use_rankdir)
     int rankdir;
     GD_drawing(g) = gv_alloc(sizeof(layout_t));
 
-    /* reparseable input */
-    if ((p = agget(g, "postaction"))) {   /* requires a graph wrapper for yyparse */
-        agxbuf buf = {0};
-        agxbprint(&buf, "%s { %s }", agisdirected(g) ? "digraph" : "graph", p);
-        agmemconcat(g, agxbuse(&buf));
-        agxbfree(&buf);
-    }
-
     /* set this up fairly early in case any string sizes are needed */
     if ((p = agget(g, "fontpath")) || (p = getenv("DOTFONTPATH"))) {
 	/* overide GDFONTPATH in local environment if dot
