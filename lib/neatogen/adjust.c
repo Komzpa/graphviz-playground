@@ -17,7 +17,7 @@
 
 #include <assert.h>
 #include <neatogen/neato.h>
-#include <cgraph/cghdr.h>
+#include <cgraph/cgraph.h>
 #include <common/utils.h>
 #include <float.h>
 #include <math.h>
