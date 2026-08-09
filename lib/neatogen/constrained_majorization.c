@@ -151,6 +151,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
     }
     if (n == 1) {
 	free(levels);
+	free(ordering);
 	return 0;
     }
 
