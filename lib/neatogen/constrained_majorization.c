@@ -275,7 +275,6 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 
     /* compute diagonal entries */
     degrees = gv_calloc(n, sizeof(double));
-    set_vector_val(n, 0, degrees);
     for (int i = 0, count = 0; i < n - 1; i++) {
 	double degree = 0;
 	count++;		// skip main diag entry
