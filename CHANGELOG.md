@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: The `agmemconcat` function has been removed.
 - **Breaking**: Support for the undocumented `postaction` attribute has been
   removed.
+- `gvmap` discards `cluster` attribute information if any `cluster` attribute
+  has a negative value. This should never occur in normal operation (the
+  `cluster` program only attaches non-negative `cluster` attributes), but only
+  if a user has incorrectly edited dot source.
 
 ### Fixed
 

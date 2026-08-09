@@ -263,9 +263,10 @@ void Dot_SetClusterColor(Agraph_t *g, float *rgb_r, float *rgb_g, float *rgb_b,
 }
 
 SparseMatrix Import_coord_clusters_from_dot(
-    Agraph_t *g, int maxcluster, int dim, int *nn, double **label_sizes,
-    double **x, int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
+    Agraph_t *g, int maxcluster, int *nn, double **label_sizes, double **x,
+    int **clusters, float **rgb_r, float **rgb_g, float **rgb_b,
     int default_color_scheme, int clustering_scheme, int useClusters) {
+  const int dim = 2;
   SparseMatrix A = 0;
   Agnode_t *n;
   Agedge_t *e;
@@ -397,6 +398,12 @@ SparseMatrix Import_coord_clusters_from_dot(
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
       i = ND_id(n);
       if (sscanf(agxget(n, clust_sym), "%d", &ic) > 0) {
+        if (ic < 0) {
+          fprintf(stderr, "WARNING: ignoring \"cluster\" attributes due to "
+                          "negative value\n");
+          noclusterinfo = true;
+          break;
+        }
         (*clusters)[i] = ic;
         nc = MAX(nc, ic);
         if (first) {
@@ -580,7 +587,7 @@ void attached_clustering(Agraph_t *g, int maxcluster, int clustering_scheme) {
   {
     double modularity;
     if (!clust_sym)
-      clust_sym = agattr_text(g, AGNODE, "cluster", "-1");
+      clust_sym = agattr_text(g, AGNODE, "cluster", ITOS(NO_GROUP));
 
     if (clustering_scheme == CLUSTERING_MQ) {
       mq_clustering(A, maxcluster, &nc, &clusters, &modularity);

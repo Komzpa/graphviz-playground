@@ -12,6 +12,7 @@
 
 #define STANDALONE
 #include <assert.h>
+#include <sparse/DotIO.h>
 #include <sparse/SparseMatrix.h>
 #include <sparse/general.h>
 #include <limits.h>
@@ -115,12 +116,14 @@ static int get_poly_id(int ip, SparseMatrix point_poly_map){
   return point_poly_map->ja[point_poly_map->ia[ip]];
 }
  
-void improve_contiguity(int n, int dim, int *grouping, SparseMatrix poly_point_map, double *x, SparseMatrix graph){
+void improve_contiguity(int n, int *grouping, SparseMatrix poly_point_map, double *x, SparseMatrix graph){
  /* 
      grouping: which group each of the vertex belongs to
      poly_point_map: a matrix of dimension npolys x (n + nrandom), poly_point_map[i,j] != 0 if polygon i contains the point j.
      .  If j < n, it is the original point, otherwise it is artificial point (forming the rectangle around a label) or random points.
   */
+  const int dim = 2;
+
   int i, j, *ia, *ja, u, v;
   SparseMatrix point_poly_map, D;
   double dist;
@@ -154,7 +157,7 @@ void improve_contiguity(int n, int dim, int *grouping, SparseMatrix poly_point_m
   }
 
   GV_INFO("ratio (edges among discontiguous regions vs total edges)=%f", (double)nbad / ia[n]);
-  const int flag = stress_model(dim, D, x, maxit);
+  const int flag = stress_model(D, x, maxit);
 
   assert(!flag);
 
@@ -385,7 +388,7 @@ static int get_tri(int n, int dim, double *x, int *nt, struct Triangle **T,
   return 0;
 }
 
-static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups, int GRP_RANDOM, int GRP_BBOX){
+static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups){
   /* form a graph each vertex is a group (a country), and a vertex is connected to another if the two countries shares borders.
    since the group ID may not be contiguous (e.g., only groups 2,3,5, -1), we will return NULL if one of the group has non-positive ID! */
   int *ia, *ja;
@@ -396,7 +399,7 @@ static SparseMatrix get_country_graph(int n, SparseMatrix A, int *groups, int GR
   max_grp = groups[0];
   for (i = 0; i < n; i++) {
     max_grp = MAX(groups[i], max_grp);
-    if (groups[i] <= 0) {
+    if (groups[i] == INVALID_GROUP || groups[i] == NO_GROUP) {
       return NULL;
     }
   }
@@ -455,7 +458,7 @@ static void conn_comp(int n, SparseMatrix A, int *groups, SparseMatrix *poly_poi
 
 static void get_poly_lines(int nt, SparseMatrix E, size_t ncomps, int *comps_ptr,
                            int *comps, int *groups, SparseMatrix *poly_lines,
-                           int **polys_groups, int GRP_RANDOM, int GRP_BBOX) {
+                           int **polys_groups) {
   /*============================================================
 
     polygon outlines 
@@ -834,21 +837,16 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
                          SparseMatrix *country_graph) {
   int j;
   int *groups;
-  int maxgrp;
   int *comps = NULL, *comps_ptr = NULL;
-  int GRP_RANDOM, GRP_BBOX;
 
   assert(dim == 2);
   *nverts = nt;
  
   groups = gv_calloc(n + nrandom, sizeof(int));
-  maxgrp = grouping[0];
   for (int i = 0; i < n; i++) {
-    maxgrp = MAX(maxgrp, grouping[i]);
     groups[i] = grouping[i];
   }
 
-  GRP_RANDOM = maxgrp + 1; GRP_BBOX = maxgrp + 2;
   for (int i = n; i < n + nrandom - 4; i++) {/* all random points in the same group */
     groups[i] = GRP_RANDOM;
   }
@@ -886,7 +884,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
 
     ============================================================*/
   get_poly_lines(nt, E, ncomps, comps_ptr, comps, groups, poly_lines,
-                 polys_groups, GRP_RANDOM, GRP_BBOX);
+                 polys_groups);
 
   /*============================================================
 
@@ -895,7 +893,7 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
     ============================================================*/
   get_polygon_solids(nt, E, ncomps, comps_ptr, comps, polys);
 
-  *country_graph = get_country_graph(n, E, groups, GRP_RANDOM, GRP_BBOX);
+  *country_graph = get_country_graph(n, E, groups);
 
   free(groups);
 }
@@ -1192,7 +1190,7 @@ static void get_boundingbox(int n, int dim, double *x, double *width, double *bb
 }
 
 int make_map_from_rectangle_groups(bool include_OK_points,
-				   int n, int dim, double *x, double *sizes, 
+				   int n, double *x, double *sizes, 
 				   int *grouping, SparseMatrix graph, double bounding_box_margin, int nrandom, int *nart, int nedgep, 
 				   double shore_depth_tol,
 				   int *nverts, double **x_poly, 
@@ -1209,7 +1207,6 @@ int make_map_from_rectangle_groups(bool include_OK_points,
      include_OK_points: OK points are random points inserted and found to be within shore_depth_tol of real/artificial points,
      .                  including them instead of throwing away increase realism of boundary 
      n: number of points
-     dim: dimension of the points. If dim > 2, only the first 2D is used.
      x: coordinates
      sizes: width and height
      grouping: which group each of the vertex belongs to
@@ -1252,6 +1249,10 @@ int make_map_from_rectangle_groups(bool include_OK_points,
 
      
   */
+
+  // dimension of the points
+  const int dim = 2;
+
   double *X;
   int N, nmax, i, j, igrp;
   int *groups;
