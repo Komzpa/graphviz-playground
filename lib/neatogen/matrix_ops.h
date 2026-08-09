@@ -66,7 +66,6 @@ PRIVATE void vectors_mult_additionf(int n, float *vector1, float alpha,
 PRIVATE void copy_vectorf(int n, float *source, float *dest);
 PRIVATE double vectors_inner_productf(int n, float *vector1,
 					 float *vector2);
-PRIVATE void set_vector_val(int n, double val, double *result);
 PRIVATE void set_vector_valf(int n, float val, float * result);
 PRIVATE double max_absf(int n, float *vector);
 PRIVATE void square_vec(int n, float *vec);
