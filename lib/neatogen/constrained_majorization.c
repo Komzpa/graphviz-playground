@@ -419,11 +419,11 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 
     free(tmp_coords);
     free(dist_accumulator);
-    free(degrees);
     free(lap2);
 
 finish:
     free(lap1);
+    free(degrees);
     if (cMajEnv != NULL) {
 	deleteCMajEnv(cMajEnv);
     }
