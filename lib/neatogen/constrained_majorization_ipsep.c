@@ -236,7 +236,6 @@ int stress_majorization_cola(vtx_data * graph,	/* Input graph in sparse represen
     /* compute diagonal entries */
     count = 0;
     degrees = gv_calloc(n, sizeof(double));
-    set_vector_val(n, 0, degrees);
     for (int i = 0; i < n - 1; i++) {
 	degree = 0;
 	count++;		/* skip main diag entry */
