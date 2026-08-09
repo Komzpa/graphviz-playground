@@ -16,6 +16,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <stdio.h>
 #include <float.h>
@@ -312,7 +313,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 	 iterations < maxi && !converged; iterations++) {
 
 	/* First, construct Laplacian of 1/(d_ij*|p_i-p_j|)  */
-	set_vector_val(n, 0, degrees);
+	memset(degrees, 0, (size_t)n * sizeof(degrees[0]));
 	sqrt_vecf(lap_length, lap2, lap1);
 	for (int count = 0, i = 0; i < n - 1; i++) {
 	    const int len = n - i - 1;
