@@ -550,8 +550,10 @@ int placeLabels(object_t *objs, size_t n_objs, xlabel_t *lbls, size_t n_lbls,
                 label_params_t *params) {
   int r;
   XLabels_t *xlp = xlnew(objs, n_objs, lbls, n_lbls, params);
-  if ((r = xlinitialize(xlp)) < 0)
+  if ((r = xlinitialize(xlp)) < 0) {
+    xlfree(xlp);
     return r;
+  }
 
   /* Place xlabel_t* lp near lp->obj so that the rectangle whose lower-left
    * corner is lp->pos, and size is lp->sz does not intersect any object
