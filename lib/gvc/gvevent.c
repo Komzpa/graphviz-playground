@@ -433,9 +433,8 @@ static int toggle_fit_cb(GVJ_t * job)
 	/* FIXME - this code looks wrong */
 	const unsigned dflt_width = job->width;
 	const unsigned dflt_height = job->height;
-	job->zoom =
-	    MIN((double) job->width / (double) dflt_width,
-		(double) job->height / (double) dflt_height);
+	job->zoom = fmin((double)job->width / dflt_width,
+	                 (double)job->height / dflt_height);
 	job->focus.x = 0.0;
 	job->focus.y = 0.0;
 	job->needs_refresh = true;
