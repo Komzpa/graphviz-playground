@@ -563,7 +563,7 @@ static void addXLabels(Agraph_t * gp)
     force = agfindgraphattr(gp, "forcelabels");
 
     label_params_t params = {.bb = bb, .force = late_bool(gp, force, true)};
-    placeLabels(objs, n_objs, lbls, n_lbls, &params);
+    placeLabels(objs, n_objs, &params);
     if (Verbose)
 	printData(objs, n_objs, lbls, n_lbls, &params);
 

@@ -39,8 +39,7 @@ static int icompare(void *v1, void *v2) {
   return 0;
 }
 
-static XLabels_t *xlnew(object_t *objs, size_t n_objs, xlabel_t *lbls,
-                        size_t n_lbls, label_params_t *params) {
+static XLabels_t *xlnew(object_t *objs, size_t n_objs, label_params_t *params) {
   XLabels_t *xlp = gv_alloc(sizeof(XLabels_t));
 
   /* used to load the rtree in hilbert space filling curve order */
@@ -54,8 +53,6 @@ static XLabels_t *xlnew(object_t *objs, size_t n_objs, xlabel_t *lbls,
   /* save arg pointers in the handle */
   xlp->objs = objs;
   xlp->n_objs = n_objs;
-  xlp->lbls = lbls;
-  xlp->n_lbls = n_lbls;
   xlp->params = params;
 
   return xlp;
@@ -546,10 +543,9 @@ static int xlinitialize(XLabels_t *xlp) {
   return dtclose(xlp->hdx);
 }
 
-int placeLabels(object_t *objs, size_t n_objs, xlabel_t *lbls, size_t n_lbls,
-                label_params_t *params) {
+int placeLabels(object_t *objs, size_t n_objs, label_params_t *params) {
   int r;
-  XLabels_t *xlp = xlnew(objs, n_objs, lbls, n_lbls, params);
+  XLabels_t *xlp = xlnew(objs, n_objs, params);
   if ((r = xlinitialize(xlp)) < 0) {
     xlfree(xlp);
     return r;
