@@ -1,7 +1,7 @@
 #include "config.h"
 
 #include <assert.h>
-#include <cgraph/cghdr.h>
+#include <cgraph/cgraph.h>
 #include <math.h>
 #include <neatogen/dijkstra.h>
 #include <neatogen/neato.h>

@@ -30,7 +30,6 @@
 #include <common/render.h>
 #include <common/utils.h>
 #include <neatogen/sgd.h>
-#include <cgraph/cghdr.h>
 #include <cgraph/cgraph.h>
 #include <float.h>
 #include <stdatomic.h>

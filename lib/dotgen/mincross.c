@@ -18,7 +18,6 @@
 #include "config.h"
 
 #include <assert.h>
-#include <cgraph/cghdr.h>
 #include <cgraph/cgraph.h>
 #include <common/utils.h>
 #include <dotgen/dot.h>

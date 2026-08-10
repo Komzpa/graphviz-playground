@@ -12,7 +12,7 @@
 
 #define STANDALONE
 #include <assert.h>
-#include <cgraph/cghdr.h>
+#include <cgraph/cgraph.h>
 #include <limits.h>
 #include <math.h>
 #include <sparse/DotIO.h>

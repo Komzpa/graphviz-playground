@@ -15,7 +15,7 @@
 
 #include "config.h"
 
-#include    <cgraph/cghdr.h>
+#include    <cgraph/cgraph.h>
 #include    <circogen/circular.h>
 #include    <neatogen/adjust.h>
 #include    <pack/pack.h>

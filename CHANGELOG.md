@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased (16.0.0)]
 
+### Added
+
+- A new `agnnodes_z` function is available as an alternative to `agnnodes`. This
+  new function should be preferred in new code.
+
 ### Changed
 
 - The core plugin’s JSON renderer no longer overwrites the graph’s IO
