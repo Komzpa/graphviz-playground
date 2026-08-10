@@ -107,11 +107,11 @@ the table to determine the next two bits of s, and how to change x and
 y.  Continue until the least significant bits of x and y have been
 processed. */
 
-static unsigned int hd_hil_s_from_xy(point p, int n) {
+static unsigned hd_hil_s_from_xy(point p, unsigned n) {
   int x = p.x, y = p.y;
 
   unsigned s = 0; /* Initialize. */
-  for (int i = n - 1; i >= 0; i--) {
+  for (unsigned i = n - 1; n > 0; i--) {
     int xi = (x >> i) & 1; /* Get bit i of x. */
     int yi = (y >> i) & 1; /* Get bit i of y. */
     s = 4 * s + 2 * (unsigned)xi +
@@ -122,6 +122,9 @@ static unsigned int hd_hil_s_from_xy(point p, int n) {
     x = x ^ y;
     x = x ^ (-xi & (yi - 1)); /* Complement x and y if */
     y = y ^ (-xi & (yi - 1)); /* xi = 1 and yi = 0. */
+    if (i == 0) {
+      break;
+    }
   }
   return s;
 }
@@ -491,7 +494,7 @@ static BestPos_t xladjust(XLabels_t *xlp, object_t *objp) {
  * @param obj_bb Bounding box of all objects
  */
 static int xlhdxload(XLabels_t *xlp, boxf obj_bb) {
-  int order = xlhorder(obj_bb);
+  const unsigned order = xlhorder(obj_bb);
 
   for (size_t i = 0; i < xlp->n_objs; i++) {
     HDict_t *hp = gv_alloc(sizeof(HDict_t));
