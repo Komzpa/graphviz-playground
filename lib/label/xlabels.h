@@ -71,7 +71,7 @@ int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params);
     pointf pos;
 } BestPos_t;
 
-typedef struct obyh {
+typedef struct {
     Dtlink_t link;
     int key;
     Leaf_t d;
