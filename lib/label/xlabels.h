@@ -80,7 +80,6 @@ typedef struct obyh {
 typedef struct XLabels_s {
     object_t *objs;
     size_t n_objs;
-    label_params_t *params;
 
     Dt_t *hdx;			// splay tree keyed with hilbert spatial codes
     RTree_t *spdx;		// rtree
