@@ -233,7 +233,7 @@ static void printData(object_t *objs, size_t n_objs, xlabel_t *lbls,
   fprintf(stderr, "xlabels\n");
   for (size_t i = 0; i < n_lbls; i++) {
     fprintf(stderr, " [%" PRISIZE_T "] %p set %d (%.02f,%.02f) (%.02f,%.02f) %s\n",
-            i, lbls, lbls->set, lbls->pos.x, lbls->pos.y, lbls->sz.x,
+            i, lbls, (int)lbls->set, lbls->pos.x, lbls->pos.y, lbls->sz.x,
             lbls->sz.y, lbls->lbl->text);
     lbls++;
   }
@@ -314,7 +314,7 @@ addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj, pointf p
 	xlp->sz = lp->dimen;
     }
     xlp->lbl = lp;
-    xlp->set = 0;
+    xlp->set = false;
     objp->lbl = xlp;
 }
 

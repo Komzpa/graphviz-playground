@@ -206,7 +206,7 @@ static int getintrsxi(object_t *op, object_t *cp) {
   xlabel_t *lp = op->lbl, *clp = cp->lbl;
   assert(lp != clp);
 
-  if (lp->set == 0 || clp->set == 0)
+  if (!lp->set || !clp->set)
     return -1;
   if ((op->pos.x == 0.0 && op->pos.y == 0.0) ||
       (cp->pos.x == 0.0 && cp->pos.y == 0.0))
@@ -554,10 +554,10 @@ int placeLabels(object_t *objs, size_t n_objs, label_params_t *params) {
    * corner is lp->pos, and size is lp->sz does not intersect any object
    * in objs (by convention, an object consisting of a single point
    * intersects nothing) nor any other label, if possible. On input,
-   * lp->set is 0.
+   * lp->set is false.
    *
    * On output, any label with a position should have this stored in
-   * lp->pos and have lp->set non-zero.
+   * lp->pos and have lp->set true.
    *
    * If params->force is true, all labels must be positioned, even if
    * overlaps are necessary.
@@ -571,13 +571,13 @@ int placeLabels(object_t *objs, size_t n_objs, label_params_t *params) {
       continue;
     const BestPos_t bp = xladjust(xlp, &objs[i]);
     if (bp.n == 0) {
-      objs[i].lbl->set = 1;
+      objs[i].lbl->set = true;
     } else if (bp.area == 0) {
       objs[i].lbl->pos = bp.pos;
-      objs[i].lbl->set = 1;
+      objs[i].lbl->set = true;
     } else if (params->force) {
       objs[i].lbl->pos = bp.pos;
-      objs[i].lbl->set = 1;
+      objs[i].lbl->set = true;
     } else {
       r = 1;
     }
