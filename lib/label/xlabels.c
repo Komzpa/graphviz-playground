@@ -547,7 +547,7 @@ static int xlinitialize(XLabels_t *xlp, boxf obj_bb) {
   return dtclose(xlp->hdx);
 }
 
-int placeLabels(object_t *objs, size_t n_objs, label_params_t *params) {
+int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params) {
   int r;
   XLabels_t *xlp = xlnew(objs, n_objs);
   if ((r = xlinitialize(xlp, params->bb)) < 0) {

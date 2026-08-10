@@ -38,7 +38,7 @@ typedef struct {
     bool force; ///< if true, all labels must be placed
 } label_params_t;
 
-int placeLabels(object_t *objs, size_t n_objs, label_params_t *params);
+int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params);
 
 #ifdef XLABEL_INT
 #include <label/index.h>
