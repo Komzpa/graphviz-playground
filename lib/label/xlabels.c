@@ -68,9 +68,11 @@ static void xlfree(XLabels_t *xlp) {
 /*
  * determine the order(depth) of the hilbert sfc so that we satisfy the
  * precondition of hd_hil_s_from_xy()
+ *
+ * @param obj_bb Bounding box of all objects
  */
-static unsigned int xlhorder(XLabels_t *xlp) {
-  double maxx = xlp->params->bb.UR.x, maxy = xlp->params->bb.UR.y;
+static unsigned int xlhorder(boxf obj_bb) {
+  double maxx = obj_bb.UR.x, maxy = obj_bb.UR.y;
   return (unsigned)floor(log2(round(fmax(maxx, maxy)))) + 1;
 }
 
@@ -485,9 +487,12 @@ static BestPos_t xladjust(XLabels_t *xlp, object_t *objp) {
   return bp;
 }
 
-/* load the hilbert sfc keyed tree */
-static int xlhdxload(XLabels_t *xlp) {
-  int order = xlhorder(xlp);
+/* load the hilbert sfc keyed tree
+ *
+ * @param obj_bb Bounding box of all objects
+ */
+static int xlhdxload(XLabels_t *xlp, boxf obj_bb) {
+  int order = xlhorder(obj_bb);
 
   for (size_t i = 0; i < xlp->n_objs; i++) {
     HDict_t *hp = gv_alloc(sizeof(HDict_t));
@@ -533,9 +538,10 @@ static void xlspdxload(XLabels_t *xlp) {
   }
 }
 
-static int xlinitialize(XLabels_t *xlp) {
+/// @param obj_bb Bounding box of all objects
+static int xlinitialize(XLabels_t *xlp, boxf obj_bb) {
   int r = 0;
-  if ((r = xlhdxload(xlp)) < 0)
+  if ((r = xlhdxload(xlp, obj_bb)) < 0)
     return r;
   xlspdxload(xlp);
   xlhdxunload(xlp);
@@ -545,7 +551,7 @@ static int xlinitialize(XLabels_t *xlp) {
 int placeLabels(object_t *objs, size_t n_objs, label_params_t *params) {
   int r;
   XLabels_t *xlp = xlnew(objs, n_objs, params);
-  if ((r = xlinitialize(xlp)) < 0) {
+  if ((r = xlinitialize(xlp, params->bb)) < 0) {
     xlfree(xlp);
     return r;
   }
