@@ -153,7 +153,6 @@ static double aabbaabb(Rect_t r, Rect_t s) {
  */
 static bool lblenclosing(object_t *objp, object_t *objp1) {
   xlabel_t *xlp = objp->lbl;
-  ;
 
   assert(objp1->sz.x == 0 && objp1->sz.y == 0);
 
