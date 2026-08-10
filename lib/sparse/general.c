@@ -81,18 +81,6 @@ static int comp_ascend(const void *s1, const void *s2, void *values) {
   return 0;
 }
 
-static int comp_ascend_int(const void *s1, const void *s2){
-  const int *ss1 = s1;
-  const int *ss2 = s2;
-
-  if (ss1[0] > ss2[0]){
-    return 1;
-  } else if (ss1[0] < ss2[0]){
-    return -1;
-  }
-  return 0;
-}
-
 size_t *vector_ordering(size_t n, double *v) {
   size_t *const p = gv_calloc(n, sizeof(size_t));
 
@@ -102,10 +90,6 @@ size_t *vector_ordering(size_t n, double *v) {
 
   gv_sort(p, n, sizeof(p[0]), comp_ascend, v);
   return p;
-}
-
-void vector_sort_int(int n, int *v){
-  qsort(v, n, sizeof(int), comp_ascend_int);
 }
 
 double distance_cropped(double *x, int dim, int i, int j){
