@@ -4,7 +4,9 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/lib \
 	-I$(top_srcdir)/lib/common \
 	-I$(top_srcdir)/lib/cgraph \
-	-I$(top_srcdir)/lib/cdt
+	-I$(top_srcdir)/lib/cdt \
+	-I$(top_srcdir)/lib/gvc \
+	-I$(top_srcdir)/lib/pathplan
 
 if WITH_WIN32
 AM_CFLAGS = -DGVC_EXPORTS=1

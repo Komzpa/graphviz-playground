@@ -227,14 +227,14 @@ static void printData(object_t *objs, size_t n_objs, xlabel_t *lbls,
     xp = objs->lbl;
     fprintf(stderr, " [%" PRISIZE_T "] (%.02f,%.02f) (%.02f,%.02f) %p \"%s\"\n",
             i, objs->pos.x, objs->pos.y, objs->sz.x, objs->sz.y, objs->lbl,
-            xp ? ((textlabel_t*)xp->lbl)->text : "");
+            xp ? xp->lbl->text : "");
     objs++;
   }
   fprintf(stderr, "xlabels\n");
   for (size_t i = 0; i < n_lbls; i++) {
     fprintf(stderr, " [%" PRISIZE_T "] %p set %d (%.02f,%.02f) (%.02f,%.02f) %s\n",
             i, lbls, lbls->set, lbls->pos.x, lbls->pos.y, lbls->sz.x,
-            lbls->sz.y, ((textlabel_t*)lbls->lbl)->text);
+            lbls->sz.y, lbls->lbl->text);
     lbls++;
   }
 }
@@ -572,7 +572,7 @@ static void addXLabels(Agraph_t * gp)
     for (size_t i = 0; i < n_lbls; i++) {
 	if (xlp->set) {
 	    cnt++;
-	    lp = (textlabel_t *)xlp->lbl;
+	    lp = xlp->lbl;
 	    lp->set = 1;
 	    lp->pos = centerPt(xlp);
 	    updateBB (gp, lp);

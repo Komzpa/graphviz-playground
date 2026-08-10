@@ -18,11 +18,12 @@ extern "C" {
 #endif
 
 #include <geom.h>
+#include "types.h"
 
 typedef struct {
     pointf sz;			/* Size of label (input) */
     pointf pos;			/* Position of lower-left corner of label (output) */
-    void *lbl;			/* Pointer to label in the graph */
+    textlabel_t *lbl; ///< pointer to label in the graph
     unsigned char set;		/* True if the position has been set (input/output) */
 } xlabel_t;
 
