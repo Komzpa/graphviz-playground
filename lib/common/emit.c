@@ -4318,6 +4318,8 @@ int gvRenderJobs (GVC_t * gvc, graph_t * g)
 	prevjob = job;
     }
     gv_fixLocale (0);
+    free(gvc->layerlist);
+    gvc->layerlist = NULL;
     FINISH();
     return 0;
 }
