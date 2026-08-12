@@ -11,6 +11,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <topfish/hierarchy.h>
 
     typedef struct {
@@ -32,4 +33,4 @@
 Hierarchy *makeHier(int nnodes, int nedges, v_data *, double *, double *,
                     bool dist2_limit);
 
-    focus_t *initFocus(int ncnt);
+focus_t *initFocus(size_t ncnt);

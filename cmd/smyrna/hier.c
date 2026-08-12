@@ -129,8 +129,7 @@ Hierarchy *makeHier(int nn, int ne, v_data *graph, double *x_coords,
     return hp;
 }
 
-focus_t *initFocus(int ncnt)
-{
+focus_t *initFocus(size_t ncnt) {
     focus_t *fs = gv_alloc(sizeof(focus_t));
     fs->num_foci = 0;
     fs->foci_nodes = gv_calloc(ncnt, sizeof(int));

@@ -139,7 +139,7 @@ void prepare_topological_fisheye(Agraph_t* g,topview * t)
     free(x_coords);
     free(y_coords);
 
-    fs = t->fisheyeParams.fs = initFocus(agnnodes(g));	// create focus set
+    fs = t->fisheyeParams.fs = initFocus(agnnodes_z(g)); // create focus set
 
     closest_fine_node = 0;	/* first node */
     fs->num_foci = 1;
