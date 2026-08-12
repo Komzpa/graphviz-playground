@@ -67,8 +67,7 @@ graphs_t findCComp(graph_t *g, int *pinned, size_t *counter) {
     bport_t *pp;
     int pinflag = 0;
 
-    assert(agnnodes(g) >= 0);
-    bitarray_t marks = bitarray_new((size_t)agnnodes(g));
+    bitarray_t marks = bitarray_new(agnnodes_z(g));
 
     /* Create component based on port nodes */
     subg = 0;
