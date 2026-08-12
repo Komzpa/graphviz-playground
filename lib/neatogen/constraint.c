@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <util/alloc.h>
+#include <util/gv_math.h>
 #include <util/itos.h>
 #include <util/list.h>
 
@@ -484,8 +485,8 @@ static void initItem(node_t * n, nitem * p, expand_t margin)
     box b;
 
     if (margin.doAdd) {
-	w2 = SCALE * (POINTS(ND_width(n)/2.0) + margin.x);
-	h2 = SCALE * (POINTS(ND_height(n)/2.0) + margin.y);
+	w2 = d2i(SCALE * (POINTS(ND_width(n) / 2.0) + margin.x));
+	h2 = d2i(SCALE * (POINTS(ND_height(n) / 2.0) + margin.y));
     }
     else {
 	w2 = POINTS(margin.x * SCALE2 * ND_width(n));
