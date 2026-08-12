@@ -412,15 +412,14 @@ static void constrainX(graph_t *g, nitem *nlist, size_t nnodes, intersectfn ifn,
 }
 
 /// see constrainX
-static void constrainY(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
+static void constrainY(graph_t *g, nitem *nlist, size_t nnodes, intersectfn ifn,
                        int ortho)
 {
     Dt_t *list = dtopen(&constr, Dtobag);
     nitem *p = nlist;
     graph_t *cg;
-    int i;
 
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	p->val = p->pos.y;
 	dtinsert(list, p);
 	p++;
@@ -446,7 +445,7 @@ static void constrainY(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
 #endif
 
     p = nlist;
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	int newpos, oldpos, delta;
 	oldpos = p->pos.y;
 	newpos = ND_rank(p->cnode);
@@ -554,36 +553,36 @@ int cAdjust(graph_t * g, int mode)
 	switch ((adjust_mode)mode) {
 	case AM_ORTHOXY:
 	    constrainX(g, nlist, nnodes, intersectY, 1);
-	    constrainY(g, nlist, (int)nnodes, intersectX, 1);
+	    constrainY(g, nlist, nnodes, intersectX, 1);
 	    break;
 	case AM_ORTHOYX:
-	    constrainY(g, nlist, (int)nnodes, intersectX, 1);
+	    constrainY(g, nlist, nnodes, intersectX, 1);
 	    constrainX(g, nlist, nnodes, intersectY, 1);
 	    break;
 	case AM_ORTHO :
 	    constrainX(g, nlist, nnodes, intersectY0, 1);
-	    constrainY(g, nlist, (int)nnodes, intersectX, 1);
+	    constrainY(g, nlist, nnodes, intersectX, 1);
 	    break;
 	case AM_ORTHO_YX :
-	    constrainY(g, nlist, (int)nnodes, intersectX0, 1);
+	    constrainY(g, nlist, nnodes, intersectX0, 1);
 	    constrainX(g, nlist, nnodes, intersectY, 1);
 	    break;
 	case AM_PORTHOXY:
 	    constrainX(g, nlist, nnodes, intersectY, 0);
-	    constrainY(g, nlist, (int)nnodes, intersectX, 0);
+	    constrainY(g, nlist, nnodes, intersectX, 0);
 	    break;
 	case AM_PORTHOYX:
-	    constrainY(g, nlist, (int)nnodes, intersectX, 0);
+	    constrainY(g, nlist, nnodes, intersectX, 0);
 	    constrainX(g, nlist, nnodes, intersectY, 0);
 	    break;
 	case AM_PORTHO_YX :
-	    constrainY(g, nlist, (int)nnodes, intersectX0, 0);
+	    constrainY(g, nlist, nnodes, intersectX0, 0);
 	    constrainX(g, nlist, nnodes, intersectY, 0);
 	    break;
 	case AM_PORTHO :
 	default :
 	    constrainX(g, nlist, nnodes, intersectY0, 0);
-	    constrainY(g, nlist, (int)nnodes, intersectX, 0);
+	    constrainY(g, nlist, nnodes, intersectX, 0);
 	    break;
 	}
 	p = nlist;
