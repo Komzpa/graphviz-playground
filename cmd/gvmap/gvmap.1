@@ -88,9 +88,6 @@ If specified, the graph's cluster subgraphs are used to specify the clustering.
 .BI \-e
 If specified, edges will be included in the final output.
 .TP
-.BI \-g " c"
-Specifies the bounding box color. If not specified, a bounding box is not drawn. 
-.TP
 .BI \-h " k"
 The number of artificial points added to maintain a bridge between endpoints. By default, this is zero.
 .TP
@@ -100,9 +97,6 @@ Only draw cluster \fIk\fP. By default, all clusters are drawn.
 .BI \-k 
 If specified, increases the randomness of outer boundary.
 .TP
-.BI \-l " s"
-Use the string \fIs\fP as a label for the drawing.
-.TP
 .BI \-m " v"
 Generate a margin of \fIv\fP points around the drawing. By default, this is determined by \fBgvmap\fP.
 .TP
@@ -111,15 +105,6 @@ Do NOT do color assignment optimization that maximizes color differences between
 .TP
 .BI \-o <file> 
 Put output in <file>. Default output is stdout
-.TP
-.BI \-p " k"
-Indicates what level of points should be shown. By default, no points are shown.
-.TP
-   Acceptable values are:
-   0 : no points
-   1 : all points
-   2 : label points
-   3 : random/artificial points
 .TP
 .BI \-Q
 Use modularity quality for clustering rather than the default modularity clustering.

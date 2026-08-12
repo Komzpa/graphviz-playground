@@ -83,15 +83,12 @@ static const char usestr[] =
     -d s - seed used to calculate Fiedler vector for optimal coloring\n\
     -D   - use top-level cluster subgraphs to specify clustering\n\
     -e   - show edges\n\
-    -g c - bounding box color. If not specified, a bounding box is not drawn.\n\
     -h k - number of artificial points added to maintain bridge between endpoints (0)\n\
     -highlight=k - only draw cluster k\n\
     -k   - increase randomness of boundary\n\
-    -l s - specify label\n\
     -m v - bounding box margin. If 0, auto-assigned (0)\n\
     -o <file> - put output in <file> (stdout)\n\
     -O   - do NOT do color assignment optimization that maximizes color difference between neighboring countries\n\
-    -p k - ignored\n\
     -r k - number of random points k used to define sea and lake boundaries. If 0, auto assigned. (0)\n\
     -s v - depth of the sea and lake shores in points. If < 0, auto assigned. (0)\n\
     -t n - improve contiguity up to n times. (0)\n\
@@ -164,7 +161,7 @@ init(int argc, char **argv, params_t* pm)
   pm->bbox_margin = 0;
 
   opterr = 0;
-  while ((c = getopt(argc, argv, ":evODQko:m:s:r:p:c:C:l:b:g:t:a:h:z:d:?")) != -1) {
+  while ((c = getopt(argc, argv, ":evODQko:m:s:r:c:C:b:t:a:h:z:d:?")) != -1) {
     switch (c) {
     case 'm':
       if (sscanf(optarg, "%lf", &s) > 0 && s != 0) {
@@ -202,8 +199,6 @@ init(int argc, char **argv, params_t* pm)
       if (sscanf(optarg, "%d", &r) > 0 && r > 0) {
         pm->improve_contiguity_n = r;
       }
-      break;
-    case 'p': // ignored
       break;
     case 'k':
       pm->include_OK_points = true;
@@ -260,9 +255,6 @@ init(int argc, char **argv, params_t* pm)
       else
         pm->maxcluster = v;
       break;
-    case 'g':
-      // ignored
-      break;
     case 'z': {
       pm->line_color = optarg;
       break;
@@ -273,9 +265,6 @@ init(int argc, char **argv, params_t* pm)
       } else {
         fprintf (stderr, "%s: unexpected argument \"%s\" for -b flag\n", cmd, optarg);
       }
-      break;
-    case 'l':
-      // ignored
       break;
     case ':':
       fprintf(stderr, "gvpack: option -%c missing argument - ignored\n", optopt);
