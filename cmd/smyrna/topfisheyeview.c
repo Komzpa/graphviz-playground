@@ -21,6 +21,7 @@
 #include "hier.h"
 #include "topfisheyeview.h"
 #include <string.h>
+#include <cgraph/cgraph.h>
 #include <common/color.h>
 #include <common/colorprocs.h>
 #include <util/alloc.h>
@@ -47,7 +48,7 @@ static int color_interpolation(glCompColor srcColor, glCompColor tarColor,
 static v_data *makeGraph(Agraph_t* gg, int *nedges)
 {
     int ne = agnedges(gg);
-    int nv = agnnodes(gg);
+    const size_t nv = agnnodes_z(gg);
     v_data *graph = gv_calloc(nv, sizeof(v_data));
     int *edges = gv_calloc(2 * ne + nv, sizeof(int));	/* reserve space for self loops */
     float *ewgts = gv_calloc(2 * ne + nv, sizeof(float));
