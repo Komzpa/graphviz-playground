@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   results in later outputs referring to colors defined in earlier outputs.
 - libxdot rejects parsing of linear and radial gradients that claim a negative
   number of stops.
+- Graphs that require “top sorting” during crossing minimization no longer cause
+  Graphviz to crash. This was a regression in Graphviz 14.1.3. #2851
 
 ## [15.1.1] – 2026-08-05
 
