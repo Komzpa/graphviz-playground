@@ -462,15 +462,13 @@ static void constrainY(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
     dtclose(list);
 }
 
-static int overlaps(nitem * p, int cnt)
-{
-    int i, j;
+static int overlaps(nitem *p, size_t cnt) {
     nitem *pi = p;
     nitem *pj;
 
-    for (i = 0; i < cnt - 1; i++) {
+    for (size_t i = 0; i + 1 < cnt; i++) {
 	pj = pi + 1;
-	for (j = i + 1; j < cnt; j++) {
+	for (size_t j = i + 1; j < cnt; j++) {
 	    if (OVERLAP(pi->bb, pj->bb))
 		return 1;
 	    pj++;
@@ -551,7 +549,7 @@ int cAdjust(graph_t * g, int mode)
 	p++;
     }
 
-    if (overlaps(nlist, (int)nnodes)) {
+    if (overlaps(nlist, nnodes)) {
 	point pt;
 
 	switch ((adjust_mode)mode) {
