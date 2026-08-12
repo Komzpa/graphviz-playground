@@ -11,7 +11,6 @@
 #include "config.h"
 
 #include <assert.h>
-#include "config.h"
 #include <limits.h>
 #include <math.h>
 #include <neatogen/neato.h>
