@@ -225,10 +225,9 @@ static void tuneControl(graph_t *g, spring_electrical_control *ctrl) {
 
 void sfdp_layout(graph_t * g)
 {
-    int doAdjust;
     adjust_data am;
     sfdp_init_graph(g);
-    doAdjust = (Ndim == 2);
+    int doAdjust = Ndim == 2;
 
     if (agnnodes(g)) {
 	Agraph_t **ccs;
@@ -247,7 +246,7 @@ void sfdp_layout(graph_t * g)
 	pad.x = PS2INCH(DFLT_MARGIN);
 	pad.y = PS2INCH(DFLT_MARGIN);
 
-	if ((am.mode == AM_PRISM) && doAdjust) {
+	if (am.mode == AM_PRISM && doAdjust) {
 	    doAdjust = 0;  /* overlap removal done in sfdp */
 	    ctrl.overlap = am.value;
     	    ctrl.initial_scaling = am.scaling;
