@@ -3491,6 +3491,7 @@ def test_gvpr_usage(tmp_path: Path):
     ), "truncated or malformed GVPR usage information"
 
 
+@pytest.mark.skipif(which("sfdp") is None, reason="sfdp not available")
 def test_2225():
     """
     sfdp should not segfault with curved splines
