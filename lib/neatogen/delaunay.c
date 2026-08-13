@@ -454,23 +454,12 @@ surface_t*
 mkSurface (double *x, double *y, int n, int* segs, int nsegs)
 {
     GtsSurface* s = tri(x, y, n, segs, nsegs, 1);
-    estats stats;
-    estate state;
     fstate statf;
     int nfaces = 0;
 
     if (!s) return NULL;
 
     surface_t *sf = gv_alloc(sizeof(surface_t));
-    stats.n = 0;
-    stats.delaunay = NULL;
-    edgeStats (s, &stats);
-    nsegs = stats.n;
-    segs = gv_calloc(2 * nsegs, sizeof(int));
-
-    state.n = 0;
-    state.edges = segs;
-    gts_surface_foreach_edge(s, addEdge, &state);
 
     gts_surface_foreach_face(s, cntFace, &nfaces);
 
@@ -481,8 +470,6 @@ mkSurface (double *x, double *y, int n, int* segs, int nsegs)
     statf.neigh = neigh;
     gts_surface_foreach_face(s, addFace, &statf);
 
-    sf->nedges = nsegs;
-    sf->edges = segs;
     sf->nfaces = nfaces;
     sf->faces = faces;
     sf->neigh = neigh;
@@ -523,7 +510,6 @@ get_triangles (double *x, int n, int* tris)
 void 
 freeSurface (surface_t* s)
 {
-    free (s->edges);
     free (s->faces);
     free (s->neigh);
     free(s);

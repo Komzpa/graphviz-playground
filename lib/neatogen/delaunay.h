@@ -14,8 +14,6 @@
 #include <util/api.h>
 
 typedef struct {
-    int  nedges; /* no. of edges in triangulation */
-    int* edges;  /* 2*nsegs indices of points */
     int  nfaces; /* no. of faces in triangulation */
     int* faces;  /* 3*nfaces indices of points */ 
     int* neigh;  /* 3*nfaces indices of neighbor triangles */ 
