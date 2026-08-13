@@ -478,7 +478,7 @@ static void print_bounding_box(size_t n, int dim, double *x) {
 static int check_convergence(double max_overlap, double res,
                              bool has_penalty_terms, double epsilon) {
   if (!has_penalty_terms)
-    return (max_overlap <= 1);
+    return max_overlap <= 1;
   return res < epsilon;
 }
 
