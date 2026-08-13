@@ -6593,11 +6593,6 @@ def test_2851():
 
 
 @pytest.mark.skipif(which("sfdp") is None, reason="sfdp not available")
-@pytest.mark.xfail(
-    raises=subprocess.CalledProcessError,
-    reason="https://gitlab.com/graphviz/graphviz/-/work_items/2852",
-    strict=True,
-)
 def test_2852():
     """
     Graphviz should not crash when processing this input

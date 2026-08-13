@@ -1301,7 +1301,7 @@ void SparseMatrix_decompose_to_supervariables(SparseMatrix A, int *ncluster, int
     }
     for (j = ia[i]; j < ia[i+1]; j++){
       isuper = super[ja[j]];
-      if (mask[i] == SIZE_MAX || mask[isuper] < i){
+      if (mask[isuper] == SIZE_MAX || mask[isuper] < i){
 	mask[isuper] = i;
 	if (nsuper[isuper] == 0){/* all nodes in the isuper group exist in this row */
 #ifdef DEBUG_PRINT1
