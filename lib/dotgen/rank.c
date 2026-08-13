@@ -145,11 +145,17 @@ cleanup1(graph_t * g)
     for (size_t i = 0; i < LIST_SIZE(&to_free); ++i) {
         edge_t *const current = LIST_GET(&to_free, i);
         if (current != previous) {
-            free(current->base.data);
-            free(current);
+            if (previous != NULL) {
+                free(previous->base.data);
+            }
+            free(previous);
+            previous = current;
         }
-        previous = current;
     }
+    if (previous != NULL) {
+        free(previous->base.data);
+    }
+    free(previous);
     LIST_FREE(&to_free);
 
     free(GD_comp(g).list);
