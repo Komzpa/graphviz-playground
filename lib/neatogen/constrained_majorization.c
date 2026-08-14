@@ -16,6 +16,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <stdio.h>
 #include <float.h>
@@ -115,6 +116,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 	if (num_levels < 1) {
 	    /* no hierarchy found, use faster algorithm */
 	    free(levels);
+	    free(ordering);
 	    return stress_majorization_kD_mkernel(graph, n,
 						  d_coords, nodes, dim,
 						  opts, model, maxi);
@@ -151,6 +153,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
     }
     if (n == 1) {
 	free(levels);
+	free(ordering);
 	return 0;
     }
 
@@ -160,6 +163,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 
     if (maxi == 0) {
 	free(levels);
+	free(ordering);
 	return iterations;
     }
 
@@ -272,7 +276,6 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 
     /* compute diagonal entries */
     degrees = gv_calloc(n, sizeof(double));
-    set_vector_val(n, 0, degrees);
     for (int i = 0, count = 0; i < n - 1; i++) {
 	double degree = 0;
 	count++;		// skip main diag entry
@@ -310,7 +313,7 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 	 iterations < maxi && !converged; iterations++) {
 
 	/* First, construct Laplacian of 1/(d_ij*|p_i-p_j|)  */
-	set_vector_val(n, 0, degrees);
+	memset(degrees, 0, (size_t)n * sizeof(degrees[0]));
 	sqrt_vecf(lap_length, lap2, lap1);
 	for (int count = 0, i = 0; i < n - 1; i++) {
 	    const int len = n - i - 1;
@@ -417,14 +420,13 @@ int stress_majorization_with_hierarchy(vtx_data * graph,	/* Input graph in spars
 	}
     }
 
+    free(lap2);
+
+finish:
+    free(lap1);
     free(tmp_coords);
     free(dist_accumulator);
     free(degrees);
-    free(lap2);
-
-    free(lap1);
-
-finish:
     if (cMajEnv != NULL) {
 	deleteCMajEnv(cMajEnv);
     }

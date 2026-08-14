@@ -41,6 +41,7 @@
 #ifdef IPSEPCOLA
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <stdio.h>
 #include <float.h>
@@ -236,7 +237,6 @@ int stress_majorization_cola(vtx_data * graph,	/* Input graph in sparse represen
     /* compute diagonal entries */
     count = 0;
     degrees = gv_calloc(n, sizeof(double));
-    set_vector_val(n, 0, degrees);
     for (int i = 0; i < n - 1; i++) {
 	degree = 0;
 	count++;		/* skip main diag entry */
@@ -296,7 +296,7 @@ int stress_majorization_cola(vtx_data * graph,	/* Input graph in sparse represen
 	 iterations < maxi && !converged; iterations++) {
 
 	/* First, construct Laplacian of 1/(d_ij*|p_i-p_j|)  */
-	set_vector_val(n, 0, degrees);
+	memset(degrees, 0, (size_t)n * sizeof(degrees[0]));
 	sqrt_vecf(lap_length, lap2, lap1);
 	for (count = 0, i = 0; i < n - 1; i++) {
 	    len = n - i - 1;
