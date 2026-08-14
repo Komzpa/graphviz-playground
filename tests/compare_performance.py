@@ -78,6 +78,8 @@ TESTS: dict[str, list[Union[str, Path]]] = {
     ],
     "#2621": ["dot", "-Tpng", MY_DIR / "2621.dot"],
     "#2646": ["dot", "-Tpdf", MY_DIR / "2646.dot"],
+    # "#2834 1": ["dot", "-Tpng", MY_DIR / "2834.dot"],  # ~12h45m
+    "#2834 2": ["dot", "-Gphase=2", MY_DIR / "2834.dot"],  # ~1m45s
     "!2854": ["dot", "-Tsvg", MY_DIR / "2854.dot"],
 }
 """
