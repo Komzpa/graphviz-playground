@@ -39,8 +39,7 @@ static int icompare(void *v1, void *v2) {
   return 0;
 }
 
-static XLabels_t *xlnew(object_t *objs, size_t n_objs, xlabel_t *lbls,
-                        size_t n_lbls, label_params_t *params) {
+static XLabels_t *xlnew(object_t *objs, size_t n_objs) {
   XLabels_t *xlp = gv_alloc(sizeof(XLabels_t));
 
   /* used to load the rtree in hilbert space filling curve order */
@@ -54,9 +53,6 @@ static XLabels_t *xlnew(object_t *objs, size_t n_objs, xlabel_t *lbls,
   /* save arg pointers in the handle */
   xlp->objs = objs;
   xlp->n_objs = n_objs;
-  xlp->lbls = lbls;
-  xlp->n_lbls = n_lbls;
-  xlp->params = params;
 
   return xlp;
 }
@@ -71,9 +67,11 @@ static void xlfree(XLabels_t *xlp) {
 /*
  * determine the order(depth) of the hilbert sfc so that we satisfy the
  * precondition of hd_hil_s_from_xy()
+ *
+ * @param obj_bb Bounding box of all objects
  */
-static unsigned int xlhorder(XLabels_t *xlp) {
-  double maxx = xlp->params->bb.UR.x, maxy = xlp->params->bb.UR.y;
+static unsigned int xlhorder(boxf obj_bb) {
+  double maxx = obj_bb.UR.x, maxy = obj_bb.UR.y;
   return (unsigned)floor(log2(round(fmax(maxx, maxy)))) + 1;
 }
 
@@ -109,11 +107,11 @@ the table to determine the next two bits of s, and how to change x and
 y.  Continue until the least significant bits of x and y have been
 processed. */
 
-static unsigned int hd_hil_s_from_xy(point p, int n) {
+static unsigned hd_hil_s_from_xy(point p, unsigned n) {
   int x = p.x, y = p.y;
 
   unsigned s = 0; /* Initialize. */
-  for (int i = n - 1; i >= 0; i--) {
+  for (unsigned i = n - 1; n > 0; i--) {
     int xi = (x >> i) & 1; /* Get bit i of x. */
     int yi = (y >> i) & 1; /* Get bit i of y. */
     s = 4 * s + 2 * (unsigned)xi +
@@ -124,6 +122,9 @@ static unsigned int hd_hil_s_from_xy(point p, int n) {
     x = x ^ y;
     x = x ^ (-xi & (yi - 1)); /* Complement x and y if */
     y = y ^ (-xi & (yi - 1)); /* xi = 1 and yi = 0. */
+    if (i == 0) {
+      break;
+    }
   }
   return s;
 }
@@ -156,7 +157,6 @@ static double aabbaabb(Rect_t r, Rect_t s) {
  */
 static bool lblenclosing(object_t *objp, object_t *objp1) {
   xlabel_t *xlp = objp->lbl;
-  ;
 
   assert(objp1->sz.x == 0 && objp1->sz.y == 0);
 
@@ -210,7 +210,7 @@ static int getintrsxi(object_t *op, object_t *cp) {
   xlabel_t *lp = op->lbl, *clp = cp->lbl;
   assert(lp != clp);
 
-  if (lp->set == 0 || clp->set == 0)
+  if (!lp->set || !clp->set)
     return -1;
   if ((op->pos.x == 0.0 && op->pos.y == 0.0) ||
       (cp->pos.x == 0.0 && cp->pos.y == 0.0))
@@ -489,9 +489,12 @@ static BestPos_t xladjust(XLabels_t *xlp, object_t *objp) {
   return bp;
 }
 
-/* load the hilbert sfc keyed tree */
-static int xlhdxload(XLabels_t *xlp) {
-  int order = xlhorder(xlp);
+/* load the hilbert sfc keyed tree
+ *
+ * @param obj_bb Bounding box of all objects
+ */
+static int xlhdxload(XLabels_t *xlp, boxf obj_bb) {
+  const unsigned order = xlhorder(obj_bb);
 
   for (size_t i = 0; i < xlp->n_objs; i++) {
     HDict_t *hp = gv_alloc(sizeof(HDict_t));
@@ -537,30 +540,32 @@ static void xlspdxload(XLabels_t *xlp) {
   }
 }
 
-static int xlinitialize(XLabels_t *xlp) {
+/// @param obj_bb Bounding box of all objects
+static int xlinitialize(XLabels_t *xlp, boxf obj_bb) {
   int r = 0;
-  if ((r = xlhdxload(xlp)) < 0)
+  if ((r = xlhdxload(xlp, obj_bb)) < 0)
     return r;
   xlspdxload(xlp);
   xlhdxunload(xlp);
   return dtclose(xlp->hdx);
 }
 
-int placeLabels(object_t *objs, size_t n_objs, xlabel_t *lbls, size_t n_lbls,
-                label_params_t *params) {
+int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params) {
   int r;
-  XLabels_t *xlp = xlnew(objs, n_objs, lbls, n_lbls, params);
-  if ((r = xlinitialize(xlp)) < 0)
+  XLabels_t *xlp = xlnew(objs, n_objs);
+  if ((r = xlinitialize(xlp, params->bb)) < 0) {
+    xlfree(xlp);
     return r;
+  }
 
   /* Place xlabel_t* lp near lp->obj so that the rectangle whose lower-left
    * corner is lp->pos, and size is lp->sz does not intersect any object
    * in objs (by convention, an object consisting of a single point
    * intersects nothing) nor any other label, if possible. On input,
-   * lp->set is 0.
+   * lp->set is false.
    *
    * On output, any label with a position should have this stored in
-   * lp->pos and have lp->set non-zero.
+   * lp->pos and have lp->set true.
    *
    * If params->force is true, all labels must be positioned, even if
    * overlaps are necessary.
@@ -574,13 +579,13 @@ int placeLabels(object_t *objs, size_t n_objs, xlabel_t *lbls, size_t n_lbls,
       continue;
     const BestPos_t bp = xladjust(xlp, &objs[i]);
     if (bp.n == 0) {
-      objs[i].lbl->set = 1;
+      objs[i].lbl->set = true;
     } else if (bp.area == 0) {
       objs[i].lbl->pos = bp.pos;
-      objs[i].lbl->set = 1;
+      objs[i].lbl->set = true;
     } else if (params->force) {
       objs[i].lbl->pos = bp.pos;
-      objs[i].lbl->set = 1;
+      objs[i].lbl->set = true;
     } else {
       r = 1;
     }

@@ -227,14 +227,14 @@ static void printData(object_t *objs, size_t n_objs, xlabel_t *lbls,
     xp = objs->lbl;
     fprintf(stderr, " [%" PRISIZE_T "] (%.02f,%.02f) (%.02f,%.02f) %p \"%s\"\n",
             i, objs->pos.x, objs->pos.y, objs->sz.x, objs->sz.y, objs->lbl,
-            xp ? ((textlabel_t*)xp->lbl)->text : "");
+            xp ? xp->lbl->text : "");
     objs++;
   }
   fprintf(stderr, "xlabels\n");
   for (size_t i = 0; i < n_lbls; i++) {
     fprintf(stderr, " [%" PRISIZE_T "] %p set %d (%.02f,%.02f) (%.02f,%.02f) %s\n",
-            i, lbls, lbls->set, lbls->pos.x, lbls->pos.y, lbls->sz.x,
-            lbls->sz.y, ((textlabel_t*)lbls->lbl)->text);
+            i, lbls, (int)lbls->set, lbls->pos.x, lbls->pos.y, lbls->sz.x,
+            lbls->sz.y, lbls->lbl->text);
     lbls++;
   }
 }
@@ -314,7 +314,7 @@ addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj, pointf p
 	xlp->sz = lp->dimen;
     }
     xlp->lbl = lp;
-    xlp->set = 0;
+    xlp->set = false;
     objp->lbl = xlp;
 }
 
@@ -563,7 +563,7 @@ static void addXLabels(Agraph_t * gp)
     force = agfindgraphattr(gp, "forcelabels");
 
     label_params_t params = {.bb = bb, .force = late_bool(gp, force, true)};
-    placeLabels(objs, n_objs, lbls, n_lbls, &params);
+    placeLabels(objs, n_objs, &params);
     if (Verbose)
 	printData(objs, n_objs, lbls, n_lbls, &params);
 
@@ -572,7 +572,7 @@ static void addXLabels(Agraph_t * gp)
     for (size_t i = 0; i < n_lbls; i++) {
 	if (xlp->set) {
 	    cnt++;
-	    lp = (textlabel_t *)xlp->lbl;
+	    lp = xlp->lbl;
 	    lp->set = 1;
 	    lp->pos = centerPt(xlp);
 	    updateBB (gp, lp);

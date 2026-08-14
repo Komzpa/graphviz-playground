@@ -18,12 +18,13 @@ extern "C" {
 #endif
 
 #include <geom.h>
+#include "types.h"
 
 typedef struct {
     pointf sz;			/* Size of label (input) */
     pointf pos;			/* Position of lower-left corner of label (output) */
-    void *lbl;			/* Pointer to label in the graph */
-    unsigned char set;		/* True if the position has been set (input/output) */
+    textlabel_t *lbl; ///< pointer to label in the graph
+    bool set;         ///< true if the position has been set (input/output)
 } xlabel_t;
 
 typedef struct {
@@ -37,8 +38,7 @@ typedef struct {
     bool force; ///< if true, all labels must be placed
 } label_params_t;
 
-int placeLabels(object_t *objs, size_t n_objs, xlabel_t *lbls, size_t n_lbls,
-                label_params_t *params);
+int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params);
 
 #ifdef XLABEL_INT
 #include <label/index.h>
@@ -71,7 +71,7 @@ int placeLabels(object_t *objs, size_t n_objs, xlabel_t *lbls, size_t n_lbls,
     pointf pos;
 } BestPos_t;
 
-typedef struct obyh {
+typedef struct {
     Dtlink_t link;
     int key;
     Leaf_t d;
@@ -80,9 +80,6 @@ typedef struct obyh {
 typedef struct XLabels_s {
     object_t *objs;
     size_t n_objs;
-    xlabel_t *lbls;
-    size_t n_lbls;
-    label_params_t *params;
 
     Dt_t *hdx;			// splay tree keyed with hilbert spatial codes
     RTree_t *spdx;		// rtree
