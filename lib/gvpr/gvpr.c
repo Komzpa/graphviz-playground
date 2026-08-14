@@ -592,13 +592,12 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
                     trav_fns *fns) {
   Agnode_t *n;
   LIST(Agedge_t *) stk = {0};
-  ndata *nd;
   Agedgepair_t seed;
   const size_t nodeseq_limit = aggetseq(state->curgraph, AGNODE);
   const size_t edgeseq_limit = aggetseq(state->curgraph, AGEDGE);
 
   for (nodestream nodes = {0}; (n = nextNode(state, &nodes));) {
-    nd = nData(n);
+    ndata *nd = nData(n);
     if (MARKED(nd))
       continue;
     if (AGSEQ(n) > nodeseq_limit) {
