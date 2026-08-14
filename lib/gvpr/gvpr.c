@@ -592,7 +592,6 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
                     trav_fns *fns) {
   Agnode_t *n;
   LIST(Agedge_t *) stk = {0};
-  Agnode_t *curn;
   Agedge_t *entry;
   int more;
   ndata *nd;
@@ -609,7 +608,7 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
     }
     seed.out.node = n;
     seed.in.node = 0;
-    curn = n;
+    Agnode_t *curn = n;
     entry = &seed.out;
     state->tvedge = NULL;
     MARK(nd);
