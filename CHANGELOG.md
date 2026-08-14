@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   number of stops.
 - Graphs that require “top sorting” during crossing minimization no longer cause
   Graphviz to crash. This was a regression in Graphviz 14.1.3. #2851
+- Fixed infinite loop in gvpr #2849 by making object traversals skip newly
+  created objects in mutable graphs. To do this, added API to get current object
+  sequence numbers.
 
 ## [15.1.1] – 2026-08-05
 

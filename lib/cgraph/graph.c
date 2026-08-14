@@ -149,6 +149,10 @@ int agclose(Agraph_t * g)
     return SUCCESS;
 }
 
+uint64_t aggetseq(const Agraph_t *g, int objtype) {
+  return g->clos->seq[objtype];
+}
+
 uint64_t agnextseq(Agraph_t * g, int objtype)
 {
     return ++(g->clos->seq[objtype]);

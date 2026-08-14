@@ -550,6 +550,9 @@ CGRAPH_API int agdelete(Agraph_t *g, void *obj);
 CGRAPH_API int agobjkind(void *obj);
 ///< returns @ref AGRAPH, @ref AGNODE, or @ref AGEDGE depending on the type of
 ///< the object. Synonym for @ref AGTYPE.
+
+CGRAPH_API uint64_t aggetseq(const Agraph_t *g, int objtype);
+///< returns highest sequence number allocated so far, for given object type
 /// @}
 
 /** @defgroup cgraph_string string utilities
