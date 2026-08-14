@@ -543,7 +543,6 @@ static trav_fns FWDfns = {agfstout, agnxtout_, 0, 0};
 static trav_fns REVfns = {agfstin, agnxtin_, 0, 0};
 
 static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
-  nodestream nodes;
   LIST(Agnode_t *) q = {0};
   ndata *nd;
   Agnode_t *n;
@@ -551,9 +550,7 @@ static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
   const size_t nodeseq_limit = aggetseq(g, AGNODE);
   const size_t edgeseq_limit = aggetseq(g, AGEDGE);
 
-  nodes.oldroot = 0;
-  nodes.prev = 0;
-  while ((n = nextNode(state, &nodes))) {
+  for (nodestream nodes = {0}; (n = nextNode(state, &nodes));) {
     if (AGSEQ(n) > nodeseq_limit) {
       continue;
     }
