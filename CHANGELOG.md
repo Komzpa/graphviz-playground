@@ -2,7 +2,8 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [16.0.0] – 2026-08-14
 
@@ -1049,8 +1050,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not be the case, so in future side-effecting changes to any of the three build
   systems will be included here. #2527, #2528
 - The precision of `sep`- and `esep`-based calculations has been improved.
-- **Breaking**: Defines `AGRAPH`, `AGNODE`, `AGOUTEDGE`, `AGINEDGE`, and `AGEDGE` are
-  replaced with `enum`.
+- **Breaking**: Defines `AGRAPH`, `AGNODE`, `AGOUTEDGE`, `AGINEDGE`, and
+  `AGEDGE` are replaced with `enum`.
 - **Breaking**: The `obj_state_t.url_bsplinemap_poly_n` field is now a `size_t`
   and the `obj_state_t.url_bsplinemap_n` field is now a `size_t *`.
 - **Breaking**: The `Ppoly_t.pn` (`Ppolyline_t.pn`) field is now a `size_t`.
@@ -1118,7 +1119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   algorithm has been corrected. This would previously cause certain runs to
   infer incorrect ordering or subtrees. This was a regression in Graphviz
   2.40.0. #2391, #2529
-- Compass points may be more accurately placed on the node boundary in some cases.
+- Compass points may be more accurately placed on the node boundary in some
+  cases.
 - A very small random adjustment in the calculation of the space available for
   edge routing around ellipse shaped nodes in fdp and neato layouts, has been
   removed.
@@ -1190,8 +1192,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Agraph_t.seq_link`. `Agraph_t.g_dict` has been split into `Agraph_t.g_id`
   and `Agraph_t.g_seq`.
 - **Breaking**: `gvpropts.n_outgraphs` is now a `size_t`.
-- The OCaml bindings have been removed. If you use these bindings, please contact
-  the maintainers to notify them of the existence of users.
+- The OCaml bindings have been removed. If you use these bindings, please
+  contact the maintainers to notify them of the existence of users.
 - **Breaking**: `polygon_t.sides` and `polygon_t.peripheries` are now `size_t`s.
 - **Breaking**: liblab_gamut is no longer included in a Graphviz installation.
   This library had no accompanying header, so using it was not easy. If you are
@@ -1362,11 +1364,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Fixed also for the `normal` and `inv`
   [edge arrow shapes](https://graphviz.org/doc/info/arrows.html)
   when using the `l` or `r`
-  [arrow shape modifiers](https://graphviz.org/doc/info/arrows.html#shape-modifiers). \
+  [arrow shape modifiers](https://graphviz.org/doc/info/arrows.html#shape-modifiers).
   Slightly improved for the `normal` and `inv`
   [edge arrow shapes](https://graphviz.org/doc/info/arrows.html)
   when not using any
-  [arrow shape modifier](https://graphviz.org/doc/info/arrows.html#shape-modifiers). \
+  [arrow shape modifier](https://graphviz.org/doc/info/arrows.html#shape-modifiers).
   Fixed also for the `crow` and `vee`
   [edge arrow shapes](https://graphviz.org/doc/info/arrows.html#primitive-shapes)
   and [record based nodes](https://graphviz.org/doc/info/shapes.html#record).
@@ -2281,10 +2283,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - various memory leaks !1699
 - Fix bad free in lefty !1709
 - typo in pathcross #1926
-- Out-of-bounds write caused by incorrect error handling of malloc in genUserdata #1928
+- Out-of-bounds write caused by incorrect error handling of malloc in
+  genUserdata #1928
 - Offer .tar.xz files too #454
 - Header file graphviz_version.h has no include guards #1929
-- regression: newlines embedded in quoted labels / node names are not preserved in 2.46.0 #1931
+- regression: newlines embedded in quoted labels / node names are not preserved
+  in 2.46.0 #1931
 - Properly fill graphviz_version.h !1706
 
 ## [2.46.0] - 2021-01-18
@@ -2308,7 +2312,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - gvpr: line numbers in gvpr errors/warnings are incorrect #1594
 - URL typo in patchwork man page
-- Escaped backslashes are not correctly handled when producing xdot with dot #165
+- Escaped backslashes are not correctly handled when producing xdot with dot
+  \#165
 - heap-over-flow(off-by-null) in lib/common/shapes.c #1700
 - Windows MSBuild executables have the wrong version #1745
 - Cast Overflow at pango_textlayout #1314
@@ -2318,8 +2323,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Incorrect 'Arrow type "s" unknown' error #1444
 - segfault on reading 0x10 #1724
 - Null-dereference READ (144736912) #1676
-- "Warning! PATH too long installer unable to modify PATH!" using CMake Windows installer and PATH length > 1024 #1770
-- gvedit -? gives "option - unrecognized - ignored" instead of showing usage #1813
+- "Warning! PATH too long installer unable to modify PATH!" using CMake Windows
+  installer and PATH length > 1024 #1770
+- gvedit -? gives "option - unrecognized - ignored" instead of showing usage
+  \#1813
 - lefty is not built for Windows (fixed for MSBuild builds only) #1818
 - a failure to detect OpenGL glGenTextures() errors has been corrected
 - sfio does compile time benchmarknig #1422
@@ -2352,8 +2359,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Graphviz always crash with this simple dot file #167
 - Seg fault in dot #1771
 - gml2gv doesn't handle some attributes correctly #1869
-- Add missing circo, fdp, neato, osage, patchwork, sfdp & twopi tools to Windows builds (copies of dot)
-- Add gv2gml tool to CMake (copy of gml2gv on Windows, symlink to gml2gv otherwise)
+- Add missing circo, fdp, neato, osage, patchwork, sfdp & twopi tools to Windows
+  builds (copies of dot)
+- Add gv2gml tool to CMake (copy of gml2gv on Windows, symlink to gml2gv
+  otherwise)
 - Regression: fdp generates internal names in the output #1876
 - Regression: fdp assertion error on cluster in edge #1877
 - Regression in id / &lt;title&gt; in svg for twopi #1907
@@ -2365,7 +2374,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - graphviz-2.42.2-coverity-scan-fixes.patch
   - graphviz-2.42.2-dotty-menu-fix.patch
   - graphviz-2.42.2-ocaml-allow-const-cast.patch
-- some allocation failures that could previously allow memory corruption now exit
+- some allocation failures that could previously allow memory corruption now
+  exit
 - lab_gamut.3.pdf is no longer included in release archives
 
 ### Changed
@@ -2381,7 +2391,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.44.0] - 2020-04-08
 
 ### Added
-- New SGD mode in neato (thanks [Jonathan Zheng](https://gitlab.com/jxz12/graphviz/-/tree/sgd))
+- New SGD mode in neato (thanks
+  [Jonathan Zheng](https://gitlab.com/jxz12/graphviz/-/tree/sgd))
 - Add pkg-config files !1322
 - tred: add feature to output removed edges to stderr upon request !1326
 - Fix issue #1671: Workaround: avoid creating a virtual edge loop. !1328
@@ -2440,7 +2451,8 @@ December 20, 2016
 	language bindings (John Ellson)
 	- number rounding added to SVG renderer (same as PS and TK rounding)
 	to aid regression testing. (John Ellson)
-	- additional regressson test framework, used in Travis CI builds. (Erwin Janssen)
+	- additional regressson test framework, used in Travis CI builds. (Erwin
+    Janssen)
 	- PHP7 support (requires swig-3.0.11 or later). (John Ellson)
 	- Allow user to specify clustering algorithm in gvmap. (Emden Gansner)
 	- Add Sierpinski graph generator to gvgen. (Emden Gansner)
@@ -2457,8 +2469,9 @@ June 18, 2016
 February 13, 2016
 	- Add cylinder shape for databases.
 	- Free installed plugins
-	- Update makefile for dot so that the using libpanco_C in the static build include PANGOFT2
-        as well as PANGOCAIRO_LIBS (needed for some versions of Ubuntu)
+	- Update makefile for dot so that the using libpanco_C in the static build
+    include PANGOFT2 as well as PANGOCAIRO_LIBS (needed for some versions of
+    Ubuntu)
 February 1, 2016
 	- Add json output format
 April 26, 2015
@@ -2468,8 +2481,8 @@ September 9, 2014
 August 12, 2014
 	- Add icurve arrowhead.
 July 28, 2014
-	- Revert to old, translate to origin semantics in neato, etc. Add flag notranslate if that is
-          what the user desires.
+	- Revert to old, translate to origin semantics in neato, etc. Add flag
+    notranslate if that is what the user desires.
 April 13, 2014
 	- Release 2.38.0
 	- Resolves bugs: 2409, 2413, 2417, 2420, 2422, 2423, 2425
@@ -2481,13 +2494,14 @@ March 9, 2014
 March 4, 2014
 	- Fix bugs in gvpr and gv.cpp so edges can be created in subgraphs.
 	- Add edgepaint program for coloring edges to make them easier to tell apart.
-	- Modify neato to avoid unnecessary translations of output. This allows positions
-	given on input to remain the same on output.
+	- Modify neato to avoid unnecessary translations of output. This allows
+    positions	given on input to remain the same on output.
 	- Fix swig java package to work and support gv.renderresult.
-	- Fix test for the absence of layout (old test relied on statically allocated Agraphinfo_t).
+	- Fix test for the absence of layout (old test relied on statically allocated
+    Agraphinfo_t).
 	- HTML-like tables and cells can now specify which borders should be drawn.
-	- The fixedsize attribute now takes the value "shape" which allows labels much larger than the
-	node shape.
+	- The fixedsize attribute now takes the value "shape" which allows labels much
+    larger than the	node shape.
 January 11, 2014
 	- Release 2.36.0
 	- Resolves bugs: 2372, 2384, 2388, 2391, 2392, 2383, 2395, 2401, 2406
@@ -2534,15 +2548,18 @@ July 12, 2012
 June 7, 2012
 	- Add random rooted tree generation to gvgen
 February 29, 2012
-	- Allow GVPRPATH to specify that the default path be prepended or appended to it.
+	- Allow GVPRPATH to specify that the default path be prepended or appended to
+    it.
 February 27, 2012
-	- Support arbitrary lists of layers; allow the user to specify arbitrary layers for output.
+	- Support arbitrary lists of layers; allow the user to specify arbitrary layers
+    for output.
 February 24, 2012
 	- A collection of gvpr scripts, which were part of the source package, are now
-	installed in <prefix>/share/graphviz/gvpr, and the that path is used as part of th
-	default built-in path for gvpr.
+	installed in <prefix>/share/graphviz/gvpr, and the that path is used as part of
+  the	default built-in path for gvpr.
 February 15, 2012
-	- Update libexpr to reflect Glenn Fowler's changes including scopes for variables.
+	- Update libexpr to reflect Glenn Fowler's changes including scopes for
+    variables.
 February 9, 2012
 	- Add next graph variable to gvpr
 February 8, 2012
@@ -2730,17 +2747,20 @@ March 10, 2008
 	- support tcl/tk-8.5
 	- support gcc-4.3
 	- support for node usershapes/images in svg format (thanks Alex Poylisher)
-	- install: perl, php, python, ruby, tcl, bindings in language-specified directories
+	- install: perl, php, python, ruby, tcl, bindings in language-specified
+    directories
 	- add arrowhead scaling with edge penwidth
 	- add "folder" node shape (thanks Pander)
 	- many windows and mac fixes (thanks Glen)
-	- add "smyna" large graph view (thanks Arif) (not yet included in binary distros)
+	- add "smyna" large graph view (thanks Arif) (not yet included in binary
+    distros)
 December 12, 2007
 	- Release 2.16.1
 	- Fixed bugs: 1228 1234 1238 1239 1245
 	- Improvements to PHP binding
 	- Improvements to OCAML binding
-	- Make regression tests run from the build tree, rather than require installation
+	- Make regression tests run from the build tree, rather than require
+    installation
 	- Repair freetype detection on RedHat-7 (Yes, people still use it!!)
 	- Fix zoom-at-mouse-location in -Txlib and -Tgtk
 	- Fix some dotty regressions
@@ -2756,11 +2776,14 @@ November 9, 2007
 	- add "tab" "box3d" and "component" shapes.  - Diomidis Spinellis
 	- replace arith.h in distro
 	- add functions to access version info to avoid need for gvcint.h
-	- Fix problem with irregular character spacing at 96dpi in pango/cairo output formats.
+	- Fix problem with irregular character spacing at 96dpi in pango/cairo output
+    formats.
 	- Add gdk_pixbuf plugin providing: .bmp .ico .jpg .png .tif
 	- Add DevIL plugin providing: .bmp .jpg .png .tif .tga
-	- Extend GD plugin to provide a backend to cairo for: .gif .jpg .png .gd .gd2 .wbmp  <- gifs are now antialiased
-	- Rework plugin framework to separate device from renderer, and to autoload load dependendent plugins
+	- Extend GD plugin to provide a backend to cairo for: .gif .jpg .png .gd .gd2
+    .wbmp  <- gifs are now antialiased
+	- Rework plugin framework to separate device from renderer, and to autoload
+    load dependendent plugins
 	- show defaults in output from: ./configure --help
 	- add more info to dot -v  and dot -v2 debug outputs
 	- various issues with CR/LF in windows, but not in binary outputs.
@@ -2817,10 +2840,15 @@ November 27, 2006
 	  -- -Tpng now uses cairo   (-Tpng:gd for old gd based renderer)
 	  -- -Tpdf now available
 	  -- -Tps:cairo now available (-Tps is a direct ps renderer not based on cairo)
-	  -- -Tsvg:cairo now available (-Tsvg is a direct svg renderer not based on cairo)
-	  -- -Txlib now available -- "dot -Tx11 foo.dot"  watches foo.dot with inotify and updates
-	  -- -Tgtk now available -- eventually to provide a graph editing capability - not fully working
-	  -- -Tswf "Flash" now available using the ming library. Currently has incomplete font support and not yet in Fedora rpms because ming not yet available as rpm.
+	  -- -Tsvg:cairo now available (-Tsvg is a direct svg renderer not based on
+       cairo)
+	  -- -Txlib now available -- "dot -Tx11 foo.dot"  watches foo.dot with inotify
+       and updates
+	  -- -Tgtk now available -- eventually to provide a graph editing capability -
+       not fully working
+	  -- -Tswf "Flash" now available using the ming library. Currently has
+       incomplete font support and not yet in Fedora rpms because ming not yet
+       available as rpm.
 	- remove hard gd dependencies from dot.  gd renderers now provided
 	  as optional plugin.   Deprecated, but required for -Tjpg, -Tgif and -Tvrml.
 	- gvpr - Add kindOf function, plus functions to set and get default values
@@ -2912,7 +2940,8 @@ April 7, 2005
 January 19, 2005
 	- release 2.2
 	- fix bugs: 86 345 517 579 580 597 600 601 604
-	- use the original cpl1.0.txt as the license master, instead of CPL.html        - fix for bug generating in memory bitmaps that was affecting webdot
+	- use the original cpl1.0.txt as the license master, instead of CPL.html
+  - fix for bug generating in memory bitmaps that was affecting webdot
 	- fixes for windows builds
 	- documentation updates
 December 11, 2004

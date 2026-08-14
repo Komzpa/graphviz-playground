@@ -1484,3 +1484,18 @@ lint_python:
       - stuck_or_timeout_failure
       - runner_system_failure
       - job_execution_timeout
+
+lint_markdown:
+  stage: test
+  needs: []
+  script:
+    - echo "checking for CHANGELOG.md lines exceeding 134 columns…"
+    - bash -c "{ grep  -H '.\{135,\}' CHANGELOG.md || exit 0 && exit 1; }"
+  except:
+    - tags
+  retry:
+    max: 1
+    when:
+      - stuck_or_timeout_failure
+      - runner_system_failure
+      - job_execution_timeout
