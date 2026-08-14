@@ -597,7 +597,6 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
   Agnode_t *n;
   LIST(Agedge_t *) stk = {0};
   Agnode_t *curn;
-  Agedge_t *cure;
   Agedge_t *entry;
   int more;
   ndata *nd;
@@ -619,24 +618,24 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
     seed.in.node = 0;
     curn = n;
     entry = &seed.out;
-    state->tvedge = cure = 0;
+    state->tvedge = NULL;
     MARK(nd);
     PUSH(nd, 0);
     if (fns->visit & PRE_VISIT)
       evalNode(state, prog, xprog, n);
     more = 1;
-    while (more) {
-      if (cure)
-        cure = fns->nxtedge(state->curgraph, cure, curn);
+    for (Agedge_t *current = NULL; more;) {
+      if (current != NULL)
+        current = fns->nxtedge(state->curgraph, current, curn);
       else
-        cure = fns->fstedge(state->curgraph, curn);
-      if (cure) {
-        if (AGSEQ(cure) > edgeseq_limit) {
+        current = fns->fstedge(state->curgraph, curn);
+      if (current) {
+        if (AGSEQ(current) > edgeseq_limit) {
           continue;
         }
-        if (entry == agopp(cure)) /* skip edge used to get here */
+        if (entry == agopp(current)) // skip edge used to get here
           continue;
-        nd = nData(cure->node);
+        nd = nData(current->node);
         if (MARKED(nd)) {
           /* For undirected DFS, visit an edge only if its head
            * is on the stack, to avoid visiting it twice.
@@ -644,15 +643,15 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
            */
           if (fns->undirected) {
             if (ONSTACK(nd))
-              evalEdge(state, prog, xprog, cure);
+              evalEdge(state, prog, xprog, current);
           } else
-            evalEdge(state, prog, xprog, cure);
+            evalEdge(state, prog, xprog, current);
         } else {
-          evalEdge(state, prog, xprog, cure);
+          evalEdge(state, prog, xprog, current);
           LIST_PUSH_BACK(&stk, entry);
-          state->tvedge = entry = cure;
-          curn = cure->node;
-          cure = 0;
+          state->tvedge = entry = current;
+          curn = current->node;
+          current = NULL;
           if (fns->visit & PRE_VISIT)
             evalNode(state, prog, xprog, curn);
           MARK(nd);
@@ -663,7 +662,7 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
           evalNode(state, prog, xprog, curn);
         nd = nData(curn);
         POP(nd);
-        cure = entry;
+        current = entry;
         entry = LIST_IS_EMPTY(&stk) ? NULL : LIST_POP_BACK(&stk);
         if (entry == &seed.out)
           state->tvedge = 0;
