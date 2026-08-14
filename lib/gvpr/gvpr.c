@@ -547,8 +547,6 @@ static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
   LIST(Agnode_t *) q = {0};
   ndata *nd;
   Agnode_t *n;
-  Agedge_t *cure;
-  Agedge_t *nxte;
   Agraph_t *g = state->curgraph;
   const size_t nodeseq_limit = aggetseq(g, AGNODE);
   const size_t edgeseq_limit = aggetseq(g, AGEDGE);
@@ -572,19 +570,20 @@ static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
       state->tvedge = nd->ine;
       if (!evalNode(state, prog, xprog, n))
         continue;
-      for (cure = agfstedge(g, n); cure; cure = nxte) {
-        nxte = agnxtedge(g, cure, n);
-        if (AGSEQ(cure) > edgeseq_limit) {
+      for (Agedge_t *current = agfstedge(g, n), *next; current != NULL;
+           current = next) {
+        next = agnxtedge(g, current, n);
+        if (AGSEQ(current) > edgeseq_limit) {
           continue;
         }
-        nd = nData(cure->node);
+        nd = nData(current->node);
         if (MARKED(nd))
           continue;
-        if (!evalEdge(state, prog, xprog, cure))
+        if (!evalEdge(state, prog, xprog, current))
           continue;
         if (!ONSTACK(nd)) {
-          LIST_PUSH_BACK(&q, cure->node);
-          PUSH(nd, cure);
+          LIST_PUSH_BACK(&q, current->node);
+          PUSH(nd, current);
         }
       }
     }
