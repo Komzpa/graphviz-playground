@@ -544,7 +544,6 @@ static trav_fns REVfns = {agfstin, agnxtin_, 0, 0};
 
 static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
   LIST(Agnode_t *) q = {0};
-  ndata *nd;
   Agnode_t *n;
   Agraph_t *g = state->curgraph;
   const size_t nodeseq_limit = aggetseq(g, AGNODE);
@@ -554,7 +553,7 @@ static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
     if (AGSEQ(n) > nodeseq_limit) {
       continue;
     }
-    nd = nData(n);
+    ndata *nd = nData(n);
     if (MARKED(nd))
       continue;
     PUSH(nd, 0);
