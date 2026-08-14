@@ -154,23 +154,23 @@ static void write_polyline (GVJ_t * job, xdot_polyline* polyline)
     xdot_point* pts = polyline->pts;
 
     gvprintf(job, "\"points\": [");
+    const char *separator = "";
     for (size_t i = 0; i < cnt; i++) {
-	if (i > 0) gvprintf(job, ",");
-	gvprintf(job, "[%.03f,%.03f]", pts[i].x, pts[i].y);
+	gvprintf(job, "%s[%.03f,%.03f]", separator, pts[i].x, pts[i].y);
+	separator = ",";
     }
     gvprintf(job, "]\n");
 }
 
-static void write_stops (GVJ_t * job, int n_stops, xdot_color_stop* stp, state_t* sp)
-{
-    int i;
-
+static void write_stops(GVJ_t *job, unsigned n_stops, xdot_color_stop *stp,
+                        state_t *sp) {
     gvprintf(job, "\"stops\": [");
-    for (i = 0; i < n_stops; i++) {
-	if (i > 0) gvprintf(job, ",");
-	gvprintf(job, "{\"frac\": %.03f, \"color\": ", stp[i].frac);
+    const char *separator = "";
+    for (unsigned i = 0; i < n_stops; i++) {
+	gvprintf(job, "%s{\"frac\": %.03f, \"color\": ", separator, stp[i].frac);
 	stoj(stp[i].color, sp, job);
 	gvputc(job, '}');
+	separator = ",";
     }
     gvprintf(job, "]\n");
 } 
@@ -192,7 +192,7 @@ static void write_linear_grad (GVJ_t * job, xdot_linear_grad* lg, state_t* sp)
     indent(job, sp->Level);
     gvprintf(job, "\"p1\": [%.03f,%.03f],\n", lg->x1, lg->y1); 
     indent(job, sp->Level);
-    write_stops (job, lg->n_stops, lg->stops, sp);
+    write_stops(job, lg->n_stops, lg->stops, sp);
 }
 
 static void write_xdot (xdot_op * op, GVJ_t * job, state_t* sp)
