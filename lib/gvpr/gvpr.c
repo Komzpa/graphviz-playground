@@ -592,7 +592,6 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
                     trav_fns *fns) {
   Agnode_t *n;
   LIST(Agedge_t *) stk = {0};
-  int more;
   ndata *nd;
   Agedgepair_t seed;
   const size_t nodeseq_limit = aggetseq(state->curgraph, AGNODE);
@@ -614,7 +613,7 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
     PUSH(nd, 0);
     if (fns->visit & PRE_VISIT)
       evalNode(state, prog, xprog, n);
-    more = 1;
+    bool more = true;
     for (Agedge_t *current = NULL; more;) {
       if (current != NULL)
         current = fns->nxtedge(state->curgraph, current, curn);
@@ -662,7 +661,7 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
         if (entry)
           curn = entry->node;
         else
-          more = 0;
+          more = false;
       }
     }
   }
