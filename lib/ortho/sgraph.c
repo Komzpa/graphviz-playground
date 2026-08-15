@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <ortho/sgraph.h>
 #include <ortho/fPQ.h>
+#include <stdlib.h>
 #include <util/alloc.h>
 
 void
@@ -97,7 +98,12 @@ createSEdge (sgraph* g, snode* v1, snode* v2, double wt)
 void
 freeSGraph (sgraph* g)
 {
-    free (g->nodes[0].adj_edge_list);
+    if (g == NULL) {
+        return;
+    }
+    if (g->nodes != NULL) {
+        free(g->nodes[0].adj_edge_list);
+    }
     free (g->nodes);
     free (g->edges);
     free (g);
