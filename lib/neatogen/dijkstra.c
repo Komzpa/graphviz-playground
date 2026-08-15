@@ -181,7 +181,7 @@ void ngdijkstra(int vertex, vtx_data * graph, int n, DistType * dist)
     /* For dealing with disconnected graphs: */
     for (int i = 0; i < n; i++)
 	if (dist[i] == MAX_DIST)	/* 'i' is not connected to 'vertex' */
-	    dist[i] = prevClosestDist + 10;
+	    dist[i] = INT_MAX - prevClosestDist < 10 ? INT_MAX : prevClosestDist + 10;
     freeHeap(&H);
 }
 
