@@ -217,11 +217,11 @@ inside_polygon (trap_t *t, segment_t* seg)
   return false;
 }
 
-static double get_angle(pointf vp0, pointf *vpnext, pointf *vp1) {
+static double get_angle(pointf vp0, pointf vpnext, pointf *vp1) {
   pointf v0, v1;
   
-  v0.x = vpnext->x - vp0.x;
-  v0.y = vpnext->y - vp0.y;
+  v0.x = vpnext.x - vp0.x;
+  v0.y = vpnext.y - vp0.y;
 
   v1.x = vp1->x - vp0.x;
   v1.y = vp1->y - vp0.y;
@@ -255,8 +255,7 @@ static void get_vertex_positions(vertexchain_t *vert, int v0, int v1, int *ip,
     {
       if (vp0->vnext[i] <= 0)
 	continue;
-      if ((temp = get_angle(vp0->pt, &vert[vp0->vnext[i]].pt,
-			    &vp1->pt)) > angle)
+      if ((temp = get_angle(vp0->pt, vert[vp0->vnext[i]].pt, &vp1->pt)) > angle)
 	{
 	  angle = temp;
 	  tp = i;
@@ -272,8 +271,7 @@ static void get_vertex_positions(vertexchain_t *vert, int v0, int v1, int *ip,
     {
       if (vp1->vnext[i] <= 0)
 	continue;      
-      if ((temp = get_angle(vp1->pt, &vert[vp1->vnext[i]].pt,
-			    &vp0->pt)) > angle)
+      if ((temp = get_angle(vp1->pt, vert[vp1->vnext[i]].pt, &vp0->pt)) > angle)
 	{
 	  angle = temp;
 	  tq = i;
