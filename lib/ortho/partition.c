@@ -218,10 +218,9 @@ inside_polygon (trap_t *t, segment_t* seg)
 }
 
 static double get_angle(pointf vp0, pointf vpnext, pointf vp1) {
-  pointf v0, v1;
+  pointf v1;
   
-  v0.x = vpnext.x - vp0.x;
-  v0.y = vpnext.y - vp0.y;
+  const pointf v0 = sub_pointf(vpnext, vp0);
 
   v1.x = vp1.x - vp0.x;
   v1.y = vp1.y - vp0.y;
