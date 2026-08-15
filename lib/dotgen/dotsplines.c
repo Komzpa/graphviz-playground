@@ -252,9 +252,16 @@ static int dot_splines_(graph_t *g, int normalize) {
     resetRW(g);
     if (GD_has_labels(g->root) & EDGE_LABEL) {
       setEdgeLabelPos(g);
-      orthoEdges(g, true);
-    } else
-      orthoEdges(g, false);
+      const int rc = orthoEdges(g, true);
+      if (rc != 0) {
+        return rc;
+      }
+    } else {
+      const int rc = orthoEdges(g, false);
+      if (rc != 0) {
+        return rc;
+      }
+    }
     goto finish;
   }
 #else
