@@ -745,6 +745,13 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     if (DEBUG) {
 	fprintf(stderr, "ver traps = %" PRISIZE_T "\n", LIST_SIZE(&ver_traps));
     }
+    if (LIST_SIZE(&ver_traps) == 0) {
+	LIST_FREE(&hor_decomp);
+	free(permute);
+	free(segs);
+	fprintf(stderr, "vertical trapezoid construction failed\n");
+	return NULL;
+    }
     boxes_t vert_decomp = {0};
     monotonate_trapezoids((int)nsegs, segs, &ver_traps, 1, &vert_decomp);
     LIST_FREE(&ver_traps);
