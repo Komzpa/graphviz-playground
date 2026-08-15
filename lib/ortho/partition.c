@@ -218,12 +218,8 @@ inside_polygon (trap_t *t, segment_t* seg)
 }
 
 static double get_angle(pointf vp0, pointf vpnext, pointf vp1) {
-  pointf v1;
-  
   const pointf v0 = sub_pointf(vpnext, vp0);
-
-  v1.x = vp1.x - vp0.x;
-  v1.y = vp1.y - vp0.y;
+  const pointf v1 = sub_pointf(vp1, vp0);
 
   if (CROSS_SINE(v0, v1) >= 0)	/* sine is positive */
     return DOT(v0, v1)/LENGTH(v0)/LENGTH(v1);
