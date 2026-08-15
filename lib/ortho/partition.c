@@ -729,6 +729,12 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     if (DEBUG) {
 	fprintf(stderr, "hor traps = %" PRISIZE_T "\n", LIST_SIZE(&hor_traps));
     }
+    if (LIST_SIZE(&hor_traps) == 0) {
+	free(permute);
+	free(segs);
+	fprintf(stderr, "horizontal trapezoid construction failed\n");
+	return NULL;
+    }
     boxes_t hor_decomp = {0};
     monotonate_trapezoids((int)nsegs, segs, &hor_traps, 0, &hor_decomp);
     LIST_FREE(&hor_traps);
