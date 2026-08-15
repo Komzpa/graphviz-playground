@@ -112,13 +112,6 @@ typedef struct {
 
 static int chain_idx;
 static size_t mon_idx;
-	/* chain init. information. This */
-	/* is used to decide which */
-	/* monotone polygon to split if */
-	/* there are several other */
-	/* polygons touching at the same */
-	/* vertex  */
-static vertexchain_t* vert;
 	/* contains position of any vertex in */
 	/* the monotone chain for the polygon */
 static int* mon;
@@ -634,7 +627,10 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
     // circularly linked list
     monchains_t mchain = {0};
 
-    vert = gv_calloc(nsegs + 1, sizeof(vertexchain_t));
+    // Chain initial information. This is used to decide which monotone polygon
+    // to split if there are several other polygons touching the same vertex.
+    vertexchain_t *const vert = gv_calloc(nsegs + 1, sizeof(vertexchain_t));
+
     mon = gv_calloc(nsegs, sizeof(int));
 
   /* First locate a trapezoid which lies inside the polygon */
