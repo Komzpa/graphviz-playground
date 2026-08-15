@@ -503,15 +503,21 @@ maze *mkMaze(graph_t *g) {
 
 void freeMaze (maze* mp)
 {
-    free (mp->cells[0].sides);
+    if (mp->cells != NULL) {
+	free(mp->cells[0].sides);
+    }
     free (mp->cells);
     for (size_t i = 0; i < mp->ngcells; ++i) {
 	free(mp->gcells[i].sides);
     }
     free (mp->gcells);
     freeSGraph (mp->sg);
-    dtclose (mp->hchans);
-    dtclose (mp->vchans);
+    if (mp->hchans != NULL) {
+	dtclose(mp->hchans);
+    }
+    if (mp->vchans != NULL) {
+	dtclose(mp->vchans);
+    }
     free (mp);
 }
 
