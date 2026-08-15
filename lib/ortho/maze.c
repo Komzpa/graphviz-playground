@@ -486,6 +486,10 @@ maze *mkMaze(graph_t *g) {
     BB.UR.y += MARGIN;
     size_t nrect;
     rects = partition(mp->gcells, mp->ngcells, &nrect, BB);
+    if (rects == NULL) {
+	freeMaze(mp);
+	return NULL;
+    }
 
 #ifdef DEBUG
     if (odb_flags & ODB_MAZE) psdump (mp->gcells, mp->ngcells, BB, rects, nrect);
