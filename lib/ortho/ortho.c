@@ -1155,8 +1155,10 @@ static bool swap_ends_p(edge_t * e)
  * For edges without position information, construct an orthogonal routing.
  * If useLbls is true, use edge label info when available to guide routing, 
  * and set label pos for those edges for which this info is not available.
+ *
+ * @return 0 on success
  */
-void orthoEdges(Agraph_t *g, bool useLbls) {
+int orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
     PointSet* ps = NULL;
 
@@ -1278,6 +1280,7 @@ orthofinish:
     free (route_list);
     freeMaze (mp);
     free (es);
+    return 0;
 }
 
 #include <common/arith.h>
