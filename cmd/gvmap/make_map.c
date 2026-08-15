@@ -20,7 +20,6 @@
 #include <sparse/QuadTree.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <string.h>
 #include <cgraph/cgraph.h>
 #include "make_map.h"
@@ -863,12 +862,10 @@ static void get_polygons(int n, int nrandom, int dim, int *grouping, int nt,
 
   /* connected components are such that  the random points and the bounding box 4 points forms the last
      remaining components */
-  size_t i;
-  for (i = ncomps - 1; i != SIZE_MAX; i--) {
-    if (groups[comps[comps_ptr[i]]] != GRP_RANDOM &&
-        groups[comps[comps_ptr[i]]] != GRP_BBOX) break;
+  for (; ncomps > 0; ncomps--) {
+    if (groups[comps[comps_ptr[ncomps - 1]]] != GRP_RANDOM &&
+        groups[comps[comps_ptr[ncomps - 1]]] != GRP_BBOX) break;
   }
-  ncomps = i + 1;
   GV_INFO("ncomps = %" PRISIZE_T, ncomps);
 
   *x_poly = gv_calloc(dim * nt, sizeof(double));
