@@ -62,47 +62,6 @@ typedef struct {
   int marked;           /* polygon */
 } monchain_t;
 
-typedef LIST(monchain_t) monchains_t;
-
-/// retrieve the value of a chain entry
-///
-/// This function treats the chain as symbolically infinite, allowing out of
-/// bounds accesses to read zeroed data.
-///
-/// @param chain Chain to operate on
-/// @param index Index to lookup
-/// @return Chain value at the given index
-static monchain_t monchains_get(const monchains_t *chain, int index) {
-  assert(chain != NULL);
-
-  // infer zeroed data for out of range entries
-  if (index < 0 || (size_t)index >= LIST_SIZE(chain)) {
-    return (monchain_t){0};
-  }
-
-  return LIST_GET(chain, (size_t)index);
-}
-
-/// access the value of a chain entry for writing
-///
-/// This function treats the chain as symbolically infinite, allowing out of
-/// bounds accesses to read zeroed data.
-///
-/// @param chain Chain to operate on
-/// @param index Index to lookup
-/// @return Pointer to chain value at the given index
-static monchain_t *monchains_at(monchains_t *chain, int index) {
-  assert(chain != NULL);
-  assert(index >= 0);
-
-  // expand on demand
-  while ((size_t)index >= LIST_SIZE(chain)) {
-    LIST_APPEND(chain, (monchain_t){0});
-  }
-
-  return LIST_AT(chain, (size_t)index);
-}
-
 typedef struct {
   pointf pt;
   int vnext[4];         /* next vertices for the 4 chains */
@@ -281,7 +240,7 @@ static void get_vertex_positions(const vertexchain_t *vert, int v0, int v1,
  * @param vert Chain initial information
  * @param chain Monotone polygon chain to operate on
  */
-static size_t make_new_monotone_poly(vertexchain_t *vert, monchains_t *chain,
+static size_t make_new_monotone_poly(vertexchain_t *vert, monchain_t *chain,
                                      size_t mcur, int v0, int v1) {
   int p, q, ip, iq;
   const size_t mnew = newmon();
@@ -302,18 +261,18 @@ static size_t make_new_monotone_poly(vertexchain_t *vert, monchains_t *chain,
   i = new_chain_element();	/* for the new list */
   j = new_chain_element();
 
-  monchains_at(chain, i)->vnum = v0;
-  monchains_at(chain, j)->vnum = v1;
+  chain[i].vnum = v0;
+  chain[j].vnum = v1;
 
-  monchains_at(chain, i)->next = monchains_get(chain, p).next;
-  monchains_at(chain, monchains_get(chain, p).next)->prev = i;
-  monchains_at(chain, i)->prev = j;
-  monchains_at(chain, j)->next = i;
-  monchains_at(chain, j)->prev = monchains_get(chain, q).prev;
-  monchains_at(chain, monchains_get(chain, q).prev)->next = j;
+  chain[i].next = chain[p].next;
+  chain[chain[p].next].prev = i;
+  chain[i].prev = j;
+  chain[j].next = i;
+  chain[j].prev = chain[q].prev;
+  chain[chain[q].prev].next = j;
 
-  monchains_at(chain, p)->next = q;
-  monchains_at(chain, q)->prev = p;
+  chain[p].next = q;
+  chain[q].prev = p;
 
   nf0 = vp0->nextfree;
   nf1 = vp1->nextfree;
@@ -321,7 +280,7 @@ static size_t make_new_monotone_poly(vertexchain_t *vert, monchains_t *chain,
   vp0->vnext[ip] = v1;
 
   vp0->vpos[nf0] = i;
-  vp0->vnext[nf0] = monchains_get(chain, monchains_get(chain, i).next).vnum;
+  vp0->vnext[nf0] = chain[chain[i].next].vnum;
   vp1->vpos[nf1] = j;
   vp1->vnext[nf1] = v0;
 
@@ -346,7 +305,7 @@ static size_t make_new_monotone_poly(vertexchain_t *vert, monchains_t *chain,
 static void traverse_polygon(vertexchain_t *vert, bitarray_t *visited,
                              boxes_t *decomp, segment_t *seg, traps_t *tr,
                              size_t mcur, size_t trnum, size_t from, int flip,
-                             int dir, monchains_t *chain) {
+                             int dir, monchain_t *chain) {
   size_t mnew;
   int v0, v1;
 
@@ -614,7 +573,7 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
 
     // Table to hold all the monotone polygons. Each monotone polygon is a
     // circularly linked list
-    monchains_t mchain = {0};
+    monchain_t *const mchain = gv_calloc(LIST_SIZE(tr), sizeof(monchain_t));
 
     // Chain initial information. This is used to decide which monotone polygon
     // to split if there are several other polygons touching the same vertex.
@@ -633,9 +592,9 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
   /* trapezoids within the polygon */
 
     for (i = 1; i <= nsegs; i++) {
-	monchains_at(&mchain, i)->prev = seg[i].prev;
-	monchains_at(&mchain, i)->next = seg[i].next;
-	monchains_at(&mchain, i)->vnum = i;
+	mchain[i].prev = seg[i].prev;
+	mchain[i].next = seg[i].next;
+	mchain[i].vnum = i;
 	vert[i].pt = seg[i].v0;
 	vert[i].vnext[0] = seg[i].next; /* next vertex */
 	vert[i].vpos[0] = i;	/* locn. of next vertex */
@@ -650,13 +609,13 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
   /* traverse the polygon */
     if (is_valid_trap(LIST_GET(tr, tr_start).u0))
 	traverse_polygon(vert, &visited, decomp, seg, tr, 0, tr_start,
-	                 LIST_GET(tr, tr_start).u0, flip, TR_FROM_UP, &mchain);
+	                 LIST_GET(tr, tr_start).u0, flip, TR_FROM_UP, mchain);
     else if (is_valid_trap(LIST_GET(tr, tr_start).d0))
 	traverse_polygon(vert, &visited, decomp, seg, tr, 0, tr_start,
-	                 LIST_GET(tr, tr_start).d0, flip, TR_FROM_DN, &mchain);
+	                 LIST_GET(tr, tr_start).d0, flip, TR_FROM_DN, mchain);
   
     bitarray_reset(&visited);
-    LIST_FREE(&mchain);
+    free (mchain);
     free (vert);
     free (mon);
 }
