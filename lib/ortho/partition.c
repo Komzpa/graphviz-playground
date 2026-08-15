@@ -230,15 +230,14 @@ static double get_angle(pointf vp0, pointf vpnext, pointf vp1) {
 /// chain to use and return the positions of v0 and v1 in p and q
 ///
 /// @param vert Chain initial information
-static void get_vertex_positions(vertexchain_t *vert, int v0, int v1, int *ip,
-                                 int *iq) {
-  vertexchain_t *vp0, *vp1;
+static void get_vertex_positions(const vertexchain_t *vert, int v0, int v1,
+                                 int *ip, int *iq) {
   int i;
   double angle, temp;
   int tp = 0, tq = 0;
 
-  vp0 = &vert[v0];
-  vp1 = &vert[v1];
+  const vertexchain_t *const vp0 = &vert[v0];
+  const vertexchain_t *const vp1 = &vert[v1];
   
   /* p is identified as follows. Scan from (v0, v1) rightwards till */
   /* you hit the first segment starting from v0. That chain is the */
