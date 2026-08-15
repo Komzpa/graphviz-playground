@@ -885,17 +885,26 @@ traps_t construct_trapezoids(int nseg, segment_t *seg, int *permute) {
 
     const int logstar = math_logstar_n(nseg);
     for (h = 1; h <= logstar; h++) {
-	for (i = math_N(nseg, h -1) + 1; i <= math_N(nseg, h); i++)
-	    add_segment(permute[segi++], seg, &tr, &qs);
+	for (i = math_N(nseg, h -1) + 1; i <= math_N(nseg, h); i++) {
+	    if (add_segment(permute[segi++], seg, &tr, &qs) != 0) {
+	        LIST_FREE(&tr);
+	        goto done;
+	    }
+	}
 
       /* Find a new root for each of the segment endpoints */
 	for (i = 1; i <= nseg; i++)
 	    find_new_roots(i, seg, &tr, &qs);
     }
 
-    for (i = math_N(nseg, logstar) + 1; i <= nseg; i++)
-	add_segment(permute[segi++], seg, &tr, &qs);
+    for (i = math_N(nseg, logstar) + 1; i <= nseg; i++) {
+	if (add_segment(permute[segi++], seg, &tr, &qs) != 0) {
+	    LIST_FREE(&tr);
+	    goto done;
+	}
+    }
 
+done:
     LIST_FREE(&qs);
     return tr;
 }
