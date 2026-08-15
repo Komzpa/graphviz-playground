@@ -1200,6 +1200,13 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
 	useLbls = false;
     }
     maze *const mp = mkMaze(g);
+    if (mp == NULL) {
+	if (Concentrate) {
+	    freePS(ps);
+	}
+	free(es);
+	return -1;
+    }
     sgraph *const sg = mp->sg;
 #ifdef DEBUG
     if (odb_flags & ODB_SGRAPH) emitSearchGraph (stderr, sg);
