@@ -223,8 +223,7 @@ static double get_angle(pointf vp0, pointf vpnext, pointf vp1) {
 
   if (CROSS_SINE(v0, v1) >= 0)	/* sine is positive */
     return DOT(v0, v1)/LENGTH(v0)/LENGTH(v1);
-  else
-    return -1.0 * DOT(v0, v1)/LENGTH(v0)/LENGTH(v1) - 2;
+  return -1.0 * DOT(v0, v1) / LENGTH(v0) / LENGTH(v1) - 2;
 }
 
 /// (v0, v1) is the new diagonal to be added to the polygon. Find which
