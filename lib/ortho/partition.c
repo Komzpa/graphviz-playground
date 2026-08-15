@@ -241,11 +241,12 @@ get_angle (pointf *vp0, pointf *vpnext, pointf *vp1)
     return -1.0 * DOT(v0, v1)/LENGTH(v0)/LENGTH(v1) - 2;
 }
 
-/* (v0, v1) is the new diagonal to be added to the polygon. Find which */
-/* chain to use and return the positions of v0 and v1 in p and q */ 
-static void
-get_vertex_positions (int v0, int v1, int *ip, int *iq)
-{
+/// (v0, v1) is the new diagonal to be added to the polygon. Find which
+/// chain to use and return the positions of v0 and v1 in p and q
+///
+/// @param vert Chain initial information
+static void get_vertex_positions(vertexchain_t *vert, int v0, int v1, int *ip,
+                                 int *iq) {
   vertexchain_t *vp0, *vp1;
   int i;
   double angle, temp;
@@ -307,7 +308,7 @@ static size_t make_new_monotone_poly(monchains_t *chain, size_t mcur, int v0,
   vp0 = &vert[v0];
   vp1 = &vert[v1];
 
-  get_vertex_positions(v0, v1, &ip, &iq);
+  get_vertex_positions(vert, v0, v1, &ip, &iq);
 
   p = vp0->vpos[ip];
   q = vp1->vpos[iq];
