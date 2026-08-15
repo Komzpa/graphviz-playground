@@ -16,6 +16,9 @@ and this project adheres to
 
 - An `sfdp` crash has been fixed. This was a regression in Graphviz 15.1.1.
   \#2852
+- Graphs that induce invalid trapezoids during ortho routing no longer cause
+  Graphviz crashes on non-Windows platforms. These scenarios now exit with
+  failure gracefully. #2784
 
 ## [16.0.0] – 2026-08-14
 

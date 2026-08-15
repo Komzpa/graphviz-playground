@@ -616,12 +616,10 @@ static int add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
       const size_t t_sav = t;
       const size_t tn_sav = tn;
 
-      /* error */
-
       if (!is_valid_trap(LIST_GET(tr, t).d0) &&
-          !is_valid_trap(LIST_GET(tr, t).d1)) { // case cannot arise
-	  fprintf(stderr, "add_segment: error\n");
-	  break;
+          !is_valid_trap(LIST_GET(tr, t).d1)) { // error
+	  fprintf(stderr, "trapezoid segment construction failed\n");
+	  return -1;
 	}
 
       /* only one trapezoid below. partition t into two and make the */
