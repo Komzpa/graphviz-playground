@@ -33,6 +33,7 @@
 #include <util/gv_math.h>
 #include <util/list.h>
 #include <util/unreachable.h>
+#include <util/unused.h>
 
 /* Node types */
 
@@ -447,7 +448,8 @@ static void update_trapezoid(segment_t *s, segment_t *seg, traps_t *tr,
  *
  * @return 0 on success
  */
-static int add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
+static WUR int add_segment(int segnum, segment_t *seg, traps_t *tr,
+                           qnodes_t *qs) {
   segment_t s;
   size_t tfirst, tlast;
   size_t tfirstr = 0, tlastr = 0;
