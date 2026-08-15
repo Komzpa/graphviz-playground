@@ -444,8 +444,10 @@ static void update_trapezoid(segment_t *s, segment_t *seg, traps_t *tr,
  * structures. First locate the two endpoints of the segment in the
  * Q-structure. Then start from the topmost trapezoid and go down to
  * the  lower trapezoid dividing all the trapezoids in between .
+ *
+ * @return 0 on success
  */
-static void add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
+static int add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
   segment_t s;
   size_t tfirst, tlast;
   size_t tfirstr = 0, tlastr = 0;
@@ -820,6 +822,7 @@ static void add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
   merge_trapezoids(segnum, tfirstr, tlastr, S_RIGHT, tr, qs);
 
   seg[segnum].is_inserted = true;
+  return 0;
 }
 
 /* Update the roots stored for each of the endpoints of the segment.
