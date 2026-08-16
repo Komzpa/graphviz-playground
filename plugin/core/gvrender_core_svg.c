@@ -246,6 +246,7 @@ static void svg_begin_job(GVJ_t * job)
 static void svg_begin_graph(GVJ_t * job)
 {
     obj_state_t *obj = job->obj;
+    char *svgid = 0;
 
     gvputs(job, "<!--");
     if (agnameof(obj->u.g)[0] && agnameof(obj->u.g)[0] != LOCALNAMEPREFIX) {
@@ -272,6 +273,11 @@ static void svg_begin_graph(GVJ_t * job)
 	gvputs(job, " xmlns=\"http://www.w3.org/2000/svg\""
 	/* namespace of xlink */
 	    " xmlns:xlink=\"http://www.w3.org/1999/xlink\"");
+    }
+    if ((svgid = agget(obj->u.g,"svgid")) && svgid[0]) {
+	gvputs(job, " id=\"");
+        gvputs_xml(job, svgid);
+        gvputc(job, '"');
     }
     gvputs(job, ">\n");
 }
