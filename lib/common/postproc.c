@@ -468,7 +468,7 @@ static void addXLabels(Agraph_t * gp)
     /* An object for each node, each positioned external label, any cluster label, 
      * and all unset edge labels and xlabels.
      */
-    size_t n_objs = (size_t)agnnodes(gp) + n_set_lbls + n_clbls + n_elbls;
+    size_t n_objs = agnnodes_z(gp) + n_set_lbls + n_clbls + n_elbls;
     object_t* objp = objs = gv_calloc(n_objs, sizeof(object_t));
     xlabel_t* xlp = lbls = gv_calloc(n_lbls, sizeof(xlabel_t));
     bb.LL = (pointf){DBL_MAX, DBL_MAX};

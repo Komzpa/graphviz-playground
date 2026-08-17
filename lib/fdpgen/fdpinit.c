@@ -24,6 +24,7 @@
 /* uses PRIVATE interface */
 #define FDP_PRIVATE 1
 
+#include <cgraph/cgraph.h>
 #include <fdpgen/tlayout.h>
 #include <neatogen/neatoprocs.h>
 #include <stdbool.h>
@@ -83,7 +84,6 @@ void fdp_init_node_edge(graph_t *g) {
   attrsym_t *E_len;
   node_t *n;
   edge_t *e;
-  int nn;
   int i;
 
   aginit(g, AGNODE, "Agnodeinfo_t", sizeof(Agnodeinfo_t), true);
@@ -92,7 +92,7 @@ void fdp_init_node_edge(graph_t *g) {
   /* Get node count after processClusterEdges(), as this function may
    * add new nodes.
    */
-  nn = agnnodes(g);
+  const size_t nn = agnnodes_z(g);
   GD_neato_nlist(g) = gv_calloc(nn + 1, sizeof(node_t *));
 
   for (i = 0, n = agfstnode(g); n; n = agnxtnode(g, n)) {

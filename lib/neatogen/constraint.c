@@ -17,6 +17,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <util/alloc.h>
+#include <util/gv_math.h>
 #include <util/itos.h>
 #include <util/list.h>
 
@@ -377,15 +378,14 @@ static void closeGraph(graph_t * cg)
  * (absolute values rather than squares), so we can reuse network simplex.
  * The constraints are encoded as a dag with edges having a minimum length.
  */
-static void constrainX(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
+static void constrainX(graph_t *g, nitem *nlist, size_t nnodes, intersectfn ifn,
                        int ortho)
 {
     Dt_t *list = dtopen(&constr, Dtobag);
     nitem *p = nlist;
     graph_t *cg;
-    int i;
 
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	p->val = p->pos.x;
 	dtinsert(list, p);
 	p++;
@@ -397,7 +397,7 @@ static void constrainX(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
     rank(cg, 2, INT_MAX);
 
     p = nlist;
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	int newpos, oldpos, delta;
 	oldpos = p->pos.x;
 	newpos = ND_rank(p->cnode);
@@ -413,15 +413,14 @@ static void constrainX(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
 }
 
 /// see constrainX
-static void constrainY(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
+static void constrainY(graph_t *g, nitem *nlist, size_t nnodes, intersectfn ifn,
                        int ortho)
 {
     Dt_t *list = dtopen(&constr, Dtobag);
     nitem *p = nlist;
     graph_t *cg;
-    int i;
 
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	p->val = p->pos.y;
 	dtinsert(list, p);
 	p++;
@@ -447,7 +446,7 @@ static void constrainY(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
 #endif
 
     p = nlist;
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	int newpos, oldpos, delta;
 	oldpos = p->pos.y;
 	newpos = ND_rank(p->cnode);
@@ -462,15 +461,13 @@ static void constrainY(graph_t* g, nitem* nlist, int nnodes, intersectfn ifn,
     dtclose(list);
 }
 
-static int overlaps(nitem * p, int cnt)
-{
-    int i, j;
+static int overlaps(nitem *p, size_t cnt) {
     nitem *pi = p;
     nitem *pj;
 
-    for (i = 0; i < cnt - 1; i++) {
+    for (size_t i = 0; i + 1 < cnt; i++) {
 	pj = pi + 1;
-	for (j = i + 1; j < cnt; j++) {
+	for (size_t j = i + 1; j < cnt; j++) {
 	    if (OVERLAP(pi->bb, pj->bb))
 		return 1;
 	    pj++;
@@ -488,8 +485,8 @@ static void initItem(node_t * n, nitem * p, expand_t margin)
     box b;
 
     if (margin.doAdd) {
-	w2 = SCALE * (POINTS(ND_width(n)/2.0) + margin.x);
-	h2 = SCALE * (POINTS(ND_height(n)/2.0) + margin.y);
+	w2 = d2i(SCALE * (POINTS(ND_width(n) / 2.0) + margin.x));
+	h2 = d2i(SCALE * (POINTS(ND_height(n) / 2.0) + margin.y));
     }
     else {
 	w2 = POINTS(margin.x * SCALE2 * ND_width(n));
@@ -538,7 +535,8 @@ static void initItem(node_t * n, nitem * p, expand_t margin)
 int cAdjust(graph_t * g, int mode)
 {
     expand_t margin;
-    int ret, i, nnodes = agnnodes(g);
+    int ret;
+    const size_t nnodes = agnnodes_z(g);
     nitem *nlist = gv_calloc(nnodes, sizeof(nitem));
     nitem *p = nlist;
     node_t *n;
@@ -589,7 +587,7 @@ int cAdjust(graph_t * g, int mode)
 	    break;
 	}
 	p = nlist;
-	for (i = 0; i < nnodes; i++) {
+	for (size_t i = 0; i < nnodes; i++) {
 	    n = p->np;
 	    pt = p->pos;
 	    ND_pos(n)[0] = PS2INCH(pt.x) / SCALE;
