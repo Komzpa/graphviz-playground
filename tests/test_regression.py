@@ -3491,6 +3491,7 @@ def test_gvpr_usage(tmp_path: Path):
     ), "truncated or malformed GVPR usage information"
 
 
+@pytest.mark.skipif(which("sfdp") is None, reason="sfdp not available")
 def test_2225():
     """
     sfdp should not segfault with curved splines
@@ -6589,6 +6590,36 @@ def test_2851():
 
     # run this through Graphviz
     dot("dot", src)
+
+
+@pytest.mark.skipif(which("sfdp") is None, reason="sfdp not available")
+def test_2852():
+    """
+    Graphviz should not crash when processing this input
+    https://gitlab.com/graphviz/graphviz/-/work_items/2852
+    https://forum.graphviz.org/t/sfdp-crash-regression-in-15-1-1/3392
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2852.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through sfdp
+    sfdp = which("sfdp")
+    p = subprocess.run(
+        [sfdp, "-Tpng", "-o", os.devnull, src],
+        stderr=subprocess.PIPE,
+        check=False,
+        text=True,
+    )
+
+    # if sfdp was built without libgts, it will not handle anything non-trivial
+    no_gts_error = "remove_overlap: Graphviz not built with triangulation library"
+    if no_gts_error in p.stderr:
+        assert p.returncode != 0, "sfdp returned success after an error message"
+        return
+
+    p.check_returncode()
 
 
 def test_698066():
