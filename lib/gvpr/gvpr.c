@@ -543,23 +543,17 @@ static trav_fns FWDfns = {agfstout, agnxtout_, 0, 0};
 static trav_fns REVfns = {agfstin, agnxtin_, 0, 0};
 
 static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
-  nodestream nodes;
   LIST(Agnode_t *) q = {0};
-  ndata *nd;
   Agnode_t *n;
-  Agedge_t *cure;
-  Agedge_t *nxte;
   Agraph_t *g = state->curgraph;
   const size_t nodeseq_limit = aggetseq(g, AGNODE);
   const size_t edgeseq_limit = aggetseq(g, AGEDGE);
 
-  nodes.oldroot = 0;
-  nodes.prev = 0;
-  while ((n = nextNode(state, &nodes))) {
+  for (nodestream nodes = {0}; (n = nextNode(state, &nodes));) {
     if (AGSEQ(n) > nodeseq_limit) {
       continue;
     }
-    nd = nData(n);
+    ndata *nd = nData(n);
     if (MARKED(nd))
       continue;
     PUSH(nd, 0);
@@ -572,19 +566,20 @@ static void travBFS(Gpr_t *state, Expr_t *prog, comp_block *xprog) {
       state->tvedge = nd->ine;
       if (!evalNode(state, prog, xprog, n))
         continue;
-      for (cure = agfstedge(g, n); cure; cure = nxte) {
-        nxte = agnxtedge(g, cure, n);
-        if (AGSEQ(cure) > edgeseq_limit) {
+      for (Agedge_t *current = agfstedge(g, n), *next; current != NULL;
+           current = next) {
+        next = agnxtedge(g, current, n);
+        if (AGSEQ(current) > edgeseq_limit) {
           continue;
         }
-        nd = nData(cure->node);
+        nd = nData(current->node);
         if (MARKED(nd))
           continue;
-        if (!evalEdge(state, prog, xprog, cure))
+        if (!evalEdge(state, prog, xprog, current))
           continue;
         if (!ONSTACK(nd)) {
-          LIST_PUSH_BACK(&q, cure->node);
-          PUSH(nd, cure);
+          LIST_PUSH_BACK(&q, current->node);
+          PUSH(nd, current);
         }
       }
     }
@@ -597,47 +592,37 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
                     trav_fns *fns) {
   Agnode_t *n;
   LIST(Agedge_t *) stk = {0};
-  Agnode_t *curn;
-  Agedge_t *cure;
-  Agedge_t *entry;
-  int more;
-  ndata *nd;
-  nodestream nodes;
-  Agedgepair_t seed;
   const size_t nodeseq_limit = aggetseq(state->curgraph, AGNODE);
   const size_t edgeseq_limit = aggetseq(state->curgraph, AGEDGE);
 
-  nodes.oldroot = 0;
-  nodes.prev = 0;
-  while ((n = nextNode(state, &nodes))) {
-    nd = nData(n);
+  for (nodestream nodes = {0}; (n = nextNode(state, &nodes));) {
+    ndata *nd = nData(n);
     if (MARKED(nd))
       continue;
     if (AGSEQ(n) > nodeseq_limit) {
       continue;
     }
-    seed.out.node = n;
-    seed.in.node = 0;
-    curn = n;
-    entry = &seed.out;
-    state->tvedge = cure = 0;
+    Agedgepair_t seed = {.out = {.node = n}};
+    Agnode_t *curn = n;
+    Agedge_t *entry = &seed.out;
+    state->tvedge = NULL;
     MARK(nd);
     PUSH(nd, 0);
     if (fns->visit & PRE_VISIT)
       evalNode(state, prog, xprog, n);
-    more = 1;
-    while (more) {
-      if (cure)
-        cure = fns->nxtedge(state->curgraph, cure, curn);
+    bool more = true;
+    for (Agedge_t *current = NULL; more;) {
+      if (current != NULL)
+        current = fns->nxtedge(state->curgraph, current, curn);
       else
-        cure = fns->fstedge(state->curgraph, curn);
-      if (cure) {
-        if (AGSEQ(cure) > edgeseq_limit) {
+        current = fns->fstedge(state->curgraph, curn);
+      if (current) {
+        if (AGSEQ(current) > edgeseq_limit) {
           continue;
         }
-        if (entry == agopp(cure)) /* skip edge used to get here */
+        if (entry == agopp(current)) // skip edge used to get here
           continue;
-        nd = nData(cure->node);
+        nd = nData(current->node);
         if (MARKED(nd)) {
           /* For undirected DFS, visit an edge only if its head
            * is on the stack, to avoid visiting it twice.
@@ -645,15 +630,15 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
            */
           if (fns->undirected) {
             if (ONSTACK(nd))
-              evalEdge(state, prog, xprog, cure);
+              evalEdge(state, prog, xprog, current);
           } else
-            evalEdge(state, prog, xprog, cure);
+            evalEdge(state, prog, xprog, current);
         } else {
-          evalEdge(state, prog, xprog, cure);
+          evalEdge(state, prog, xprog, current);
           LIST_PUSH_BACK(&stk, entry);
-          state->tvedge = entry = cure;
-          curn = cure->node;
-          cure = 0;
+          state->tvedge = entry = current;
+          curn = current->node;
+          current = NULL;
           if (fns->visit & PRE_VISIT)
             evalNode(state, prog, xprog, curn);
           MARK(nd);
@@ -664,7 +649,7 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
           evalNode(state, prog, xprog, curn);
         nd = nData(curn);
         POP(nd);
-        cure = entry;
+        current = entry;
         entry = LIST_IS_EMPTY(&stk) ? NULL : LIST_POP_BACK(&stk);
         if (entry == &seed.out)
           state->tvedge = 0;
@@ -673,7 +658,7 @@ static void travDFS(Gpr_t *state, Expr_t *prog, comp_block *xprog,
         if (entry)
           curn = entry->node;
         else
-          more = 0;
+          more = false;
       }
     }
   }
