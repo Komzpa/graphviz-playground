@@ -637,7 +637,7 @@ static int
 vpscAdjust(graph_t* G)
 {
     enum { dim = 2 };
-    int nnodes = agnnodes(G);
+    const size_t nnodes = agnnodes_z(G);
     ipsep_options opt;
     pointf *nsize = gv_calloc(nnodes, sizeof(pointf));
     float* coords[dim];
@@ -672,7 +672,7 @@ vpscAdjust(graph_t* G)
     }
     opt.nsize = nsize;
 
-    removeoverlaps(nnodes, coords, &opt);
+    removeoverlaps((int)nnodes, coords, &opt);
 
     j = 0;
     for (Agnode_t *v = agfstnode(G); v; v = agnxtnode(G, v)) {
