@@ -10,6 +10,7 @@
 
 
 #include "config.h"
+#include <cgraph/cgraph.h>
 #include <common/geom.h>
 #include <math.h>
 #include <neatogen/neato.h>
@@ -764,12 +765,11 @@ static double computeScale(pointf *aarr, size_t m) {
  */
 int scAdjust(graph_t * g, int equal)
 {
-    int nnodes = agnnodes(g);
+    const size_t nnodes = agnnodes_z(g);
     info *nlist = gv_calloc(nnodes, sizeof(info));
     info *p = nlist;
     node_t *n;
     pointf s;
-    int i;
     expand_t margin;
     pointf *aarr;
 
@@ -803,7 +803,7 @@ int scAdjust(graph_t * g, int equal)
     }
 
     if (equal < 0) {
-	s.x = s.y = compress(nlist, nnodes);
+	s.x = s.y = compress(nlist, (int)nnodes);
 	if (s.x == 0) {		/* overlaps exist */
 	    free(nlist);
 	    return 0;
@@ -811,8 +811,7 @@ int scAdjust(graph_t * g, int equal)
 	if (Verbose) fprintf(stderr, "compress %g \n", s.x);
     } else {
 	size_t m;
-	assert(nnodes >= 0);
-	aarr = mkOverlapSet(nlist, (size_t)nnodes, &m);
+	aarr = mkOverlapSet(nlist, nnodes, &m);
 
 	if (m == 1) { // no overlaps
 	    free(aarr);
@@ -830,7 +829,7 @@ int scAdjust(graph_t * g, int equal)
     }
 
     p = nlist;
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	ND_pos(p->np)[0] = s.x * p->pos.x;
 	ND_pos(p->np)[1] = s.y * p->pos.y;
 	p++;
