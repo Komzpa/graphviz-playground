@@ -405,7 +405,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	    container.LL.x = container.LL.y = DBL_MAX;
 	    container.UR.x = container.UR.y = -DBL_MAX;
 	    for (size_t j = 0; j < cn; j++) {
-		int iv = opt->clusters.clusters[i][j];
+		const size_t iv = opt->clusters.clusters[i][j];
 		cvs[j] = e->vs[iv];
 		B2BF(bb[iv], cbb[j]);
 		EXPANDBB(&container, bb[iv]);

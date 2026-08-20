@@ -199,7 +199,6 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
     graph_t *subg;
     node_t *n;
      /* array of arrays of node indices in each cluster */
-    int **cs;
     bitarray_t assigned = bitarray_new(agnnodes(g));
     cluster_data cdata = {0};
 
@@ -212,19 +211,17 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
     }
     cdata.nvars=0;
     cdata.nclusters = nclusters;
-    cs = cdata.clusters = gv_calloc(nclusters, sizeof(int*));
+    size_t **cs = cdata.clusters = gv_calloc(nclusters, sizeof(size_t *));
     size_t *cn = cdata.clustersizes = gv_calloc(nclusters, sizeof(size_t));
     for (subg = agfstsubg(mastergraph); subg; subg = agnxtsubg(subg)) {
         /* clusters are processed by separate calls to ordered_edges */
         if (is_a_cluster(subg)) {
-            int *c;
-
             *cn = agnnodes_z(subg);
             cdata.nvars += *cn;
-            c = *cs++ = gv_calloc(*cn++, sizeof(int));
+            size_t *c = *cs++ = gv_calloc(*cn++, sizeof(size_t));
             for (n = agfstnode(subg); n; n = agnxtnode(subg, n)) {
                 node_t *gn;
-                int ind = 0;
+                size_t ind = 0;
                 for (gn = agfstnode(g); gn; gn = agnxtnode(g, gn)) {
                     if(AGSEQ(gn)==AGSEQ(n)) break;
                     ind++;
@@ -1044,7 +1041,7 @@ void dumpClusterData (cluster_data* dp)
     const size_t sz = dp->clustersizes[i];
     fprintf (stderr, "  [%" PRISIZE_T "] %" PRISIZE_T " vars\n", i, sz);
     for (size_t j = 0; j < sz; j++)
-      fprintf (stderr, "  %d", dp->clusters[i][j]);
+      fprintf (stderr, "  %" PRISIZE_T, dp->clusters[i][j]);
     fprintf (stderr, "\n");
   }
 
