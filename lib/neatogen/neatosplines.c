@@ -11,6 +11,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <cgraph/cgraph.h>
 #include <limits.h>
 #include <math.h>
 #include <neatogen/neato.h>
@@ -599,7 +600,7 @@ static int spline_edges_(graph_t *g, expand_t *pmargin, int edgetype) {
     
     /* build configuration */
     if (edgetype >= EDGETYPE_PLINE) {
-	obs = gv_calloc(agnnodes(g), sizeof(Ppoly_t*));
+	obs = gv_calloc(agnnodes_z(g), sizeof(Ppoly_t*));
 	for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	    obp = makeObstacle(n, pmargin, edgetype == EDGETYPE_ORTHO);
 	    if (obp) {
