@@ -625,17 +625,15 @@ static int sortf(const void *x, const void *y) {
 	return 0;
 }
 
-static double compress(info * nl, int nn)
-{
+static double compress(info *nl, size_t nn) {
     info *p = nl;
     info *q;
-    int i, j;
     double s, sc = 0;
     pointf pt;
 
-    for (i = 0; i < nn; i++) {
+    for (size_t i = 0; i < nn; i++) {
 	q = p + 1;
-	for (j = i + 1; j < nn; j++) {
+	for (size_t j = i + 1; j < nn; j++) {
 	    if (OVERLAP(p->bb, q->bb))
 		return 0;
 	    if (p->pos.x == q->pos.x)
@@ -803,7 +801,7 @@ int scAdjust(graph_t * g, int equal)
     }
 
     if (equal < 0) {
-	s.x = s.y = compress(nlist, (int)nnodes);
+	s.x = s.y = compress(nlist, nnodes);
 	if (s.x == 0) {		/* overlaps exist */
 	    free(nlist);
 	    return 0;
