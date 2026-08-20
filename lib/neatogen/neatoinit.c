@@ -200,7 +200,6 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
     node_t *n;
      /* array of arrays of node indices in each cluster */
     int **cs;
-    int i, j;
     bitarray_t assigned = bitarray_new(agnnodes(g));
     cluster_data cdata = {0};
 
@@ -237,8 +236,9 @@ static cluster_data cluster_map(graph_t *mastergraph, graph_t *g) {
         }
     }
     cdata.bb = gv_calloc(cdata.nclusters, sizeof(boxf));
-    cdata.toplevel = gv_calloc(cdata.ntoplevel, sizeof(int));
-    for(i=j=0;i<agnnodes(g);i++) {
+    cdata.toplevel = gv_calloc(cdata.ntoplevel, sizeof(size_t));
+    size_t j;
+    for (size_t i = j = 0; i < agnnodes_z(g); i++) {
         if(!bitarray_get(assigned, i)) {
             cdata.toplevel[j++] = i;
         }
@@ -1051,7 +1051,7 @@ void dumpClusterData (cluster_data* dp)
 
   fprintf (stderr, "Toplevel:\n");
   for (size_t i = 0; i < dp->ntoplevel; i++)
-    fprintf (stderr, "  %d\n", dp->toplevel[i]);
+    fprintf (stderr, "  %" PRISIZE_T "\n", dp->toplevel[i]);
 
   fprintf (stderr, "Boxes:\n");
   for (size_t i = 0; i < dp->nclusters; i++) {

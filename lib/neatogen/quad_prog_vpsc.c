@@ -436,7 +436,7 @@ void generateNonoverlapConstraints(CMajEnvVPSC * e,
 	    Variable** cvs = gv_calloc(cn, sizeof(Variable*));
 	    boxf* cbb = gv_calloc(cn, sizeof(boxf));
 	    for (size_t i = 0; i < opt->clusters.ntoplevel; i++) {
-		int iv = opt->clusters.toplevel[i];
+		const size_t iv = opt->clusters.toplevel[i];
 		cvs[i] = e->vs[iv];
 		B2BF(bb[iv], cbb[i]);
 	    }
