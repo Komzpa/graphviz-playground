@@ -62,47 +62,6 @@ typedef struct {
   int marked;           /* polygon */
 } monchain_t;
 
-typedef LIST(monchain_t) monchains_t;
-
-/// retrieve the value of a chain entry
-///
-/// This function treats the chain as symbolically infinite, allowing out of
-/// bounds accesses to read zeroed data.
-///
-/// @param chain Chain to operate on
-/// @param index Index to lookup
-/// @return Chain value at the given index
-static monchain_t monchains_get(const monchains_t *chain, int index) {
-  assert(chain != NULL);
-
-  // infer zeroed data for out of range entries
-  if (index < 0 || (size_t)index >= LIST_SIZE(chain)) {
-    return (monchain_t){0};
-  }
-
-  return LIST_GET(chain, (size_t)index);
-}
-
-/// access the value of a chain entry for writing
-///
-/// This function treats the chain as symbolically infinite, allowing out of
-/// bounds accesses to read zeroed data.
-///
-/// @param chain Chain to operate on
-/// @param index Index to lookup
-/// @return Pointer to chain value at the given index
-static monchain_t *monchains_at(monchains_t *chain, int index) {
-  assert(chain != NULL);
-  assert(index >= 0);
-
-  // expand on demand
-  while ((size_t)index >= LIST_SIZE(chain)) {
-    LIST_APPEND(chain, (monchain_t){0});
-  }
-
-  return LIST_AT(chain, (size_t)index);
-}
-
 typedef struct {
   pointf pt;
   int vnext[4];         /* next vertices for the 4 chains */
@@ -112,13 +71,6 @@ typedef struct {
 
 static int chain_idx;
 static size_t mon_idx;
-	/* chain init. information. This */
-	/* is used to decide which */
-	/* monotone polygon to split if */
-	/* there are several other */
-	/* polygons touching at the same */
-	/* vertex  */
-static vertexchain_t* vert;
 	/* contains position of any vertex in */
 	/* the monotone chain for the polygon */
 static int* mon;
@@ -224,35 +176,27 @@ inside_polygon (trap_t *t, segment_t* seg)
   return false;
 }
 
-static double
-get_angle (pointf *vp0, pointf *vpnext, pointf *vp1)
-{
-  pointf v0, v1;
-  
-  v0.x = vpnext->x - vp0->x;
-  v0.y = vpnext->y - vp0->y;
-
-  v1.x = vp1->x - vp0->x;
-  v1.y = vp1->y - vp0->y;
+static double get_angle(pointf vp0, pointf vpnext, pointf vp1) {
+  const pointf v0 = sub_pointf(vpnext, vp0);
+  const pointf v1 = sub_pointf(vp1, vp0);
 
   if (CROSS_SINE(v0, v1) >= 0)	/* sine is positive */
     return DOT(v0, v1)/LENGTH(v0)/LENGTH(v1);
-  else
-    return -1.0 * DOT(v0, v1)/LENGTH(v0)/LENGTH(v1) - 2;
+  return -1.0 * DOT(v0, v1) / LENGTH(v0) / LENGTH(v1) - 2;
 }
 
-/* (v0, v1) is the new diagonal to be added to the polygon. Find which */
-/* chain to use and return the positions of v0 and v1 in p and q */ 
-static void
-get_vertex_positions (int v0, int v1, int *ip, int *iq)
-{
-  vertexchain_t *vp0, *vp1;
+/// (v0, v1) is the new diagonal to be added to the polygon. Find which
+/// chain to use and return the positions of v0 and v1 in p and q
+///
+/// @param vert Chain initial information
+static void get_vertex_positions(const vertexchain_t *vert, int v0, int v1,
+                                 int *ip, int *iq) {
   int i;
   double angle, temp;
   int tp = 0, tq = 0;
 
-  vp0 = &vert[v0];
-  vp1 = &vert[v1];
+  const vertexchain_t *const vp0 = &vert[v0];
+  const vertexchain_t *const vp1 = &vert[v1];
   
   /* p is identified as follows. Scan from (v0, v1) rightwards till */
   /* you hit the first segment starting from v0. That chain is the */
@@ -263,8 +207,7 @@ get_vertex_positions (int v0, int v1, int *ip, int *iq)
     {
       if (vp0->vnext[i] <= 0)
 	continue;
-      if ((temp = get_angle(&vp0->pt, &(vert[vp0->vnext[i]].pt), 
-			    &vp1->pt)) > angle)
+      if ((temp = get_angle(vp0->pt, vert[vp0->vnext[i]].pt, vp1->pt)) > angle)
 	{
 	  angle = temp;
 	  tp = i;
@@ -280,8 +223,7 @@ get_vertex_positions (int v0, int v1, int *ip, int *iq)
     {
       if (vp1->vnext[i] <= 0)
 	continue;      
-      if ((temp = get_angle(&vp1->pt, &(vert[vp1->vnext[i]].pt), 
-			    &vp0->pt)) > angle)
+      if ((temp = get_angle(vp1->pt, vert[vp1->vnext[i]].pt, vp0->pt)) > angle)
 	{
 	  angle = temp;
 	  tq = i;
@@ -295,10 +237,11 @@ get_vertex_positions (int v0, int v1, int *ip, int *iq)
  * the current monotone polygon mcur. Split the current polygon into 
  * two polygons using the diagonal (v0, v1) 
  *
+ * @param vert Chain initial information
  * @param chain Monotone polygon chain to operate on
  */
-static size_t make_new_monotone_poly(monchains_t *chain, size_t mcur, int v0,
-                                     int v1) {
+static size_t make_new_monotone_poly(vertexchain_t *vert, monchain_t *chain,
+                                     size_t mcur, int v0, int v1) {
   int p, q, ip, iq;
   const size_t mnew = newmon();
   int i, j, nf0, nf1;
@@ -307,7 +250,7 @@ static size_t make_new_monotone_poly(monchains_t *chain, size_t mcur, int v0,
   vp0 = &vert[v0];
   vp1 = &vert[v1];
 
-  get_vertex_positions(v0, v1, &ip, &iq);
+  get_vertex_positions(vert, v0, v1, &ip, &iq);
 
   p = vp0->vpos[ip];
   q = vp1->vpos[iq];
@@ -318,18 +261,18 @@ static size_t make_new_monotone_poly(monchains_t *chain, size_t mcur, int v0,
   i = new_chain_element();	/* for the new list */
   j = new_chain_element();
 
-  monchains_at(chain, i)->vnum = v0;
-  monchains_at(chain, j)->vnum = v1;
+  chain[i].vnum = v0;
+  chain[j].vnum = v1;
 
-  monchains_at(chain, i)->next = monchains_get(chain, p).next;
-  monchains_at(chain, monchains_get(chain, p).next)->prev = i;
-  monchains_at(chain, i)->prev = j;
-  monchains_at(chain, j)->next = i;
-  monchains_at(chain, j)->prev = monchains_get(chain, q).prev;
-  monchains_at(chain, monchains_get(chain, q).prev)->next = j;
+  chain[i].next = chain[p].next;
+  chain[chain[p].next].prev = i;
+  chain[i].prev = j;
+  chain[j].next = i;
+  chain[j].prev = chain[q].prev;
+  chain[chain[q].prev].next = j;
 
-  monchains_at(chain, p)->next = q;
-  monchains_at(chain, q)->prev = p;
+  chain[p].next = q;
+  chain[q].prev = p;
 
   nf0 = vp0->nextfree;
   nf1 = vp1->nextfree;
@@ -337,7 +280,7 @@ static size_t make_new_monotone_poly(monchains_t *chain, size_t mcur, int v0,
   vp0->vnext[ip] = v1;
 
   vp0->vpos[nf0] = i;
-  vp0->vnext[nf0] = monchains_get(chain, monchains_get(chain, i).next).vnum;
+  vp0->vnext[nf0] = chain[chain[i].next].vnum;
   vp1->vpos[nf1] = j;
   vp1->vnext[nf1] = v0;
 
@@ -357,11 +300,12 @@ static size_t make_new_monotone_poly(monchains_t *chain, size_t mcur, int v0,
 
 /// recursively visit all the trapezoids
 ///
+/// @param vert Chain initial information
 /// @param chain Monotone polygon chain to operate on
-static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
-                             segment_t *seg, traps_t *tr, size_t mcur,
-                             size_t trnum, size_t from, int flip, int dir,
-                             monchains_t *chain) {
+static void traverse_polygon(vertexchain_t *vert, bitarray_t *visited,
+                             boxes_t *decomp, segment_t *seg, traps_t *tr,
+                             size_t mcur, size_t trnum, size_t from, int flip,
+                             int dir, monchain_t *chain) {
   size_t mnew;
   int v0, v1;
 
@@ -405,24 +349,24 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 	  v1 = t->lseg;
 	  if (from == t->d1)
 	    {
-	      mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+	      mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
 	    }
 	  else
 	    {
-	      mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-	      traverse_polygon (visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-	      traverse_polygon (visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+	      mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
 	    }
 	}
       else
 	{
 	  /* Just traverse all neighbours */
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
 	}
     }
   
@@ -432,24 +376,24 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 	  v1 = LIST_GET(tr, t->u0).rseg;
 	  if (from == t->u1)
 	    {
-	      mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+	      mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
 	    }
 	  else
 	    {
-	      mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+	      mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
 	    }
 	}
       else
 	{
 	  /* Just traverse all neighbours */
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-	  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+	  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
 	}
     }
   
@@ -460,19 +404,19 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 	  if ((dir == TR_FROM_DN && t->d1 == from) ||
 	      (dir == TR_FROM_UP && t->u1 == from))
 	    {
-	      mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+	      mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
 	    }
 	  else
 	    {
-	      mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+	      mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
 	    }
 	}
       else			/* only downward cusp */
@@ -483,19 +427,19 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 
 	      if (dir == TR_FROM_UP && t->u0 == from)
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
 		}
 	      else
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
 		}
 	    }
 	  else
@@ -504,19 +448,19 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 	      v1 = LIST_GET(tr, t->u0).rseg;	
 	      if (dir == TR_FROM_UP && t->u1 == from)
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
 		}
 	      else
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
 		}
 	    }
 	}
@@ -528,19 +472,19 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 	      v1 = t->lseg;
 	      if (!(dir == TR_FROM_DN && t->d0 == from))
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
 		}
 	      else
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
 		}
 	    }
 	  else
@@ -550,19 +494,19 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 
 	      if (dir == TR_FROM_DN && t->d1 == from)
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
 		}
 	      else
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
 		}
 	    }
 	}
@@ -573,19 +517,19 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 	      v1 = t->lseg;
 	      if (dir == TR_FROM_UP)
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
 		}
 	      else
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
 		}
 	    }
 	  else if (equal_to(t->hi, seg[t->rseg].v1) &&
@@ -595,27 +539,27 @@ static void traverse_polygon(bitarray_t *visited, boxes_t *decomp,
 
 	      if (dir == TR_FROM_UP)
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v1, v0);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v1, v0);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->d0, trnum, flip, TR_FROM_UP, chain);
 		}
 	      else
 		{
-		  mnew = make_new_monotone_poly(chain, mcur, v0, v1);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
-		  traverse_polygon(visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
+		  mnew = make_new_monotone_poly(vert, chain, mcur, v0, v1);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u0, trnum, flip, TR_FROM_DN, chain);
+		  traverse_polygon(vert, visited, decomp, seg, tr, mnew, t->u1, trnum, flip, TR_FROM_DN, chain);
 		}
 	    }
 	  else			/* no split possible */
 	    {
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
-	      traverse_polygon(visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u0, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d0, trnum, flip, TR_FROM_UP, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->u1, trnum, flip, TR_FROM_DN, chain);
+	      traverse_polygon(vert, visited, decomp, seg, tr, mcur, t->d1, trnum, flip, TR_FROM_UP, chain);
 	    }
 	}
     }
@@ -629,9 +573,12 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
 
     // Table to hold all the monotone polygons. Each monotone polygon is a
     // circularly linked list
-    monchains_t mchain = {0};
+    monchain_t *const mchain = gv_calloc(LIST_SIZE(tr), sizeof(monchain_t));
 
-    vert = gv_calloc(nsegs + 1, sizeof(vertexchain_t));
+    // Chain initial information. This is used to decide which monotone polygon
+    // to split if there are several other polygons touching the same vertex.
+    vertexchain_t *const vert = gv_calloc(nsegs + 1, sizeof(vertexchain_t));
+
     mon = gv_calloc(nsegs, sizeof(int));
 
   /* First locate a trapezoid which lies inside the polygon */
@@ -645,9 +592,9 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
   /* trapezoids within the polygon */
 
     for (i = 1; i <= nsegs; i++) {
-	monchains_at(&mchain, i)->prev = seg[i].prev;
-	monchains_at(&mchain, i)->next = seg[i].next;
-	monchains_at(&mchain, i)->vnum = i;
+	mchain[i].prev = seg[i].prev;
+	mchain[i].next = seg[i].next;
+	mchain[i].vnum = i;
 	vert[i].pt = seg[i].v0;
 	vert[i].vnext[0] = seg[i].next; /* next vertex */
 	vert[i].vpos[0] = i;	/* locn. of next vertex */
@@ -661,14 +608,14 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
   
   /* traverse the polygon */
     if (is_valid_trap(LIST_GET(tr, tr_start).u0))
-	traverse_polygon(&visited, decomp, seg, tr, 0, tr_start,
-	                 LIST_GET(tr, tr_start).u0, flip, TR_FROM_UP, &mchain);
+	traverse_polygon(vert, &visited, decomp, seg, tr, 0, tr_start,
+	                 LIST_GET(tr, tr_start).u0, flip, TR_FROM_UP, mchain);
     else if (is_valid_trap(LIST_GET(tr, tr_start).d0))
-	traverse_polygon(&visited, decomp, seg, tr, 0, tr_start,
-	                 LIST_GET(tr, tr_start).d0, flip, TR_FROM_DN, &mchain);
+	traverse_polygon(vert, &visited, decomp, seg, tr, 0, tr_start,
+	                 LIST_GET(tr, tr_start).d0, flip, TR_FROM_DN, mchain);
   
     bitarray_reset(&visited);
-    LIST_FREE(&mchain);
+    free (mchain);
     free (vert);
     free (mon);
 }
@@ -741,6 +688,12 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     if (DEBUG) {
 	fprintf(stderr, "hor traps = %" PRISIZE_T "\n", LIST_SIZE(&hor_traps));
     }
+    if (LIST_SIZE(&hor_traps) == 0) {
+	free(permute);
+	free(segs);
+	fprintf(stderr, "horizontal trapezoid construction failed\n");
+	return NULL;
+    }
     boxes_t hor_decomp = {0};
     monotonate_trapezoids((int)nsegs, segs, &hor_traps, 0, &hor_decomp);
     LIST_FREE(&hor_traps);
@@ -750,6 +703,13 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     traps_t ver_traps = construct_trapezoids((int)nsegs, segs, permute);
     if (DEBUG) {
 	fprintf(stderr, "ver traps = %" PRISIZE_T "\n", LIST_SIZE(&ver_traps));
+    }
+    if (LIST_SIZE(&ver_traps) == 0) {
+	LIST_FREE(&hor_decomp);
+	free(permute);
+	free(segs);
+	fprintf(stderr, "vertical trapezoid construction failed\n");
+	return NULL;
     }
     boxes_t vert_decomp = {0};
     monotonate_trapezoids((int)nsegs, segs, &ver_traps, 1, &vert_decomp);

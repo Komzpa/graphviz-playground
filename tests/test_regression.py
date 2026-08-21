@@ -6372,6 +6372,7 @@ def test_2782():
 
 
 @pytest.mark.xfail(
+    platform.system() == "Windows",
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2784",
     strict=which("dot") is not None and is_asan_instrumented(which("dot")),

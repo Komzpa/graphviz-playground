@@ -486,6 +486,10 @@ maze *mkMaze(graph_t *g) {
     BB.UR.y += MARGIN;
     size_t nrect;
     rects = partition(mp->gcells, mp->ngcells, &nrect, BB);
+    if (rects == NULL) {
+	freeMaze(mp);
+	return NULL;
+    }
 
 #ifdef DEBUG
     if (odb_flags & ODB_MAZE) psdump (mp->gcells, mp->ngcells, BB, rects, nrect);
@@ -503,15 +507,21 @@ maze *mkMaze(graph_t *g) {
 
 void freeMaze (maze* mp)
 {
-    free (mp->cells[0].sides);
+    if (mp->cells != NULL) {
+	free(mp->cells[0].sides);
+    }
     free (mp->cells);
     for (size_t i = 0; i < mp->ngcells; ++i) {
 	free(mp->gcells[i].sides);
     }
     free (mp->gcells);
     freeSGraph (mp->sg);
-    dtclose (mp->hchans);
-    dtclose (mp->vchans);
+    if (mp->hchans != NULL) {
+	dtclose(mp->hchans);
+    }
+    if (mp->vchans != NULL) {
+	dtclose(mp->vchans);
+    }
     free (mp);
 }
 

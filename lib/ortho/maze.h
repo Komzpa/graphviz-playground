@@ -73,8 +73,8 @@ typedef struct {
   Dt_t* vchans;    ///< @brief set of vertical @ref channel "channels", created by @ref extractVChans
 } maze;
 
-extern maze* mkMaze(graph_t*);
-extern void freeMaze (maze*);
+maze *mkMaze(graph_t *);
+void freeMaze(maze *);
 void updateWts (sgraph* g, cell* cp, sedge* ep);
 #ifdef DEBUG
 extern int odb_flags;

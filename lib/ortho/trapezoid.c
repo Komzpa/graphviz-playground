@@ -33,6 +33,7 @@
 #include <util/gv_math.h>
 #include <util/list.h>
 #include <util/unreachable.h>
+#include <util/unused.h>
 
 /* Node types */
 
@@ -444,8 +445,11 @@ static void update_trapezoid(segment_t *s, segment_t *seg, traps_t *tr,
  * structures. First locate the two endpoints of the segment in the
  * Q-structure. Then start from the topmost trapezoid and go down to
  * the  lower trapezoid dividing all the trapezoids in between .
+ *
+ * @return 0 on success
  */
-static void add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
+static WUR int add_segment(int segnum, segment_t *seg, traps_t *tr,
+                           qnodes_t *qs) {
   segment_t s;
   size_t tfirst, tlast;
   size_t tfirstr = 0, tlastr = 0;
@@ -614,12 +618,10 @@ static void add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
       const size_t t_sav = t;
       const size_t tn_sav = tn;
 
-      /* error */
-
       if (!is_valid_trap(LIST_GET(tr, t).d0) &&
-          !is_valid_trap(LIST_GET(tr, t).d1)) { // case cannot arise
-	  fprintf(stderr, "add_segment: error\n");
-	  break;
+          !is_valid_trap(LIST_GET(tr, t).d1)) { // error
+	  fprintf(stderr, "trapezoid segment construction failed\n");
+	  return -1;
 	}
 
       /* only one trapezoid below. partition t into two and make the */
@@ -820,6 +822,7 @@ static void add_segment(int segnum, segment_t *seg, traps_t *tr, qnodes_t *qs) {
   merge_trapezoids(segnum, tfirstr, tlastr, S_RIGHT, tr, qs);
 
   seg[segnum].is_inserted = true;
+  return 0;
 }
 
 /* Update the roots stored for each of the endpoints of the segment.
@@ -882,17 +885,26 @@ traps_t construct_trapezoids(int nseg, segment_t *seg, int *permute) {
 
     const int logstar = math_logstar_n(nseg);
     for (h = 1; h <= logstar; h++) {
-	for (i = math_N(nseg, h -1) + 1; i <= math_N(nseg, h); i++)
-	    add_segment(permute[segi++], seg, &tr, &qs);
+	for (i = math_N(nseg, h -1) + 1; i <= math_N(nseg, h); i++) {
+	    if (add_segment(permute[segi++], seg, &tr, &qs) != 0) {
+	        LIST_FREE(&tr);
+	        goto done;
+	    }
+	}
 
       /* Find a new root for each of the segment endpoints */
 	for (i = 1; i <= nseg; i++)
 	    find_new_roots(i, seg, &tr, &qs);
     }
 
-    for (i = math_N(nseg, logstar) + 1; i <= nseg; i++)
-	add_segment(permute[segi++], seg, &tr, &qs);
+    for (i = math_N(nseg, logstar) + 1; i <= nseg; i++) {
+	if (add_segment(permute[segi++], seg, &tr, &qs) != 0) {
+	    LIST_FREE(&tr);
+	    goto done;
+	}
+    }
 
+done:
     LIST_FREE(&qs);
     return tr;
 }
