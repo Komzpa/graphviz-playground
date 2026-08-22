@@ -19,6 +19,8 @@
 #include <qframe.h>
 #include <string_view>
 
+#include "moc_mainwindow.cpp"
+
 QTextEdit *globTextEdit;
 
 int errorPipe(char *errMsg) {

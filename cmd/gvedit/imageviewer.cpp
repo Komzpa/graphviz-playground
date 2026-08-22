@@ -14,6 +14,8 @@
 #include "mdichild.h"
 #include <QtGlobal>
 
+#include "moc_imageviewer.cpp"
+
 ImageViewer::ImageViewer()
 {
     imageLabel = new QLabel;

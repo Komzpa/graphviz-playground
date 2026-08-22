@@ -61,10 +61,6 @@ def main(args: list[str]) -> int:
         cwd / "build/lib/cgraph/scan.c",
         cwd / "build/lib/common/htmlparse.c",
         cwd / "build/lib/expr/exparse.c",
-        cwd / "build/cmd/gvedit/gvedit_autogen/EWIEGA46WW/moc_csettings.cpp",
-        cwd / "build/cmd/gvedit/gvedit_autogen/EWIEGA46WW/moc_imageviewer.cpp",
-        cwd / "build/cmd/gvedit/gvedit_autogen/EWIEGA46WW/moc_mainwindow.cpp",
-        cwd / "build/cmd/gvedit/gvedit_autogen/EWIEGA46WW/moc_mdichild.cpp",
         cwd / "build/cmd/gvedit/gvedit_autogen/EWIEGA46WW/qrc_mdi.cpp",
     ]
 

@@ -28,6 +28,8 @@
 #include <util/gv_find_me.h>
 #include <util/path.h>
 
+#include "moc_csettings.cpp"
+
 extern int errorPipe(char *errMsg);
 
 #define WIDGET(t, f) (findChild<t *>(QStringLiteral(#f)))
