@@ -44,14 +44,6 @@ private:
     //Actions
     Agraph_t* graph;
     MdiChild* activeWindow;
-    QAction* outputAct;
-    QAction* addAct;
-    QAction* helpAct;
-    QAction* cancelAct;
-    QAction* okAct;
-    QAction* newAct;
-    QAction* openAct;
-    QAction* saveAct;
     //METHODS
     bool loadLayouts();
     bool loadRenderers();

@@ -60,7 +60,6 @@ private:
     QPrinter printer;
 #endif
 
-    QAction *openAct;
     QAction *printAct;
     QAction *exitAct;
     QAction *zoomInAct;
