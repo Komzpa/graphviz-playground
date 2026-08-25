@@ -271,10 +271,8 @@ static void gvconfig_write_library_config(GVC_t *gvc, char *lib_path,
 #define DOTLIBS "/.libs"
 
 #ifdef HAVE_DL_ITERATE_PHDR
-static int line_callback(struct dl_phdr_info *info, size_t size, void *line)
-{
+static int line_callback(struct dl_phdr_info *info, size_t size, void *xb) {
    const char *p = info->dlpi_name;
-   agxbuf *const xb = line;
    const char *const tmp = strstr(p, "/libgvc.");
    (void) size;
    if (tmp) {
