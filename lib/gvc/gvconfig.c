@@ -172,7 +172,6 @@ static char *token(int *nest, char **tokens) {
 }
 
 static int gvconfig_plugin_install_from_config(GVC_t *gvc, char *s) {
-  const char *type;
   int quality;
   int nest = 0;
 
@@ -191,7 +190,7 @@ static int gvconfig_plugin_install_from_config(GVC_t *gvc, char *s) {
       }
       do {
         if (nest == 2) {
-          type = token(&nest, &s);
+          const char *const type = token(&nest, &s);
           if (nest == 2)
             quality = atoi(token(&nest, &s));
           else
