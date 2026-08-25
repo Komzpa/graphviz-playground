@@ -38,8 +38,6 @@
 #include	<sys/types.h>
 #ifdef _WIN32
 #include <windows.h>
-#define GLOB_NOSPACE    1   /* Ran out of memory.  */
-#define GLOB_ABORTED    2   /* Read error.  */
 #define GLOB_NOMATCH    3   /* No matches found.  */
 #define GLOB_NOSORT     4
 typedef struct {
@@ -664,14 +662,9 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
     if (h == INVALID_HANDLE_VALUE) return GLOB_NOMATCH;
     libdir = gvconfig_libdir(gvc);
     do {
-      const size_t size =
-        strlen(libdir) + 1 /* path separator */ + strlen(wfd.cFileName) + 1;
-      char *const entry = malloc(size);
-      if (!entry) {
-        goto oom;
-      }
-      snprintf(entry, size, "%s%c%s", libdir, PATH_SEPARATOR, wfd.cFileName);
-      LIST_APPEND(&strs, entry);
+      agxbuf entry = {0};
+      agxbprint(&entry, "%s%c%s", libdir, PATH_SEPARATOR, wfd.cFileName);
+      LIST_APPEND(&strs, agxbdisown(&entry));
     } while (FindNextFile (h, &wfd));
     LIST_APPEND(&strs, NULL);
 
@@ -679,11 +672,6 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
     free(libdir);
     
     return 0;
-
-oom:
-    LIST_FREE(&strs);
-    free(libdir);
-    return GLOB_NOSPACE;
 }
 
 static void
