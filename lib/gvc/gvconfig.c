@@ -640,7 +640,6 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
     (void)flags;
     (void)errfunc;
 
-    char* libdir;
     WIN32_FIND_DATA wfd;
     HANDLE h;
     LIST(char *) strs = {.dtor = LIST_DTOR_FREE};
@@ -660,7 +659,7 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
     
     h = FindFirstFile (pattern, &wfd);
     if (h == INVALID_HANDLE_VALUE) return GLOB_NOMATCH;
-    libdir = gvconfig_libdir(gvc);
+    char *const libdir = gvconfig_libdir(gvc);
     do {
       agxbuf entry = {0};
       agxbprint(&entry, "%s%c%s", libdir, PATH_SEPARATOR, wfd.cFileName);
