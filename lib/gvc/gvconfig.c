@@ -671,14 +671,9 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
         goto oom;
       }
       snprintf(entry, size, "%s%c%s", libdir, PATH_SEPARATOR, wfd.cFileName);
-      if (!LIST_TRY_APPEND(&strs, entry)) {
-        free(entry);
-        goto oom;
-      }
+      LIST_APPEND(&strs, entry);
     } while (FindNextFile (h, &wfd));
-    if (!LIST_TRY_APPEND(&strs, NULL) != 0) {
-      goto oom;
-    }
+    LIST_APPEND(&strs, NULL);
 
     LIST_DETACH(&strs, &pglob->gl_pathv, &pglob->gl_pathc);
     free(libdir);
