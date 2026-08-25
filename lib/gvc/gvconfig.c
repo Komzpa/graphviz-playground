@@ -172,7 +172,7 @@ static char *token(int *nest, char **tokens) {
 }
 
 static int gvconfig_plugin_install_from_config(GVC_t *gvc, char *s) {
-  char *package_path, *name;
+  char *package_path;
   const char *type;
   int quality;
   int nest = 0;
@@ -180,10 +180,7 @@ static int gvconfig_plugin_install_from_config(GVC_t *gvc, char *s) {
   separator(&nest, &s);
   while (*s) {
     package_path = token(&nest, &s);
-    if (nest == 0)
-      name = token(&nest, &s);
-    else
-      name = "x";
+    char *const name = nest == 0 ? token(&nest, &s) : "x";
     gvplugin_package_t *const package =
         gvplugin_package_record(gvc, package_path, name);
     do {
