@@ -172,7 +172,6 @@ static char *token(int *nest, char **tokens) {
 }
 
 static int gvconfig_plugin_install_from_config(GVC_t *gvc, char *s) {
-  int quality;
   int nest = 0;
 
   separator(&nest, &s);
@@ -191,10 +190,7 @@ static int gvconfig_plugin_install_from_config(GVC_t *gvc, char *s) {
       do {
         if (nest == 2) {
           const char *const type = token(&nest, &s);
-          if (nest == 2)
-            quality = atoi(token(&nest, &s));
-          else
-            quality = 0;
+          const int quality = nest == 2 ? atoi(token(&nest, &s)) : 0;
           bool rc = gvplugin_install(gvc, gv_api, type, quality, package, NULL);
           if (!rc) {
             agerrorf("config error: %s %s %s\n", package_path, api, type);
