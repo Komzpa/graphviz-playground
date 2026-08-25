@@ -675,8 +675,7 @@ glob (GVC_t* gvc, char* pattern, int flags, int (*errfunc)(const char *, int), g
 static void
 globfree (glob_t* pglob)
 {
-    int i;
-    for (i = 0; i < pglob->gl_pathc; i++)
+    for (int i = 0; i < pglob->gl_pathc; i++)
       free (pglob->gl_pathv[i]);
     free (pglob->gl_pathv);
 }
