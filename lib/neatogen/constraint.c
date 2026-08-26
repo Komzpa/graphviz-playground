@@ -10,6 +10,7 @@
 
 
 #include "config.h"
+#include <cgraph/cgraph.h>
 #include <common/geom.h>
 #include <math.h>
 #include <neatogen/neato.h>
@@ -624,17 +625,15 @@ static int sortf(const void *x, const void *y) {
 	return 0;
 }
 
-static double compress(info * nl, int nn)
-{
+static double compress(info *nl, size_t nn) {
     info *p = nl;
     info *q;
-    int i, j;
     double s, sc = 0;
     pointf pt;
 
-    for (i = 0; i < nn; i++) {
+    for (size_t i = 0; i < nn; i++) {
 	q = p + 1;
-	for (j = i + 1; j < nn; j++) {
+	for (size_t j = i + 1; j < nn; j++) {
 	    if (OVERLAP(p->bb, q->bb))
 		return 0;
 	    if (p->pos.x == q->pos.x)
@@ -764,12 +763,11 @@ static double computeScale(pointf *aarr, size_t m) {
  */
 int scAdjust(graph_t * g, int equal)
 {
-    int nnodes = agnnodes(g);
+    const size_t nnodes = agnnodes_z(g);
     info *nlist = gv_calloc(nnodes, sizeof(info));
     info *p = nlist;
     node_t *n;
     pointf s;
-    int i;
     expand_t margin;
     pointf *aarr;
 
@@ -811,8 +809,7 @@ int scAdjust(graph_t * g, int equal)
 	if (Verbose) fprintf(stderr, "compress %g \n", s.x);
     } else {
 	size_t m;
-	assert(nnodes >= 0);
-	aarr = mkOverlapSet(nlist, (size_t)nnodes, &m);
+	aarr = mkOverlapSet(nlist, nnodes, &m);
 
 	if (m == 1) { // no overlaps
 	    free(aarr);
@@ -830,7 +827,7 @@ int scAdjust(graph_t * g, int equal)
     }
 
     p = nlist;
-    for (i = 0; i < nnodes; i++) {
+    for (size_t i = 0; i < nnodes; i++) {
 	ND_pos(p->np)[0] = s.x * p->pos.x;
 	ND_pos(p->np)[1] = s.y * p->pos.y;
 	p++;

@@ -25,7 +25,11 @@
 
 static int icompare(void *, void *);
 
-Dtdisc_t Hdisc = {offsetof(HDict_t, key), sizeof(int), -1, 0, 0, icompare};
+Dtdisc_t Hdisc = {.key = offsetof(HDict_t, key),
+                  .size = sizeof(int),
+                  .link = -1,
+                  .freef = free,
+                  .comparf = icompare};
 
 static int icompare(void *v1, void *v2) {
   const int k1 = *(int *)v1;
@@ -518,21 +522,6 @@ static int xlhdxload(XLabels_t *xlp, boxf obj_bb) {
   return 0;
 }
 
-static void xlhdxunload(XLabels_t *xlp) {
-  int size = dtsize(xlp->hdx), freed = 0;
-  while (dtsize(xlp->hdx)) {
-    void *vp = dtfinger(xlp->hdx);
-    assert(vp);
-    if (vp) {
-      dtdetach(xlp->hdx, vp);
-      free(vp);
-      freed++;
-    }
-  }
-  assert(size == freed);
-  (void)size;
-}
-
 static void xlspdxload(XLabels_t *xlp) {
   for (HDict_t *op = dtfirst(xlp->hdx); op; op = dtnext(xlp->hdx, op)) {
     //          tree       rectangle    data        node
@@ -546,7 +535,6 @@ static int xlinitialize(XLabels_t *xlp, boxf obj_bb) {
   if ((r = xlhdxload(xlp, obj_bb)) < 0)
     return r;
   xlspdxload(xlp);
-  xlhdxunload(xlp);
   return dtclose(xlp->hdx);
 }
 

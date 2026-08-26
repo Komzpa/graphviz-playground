@@ -45,7 +45,7 @@ static int right(int i) { return 2 * i + 1; }
 static int parent(int i) { return i / 2; }
 
 typedef struct {
-    int *data;
+    size_t *data;
     int heapSize;
     int *index;
 } heap;
@@ -101,14 +101,14 @@ static heap initHeap(int startVertex, Word dist[], int n) {
     int i, count;
     int j;    /* We cannot use an unsigned value in this loop */
     heap h = {
-      .data = gv_calloc(n - 1, sizeof(int)),
+      .data = gv_calloc(n - 1, sizeof(size_t)),
       .heapSize = n - 1,
       .index = gv_calloc(n, sizeof(int))
     };
 
     for (count = 0, i = 0; i < n; i++)
 	if (i != startVertex) {
-	    h.data[count] = i;
+	    h.data[count] = (size_t)i;
 	    h.index[i] = count;
 	    count++;
 	}
@@ -119,7 +119,7 @@ static heap initHeap(int startVertex, Word dist[], int n) {
     return h;
 }
 
-static bool extractMax(heap *h, int *max, Word dist[]) {
+static bool extractMax(heap *h, size_t *max, Word dist[]) {
     if (h->heapSize == 0)
 	return false;
 
@@ -132,7 +132,7 @@ static bool extractMax(heap *h, int *max, Word dist[]) {
     return true;
 }
 
-static void increaseKey(heap *h, int increasedVertex, Word newDist, Word dist[]) {
+static void increaseKey(heap *h, size_t increasedVertex, Word newDist, Word dist[]) {
     int placeInHeap;
     int i;
 
@@ -154,7 +154,8 @@ static void increaseKey(heap *h, int increasedVertex, Word newDist, Word dist[])
 
 void ngdijkstra(int vertex, vtx_data * graph, int n, DistType * dist)
 {
-    int closestVertex, neighbor;
+    size_t closestVertex;
+    int neighbor;
     DistType closestDist, prevClosestDist = MAX_DIST;
 
     /* initial distances with edge weights: */
@@ -172,7 +173,7 @@ void ngdijkstra(int vertex, vtx_data * graph, int n, DistType * dist)
 	    break;
 	for (size_t i = 1; i < graph[closestVertex].nedges; i++) {
 	    neighbor = graph[closestVertex].edges[i];
-	    increaseKey(&H, neighbor, closestDist +
+	    increaseKey(&H, (size_t)neighbor, closestDist +
 			(DistType)graph[closestVertex].ewgts[i], dist);
 	}
 	prevClosestDist = closestDist;
@@ -209,14 +210,14 @@ static heap initHeap_f(int startVertex, float dist[], int n) {
     int i, count;
     int j;			/* We cannot use an unsigned value in this loop */
     heap h = {
-      .data = gv_calloc(n - 1, sizeof(int)),
+      .data = gv_calloc(n - 1, sizeof(size_t)),
       .heapSize = n - 1,
       .index = gv_calloc(n, sizeof(int))
     };
 
     for (count = 0, i = 0; i < n; i++)
 	if (i != startVertex) {
-	    h.data[count] = i;
+	    h.data[count] = (size_t)i;
 	    h.index[i] = count;
 	    count++;
 	}
@@ -227,7 +228,7 @@ static heap initHeap_f(int startVertex, float dist[], int n) {
     return h;
 }
 
-static bool extractMax_f(heap *h, int *max, float dist[]) {
+static bool extractMax_f(heap *h, size_t *max, float dist[]) {
     if (h->heapSize == 0)
 	return false;
 
@@ -240,7 +241,7 @@ static bool extractMax_f(heap *h, int *max, float dist[]) {
     return true;
 }
 
-static void increaseKey_f(heap *h, int increasedVertex, float newDist,
+static void increaseKey_f(heap *h, size_t increasedVertex, float newDist,
                           float dist[]) {
     int placeInHeap;
     int i;
@@ -266,7 +267,8 @@ static void increaseKey_f(heap *h, int increasedVertex, float newDist,
  */
 void dijkstra_f(int vertex, vtx_data * graph, int n, float *dist)
 {
-    int closestVertex = 0, neighbor;
+    size_t closestVertex = 0;
+    int neighbor;
     float closestDist;
 
     /* initial distances with edge weights: */
@@ -284,7 +286,7 @@ void dijkstra_f(int vertex, vtx_data * graph, int n, float *dist)
 	    break;
 	for (size_t i = 1; i < graph[closestVertex].nedges; i++) {
 	    neighbor = graph[closestVertex].edges[i];
-	    increaseKey_f(&H, neighbor, closestDist + graph[closestVertex].ewgts[i],
+	    increaseKey_f(&H, (size_t)neighbor, closestDist + graph[closestVertex].ewgts[i],
 			  dist);
 	}
     }
@@ -309,7 +311,7 @@ size_t dijkstra_sgd(graph_sgd *graph, size_t source, term_sgd *terms) {
     assert(graph->n <= INT_MAX);
     heap h = initHeap_f((int)source, dists, (int)graph->n);
 
-    int closest = 0;
+    size_t closest = 0;
     size_t offset = 0;
     while (extractMax_f(&h, &closest, dists)) {
         float d = dists[closest];
@@ -318,9 +320,9 @@ size_t dijkstra_sgd(graph_sgd *graph, size_t source, term_sgd *terms) {
         }
         // if the target is fixed then always create a term as shortest paths are not calculated from there
         // if not fixed then only create a term if the target index is lower
-        if (bitarray_get(graph->pinneds, closest) || closest < (int)source) {
+        if (bitarray_get(graph->pinneds, closest) || closest < source) {
             terms[offset].i = (int)source;
-            terms[offset].j = closest;
+            terms[offset].j = (int)closest;
             terms[offset].d = d;
             terms[offset].w = 1 / (d*d);
             offset++;
@@ -329,8 +331,7 @@ size_t dijkstra_sgd(graph_sgd *graph, size_t source, term_sgd *terms) {
              i++) {
             size_t target = graph->targets[i];
             float weight = graph->weights[i];
-            assert(target <= INT_MAX);
-            increaseKey_f(&h, (int)target, d+weight, dists);
+            increaseKey_f(&h, target, d+weight, dists);
         }
     }
     freeHeap(&h);
