@@ -277,7 +277,12 @@ static void svg_size(usershape_t *us) {
   OPTIONAL(double) soft_height = {0};
   OPTIONAL(double) soft_width = {0};
 
-  rewind(us->f);
+  if (fseek(us->f, 0, SEEK_SET) < 0) {
+    us->w = 0;
+    us->h = 0;
+    return;
+  }
+
   while (!eof && (!hard_width.has_value || !hard_height.has_value)) {
     // read next line
     while (true) {
