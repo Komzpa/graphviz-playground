@@ -58,7 +58,7 @@ Layout::Layout(char *fontname, double fontsize, char* string)
 		font = std::make_unique<Font>(reference.hdc, &found_font);
 	}
 	else
-		font = std::make_unique<Font>(FontFamily::GenericSerif(), fontsize);
+		font = std::make_unique<Font>(FontFamily::GenericSerif(), static_cast<REAL>(fontsize));
 }
 
 void gdiplus_free_layout(void *layout)
