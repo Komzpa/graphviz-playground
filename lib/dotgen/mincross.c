@@ -268,9 +268,11 @@ static void fixLabelOrder(graph_t *g, rank_t *rk) {
     if (ND_x(n) || agdegree(g, n, 1, 1) == 0)
       continue;
     if (getComp(g, n, sg, indices)) {
+#ifndef NDEBUG
       // `topsort()` drains `sg` via `agdelnode()`, so the node count must be
       // sampled before the call, not after
       const size_t sz_before = agnnodes_z(sg);
+#endif
       nodes_t arr = topsort(g, sg);
       assert(LIST_SIZE(&arr) == sz_before);
       qsort(indices, LIST_SIZE(&arr), sizeof(int), ordercmpf);
