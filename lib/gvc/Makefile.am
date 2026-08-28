@@ -1,6 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
-GVC_VERSION = "7:14:0"
+GVC_VERSION = "7:15:0"
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir)/lib \
