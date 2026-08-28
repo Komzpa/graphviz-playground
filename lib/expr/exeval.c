@@ -537,7 +537,11 @@ static int scan(Expr_t *ex, Exnode_t *exnode, void *env, FILE *sp) {
 			return 0;
 		}
 		fputs(v.string, sp);
-		rewind(sp);
+		if (fseek(sp, 0, SEEK_SET) < 0) {
+			exerror("scanf: failed to seek temporary file");
+			fclose(sp);
+			return 0;
+		}
 		n = sfvscanf(sp, &fmt.fmt);
 		fclose(sp);
 	} else {
