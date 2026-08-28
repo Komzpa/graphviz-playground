@@ -532,7 +532,6 @@ EXCLUDE = (
     "tclpkg/tclpathplan/simple.h",
     "tclpkg/tclpathplan/tclpathplan.c",
     "tclpkg/tclstubs/tclStubLib.c",
-    "windows/include/unistd/unistd.h",
 )
 
 root = Path(__file__).parents[1]
