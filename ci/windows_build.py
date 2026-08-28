@@ -135,6 +135,7 @@ def main(args: list[str]) -> int:
             "-A",
             options.platform,
             f"-DBUILD_SHARED_LIBS={options.build_shared_libs}",
+            "-DCMAKE_COMPILE_WARNING_AS_ERROR=ON",
             "-Dwith_cxx_api=ON",
             "-DENABLE_LTDL=ON",
             "-DWITH_EXPAT=ON",
