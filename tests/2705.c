@@ -31,7 +31,11 @@ int main(int argc, char **argv) {
   (void)agclose(g1);
 
   // parse this back in
-  rewind(out1);
+  {
+    const int rc = fseek(out1, 0, SEEK_SET);
+    assert(rc == 0);
+    (void)rc;
+  }
   Agraph_t *const g2 = agread(out1, NULL);
   assert(g2 != NULL);
   (void)fclose(out1);
