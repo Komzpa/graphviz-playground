@@ -435,7 +435,10 @@ static void jpeg_size(usershape_t *us) {
   };
 
   us->dpi = 0;
-  rewind(us->f);
+  if (fseek(us->f, 0, SEEK_SET) < 0) {
+    return;
+  }
+
   while (true) {
     /* Now we must be at a 0xff or at a series of 0xff's.
      * If that is not the case, or if we're at EOF, then there's
