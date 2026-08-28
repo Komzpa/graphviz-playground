@@ -37,7 +37,7 @@ extern int errorPipe(char *errMsg);
 /// wrapper around `gv_find_me` to convert to a C++ type
 static std::string find_me() {
   char *const me = gv_find_me();
-  const std::string me_s = me == NULL ? "" : me;
+  const std::string me_s = me == nullptr ? "" : me;
   free(me);
   return me_s;
 }

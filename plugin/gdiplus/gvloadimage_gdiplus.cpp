@@ -76,7 +76,7 @@ static void gdiplus_loadimage_gdiplus(GVJ_t * job, usershape_t *us, boxf b, bool
 {
 	/* get the image from usershape details, then blit it to the context */
 	if (Image *image = gdiplus_loadimage(us)) {
-		assert(job != NULL);
+		assert(job != nullptr);
 		auto g = reinterpret_cast<Graphics*>(job->context);
 		g->DrawImage(image, RectF(d2f(b.LL.x), d2f(b.LL.y), d2f(b.UR.x - b.LL.x),
 		                          d2f(b.UR.y - b.LL.y)));
