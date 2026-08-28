@@ -410,7 +410,10 @@ parse_prog *parseProg(char *input, int isFile) {
     str = tmpfile();
     if (str != NULL) {
       fputs(input, str);
-      rewind(str);
+      if (fseek(str, 0, SEEK_SET) < 0) {
+        (void)fclose(str);
+        str = NULL;
+      }
     }
     prog->source = NULL; /* command line */
   }
