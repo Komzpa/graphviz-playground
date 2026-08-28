@@ -700,9 +700,12 @@ bool gvusershape_file_access(usershape_t *us) {
   assert(us->name);
   assert(us->name[0]);
 
-  if (us->f)
-    rewind(us->f);
-  else {
+  if (us->f) {
+    if (fseek(us->f, 0, SEEK_SET) < 0) {
+      agwarningf("Failed to seek \"%s\" file handle\n", us->name);
+      return false;
+    }
+  } else {
     if (!(fn = safefile(us->name))) {
       agwarningf("Filename \"%s\" is unsafe\n", us->name);
       return false;
