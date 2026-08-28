@@ -2210,7 +2210,11 @@ static Exnode_t *compile(Expr_t *prog, char *src, char *input, int line,
   if (sfx) {
     fputs(sfx, sf);
   }
-  rewind(sf);
+  if (fseek(sf, 0, SEEK_SET) < 0) {
+    error(ERROR_ERROR, "failed to seek temporary file");
+    (void)fclose(sf);
+    return NULL;
+  }
 
   /*  prefixing label if necessary */
   agxbuf label = {0};
