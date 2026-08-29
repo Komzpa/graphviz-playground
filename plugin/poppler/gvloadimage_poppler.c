@@ -30,12 +30,10 @@ static void gvloadimage_poppler_free(usershape_t *us)
     g_object_unref(us->data);
 }
 
-static PopplerDocument* gvloadimage_poppler_load(GVJ_t * job, usershape_t *us)
-{
+static PopplerDocument *gvloadimage_poppler_load(usershape_t *us) {
     PopplerDocument *document = NULL;
     int num_pages;
 
-    assert(job);
     assert(us);
     assert(us->name);
 
@@ -112,7 +110,7 @@ static void gvloadimage_poppler_cairo(GVJ_t * job, usershape_t *us, boxf b, bool
 {
     (void)filled;
 
-    PopplerDocument* document = gvloadimage_poppler_load(job, us);
+    PopplerDocument *document = gvloadimage_poppler_load(us);
     PopplerPage* page;
 
     cairo_t *cr = job->context; /* target context */
