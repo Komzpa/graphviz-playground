@@ -23,6 +23,8 @@ const char *lt_dlerror() {
 
 lt_dlhandle lt_dlopen(char *p) { return LoadLibrary(p); }
 
-void *lt_dlsym(lt_dlhandle hndl, char *s) { return GetProcAddress(hndl, s); }
+void *lt_dlsym(lt_dlhandle hndl, const char *s) {
+  return GetProcAddress(hndl, s);
+}
 
 #endif /* !LTDL_H */

@@ -33,14 +33,14 @@ TEST_CASE("take an input graph, compute its connected components, lay out each "
   aginit(g, AGNODE, "Agnodeinfo_t", sizeof(Agnodeinfo_t), true);
 
   size_t ncc = 0;
-  auto **cc = ccomps(g, &ncc, NULL);
+  auto **cc = ccomps(g, &ncc, nullptr);
   REQUIRE(ncc == num_subgraphs);
 
   auto *gvc = gvContextPlugins(lt_preloaded_symbols, false);
 
   for (size_t i = 0; i < ncc; i++) {
     graph_t *sg = cc[i];
-    const auto nedges = graphviz_node_induce(sg, NULL);
+    const auto nedges = graphviz_node_induce(sg, nullptr);
     REQUIRE(nedges == 1);
     gvLayout(gvc, sg, "neato");
   }

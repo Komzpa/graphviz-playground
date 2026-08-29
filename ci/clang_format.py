@@ -491,7 +491,6 @@ EXCLUDE = (
     "plugin/gdiplus/gvplugin_gdiplus.cpp",
     "plugin/gdiplus/gvplugin_gdiplus.h",
     "plugin/gdiplus/gvrender_gdiplus.cpp",
-    "plugin/gdiplus/gvtextlayout_gdiplus.cpp",
     "plugin/gdk/gvdevice_gdk.c",
     "plugin/gdk/gvloadimage_gdk.c",
     "plugin/gs/gvloadimage_gs.c",
@@ -532,7 +531,6 @@ EXCLUDE = (
     "tclpkg/tclpathplan/simple.h",
     "tclpkg/tclpathplan/tclpathplan.c",
     "tclpkg/tclstubs/tclStubLib.c",
-    "windows/include/unistd/unistd.h",
 )
 
 root = Path(__file__).parents[1]
