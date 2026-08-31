@@ -6623,6 +6623,38 @@ def test_2852():
     p.check_returncode()
 
 
+@pytest.mark.xfail(
+    raises=AssertionError,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/2855",
+    strict=True,
+)
+def test_2855():
+    """
+    with `ordering="in"`, `nop` should not reorder edges
+    https://gitlab.com/graphviz/graphviz/-/issues/2855
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2855.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through `nop`
+    out = run("nop", src)
+
+    # extract edges in order from the input
+    reference: list[str] = []
+    regex = r"\b(?P<from>[a-zA-Z_]\w*)\s*->\s*(?P<to>[a-zA-Z_]\w*)\b"
+    for f, t in re.findall(regex, src.read_text(encoding="utf-8")):
+        reference += [f"{f}->{t}"]
+
+    # extract edges in order from the output
+    seen: list[str] = []
+    for f, t in re.findall(regex, out):
+        seen += [f"{f}->{t}"]
+
+    assert reference == seen, '`nop` does not respect `ordering="in"`'
+
+
 def test_698066():
     """
     Graphviz should not crash when processing this graph
