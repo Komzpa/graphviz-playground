@@ -49,7 +49,8 @@ static Agsym_t *Tailport, *Headport;
 typedef struct {
 	uint64_t *preorder_number;	// of a graph or subgraph
 	uint64_t *node_last_written;	// postorder number of subg when node was last written
-	uint64_t *edge_last_written;	// postorder number of subg when edge was last written
+	Agedge_t **edges;		// edges seen during node iteration
+	size_t n_edges;			// items in `edges`
 	int level;                      // indentation level
 } write_info_t;
 
@@ -592,13 +593,7 @@ static int write_port(Agedge_t * e, iochan_t * ofile, Agsym_t * port)
     return 0;
 }
 
-static bool write_edge_test(Agraph_t *g, Agedge_t *e, write_info_t *wr_info) {
-    if (wr_info->edge_last_written[AGSEQ(e)] >=
-        wr_info->preorder_number[AGSEQ(g)]) return false;
-    return true;
-}
-
-static int write_edge(Agraph_t *subg, Agedge_t *e, iochan_t *ofile, Dict_t *d,
+static int write_edge(Agedge_t *e, iochan_t *ofile, Dict_t *d,
                       write_info_t *wr_info) {
     Agnode_t *t, *h;
     Agraph_t *g;
@@ -617,9 +612,20 @@ static int write_edge(Agraph_t *subg, Agedge_t *e, iochan_t *ofile, Dict_t *d,
     } else {
 	CHKRV(write_edge_name(e, ofile, true, wr_info));
     }
-    wr_info->edge_last_written[AGSEQ(e)] =
-	wr_info->preorder_number[AGSEQ(subg)];
     return ioput(g, ofile, ";\n");
+}
+
+static int write_edges(iochan_t *ofile, Dict_t *d, write_info_t *wr_info) {
+  for (size_t i = 0; i < wr_info->n_edges; ++i) {
+    if (wr_info->edges[i] == NULL) {
+      continue;
+    }
+    CHKRV(write_edge(wr_info->edges[i], ofile, d, wr_info));
+
+    // blank the entry so it can be reused by sibling subgraphs
+    wr_info->edges[i] = NULL;
+  }
+  return 0;
 }
 
 static int write_body(Agraph_t *g, iochan_t *ofile, write_info_t *wr_info) {
@@ -638,11 +644,13 @@ static int write_body(Agraph_t *g, iochan_t *ofile, write_info_t *wr_info) {
 		CHKRV(write_node(g, aghead(e), ofile, dd ? dd->dict.n : 0, wr_info));
 		prev = aghead(e);
 	    }
-	    if (write_edge_test(g, e, wr_info))
-		CHKRV(write_edge(g, e, ofile, dd ? dd->dict.e : 0, wr_info));
+	    // pend this edge to be emitted later
+	    wr_info->edges[AGSEQ(e)] = e;
 	}
 
 	}
+    // flush pending edges to the output file
+    CHKRV(write_edges(ofile, dd ? dd->dict.e : NULL, wr_info));
     return 0;
 }
 
@@ -710,7 +718,8 @@ static write_info_t before_write(Agraph_t *g) {
     
     wr_info.preorder_number = gv_calloc(g->clos->seq[AGRAPH] + 1, sizeof(uint64_t));
     wr_info.node_last_written = gv_calloc(g->clos->seq[AGNODE] + 1, sizeof(uint64_t));
-    wr_info.edge_last_written = gv_calloc(g->clos->seq[AGEDGE] + 1, sizeof(uint64_t));
+    wr_info.edges = gv_calloc(g->clos->seq[AGEDGE] + 1, sizeof(wr_info.edges[0]));
+    wr_info.n_edges = g->clos->seq[AGEDGE] + 1;
     subgdfs(g, 1, &wr_info);
     return wr_info;
 }
@@ -718,5 +727,5 @@ static write_info_t before_write(Agraph_t *g) {
 static void after_write(write_info_t wr_info) {
   free(wr_info.preorder_number);
   free(wr_info.node_last_written);
-  free(wr_info.edge_last_written);
+  free(wr_info.edges);
 }
