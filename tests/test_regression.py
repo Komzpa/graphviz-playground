@@ -6675,11 +6675,6 @@ def test_2855():
     assert reference == seen, '`nop` does not respect `ordering="in"`'
 
 
-@pytest.mark.xfail(
-    raises=subprocess.CalledProcessError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
-    strict=which("cluster") is not None and is_asan_instrumented(which("cluster")),
-)
 def test_2857_1(tmp_path: Path):
     """
     `cluster` should not crash when processing a large chained graph
