@@ -6728,11 +6728,6 @@ def test_2857_2():
             raise
 
 
-@pytest.mark.xfail(
-    raises=subprocess.CalledProcessError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
-    strict=not is_ndebug_defined(),
-)
 def test_2857_3():
     """
     `cluster` should not crash when given a malformed `-C` option

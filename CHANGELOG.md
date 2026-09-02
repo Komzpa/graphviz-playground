@@ -20,6 +20,8 @@ and this project adheres to
   Graphviz crashes on non-Windows platforms. These scenarios now exit with
   failure gracefully. #2784
 - `edgepaint` no longer crashes when passed the illegal option `-s`. #2857
+- `cluster` no longer crashes when passed single character command-line options
+  without arguments (e.g. `cluster -C`). #2857
 
 ## [16.0.0] – 2026-08-14
 
