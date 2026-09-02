@@ -6675,6 +6675,103 @@ def test_2855():
     assert reference == seen, '`nop` does not respect `ordering="in"`'
 
 
+@pytest.mark.xfail(
+    raises=subprocess.CalledProcessError,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
+    strict=which("cluster") is not None and is_asan_instrumented(which("cluster")),
+)
+def test_2857_1(tmp_path: Path):
+    """
+    `cluster` should not crash when processing a large chained graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2857
+    """
+
+    # create a large chain of nodes
+    src = tmp_path / "src.dot"
+    with open(src, "wt", encoding="utf-8") as f:
+        f.write("graph G {\n")
+        for i in range(20000):
+            f.write(f"n{i} -- n{(i + 1) % 20000};\n")
+        f.write("}\n")
+
+    # run this through `cluster`
+    cluster = which("cluster")
+    try:
+        run(cluster, "-C", "0", "-c", "1", src)
+    except subprocess.CalledProcessError as e:
+        # only fail if we crashed, not exited with failure
+        if e.returncode != 1:
+            raise
+
+
+@pytest.mark.xfail(
+    raises=subprocess.CalledProcessError,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
+    strict=not is_ndebug_defined(),
+)
+def test_2857_2():
+    """
+    `cluster` should not crash when processing a degenerate graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2857
+    """
+
+    # a degenerate graph
+    src = "graph G {}"
+
+    # run this through `cluster`
+    cluster = which("cluster")
+    try:
+        run(cluster, input=src)
+    except subprocess.CalledProcessError as e:
+        # only fail if we crashed, not exited with failure
+        if e.returncode != 1:
+            raise
+
+
+@pytest.mark.xfail(
+    raises=subprocess.CalledProcessError,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
+    strict=not is_ndebug_defined(),
+)
+def test_2857_3():
+    """
+    `cluster` should not crash when given a malformed `-C` option
+    https://gitlab.com/graphviz/graphviz/-/issues/2857
+    """
+
+    # run `cluster` without a parameter to `-C`
+    cluster = which("cluster")
+    try:
+        run(cluster, "-C")
+    except subprocess.CalledProcessError as e:
+        # only fail if we crashed, not exited with failure
+        if e.returncode != 1:
+            raise
+
+
+@pytest.mark.xfail(
+    raises=subprocess.CalledProcessError,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
+    strict=not is_ndebug_defined(),
+)
+def test_2857_4(tmp_path: Path):
+    """
+    `edgepaint` should not crash when given malformed options
+    https://gitlab.com/graphviz/graphviz/-/issues/2857
+    """
+
+    # run `edgepaint` with malformed options
+    edgepaint = which("edgepaint")
+    try:
+        run(
+            edgepaint, "-o", "--lightness", "-s", "-v", "--share_endpoint", cwd=tmp_path
+        )
+    except subprocess.CalledProcessError as e:
+        # only fail if we crashed, not exited with failure
+        if e.returncode != 1:
+            raise
+
+
 def test_698066():
     """
     Graphviz should not crash when processing this graph
