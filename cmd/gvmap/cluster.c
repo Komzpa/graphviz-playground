@@ -122,7 +122,9 @@ int main(int argc, char *argv[])
 
   while ((g = nextGraph (&ig)) != 0) {
     if (prevg) agclose (prevg);
-    clusterGraph (g, opts.maxcluster, opts.clustering_method);
+    if (agnnodes_z(g) > 0) {
+      clusterGraph(g, opts.maxcluster, opts.clustering_method);
+    }
     agwrite(g, opts.outfp);
     prevg = g;
   }

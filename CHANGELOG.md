@@ -22,6 +22,7 @@ and this project adheres to
 - `edgepaint` no longer crashes when passed the illegal option `-s`. #2857
 - `cluster` no longer crashes when passed single character command-line options
   without arguments (e.g. `cluster -C`). #2857
+- `cluster` of trivial graphs with no nodes no longer crashes. #2857
 
 ## [16.0.0] – 2026-08-14
 

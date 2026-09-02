@@ -6704,11 +6704,6 @@ def test_2857_1(tmp_path: Path):
             raise
 
 
-@pytest.mark.xfail(
-    raises=subprocess.CalledProcessError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
-    strict=not is_ndebug_defined(),
-)
 def test_2857_2():
     """
     `cluster` should not crash when processing a degenerate graph
