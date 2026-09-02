@@ -63,7 +63,7 @@ static void init(int argc, char *argv[], opts_t* opts) {
   Verbose = 0;
 
   opts->clustering_method =  CLUSTERING_MODULARITY;
-  while ((c = getopt(argc, argv, ":vC:c:o:?")) != -1) {
+  while ((c = getopt(argc, argv, "vC:c:o:?")) != -1) {
     switch (c) {
     case 'c':
       if (sscanf(optarg, "%d", &v) == 0 || v < 0) {
@@ -122,7 +122,9 @@ int main(int argc, char *argv[])
 
   while ((g = nextGraph (&ig)) != 0) {
     if (prevg) agclose (prevg);
-    clusterGraph (g, opts.maxcluster, opts.clustering_method);
+    if (agnnodes_z(g) > 0) {
+      clusterGraph(g, opts.maxcluster, opts.clustering_method);
+    }
     agwrite(g, opts.outfp);
     prevg = g;
   }

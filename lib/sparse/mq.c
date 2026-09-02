@@ -415,7 +415,8 @@ static Multilevel_MQ_Clustering Multilevel_MQ_Clustering_establish(Multilevel_MQ
       for (j = ia[k]; j < ia[k+1]; j++){
 	jj = ja[j]; 
 	if (mask[jj] == n+i) continue;/* link to within cluster */
-	if ((jc = matching[jj]) == UNMATCHED){
+	const int match = matching[jj];
+	if (match == UNMATCHED){
 	  if (k == i){
 	    dout[jj] += -a[j]/wgt_i + a[j]/(wgt_i + wgt_jmax);
 	  } else {
@@ -423,9 +424,9 @@ static Multilevel_MQ_Clustering Multilevel_MQ_Clustering_establish(Multilevel_MQ
 	  }
 	} else {
 	  if (k == i){
-	    dout_new[jc] += -a[j]/wgt_i + a[j]/(wgt_i + wgt_jmax);
+	    dout_new[match] += -a[j] / wgt_i + a[j] / (wgt_i + wgt_jmax);
 	  } else {
-	    dout_new[jc] += -a[j]/wgt_jmax + a[j]/(wgt_i + wgt_jmax);
+	    dout_new[match] += -a[j] / wgt_jmax + a[j] / (wgt_i + wgt_jmax);
 	  }
 	}
       }

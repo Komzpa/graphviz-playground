@@ -19,6 +19,12 @@ and this project adheres to
 - Graphs that induce invalid trapezoids during ortho routing no longer cause
   Graphviz crashes on non-Windows platforms. These scenarios now exit with
   failure gracefully. #2784
+- `edgepaint` no longer crashes when passed the illegal option `-s`. #2857
+- `cluster` no longer crashes when passed single character command-line options
+  without arguments (e.g. `cluster -C`). #2857
+- `cluster` of trivial graphs with no nodes no longer crashes. #2857
+- `cluster` on large chains of nodes no longer references out-of-bounds memory.
+  This was a regression in Graphviz 7.1.0. #2857
 
 ## [16.0.0] – 2026-08-14
 
