@@ -6749,11 +6749,6 @@ def test_2857_3():
             raise
 
 
-@pytest.mark.xfail(
-    raises=subprocess.CalledProcessError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2857",
-    strict=not is_ndebug_defined(),
-)
 def test_2857_4(tmp_path: Path):
     """
     `edgepaint` should not crash when given malformed options

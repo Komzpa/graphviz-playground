@@ -156,6 +156,7 @@ static void init(int argc, char *argv[], double *angle, double *accuracy,
     case 'c':
     case 'r':
     case 'l':
+    case 's':
       fprintf(stderr, "option -%c unrecognized.\n", c);
       usage(cmd, EXIT_FAILURE);
       UNREACHABLE();
