@@ -6624,6 +6624,26 @@ def test_2852():
 
 
 @pytest.mark.xfail(
+    raises=subprocess.SubprocessError,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/2854",
+    strict=not is_ndebug_defined(),
+)
+def test_2854():
+    """
+    Graphviz should not crash when processing this graph
+    https://forum.graphviz.org/t/bug-report-clustered-subgraph-leads-to-crash-in-dot/3395
+    https://gitlab.com/graphviz/graphviz/-/issues/2854
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2854_1.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    run("dot", "-o", os.devnull, "-Tdot", src, timeout=60)
+
+
+@pytest.mark.xfail(
     raises=AssertionError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2855",
     strict=True,
