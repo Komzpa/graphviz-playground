@@ -947,6 +947,7 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
   } else {
     nrandom -= 4;
   }
+  assert(nrandom >= 0);
 
   if (shore_depth_tol < 0) shore_depth_tol = sqrt(area/(double) n); /* set to average distance for random distribution */
   GV_INFO("nrandom=%d shore_depth_tol=%.08f", nrandom, shore_depth_tol);
@@ -1018,12 +1019,6 @@ static int make_map_internal(bool include_OK_points, int n, int dim, double *x0,
       else
 	fprintf(stderr, "bounding box margin: %.06f",
 	        fmax(boxsize[0] * 0.2, 2 * shore_depth_tol));
-    }
-    if (nrandom < 0) {
-      const double area2 = (xmax[1] - xmin[1]) * (xmax[0] - xmin[0]);
-      const double n1 = floor(area2 / (shore_depth_tol * shore_depth_tol));
-      const double n2 = n * floor(area2 / area);
-      nrandom = fmax(n1, n2);
     }
     srand(123);
     xran = gv_calloc((nrandom + 4) * dim2, sizeof(double));
