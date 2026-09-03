@@ -65,7 +65,7 @@ int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params);
 #define XLPXNY   6
 #define XLCXNY   7
 #define XLNXNY   8
-    typedef struct best_p_s {
+typedef struct {
     int n;
     double area;
     pointf pos;
