@@ -262,8 +262,6 @@ Agedge_t *agedge(Agraph_t * g, Agnode_t * t, Agnode_t * h, char *name,
 	if (have_id) {
 	    key.id = my_id;
 	    key.objtype = AGEDGE;
-	} else {
-	    key.id = key.objtype = 0;
 	}
 
 	/* might already exist locally */
