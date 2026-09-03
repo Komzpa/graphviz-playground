@@ -1379,7 +1379,6 @@ static SparseMatrix SparseMatrix_get_augmented(SparseMatrix A) {
   int n = A->n, j;
   const size_t m = A->m;
   SparseMatrix B = NULL;
-  if (!A) return NULL;
   if (nz > 0){
     irn = gv_calloc(nz * 2, sizeof(int));
     jcn = gv_calloc(nz * 2, sizeof(int));
