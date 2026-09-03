@@ -1393,15 +1393,15 @@ static SparseMatrix SparseMatrix_get_augmented(SparseMatrix A) {
 
   nz = 0;
   for (size_t i = 0; i < m; i++){
-    for (j = (A->ia)[i]; j <  (A->ia)[i+1]; j++){
+    for (j = A->ia[i]; j <  A->ia[i + 1]; j++) {
       irn[nz] = (int)i;
-      jcn[nz++] = (A->ja)[j] + (int)m;
+      jcn[nz++] = A->ja[j] + (int)m;
     }
   }
   for (size_t i = 0; i < m; i++){
-    for (j = (A->ia)[i]; j <  (A->ia)[i+1]; j++){
+    for (j = A->ia[i]; j < A->ia[ i + 1]; j++) {
       jcn[nz] = (int)i;
-      irn[nz++] = (A->ja)[j] + (int)m;
+      irn[nz++] = A->ja[j] + (int)m;
     }
   }
 
