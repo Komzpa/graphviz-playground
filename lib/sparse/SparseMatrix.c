@@ -1370,7 +1370,7 @@ void SparseMatrix_decompose_to_supervariables(SparseMatrix A, int *ncluster, int
   free(super);
 }
 
-SparseMatrix SparseMatrix_get_augmented(SparseMatrix A){
+static SparseMatrix SparseMatrix_get_augmented(SparseMatrix A) {
   /* convert matrix A to an augmente dmatrix {{0,A},{A^T,0}} */
   int *irn = NULL, *jcn = NULL;
   void *val = NULL;
