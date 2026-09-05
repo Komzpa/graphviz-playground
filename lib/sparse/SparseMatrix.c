@@ -23,6 +23,7 @@
 #include <util/overflow.h>
 #include <util/prisize_t.h>
 #include <util/unreachable.h>
+#include <util/unused.h>
 
 static size_t size_of_matrix_type(int type){
   size_t size = 0;
@@ -925,7 +926,7 @@ SparseMatrix SparseMatrix_sum_repeat_entries(SparseMatrix A){
 
 SparseMatrix SparseMatrix_coordinate_form_add_entry_(SparseMatrix A, int irn,
                                                      int jcn, const void *val,
-                                                     int type) {
+                                                     UNUSED int type) {
   static const size_t nentries = 1;
   
   assert(A->format == FORMAT_COORD);

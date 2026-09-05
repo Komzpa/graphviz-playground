@@ -33,12 +33,10 @@ static void gvloadimage_rsvg_free(usershape_t *us)
   g_object_unref(us->data);
 }
 
-static RsvgHandle* gvloadimage_rsvg_load(GVJ_t * job, usershape_t *us)
-{
+static RsvgHandle *gvloadimage_rsvg_load(usershape_t *us) {
     RsvgHandle* rsvgh = NULL;
     GError *err = NULL;
 
-    assert(job);
     assert(us);
     assert(us->name);
 
@@ -91,7 +89,7 @@ static void gvloadimage_rsvg_cairo(GVJ_t * job, usershape_t *us, boxf b, bool fi
 {
     (void)filled;
 
-    RsvgHandle* rsvgh = gvloadimage_rsvg_load(job, us);
+    RsvgHandle* rsvgh = gvloadimage_rsvg_load(us);
 
     cairo_t *cr = job->context; /* target context */
     cairo_surface_t *surface;	 /* source surface */
