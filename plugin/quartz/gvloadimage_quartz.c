@@ -21,7 +21,7 @@
 
 static size_t file_data_provider_get_bytes(void *info, void *buffer, size_t count)
 {
-	return fread(buffer, 1, count, (FILE*)info);
+	return fread(buffer, 1, count, info);
 }
 
 static void file_data_provider_rewind(void *info)
@@ -33,7 +33,7 @@ static void file_data_provider_rewind(void *info)
 
 static off_t file_data_provider_skip_forward(void *info, off_t count)
 {
-	fseek((FILE*)info, count, SEEK_CUR);
+	fseek(info, count, SEEK_CUR);
 	return count;
 }
 
@@ -50,7 +50,7 @@ static CGDataProviderSequentialCallbacks file_data_provider_callbacks = {
 
 static void file_data_provider_skip_bytes(void *info, size_t count)
 {
-	fseek((FILE*)info, count, SEEK_CUR);
+	fseek(info, count, SEEK_CUR);
 }
 
 /* bridge FILE* to a sequential CGDataProvider */

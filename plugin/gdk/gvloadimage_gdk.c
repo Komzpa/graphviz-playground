@@ -40,10 +40,8 @@ static void gdk_set_mimedata_from_file (cairo_surface_t *image, const char *mime
     FILE *const fp = fopen(file, "rb");
     if (fp == NULL)
         return;
-    fseek (fp, 0, SEEK_END);
-    const int64_t len = gv_ftell(fp);
-    rewind(fp);
-    if (len > 0)
+    const int64_t len = fseek(fp, 0, SEEK_END) < 0 ? -1 : gv_ftell(fp);
+    if (fseek(fp, 0, SEEK_SET) == 0 && len > 0)
         data = malloc((size_t)len);
     if (data) {
         if (fread(data, (size_t)len, 1, fp) != 1) {

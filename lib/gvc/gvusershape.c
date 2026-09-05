@@ -277,7 +277,12 @@ static void svg_size(usershape_t *us) {
   OPTIONAL(double) soft_height = {0};
   OPTIONAL(double) soft_width = {0};
 
-  rewind(us->f);
+  if (fseek(us->f, 0, SEEK_SET) < 0) {
+    us->w = 0;
+    us->h = 0;
+    return;
+  }
+
   while (!eof && (!hard_width.has_value || !hard_height.has_value)) {
     // read next line
     while (true) {
@@ -430,7 +435,10 @@ static void jpeg_size(usershape_t *us) {
   };
 
   us->dpi = 0;
-  rewind(us->f);
+  if (fseek(us->f, 0, SEEK_SET) < 0) {
+    return;
+  }
+
   while (true) {
     /* Now we must be at a 0xff or at a series of 0xff's.
      * If that is not the case, or if we're at EOF, then there's
@@ -497,7 +505,9 @@ static void ps_size(usershape_t *us) {
   char *linep;
 
   us->dpi = 72;
-  rewind(us->f);
+  if (fseek(us->f, 0, SEEK_SET) < 0) {
+    return;
+  }
   bool saw_bb = false;
   while (fgets(line, sizeof(line), us->f)) {
     /* PostScript accepts \r as EOL, so using fgets () and looking for a
@@ -644,7 +654,9 @@ static void pdf_size(usershape_t *us) {
   boxf bb;
 
   us->dpi = 0;
-  rewind(us->f);
+  if (fseek(us->f, 0, SEEK_SET) < 0) {
+    return;
+  }
   if (!bboxPDF(us->f, &bb)) {
     us->x = bb.LL.x;
     us->y = bb.LL.y;
@@ -688,9 +700,12 @@ bool gvusershape_file_access(usershape_t *us) {
   assert(us->name);
   assert(us->name[0]);
 
-  if (us->f)
-    rewind(us->f);
-  else {
+  if (us->f) {
+    if (fseek(us->f, 0, SEEK_SET) < 0) {
+      agwarningf("Failed to seek \"%s\" file handle\n", us->name);
+      return false;
+    }
+  } else {
     if (!(fn = safefile(us->name))) {
       agwarningf("Filename \"%s\" is unsafe\n", us->name);
       return false;

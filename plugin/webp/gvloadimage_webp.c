@@ -58,13 +58,11 @@ static cairo_surface_t* webp_really_loadimage(const char *in_file, FILE* const i
 	return NULL;
     }
 
-    fseek(in, 0, SEEK_END);
-    const int64_t data_size = gv_ftell(in);
-    if (data_size < 0) {
+    const int64_t data_size = fseek(in, 0, SEEK_END) < 0 ? -1 : gv_ftell(in);
+    if (data_size < 0 || fseek(in, 0, SEEK_SET) < 0) {
         fprintf(stderr, "Error: WebP could not read %s\n", in_file);
         return NULL;
     }
-    rewind(in);
     data = malloc((size_t)data_size);
     ok = data_size == 0 || (data != NULL && fread(data, (size_t)data_size, 1, in) == 1);
     if (!ok) {
