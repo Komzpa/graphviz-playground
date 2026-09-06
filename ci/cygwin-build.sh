@@ -10,22 +10,22 @@ set -o pipefail
 set -u
 set -x
 
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages autoconf2.5
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages automake
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages bison
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages cmake
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages flex
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages gcc-core
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages gcc-g++
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages git
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages libcairo-devel
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages libexpat-devel
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages libpango1.0-devel
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages libgd-devel
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages libtool
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages make
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages python3
-/cygdrive/c/setup-x86_64.exe --quiet-mode --wait --packages zlib-devel
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages autoconf2.5
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages automake
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages bison
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages cmake
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages flex
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages gcc-core
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages gcc-g++
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages git
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages libcairo-devel
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages libexpat-devel
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages libpango1.0-devel
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages libgd-devel
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages libtool
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages make
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages python3
+windows/dependencies/graphviz-build-utilities/cygwin/setup-x86_64.exe --quiet-mode --wait --packages zlib-devel
 
 # Use the libs installed with cygwinsetup instead of those in
 # https://gitlab.com/graphviz/graphviz-windows-dependencies. Also disable GVEdit

@@ -441,8 +441,8 @@ windows-cygwin-build:
         - $Env:CI_COMMIT_TITLE = $null
         # disable Windows Defender
         - Set-MpPreference -DisableRealtimeMonitoring $true
-        - wget https://cygwin.com/setup-x86_64.exe -OutFile C:\setup-x86_64.exe
-        - Start-Process "C:\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
+        - git submodule update --init --depth=1
+        - Start-Process "windows\dependencies\graphviz-build-utilities\cygwin\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
         - $Env:Path = "C:\cygwin64\bin;" + $Env:Path
         - $Env:build_system = "autotools"
         - C:\cygwin64\bin\bash -l -c 'cd $CI_PROJECT_DIR && ci/cygwin-build.sh'
@@ -472,8 +472,8 @@ windows-cygwin-build-using-autogen:
         - $Env:CI_COMMIT_TITLE = $null
         # disable Windows Defender
         - Set-MpPreference -DisableRealtimeMonitoring $true
-        - wget https://cygwin.com/setup-x86_64.exe -OutFile C:\setup-x86_64.exe
-        - Start-Process "C:\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
+        - git submodule update --init --depth=1
+        - Start-Process "windows\dependencies\graphviz-build-utilities\cygwin\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
         - $Env:Path = "C:\cygwin64\bin;" + $Env:Path
         - $Env:build_system = "autotools"
         - $Env:use_autogen = "yes"
@@ -888,8 +888,8 @@ windows-cygwin-cmake-build:
         - Set-MpPreference -DisableRealtimeMonitoring $true
         # remove pre-installed Windows Python to avoid CMake picking it up
         - Remove-Item -Path 'C:\Python313' -Recurse -Force
-        - wget https://cygwin.com/setup-x86_64.exe -OutFile C:\setup-x86_64.exe
-        - Start-Process "C:\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
+        - git submodule update --init --depth=1
+        - Start-Process "windows\dependencies\graphviz-build-utilities\cygwin\setup-x86_64.exe" -ArgumentList "--quiet-mode --site https://mirrors.kernel.org/sourceware/cygwin --wait" -wait
         - $Env:Path = "C:\cygwin64\bin;" + $Env:Path
         - $Env:build_system = "cmake"
         # fail on any compiler warnings
