@@ -135,9 +135,10 @@ static bool gd_textlayout(textspan_t * span, char **fontpath)
 #ifdef HAVE_GD_FONTCONFIG
     gdFTUseFontConfig(1);  /* tell gd that we really want to use fontconfig, 'cos it s not the default */
     PostscriptAlias *const pA = span->font->postscript_alias;
-    if (pA)
+    if (pA) {
         fontlist = gd_psfontResolve (pA);
-    else
+        fontlist_needs_free = true;
+    } else
         fontlist = fontname;
 #else
     fontlist = gd_alternate_fontlist(fontname);

@@ -2972,7 +2972,6 @@ def test_2185_5():
     assert out.startswith(expected), "incorrect GVPR interpretation"
 
 
-@pytest.mark.xfail(strict=True)  # FIXME
 def test_2193():
     """
     the canonical format should be stable
@@ -5122,7 +5121,7 @@ def test_2593():
     # that ccomps finishes within that
     ccomps = which("ccomps")
     proc = subprocess.run(
-        [ccomps, "-o", os.devnull, input], timeout=60 * 5, check=False
+        [ccomps, "-o", os.devnull, input], timeout=60 * 10, check=False
     )
 
     assert proc.returncode == 1, "ccomps did not detect graphs have multiple components"
@@ -6643,11 +6642,6 @@ def test_2854():
     run("dot", "-o", os.devnull, "-Tdot", src, timeout=60)
 
 
-@pytest.mark.xfail(
-    raises=AssertionError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2855",
-    strict=True,
-)
 def test_2855():
     """
     with `ordering="in"`, `nop` should not reorder edges

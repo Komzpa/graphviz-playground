@@ -249,8 +249,3 @@ enum {
 #define P_PIN    3		/* position fixed */
 
 #define GAP 4			/* whitespace in POINTS around labels and between peripheries */
-
-/* fontsize at which text is omitted entirely */
-#define FONTSIZE_MUCH_TOO_SMALL 0.15
-/* fontsize at which text is rendered by a simple line */
-#define FONTSIZE_TOO_SMALL 1.5
