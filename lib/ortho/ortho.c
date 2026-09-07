@@ -1417,7 +1417,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     maze *const mp = mkMaze(g);
     if (mp == NULL) {
 	if (Concentrate) {
-	    freePS(ps);
+	    ortho_concentrate_state_free(&concentrate_state);
 	}
 	free(es);
 	return -1;
