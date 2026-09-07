@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `fdp` cluster-edge handling now recognizes subgraphs marked with
+  `cluster=true`, matching the traditional `cluster` name-prefix behavior. #2717
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -95,8 +98,6 @@ and this project adheres to
 
 ### Fixed
 
-- `fdp` cluster-edge handling now recognizes subgraphs marked with
-  `cluster=true`, matching the traditional `cluster` name-prefix behavior. #2717
 - When building from source from a Git checkout, builds with
   `--disable-python`/`--disable-python3` once again work. This was a regression
   in Graphviz 14.1.3. #2839
