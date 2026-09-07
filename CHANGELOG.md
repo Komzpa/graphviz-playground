@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The dot layout engine no longer drops flat edges adjacent to record nodes.
+  #1323, #2248, #2791
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -71,11 +74,6 @@ and this project adheres to
   sequence numbers.
 
 ## [15.1.1] – 2026-08-05
-
-### Fixed
-
-- The dot layout engine no longer drops flat edges adjacent to record nodes.
-  #1323, #2248, #2791
 
 ### Changed
 
