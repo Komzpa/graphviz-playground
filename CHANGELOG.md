@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Labeled flat edges on the first rank no longer crash Graphviz when they need
+  a virtual label rank. #2723
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -71,11 +74,6 @@ and this project adheres to
   sequence numbers.
 
 ## [15.1.1] – 2026-08-05
-
-### Fixed
-
-- Labeled flat edges on the first rank no longer crash Graphviz when they need
-  a virtual label rank. #2723
 
 ### Changed
 
