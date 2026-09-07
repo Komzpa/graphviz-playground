@@ -13,6 +13,11 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The fdp layout engine now keeps a fully fixed cluster anchored to its pinned
+  descendants when collapsing that cluster into a derived node. Previously the
+  derived cluster node could move and pull those pinned descendants onto a
+  different y-band. #2701
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -82,13 +87,6 @@ and this project adheres to
 - The cells of an HTML table are now emitted _after_ the table border and rules.
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
-
-### Fixed
-
-- The fdp layout engine now keeps a fully fixed cluster anchored to its pinned
-  descendants when collapsing that cluster into a derived node. Previously the
-  derived cluster node could move and pull those pinned descendants onto a
-  different y-band. #2701
 
 ## [15.1.0] – 2026-06-17
 
