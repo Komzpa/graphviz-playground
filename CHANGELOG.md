@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- CMake `AUTO`/`ON`/`OFF` build options now accept normal CMake truthy and
+  falsy values. #2715
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -74,8 +79,6 @@ and this project adheres to
 
 ### Changed
 
-- CMake `AUTO`/`ON`/`OFF` build options now accept normal CMake truthy and
-  falsy values. #2715
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
