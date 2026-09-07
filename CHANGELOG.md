@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- Edge `shape=box` now draws an unfilled rectangle around the primary edge
+  label. #2380
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -71,11 +76,6 @@ and this project adheres to
   sequence numbers.
 
 ## [15.1.1] – 2026-08-05
-
-### Added
-
-- Edge `shape=box` now draws an unfilled rectangle around the primary edge
-  label. #2380
 
 ### Changed
 
