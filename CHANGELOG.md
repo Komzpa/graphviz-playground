@@ -13,6 +13,12 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+
+### Changed
+
+- The attribute schema now documents `cluster=true` as an alternative to the
+  `cluster` name prefix for marking subgraphs as clusters. #2187
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -74,8 +80,6 @@ and this project adheres to
 
 ### Changed
 
-- The attribute schema now documents `cluster=true` as an alternative to the
-  `cluster` name prefix for marking subgraphs as clusters. #2187
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
