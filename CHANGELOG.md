@@ -13,6 +13,12 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+
+### Changed
+
+- PostScript user shape files are now read in binary mode, avoiding text-mode
+  newline translation in Windows builds.
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -82,8 +88,6 @@ and this project adheres to
 - The cells of an HTML table are now emitted _after_ the table border and rules.
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
-- PostScript user shape files are now read in binary mode, avoiding text-mode
-  newline translation in Windows builds.
 
 ## [15.1.0] – 2026-06-17
 
