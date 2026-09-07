@@ -76,9 +76,9 @@ static usershape_t *user_init(const char *str)
 	us->macro_id = N_EPSF_files++;
 	fstat(fileno(fp), &statbuf);
 	char *contents = us->data = gv_calloc((size_t)statbuf.st_size + 1, sizeof(char));
-	rewind(fp);
-	size_t rc = fread(contents, 1, (size_t)statbuf.st_size, fp);
-	if (rc == (size_t)statbuf.st_size) {
+	if (fseek(fp, 0, SEEK_SET) == 0 &&
+	    fread(contents, 1, (size_t)statbuf.st_size, fp) ==
+		(size_t)statbuf.st_size) {
             contents[statbuf.st_size] = '\0';
             dtinsert(EPSF_contents, us);
             us->must_inline = must_inline;
