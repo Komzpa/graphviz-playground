@@ -7,6 +7,10 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- Added an example graph demonstrating one way to create a legend. #2231
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -71,10 +75,6 @@ and this project adheres to
   sequence numbers.
 
 ## [15.1.1] – 2026-08-05
-
-### Added
-
-- Added an example graph demonstrating one way to create a legend. #2231
 
 ### Changed
 
