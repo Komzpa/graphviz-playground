@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Windows NSIS packaging now declares a Graphviz desktop shortcut when `gvedit`
+  is part of the package. #2431
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -82,11 +87,6 @@ and this project adheres to
 - The cells of an HTML table are now emitted _after_ the table border and rules.
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
-
-### Changed
-
-- Windows NSIS packaging now declares a Graphviz desktop shortcut when `gvedit`
-  is part of the package. #2431
 
 ## [15.1.0] – 2026-06-17
 
