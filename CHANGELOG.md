@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- gvpr now accepts command-line string variable assignments in the form
+  `name=value` immediately following the program. #955
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -71,11 +76,6 @@ and this project adheres to
   sequence numbers.
 
 ## [15.1.1] – 2026-08-05
-
-### Added
-
-- gvpr now accepts command-line string variable assignments in the form
-  `name=value` immediately following the program. #955
 
 ### Changed
 
