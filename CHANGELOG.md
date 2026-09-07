@@ -19,6 +19,7 @@ and this project adheres to
   attributes, allowing fonts such as `Times New Roman` to be combined with
   `fontweight=bold` or numeric weights. #1567
 
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -77,6 +78,8 @@ and this project adheres to
   sequence numbers.
 
 ## [15.1.1] – 2026-08-05
+
+### Changed
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
