@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The installed CMake `graphviz::gvc` target now links consumers to
+  `graphviz::cgraph`, matching the dependency exposed by `libgvc.pc`. #2798
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -95,8 +98,6 @@ and this project adheres to
 
 ### Fixed
 
-- The installed CMake `graphviz::gvc` target now links consumers to
-  `graphviz::cgraph`, matching the dependency exposed by `libgvc.pc`. #2798
 - When building from source from a Git checkout, builds with
   `--disable-python`/`--disable-python3` once again work. This was a regression
   in Graphviz 14.1.3. #2839
