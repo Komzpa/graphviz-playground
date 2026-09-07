@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` no longer warns that a cluster is empty when the cluster contains nodes
+  through a nested rank subgraph. #2806
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -95,8 +98,6 @@ and this project adheres to
 
 ### Fixed
 
-- `dot` no longer warns that a cluster is empty when the cluster contains nodes
-  through a nested rank subgraph. #2806
 - When building from source from a Git checkout, builds with
   `--disable-python`/`--disable-python3` once again work. This was a regression
   in Graphviz 14.1.3. #2839
