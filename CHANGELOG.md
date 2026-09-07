@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The `box3d` shape now centers labels in the front rectangle instead of the
+  full 3D outline. #2305
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -82,11 +85,6 @@ and this project adheres to
 - The cells of an HTML table are now emitted _after_ the table border and rules.
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
-
-### Fixed
-
-- The `box3d` shape now centers labels in the front rectangle instead of the
-  full 3D outline. #2305
 
 ## [15.1.0] – 2026-06-17
 
