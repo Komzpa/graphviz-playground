@@ -7789,3 +7789,50 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+def test_1313():
+    """
+    Donut nodes should render wedged fills as an annulus, leaving an explicit
+    inner hole instead of filling the whole circle.
+    """
+
+    dot_exe = which("dot_builtins") or which("dot")
+    if dot_exe is None:
+        pytest.skip("dot not available")
+
+    svg = run(
+        dot_exe,
+        "-Tsvg",
+        input="""
+        digraph {
+          graph [bgcolor=white]
+          node [
+            shape=donut
+            style=wedged
+            fillcolor="red:blue"
+            label=""
+            fixedsize=true
+            width=1
+            height=1
+          ]
+          pie
+        }
+        """,
+    )
+    root = ET.fromstring(svg)
+    node = root.find(
+        ".//{http://www.w3.org/2000/svg}title[.='pie']/.."
+    )
+    assert node is not None, "missing donut node"
+    paths = node.findall("{http://www.w3.org/2000/svg}path")
+    ellipses = node.findall("{http://www.w3.org/2000/svg}ellipse")
+
+    assert len(paths) >= 2, "wedged donut should render multiple wedge paths"
+    assert len(ellipses) >= 3, "donut should render outer and inner ellipses"
+    assert ellipses[-2].get("fill") == "white", (
+        "donut inner hole should use graph background"
+    )
+    assert ellipses[-1].get("fill") == "none", (
+        "donut should redraw the inner hole boundary"
+    )
