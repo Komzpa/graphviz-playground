@@ -7,6 +7,12 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- `dot` now uses bounded internal `mclimit` and `nslimit` defaults for
+  pathologically expanded graphs when these attributes are omitted. Explicit
+  user-provided limits continue to take precedence. #2621
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -74,9 +80,6 @@ and this project adheres to
 
 ### Changed
 
-- `dot` now uses bounded internal `mclimit` and `nslimit` defaults for
-  pathologically expanded graphs when these attributes are omitted. Explicit
-  user-provided limits continue to take precedence. #2621
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
   successfully discovers the plugin directory. Previously if the
