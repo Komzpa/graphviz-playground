@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Filled nodes in PostScript output no longer emit no-op `filled` style
+  commands while stroking the node outline. #962
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
@@ -82,11 +85,6 @@ and this project adheres to
 - The cells of an HTML table are now emitted _after_ the table border and rules.
   The main effect of this is, when post-styling a table with CSS, cell content
   remains visible. I.e. Z-ordering is more intuitive.
-
-### Fixed
-
-- Filled nodes in PostScript output no longer emit no-op `filled` style
-  commands while stroking the node outline. #962
 
 ## [15.1.0] – 2026-06-17
 
