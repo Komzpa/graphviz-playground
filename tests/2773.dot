@@ -1,5 +1,5 @@
 digraph  {{  {0 [l="",h=.2];d0 [l="Sn"];0 [l="d"];d0 [l="Q"] }[label="ion"];
- } 
+ }
   [label="!Inue;"te=true] [lhead=clus1d0] [label="sig;", rate=true];
 0 [l="Afse;"te=true]0 [l="si;", rate=true];
 0 [l="Af;", name=Arial, font=true];

@@ -1,10 +1,10 @@
-digraph es {0 {  { 
+digraph es {0 {  {
 1d0 [label="", sh=.2];
  d0 [l="O"];
 0 [l="Quive"];
- } 
+ }
   [label="Mal"];
- } 
+ }
 0 [l="!I", fate=true];
  0 [l=clu] [l="sie;",e=true];d0 [l="A", fame=l, fate=true];
  0 [l="In", fame=9, date=true];
