@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- Edges can draw optional middle arrowheads and arrowtails with the
+  `midarrowhead`, `midarrowtail`, and `midarrowpos` attributes. #2005
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -71,11 +76,6 @@ and this project adheres to
   sequence numbers.
 
 ## [15.1.1] – 2026-08-05
-
-### Added
-
-- Edges can draw optional middle arrowheads and arrowtails with the
-  `midarrowhead`, `midarrowtail`, and `midarrowpos` attributes. #2005
 
 ### Changed
 
