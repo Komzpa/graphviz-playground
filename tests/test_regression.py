@@ -7789,3 +7789,37 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+@pytest.mark.skipif(
+    which("dot") is None or which("neato") is None,
+    reason="dot/neato are not available",
+)
+def test_2845():
+    """
+    neato -n3 should preserve clipped spline endpoints from input edge positions
+    https://gitlab.com/graphviz/graphviz/-/work_items/2845
+    """
+
+    # a graph whose dir=both edge is mis-positioned by the regression
+    input = Path(__file__).parent / "graphs" / "dir.gv"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # seed edge positions with dot, then compare neato -n2 with neato -n3
+    laid_out = run("dot", "-Tdot", input)
+    data_n2 = json.loads(run("neato", "-n2", "-Tjson", input=laid_out))
+    data_n3 = json.loads(run("neato", "-n3", "-Tjson", input=laid_out))
+
+    def find_edge(data: dict) -> dict:
+        names = {obj["_gvid"]: obj["name"] for obj in data["objects"]}
+        for edge in data["edges"]:
+            if names[edge["tail"]] == "a" and names[edge["head"]] == "e":
+                return edge
+        raise AssertionError("failed to locate a->e edge")
+
+    edge_n2 = find_edge(data_n2)
+    edge_n3 = find_edge(data_n3)
+
+    assert edge_n3["pos"] == edge_n2["pos"], "neato -n3 moved the seeded a->e spline"
+    assert edge_n3["_hdraw_"] == edge_n2["_hdraw_"], "neato -n3 moved the arrowhead"
+    assert edge_n3["_tdraw_"] == edge_n2["_tdraw_"], "neato -n3 moved the arrowtail"
