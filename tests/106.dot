@@ -4,7 +4,7 @@ digraph "alltablesSPRINGCSpubs_compact" {
     bgcolor="#FFFFFF"
     nodesep="0.15"
     ranksep="0.50"
-    splines="ortho" 
+    splines="ortho"
   ];
   node [
     fontname="Courier New"
