@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The `arrowtail` attribute documentation now clarifies that `dir=back` or
+  `dir=both` is needed to draw the selected tail arrow shape. #1589
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
@@ -73,9 +78,6 @@ and this project adheres to
 ## [15.1.1] – 2026-08-05
 
 ### Changed
-
-- The `arrowtail` attribute documentation now clarifies that `dir=back` or
-  `dir=both` is needed to draw the selected tail arrow shape. #1589
 
 - When using `dl_iterate_phdr` to discover the plugin directory, the default
   compiled-in plugin directory is only overridden if `dl_iterate_phdr`
