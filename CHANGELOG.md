@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Avoid an out-of-bounds rank access when preparing flat edge label nodes on
+  graphs whose minimum rank is not zero. #2753 #2754
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
