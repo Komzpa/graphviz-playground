@@ -43,9 +43,12 @@ target_link_libraries(gvc PRIVATE
   $<TARGET_OBJECTS:pack_obj>
 )
 
+target_link_libraries(gvc PUBLIC
+  cgraph
+)
+
 target_link_libraries(gvc PRIVATE
   cdt
-  cgraph
   common
   pack
   util
