@@ -5784,6 +5784,26 @@ def test_2647():
     ), "`-Tsvg_inline` output did not reference external image"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2650"
+)
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+def test_2650():
+    """
+    dot should handle curved splines on this Zigbee map in bounded time
+    https://gitlab.com/graphviz/graphviz/-/issues/2650
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2650.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # the reporter's workload ran for hours with splines=curved. Keep this
+    # bounded so the regression test records the current pathological case
+    # without hanging the suite.
+    run_raw(which("dot_builtins"), "-Tsvg", "-o", os.devnull, input, timeout=15)
+
+
 @pytest.mark.slow  # ~10min
 def test_MR_2854():
     """
