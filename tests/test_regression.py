@@ -7789,3 +7789,44 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+def test_2191():
+    """
+    borderless filled nodes should stay borderless under non-default color schemes
+    https://gitlab.com/graphviz/graphviz/-/issues/2191
+    """
+
+    source = textwrap.dedent(
+        """\
+        graph {
+          1 [colorscheme=x11    shape=none style=filled fillcolor=lightblue];
+          2 [colorscheme=svg    shape=none style=filled fillcolor=lightblue];
+          3 [colorscheme=blues9 shape=none style=filled fillcolor=3        ];
+          4 [colorscheme=svg    shape=none label=<<table bgcolor="lightblue" border="0" cellspacing="8"><tr><td width="32">4</td></tr></table>>];
+        }
+        """
+    )
+
+    with subprocess.Popen(
+        ["dot", "-Txdot"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ) as p:
+        xdot, stderr = p.communicate(source)
+
+    assert p.returncode == 0, "Graphviz exited with non-zero status"
+    assert stderr.strip() == "", "transparent border color caused warnings"
+
+    for node in ("1", "2", "3"):
+        border = re.search(
+            rf"\b{node}\s+\[_draw_=\"c 9 -#fffffe00 C ", xdot
+        )
+        assert border is not None, f"node {node} was not drawn borderless"
+
+    html_border = re.search(
+        r"\b4\s+\[_ldraw_=\"S 5 -solid c 9 -#fffffe00 C ", xdot
+    )
+    assert html_border is not None, "HTML table border=0 was not drawn borderless"
