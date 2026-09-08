@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` no longer leaves stale horizontal slack in `rankdir=LR` and `rankdir=RL`
+  clusters with `margin=0` after a later cluster label increases the shared
+  rank spacing. #2276
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

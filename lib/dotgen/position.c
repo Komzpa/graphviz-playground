@@ -644,14 +644,38 @@ static void adjustRanks(graph_t * g, int margin_total)
     ht1 = GD_ht1(g);
     ht2 = GD_ht2(g);
 
-    for (c = 1; c <= GD_n_cluster(g); c++) {
-	graph_t *subg = GD_clust(g)[c];
-	adjustRanks(subg, margin+margin_total);
-	if (GD_maxrank(subg) == GD_maxrank(g))
-	    ht1 = fmax(ht1, GD_ht1(subg) + margin);
-	if (GD_minrank(subg) == GD_minrank(g))
-	    ht2 = fmax(ht2, GD_ht2(subg) + margin);
+    int *order = NULL;
+    if (GD_n_cluster(g) > 1) {
+      order = gv_calloc(GD_n_cluster(g) + 1, sizeof(int));
+      for (c = 1; c <= GD_n_cluster(g); c++)
+        order[c] = c;
+      /* Adjust narrower cluster spans first. adjustSimple() mutates shared
+       * rank coordinates, so a wide sibling label should not make a narrower
+       * sibling keep stale slack it no longer needs. */
+      for (int i = 1; i <= GD_n_cluster(g); i++) {
+        for (int j = i + 1; j <= GD_n_cluster(g); j++) {
+          graph_t *a = GD_clust(g)[order[i]];
+          graph_t *b = GD_clust(g)[order[j]];
+          const int aspan = GD_maxrank(a) - GD_minrank(a);
+          const int bspan = GD_maxrank(b) - GD_minrank(b);
+          if (aspan > bspan) {
+            const int tmp = order[i];
+            order[i] = order[j];
+            order[j] = tmp;
+          }
+        }
+      }
     }
+
+    for (c = 1; c <= GD_n_cluster(g); c++) {
+      graph_t *subg = GD_clust(g)[order ? order[c] : c];
+      adjustRanks(subg, margin + margin_total);
+      if (GD_maxrank(subg) == GD_maxrank(g))
+        ht1 = fmax(ht1, GD_ht1(subg) + margin);
+      if (GD_minrank(subg) == GD_minrank(g))
+        ht2 = fmax(ht2, GD_ht2(subg) + margin);
+    }
+    free(order);
 
     GD_ht1(g) = ht1;
     GD_ht2(g) = ht2;
