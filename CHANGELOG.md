@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Windows NSIS packaging now declares a Graphviz desktop shortcut when `gvedit`
+  is part of the package. #2431
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
