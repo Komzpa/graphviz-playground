@@ -4234,6 +4234,70 @@ def test_2437():
     assert len(polygons) == 3, "wrong number of polygons in output"
 
 
+@pytest.mark.parametrize(
+    ("rankdir", "tailport", "headport", "rank_axis", "rank_size"),
+    (
+        ("TB", "s", "n", 1, 3),
+        ("LR", "e", "w", 0, 2),
+    ),
+)
+def test_2137_border_to_border_edge_lengths(
+    rankdir: str, tailport: str, headport: str, rank_axis: int, rank_size: int
+):
+    """
+    minlen should increase rank-axis clearance between fixed-size node borders
+    https://gitlab.com/graphviz/graphviz/-/issues/2137
+    """
+
+    def layout(attribute: str = "") -> tuple[str, dict[str, tuple[float, ...]]]:
+        output = dot(
+            "plain",
+            source=textwrap.dedent(
+                f"""
+                digraph {{
+                  graph [rankdir={rankdir}, ranksep=0.5];
+                  node [shape=box, fixedsize=true, width=2.5, height=1.1];
+                  A:{tailport} -> {{ B1:{headport} B2:{headport} B3:{headport} }} {attribute};
+                }}
+                """
+            ),
+        ).decode("utf-8")
+
+        nodes = {}
+        for line in output.splitlines():
+            fields = line.split()
+            if fields and fields[0] == "node":
+                nodes[fields[1]] = tuple(map(float, fields[2:6]))
+
+        targets = ("B1", "B2", "B3")
+        assert {"A", *targets} <= nodes.keys(), "missing expected nodes"
+
+        return output, nodes
+
+    default_output, default = layout()
+    _, minlen = layout("[minlen=3]")
+    len_output, _ = layout("[len=3]")
+
+    # Four rounded `plain` fields yield a clearance error of at most 0.00015in.
+    tolerance = 0.0002
+    assert len_output == default_output, "unsupported len=3 changed the layout"
+    for target in ("B1", "B2", "B3"):
+        default_clearance = (
+            abs(default[target][rank_axis] - default["A"][rank_axis])
+            - (default[target][rank_size] + default["A"][rank_size]) / 2
+        )
+        minlen_clearance = (
+            abs(minlen[target][rank_axis] - minlen["A"][rank_axis])
+            - (minlen[target][rank_size] + minlen["A"][rank_size]) / 2
+        )
+        assert (
+            minlen_clearance > default_clearance
+        ), f"minlen=3 did not increase rank-axis clearance for {target}"
+        assert (
+            minlen_clearance >= 1.5 - tolerance
+        ), f"minlen=3 did not leave the expected rank-axis clearance for {target}"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2416"
 )
