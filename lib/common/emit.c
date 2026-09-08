@@ -2359,6 +2359,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
     double arrowsize, numc2, penwidth=job->obj->penwidth;
     char* p;
     bool tapered = false;
+    bool const is_polyline = EDGE_TYPE(agraphof(aghead(e))) == EDGETYPE_PLINE;
     agxbuf buf = {0};
 
 #define SEP 2.0
@@ -2661,8 +2662,12 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    }
 		    LIST_FREE(&corners);
 		} else {
-		    /* Non-orthogonal edge, render normally */
-		    gvrender_beziercurve(job, bz.list, bz.size, 0);
+		    if (is_polyline) {
+			gvrender_polyline(job, bz.list, bz.size);
+		    } else {
+			/* Non-orthogonal edge, render normally */
+			gvrender_beziercurve(job, bz.list, bz.size, 0);
+		    }
 		}
 
 		if (bz.sflag) {
@@ -4364,4 +4369,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

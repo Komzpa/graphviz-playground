@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` now renders `splines=polyline` edges as straight polylines in visual
+  outputs and xdot drawing commands. #1844 #478
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

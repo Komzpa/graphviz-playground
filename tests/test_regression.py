@@ -314,6 +314,24 @@ def test_165_3():
     assert any(r"hello \\\" world" in l for l in ldraw), "unexpected ldraw contents"
 
 
+def test_478():
+    """
+    xdot output for polyline edges should use a polyline drawing operation
+    https://gitlab.com/graphviz/graphviz/-/issues/478
+    """
+
+    xdot = dot("xdot", source="digraph G { graph [splines=polyline]; A -> E }")
+
+    edge = re.search(r"\bA\s*->\s*E\s*\[(?P<attributes>.*?)\];", xdot, re.S)
+    assert edge is not None, "could not locate A -> E edge"
+
+    draw = re.search(r'_draw_="(?P<value>[^"]*)"', edge.group("attributes"))
+    assert draw is not None, "edge has no _draw_ attribute"
+
+    assert re.search(r"(^| )L \d+ ", draw.group("value")) is not None
+    assert re.search(r"(^| )B \d+ ", draw.group("value")) is None
+
+
 def test_167():
     """
     using concentrate=true should not result in a segfault
@@ -1643,6 +1661,32 @@ def test_1813():
     output = run(gvedit, "-?", env=environ_copy)
 
     assert "Usage" in output, "gvedit -? did not show usage"
+
+
+def test_1844():
+    """
+    `splines=polyline` should render straight edge polylines
+    https://gitlab.com/graphviz/graphviz/-/issues/1844
+    """
+
+    input = Path(__file__).parent / "1844.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    svg = dot("svg", input)
+    root = ET.fromstring(svg)
+
+    edge_groups = root.findall(".//{http://www.w3.org/2000/svg}g[@class='edge']")
+    assert len(edge_groups) == 13, "unexpected number of edges"
+
+    for edge_group in edge_groups:
+        title = edge_group.find("{http://www.w3.org/2000/svg}title")
+        edge_name = title.text if title is not None else "<unknown edge>"
+
+        paths = edge_group.findall("{http://www.w3.org/2000/svg}path")
+        assert paths == [], f"{edge_name} rendered as a curved SVG path"
+
+        polylines = edge_group.findall("{http://www.w3.org/2000/svg}polyline")
+        assert len(polylines) == 1, f"{edge_name} did not render as a polyline"
 
 
 def test_1845():
