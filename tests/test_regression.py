@@ -1563,6 +1563,38 @@ def test_1724():
     assert ret != -signal.SIGSEGV, "Graphviz segfaulted"
 
 
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+def test_1749():
+    """
+    swapping unrelated HTML-like label ports should not corrupt edge ports
+    https://gitlab.com/graphviz/graphviz/-/issues/1749
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1749.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # run dot and capture its canonical DOT output plus diagnostics
+    dot_exe = which("dot_builtins")
+    proc = subprocess.run(
+        [dot_exe, "-Tdot", input],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    assert 'Arrow type "10" unknown' not in proc.stderr
+    assert (
+        '"ocomp INPUT":"OutputPort-INPUT_CIM_oa_InputPort-0"'
+        ' -> oa:"InputPort-InputPort-0"'
+    ) in proc.stdout
+    assert (
+        '"ocomp INPUT":"OutputPort-INPUT_CIM_ob_InputPort-0"'
+        ' -> ob:"InputPort-InputPort-0"'
+    ) in proc.stdout
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
