@@ -896,6 +896,37 @@ def test_1425_1():
     assert re.search(r"\btable tip\b", svg) is not None, "tooltip not propagated to SVG"
 
 
+def test_536():
+    """
+    empty tooltip attributes should suppress label-based tooltip fallbacks
+    https://gitlab.com/graphviz/graphviz/-/issues/536
+    """
+
+    source = """
+        digraph G {
+          node [tooltip=""]
+          a [label="A label", URL="https://example.com/a"]
+          b [label="B label", URL="https://example.com/b", tooltip="explicit tip"]
+          a -> b [
+            label="edge label",
+            URL="https://example.com/e",
+            tooltip="",
+            labeltooltip=""
+          ]
+        }
+    """
+
+    svg = run("dot", "-Tsvg", input=source)
+    assert 'xlink:title="A label"' not in svg
+    assert 'xlink:title="edge label"' not in svg
+    assert 'xlink:title="explicit tip"' in svg
+
+    cmapx = run("dot", "-Tcmapx", input=source)
+    assert 'title="A label"' not in cmapx
+    assert 'title="edge label"' not in cmapx
+    assert 'title="explicit tip"' in cmapx
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1435"
 )
