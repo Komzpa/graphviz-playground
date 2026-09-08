@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` no longer drops regular edge labels from packed disconnected graphs.
+  #1616, #2458
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

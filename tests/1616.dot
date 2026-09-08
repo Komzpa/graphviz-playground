@@ -1,0 +1,6 @@
+digraph {
+  graph [pack=true]
+
+  A -> B [label="label"]
+  C
+}

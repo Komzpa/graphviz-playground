@@ -384,6 +384,37 @@ resetCoord (Agraph_t* g)
     }
 }
 
+static bool
+labelInBB(boxf bb, textlabel_t *lp)
+{
+    return lp->pos.x - lp->dimen.x / 2.0 >= bb.LL.x &&
+	   lp->pos.x + lp->dimen.x / 2.0 <= bb.UR.x &&
+	   lp->pos.y - lp->dimen.y / 2.0 >= bb.LL.y &&
+	   lp->pos.y + lp->dimen.y / 2.0 <= bb.UR.y;
+}
+
+static void
+repairPackedEdgeLabels(Agraph_t *g)
+{
+    boxf bb = GD_bb(g);
+
+    for (node_t *np = agfstnode(g); np; np = agnxtnode(g, np)) {
+	for (edge_t *ep = agfstout(g, np); ep; ep = agnxtout(g, ep)) {
+	    textlabel_t *lp = ED_label(ep);
+
+	    if (!lp || !ED_spl(ep))
+		continue;
+	    if (lp->set && labelInBB(bb, lp))
+		continue;
+
+	    lp->pos = edgeMidpoint(g, ep);
+	    lp->set = true;
+	    updateBB(g, lp);
+	    bb = GD_bb(g);
+	}
+    }
+}
+
 static void
 copyCluster (Agraph_t* scl, Agraph_t* cl)
 {
@@ -484,6 +515,7 @@ static int doDot(Agraph_t *g) {
 	    attachPos (g);
 	    packSubgraphs(ncc, ccs, g, &pinfo);
 	    resetCoord (g);
+	    repairPackedEdgeLabels(g);
 	    copyClusterInfo (ncc, ccs, g);
 	} else {
 	    /* Not sure what semantics should be for non-trivial ratio
