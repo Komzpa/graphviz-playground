@@ -808,7 +808,7 @@
 		</xsd:annotation>
 	</xsd:attribute>
 	
-	<xsd:attribute name="fontname" type="xsd:string" default="Times-Roman">
+	<xsd:attribute name="fontname" type="xsd:string" default="serif">
 		<xsd:annotation>
 			<xsd:documentation>
 				<html:p>
@@ -845,7 +845,7 @@
 					Allows user control of how basic fontnames are represented in SVG output.
 					If <html:a rel="attr">fontnames</html:a> is undefined or <html:span class="val">svg</html:span>, 
 					the output will try to use known SVG fontnames. For example, the
-					default font <html:code>Times-Roman</html:code> will be mapped to the
+					default font <html:code>serif</html:code> will be mapped to the
 					basic SVG font <html:code>serif</html:code>. This can be overridden by setting
 					<html:a rel="attr">fontnames</html:a> to <html:span class="val">ps</html:span> or <html:span class="val">gd</html:span>.
 					In the former case, known PostScript font names such as
@@ -2466,7 +2466,7 @@
 		<xsd:attribute ref="edgetarget" />
 		<xsd:attribute ref="edgetooltip" />
 		<xsd:attribute ref="fontcolor" default="black" />
-		<xsd:attribute ref="fontname" default="Times-Roman" />
+		<xsd:attribute ref="fontname" default="serif" />
 		<xsd:attribute ref="fontsize" default="14.0" />
 		<xsd:attribute ref="headURL" />
 		<xsd:attribute ref="headclip" default="true" />
@@ -2482,7 +2482,7 @@
 		<xsd:attribute ref="labeldistance" default="1.0" />
 		<xsd:attribute ref="labelfloat" default="false" />
 		<xsd:attribute ref="labelfontcolor" default="black" />
-		<xsd:attribute ref="labelfontname" default="Times-Roman" />
+		<xsd:attribute ref="labelfontname" default="serif" />
 		<xsd:attribute ref="labelfontsize" default="14.0" />
 		<xsd:attribute ref="labelhref" />
 		<xsd:attribute ref="labeltarget" />
@@ -2520,7 +2520,7 @@
 		<xsd:attribute ref="fillcolor" default="lightgrey" />
 		<xsd:attribute ref="fixedsize" default="false" />
 		<xsd:attribute ref="fontcolor" default="black" />
-		<xsd:attribute ref="fontname" default="Times-Roman" />
+		<xsd:attribute ref="fontname" default="serif" />
 		<xsd:attribute ref="fontsize" default="14.0" />
 		<xsd:attribute ref="group" />
 		<xsd:attribute ref="height" default="0.5" />
@@ -2572,7 +2572,7 @@
 		<xsd:attribute ref="epsilon" />
 		<xsd:attribute ref="esep" />
 		<xsd:attribute ref="fontcolor" default="black" />
-		<xsd:attribute ref="fontname" default="Times-Roman" />
+		<xsd:attribute ref="fontname" default="serif" />
 		<xsd:attribute ref="fontnames" />
 		<xsd:attribute ref="fontpath" />
 		<xsd:attribute ref="fontsize" default="14.0" />
@@ -2640,7 +2640,7 @@
 		<xsd:attribute ref="fillcolor" default="black" />
 		<xsd:attribute ref="fixedsize" default="false" />
 		<xsd:attribute ref="fontcolor" default="black" />
-		<xsd:attribute ref="fontname" default="Times-Roman" />
+		<xsd:attribute ref="fontname" default="serif" />
 		<xsd:attribute ref="fontsize" default="14.0" />
 		<xsd:attribute ref="label" />
 		<xsd:attribute ref="labeljust" default="c" />

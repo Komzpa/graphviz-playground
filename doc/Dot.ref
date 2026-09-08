@@ -109,7 +109,7 @@ Attributes
                                      black(clusters)
  fixedsize       N       bool        false
  fontcolor       ENGC    color       black
- fontname        ENGC    string      "Times-Roman"
+ fontname        ENGC    string      "serif"
  fontpath        G       string      ""
  fontsize        ENGC    double      14.0              1.0
  group           N       string      ""                          dot only
@@ -125,7 +125,7 @@ Attributes
  labeldistance   E       double      1.0               0.0
  labelfloat      E       bool        false
  labelfontcolor  E       color       black
- labelfontname   E       string      "Times-Roman"
+ labelfontname   E       string      "serif"
  labelfontsize   E       double      11.0              1.0
  labeljust       C       string      ""                          dot only
 

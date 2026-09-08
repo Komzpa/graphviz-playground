@@ -7,6 +7,12 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The default `fontname` is now the generic fontconfig family `serif` instead
+  of the PostScript name `Times-Roman`, allowing fontconfig defaults and user
+  rules to apply when no explicit `fontname` is set. #2793
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
