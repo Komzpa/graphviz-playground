@@ -29,6 +29,7 @@
 
 #include <common/macros.h>
 #include <common/const.h>
+#include <common/render.h>
 
 #include <gvc/gvplugin_render.h>
 #include <common/utils.h>
@@ -57,9 +58,40 @@ static const char sdotarray[] = "1,5";
 static const char transparent[] = "transparent";
 static const char none[] = "none";
 static const char black[] = "black";
+static const char inkscape_namespace[] =
+    "http://www.inkscape.org/namespaces/inkscape";
 
 static bool emit_standalone_headers(const GVJ_t *job) {
   return job->render.id != FORMAT_SVG_INLINE;
+}
+
+static bool svg_connectors_enabled(const GVJ_t *job) {
+  return mapbool(agget(job->gvc->g, "svgconnector"));
+}
+
+static void svg_print_connector_endpoint(GVJ_t *job, Agnode_t *node) {
+  agxbuf xb = {0};
+  char *id = strdup_and_subst_obj(getObjId(job, node, &xb), node);
+
+  gvputs_xml(job, id);
+  if (job->layerNum > 1) {
+    gvputc(job, '_');
+    gvputs_xml(job, job->gvc->layerIDs[job->layerNum]);
+  }
+  free(id);
+  agxbfree(&xb);
+}
+
+static void svg_print_connector_metadata(GVJ_t *job) {
+  const Agedge_t *edge = job->obj->u.e;
+
+  gvputs(job, " inkscape:connector-type=\"polyline\"");
+  gvputs(job, " inkscape:connection-start=\"#");
+  svg_print_connector_endpoint(job, agtail(edge));
+  gvputs(job, "\"");
+  gvputs(job, " inkscape:connection-end=\"#");
+  svg_print_connector_endpoint(job, aghead(edge));
+  gvputs(job, "\"");
 }
 
 static void svg_bzptarray(GVJ_t *job, pointf *A, size_t n) {
@@ -278,6 +310,11 @@ static void svg_begin_graph(GVJ_t * job)
 	gvputs(job, " id=\"");
         gvputs_xml(job, svgid);
         gvputc(job, '"');
+    }
+    if (svg_connectors_enabled(job)) {
+	gvputs(job, " xmlns:inkscape=\"");
+	gvputs(job, inkscape_namespace);
+	gvputc(job, '"');
     }
     gvputs(job, ">\n");
 }
@@ -678,6 +715,9 @@ static void svg_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
 	gid = svg_rgradstyle(job);
     }
     gvputs(job, "<path");
+    if (svg_connectors_enabled(job) && obj->type == EDGE_OBJTYPE) {
+	svg_print_connector_metadata(job);
+    }
     if (obj->labeledgealigned) {
 	gvputs(job, " id=\"");
 	gvputs_xml(job, obj->id);

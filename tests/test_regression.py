@@ -7,6 +7,7 @@ of these indicates that a past bug has been reintroduced.
 
 import dataclasses
 import hashlib
+from html.parser import HTMLParser
 import io
 import json
 import math
@@ -2348,6 +2349,135 @@ def test_2078():
     assert (
         "layout attribute is invalid except on the root graph" not in stderr
     ), "incorrect warning output"
+
+
+def test_2310_svg_edges_expose_inkscape_connectors():
+    """
+    SVG edge output should expose node-to-node connector metadata.
+    https://gitlab.com/graphviz/graphviz/-/issues/2310
+    """
+
+    source = """
+        digraph {
+          graph [svgconnector=true];
+          node [shape=box, id="node_\\N"];
+          a;
+          b;
+          a -> b [id="edge_a_b"];
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+
+    edge_groups = root.findall(".//{http://www.w3.org/2000/svg}g[@class='edge']")
+    assert edge_groups, "no SVG edge groups emitted"
+
+    # GitLab #2310 asks for Inkscape-style diagram connectors so manually
+    # moving nodes in an SVG editor can keep edges attached.
+    ink = "{http://www.inkscape.org/namespaces/inkscape}"
+    connector_paths = [
+        element
+        for edge_group in edge_groups
+        for element in edge_group.iter()
+        if element.get(f"{ink}connector-type")
+    ]
+    assert connector_paths, "SVG edge output does not expose Inkscape connectors"
+
+    emitted_ids = {
+        element.get("id")
+        for element in root.iter()
+        if element.get("id")
+    }
+    for connector in connector_paths:
+        assert connector.get(f"{ink}connector-type") == "polyline"
+        for endpoint in ("connection-start", "connection-end"):
+            reference = connector.get(f"{ink}{endpoint}")
+            assert reference and reference.startswith("#")
+            assert reference[1:] in emitted_ids
+
+    default_svg = dot(
+        "svg", source=textwrap.dedent(source).replace("svgconnector=true", "")
+    )
+    assert "inkscape:" not in default_svg
+
+
+def test_2310_svgconnector_schema_documents_graph_scope():
+    """
+    svgconnector should be documented as a graph-only SVG attribute.
+    https://gitlab.com/graphviz/graphviz/-/issues/2310
+    """
+
+    xsltproc = shutil.which("xsltproc")
+    if xsltproc is None:
+        pytest.skip("xsltproc not available")
+
+    root = Path(__file__).parent.parent
+    stylesheet = root / "doc" / "schema" / "attributes.xslt"
+    schema = root / "doc" / "schema" / "attributes.xml"
+    schema_root = ET.parse(schema).getroot()
+    namespaces = {"xsd": "http://www.w3.org/2001/XMLSchema"}
+    svgconnector = schema_root.find("xsd:attribute[@name='svgconnector']", namespaces)
+    assert svgconnector is not None, "svgconnector is missing from the schema"
+    assert svgconnector.get("default") == "false"
+    graph = schema_root.find("xsd:complexType[@name='graph']", namespaces)
+    assert graph is not None, "graph component is missing from the schema"
+    svgconnector_refs = graph.findall("xsd:attribute[@ref='svgconnector']", namespaces)
+    assert len(svgconnector_refs) == 1, "svgconnector is not graph-only"
+    assert svgconnector_refs[0].get("default") == "false"
+
+    generated = subprocess.run(
+        [xsltproc, stylesheet, schema],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    class ComponentParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.in_svgconnector = False
+            self.div_depth = 0
+            self.components = []
+            self.span_class = None
+
+        def handle_starttag(self, tag, attrs):
+            attributes = dict(attrs)
+            if tag == "div" and attributes.get("id") == "content_d_svgconnector":
+                self.in_svgconnector = True
+                self.div_depth = 1
+            elif self.in_svgconnector and tag == "div":
+                self.div_depth += 1
+            elif self.in_svgconnector and tag == "span":
+                classes = set(attributes.get("class", "").split())
+                if "comp" in classes:
+                    self.span_class = classes
+
+        def handle_data(self, data):
+            if self.span_class is not None:
+                self.components.append((data.strip(), self.span_class))
+
+        def handle_endtag(self, tag):
+            if tag == "span":
+                self.span_class = None
+            elif tag == "div" and self.in_svgconnector:
+                self.div_depth -= 1
+                if self.div_depth == 0:
+                    self.in_svgconnector = False
+
+    parser = ComponentParser()
+    parser.feed(generated.stdout)
+    components = parser.components
+    assert len(components) == 5
+    names = [name for name, _ in components]
+    assert len(set(names)) == len(names)
+    assert dict(components) == {
+        "graph": {"comp"},
+        "edge": {"comp", "missing"},
+        "node": {"comp", "missing"},
+        "subgraph": {"comp", "missing"},
+        "cluster": {"comp", "missing"},
+    }
 
 
 def test_2082():

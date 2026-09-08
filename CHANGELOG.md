@@ -7,6 +7,12 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- SVG output can now opt into Inkscape connector metadata with the graph
+  attribute `svgconnector=true`. Edge paths reference their tail and head node
+  groups, allowing Inkscape to keep edges connected while nodes are moved.
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
