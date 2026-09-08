@@ -25,6 +25,7 @@ typedef struct {
     pointf pos;			/* Position of lower-left corner of label (output) */
     textlabel_t *lbl; ///< pointer to label in the graph
     bool set;         ///< true if the position has been set (input/output)
+    bool prefer_center; ///< try placement centered on its object first
 } xlabel_t;
 
 typedef struct {

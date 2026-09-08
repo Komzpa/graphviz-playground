@@ -799,6 +799,33 @@ def test_1332():
     ), "warnings were printed when processing graph involving triangulation"
 
 
+def test_1348():
+    """
+    Edge xlabels in LR graphs should stay horizontally centered on the edge.
+    https://gitlab.com/graphviz/graphviz/-/issues/1348
+    """
+
+    graph = """
+    digraph G {
+      rankdir=LR;
+      0 -> 1 [xlabel="label"];
+      1 -> 0 [xlabel="label"];
+    }
+    """
+
+    data = json.loads(dot("json", source=graph))
+
+    for edge in data["edges"]:
+        spline = next(op["points"] for op in edge["_draw_"] if op["op"] == "b")
+        match = re.match(r"e,([^,]+),([^ ]+)", edge["pos"])
+        assert match is not None, "edge endpoint missing from pos"
+
+        midpoint_x = (spline[0][0] + float(match.group(1))) / 2.0
+        xlabel_x = float(edge["xlp"].split(",")[0])
+
+        assert xlabel_x == pytest.approx(midpoint_x, abs=1.0)
+
+
 def test_1367():
     """
     this graph should not generate a null pointer dereference

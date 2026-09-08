@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Edge `xlabel`s in `rankdir=LR` graphs are no longer horizontally offset from
+  their edge midpoints by the label width when an unobstructed centered
+  placement is available. #1348
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
