@@ -6351,6 +6351,27 @@ def test_2778():
             raise
 
 
+def test_2767():
+    """
+    issue #2767: a concentrated layout failure must not crash Graphviz
+    https://gitlab.com/graphviz/graphviz/-/issues/2767
+    """
+
+    # locate our associated test case in this directory
+    source = Path(__file__).parent / "2767.dot"
+    assert source.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    try:
+        dot("dot", source)
+    except subprocess.CalledProcessError as e:
+        # Known behavior is a graceful layout rejection (rc=1). A future
+        # successful layout is also acceptable; only non-1 exits indicate a
+        # fatal runtime failure.
+        if e.returncode != 1:
+            raise
+
+
 def test_2782():
     """
     Graphviz should not crash when processing this graph
