@@ -2359,6 +2359,19 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="warnDuplicateNodes" type="xsd:boolean">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					If true, Graphviz emits a warning when the input contains an
+					explicit node statement for a node that has already been declared.
+					Edge endpoints that refer to an existing node are not treated as
+					duplicate declarations.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<xsd:attribute name="vertices" type="pointfList">
 		<xsd:annotation>
@@ -2625,6 +2638,7 @@
 		<xsd:attribute ref="truecolor" />
 		<xsd:attribute ref="viewport" />
 		<xsd:attribute ref="voro_margin" default="0.05" />
+		<xsd:attribute ref="warnDuplicateNodes" default="false" />
 	</xsd:complexType>
 
 	<xsd:complexType name="subgraph">
