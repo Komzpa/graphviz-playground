@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -692,6 +693,117 @@ usershape_t *gvusershape_find(const char *name) {
 }
 
 #define MAX_USERSHAPE_FILES_OPEN 50
+
+static bool starts_with_ignore_case(const char *s, const char *prefix) {
+  for (; *prefix != '\0'; ++s, ++prefix) {
+    if (gv_tolower(*s) != gv_tolower(*prefix)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool is_data_image_uri(const char *name) {
+  return starts_with_ignore_case(name, "data:image/");
+}
+
+static const char *base64_data_image_payload(const char *name) {
+  if (!is_data_image_uri(name)) {
+    return NULL;
+  }
+
+  const char *const comma = strchr(name, ',');
+  if (comma == NULL) {
+    return NULL;
+  }
+
+  for (const char *p = name; p < comma; ++p) {
+    if (*p == ';' && starts_with_ignore_case(p + 1, "base64") &&
+        p + strlen(";base64") == comma) {
+      return comma + 1;
+    }
+  }
+
+  return NULL;
+}
+
+static int base64_value(int c) {
+  if (c >= 'A' && c <= 'Z') {
+    return c - 'A';
+  }
+  if (c >= 'a' && c <= 'z') {
+    return c - 'a' + 26;
+  }
+  if (c >= '0' && c <= '9') {
+    return c - '0' + 52;
+  }
+  if (c == '+') {
+    return 62;
+  }
+  if (c == '/') {
+    return 63;
+  }
+  if (c == '=') {
+    return -2;
+  }
+  return -1;
+}
+
+static bool emit_base64_group(FILE *f, int group[4]) {
+  if (group[0] < 0 || group[1] < 0 ||
+      (group[2] == -2 && group[3] != -2)) {
+    return false;
+  }
+
+  fputc((uint8_t)(group[0] << 2 | group[1] >> 4), f);
+  if (group[2] != -2) {
+    fputc((uint8_t)(group[1] << 4 | group[2] >> 2), f);
+  }
+  if (group[3] != -2) {
+    fputc((uint8_t)(group[2] << 6 | group[3]), f);
+  }
+
+  return ferror(f) == 0;
+}
+
+static bool write_base64_to_file(FILE *f, const char *encoded) {
+  int group[4];
+  size_t n = 0;
+  bool saw_padding = false;
+
+  for (const char *p = encoded; *p != '\0'; ++p) {
+    if (gv_isspace(*p)) {
+      continue;
+    }
+
+    const int value = base64_value(*p);
+    if (value == -1) {
+      return false;
+    }
+    if (value == -2) {
+      saw_padding = true;
+    }
+
+    group[n++] = value;
+    if (n == 4) {
+      if (!emit_base64_group(f, group)) {
+        return false;
+      }
+      n = 0;
+      if (saw_padding) {
+        for (++p; *p != '\0'; ++p) {
+          if (!gv_isspace(*p)) {
+            return false;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  return n == 0 && fflush(f) == 0 && fseek(f, 0, SEEK_SET) == 0;
+}
+
 bool gvusershape_file_access(usershape_t *us) {
   static int usershape_files_open_cnt;
   const char *fn;
@@ -706,14 +818,33 @@ bool gvusershape_file_access(usershape_t *us) {
       return false;
     }
   } else {
-    if (!(fn = safefile(us->name))) {
-      agwarningf("Filename \"%s\" is unsafe\n", us->name);
+    const char *const data_image = base64_data_image_payload(us->name);
+    if (data_image != NULL) {
+      us->f = tmpfile();
+      if (us->f == NULL) {
+        agwarningf("%s while opening temporary image for data URI\n",
+                   strerror(errno));
+        return false;
+      }
+      if (!write_base64_to_file(us->f, data_image)) {
+        agwarningf("Invalid base64 image data URI\n");
+        fclose(us->f);
+        us->f = NULL;
+        return false;
+      }
+    } else if (is_data_image_uri(us->name)) {
+      agwarningf("Unsupported image data URI \"%s\"\n", us->name);
       return false;
-    }
-    us->f = gv_fopen(fn, "rb");
-    if (us->f == NULL) {
-      agwarningf("%s while opening %s\n", strerror(errno), fn);
-      return false;
+    } else {
+      if (!(fn = safefile(us->name))) {
+        agwarningf("Filename \"%s\" is unsafe\n", us->name);
+        return false;
+      }
+      us->f = gv_fopen(fn, "rb");
+      if (us->f == NULL) {
+        agwarningf("%s while opening %s\n", strerror(errno), fn);
+        return false;
+      }
     }
     if (usershape_files_open_cnt >= MAX_USERSHAPE_FILES_OPEN)
       us->nocache = true;

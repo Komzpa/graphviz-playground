@@ -7,6 +7,10 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Image attributes can now use base64 `data:image/...` URIs. #483
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
