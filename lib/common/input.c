@@ -41,6 +41,7 @@ static char *genericItems = "\n\
  -Nname=val  - Set node attribute 'name' to 'val'\n\
  -Ename=val  - Set edge attribute 'name' to 'val'\n\
  -Aname=val  - Set attribute 'name' to 'val' for graph, node, and edge\n\
+ --config-file=file - Load default attributes from a DOT file\n\
  -Tv         - Set output format to 'v'\n\
  -Kv         - Set layout engine to 'v' (overrides default based on command name)\n\
  -lv         - Use external library 'v'\n\
@@ -192,6 +193,40 @@ static void global_def(char *dcl, int kind) {
     agxbfree(&xb);
 }
 
+static void global_def_pair(const char *name, const char *value, int kind) {
+    attrsym_t *sym = agattr_text(NULL, kind, (char *)name, value);
+    sym->fixed = 1;
+}
+
+static void apply_config_attrs(graph_t *g, int kind) {
+    for (attrsym_t *sym = agnxtattr(g, kind, NULL); sym;
+         sym = agnxtattr(g, kind, sym)) {
+	const char *value = kind == AGRAPH ? agxget(g, sym) : sym->defval;
+	global_def_pair(sym->name, value ? value : "", kind);
+    }
+}
+
+static int load_config_file(const char *filename) {
+    FILE *fp = gv_fopen(filename, "r");
+    if (!fp) {
+	agerrorf("can't open config file %s: %s\n", filename, strerror(errno));
+	return 1;
+    }
+
+    graph_t *config = agread(fp, NULL);
+    fclose(fp);
+    if (!config) {
+	agerrorf("can't read config file %s\n", filename);
+	return 1;
+    }
+
+    apply_config_attrs(config, AGRAPH);
+    apply_config_attrs(config, AGNODE);
+    apply_config_attrs(config, AGEDGE);
+    agclose(config);
+    return 0;
+}
+
 static int gvg_init(GVC_t *gvc, graph_t *g, char *fn, int gidx)
 {
     GVG_t *gvg = gv_alloc(sizeof(GVG_t));
@@ -272,6 +307,14 @@ int dotneato_args_initialize(GVC_t * gvc, int argc, char **argv)
 	} else if (argv[i] &&
 	    (startswith(argv[i], "-?") || strcmp(argv[i], "--help") == 0)) {
 	    return dotneato_usage(argv[0], 0);
+	} else if (argv[i] && startswith(argv[i], "--config-file=")) {
+	    const char *const filename = argv[i] + strlen("--config-file=");
+	    if (!filename[0]) {
+		fprintf(stderr, "Missing argument for --config-file option\n");
+		return dotneato_usage(argv[0], 1);
+	    }
+	    if (load_config_file(filename))
+		return dotneato_usage(argv[0], 1);
 	} else if (argv[i] && startswith(argv[i], "--filepath=")) {
 	    free(Gvfilepath);
 	    Gvfilepath = gv_strdup(argv[i] + strlen("--filepath="));

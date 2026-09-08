@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- The common command line tools now support `--config-file=…` for loading
+  graph, node, and edge default attributes from a DOT file. #2794
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
