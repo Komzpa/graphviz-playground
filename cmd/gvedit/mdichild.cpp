@@ -10,6 +10,7 @@
 
 #include "config.h"
 
+#include "filedialog_utils.h"
 #include "mainwindow.h"
 #include "mdichild.h"
 #include <QtGlobal>
@@ -69,7 +70,8 @@ bool MdiChild::save() {
 }
 
 bool MdiChild::saveAs() {
-  QString fileName = QFileDialog::getSaveFileName(this, tr("Save As"), curFile);
+  QString fileName = QFileDialog::getSaveFileName(
+      this, tr("Save As"), gvedit::fileDialogPath(curFile));
   if (fileName.isEmpty())
     return false;
 
@@ -95,6 +97,7 @@ bool MdiChild::saveFile(const QString &fileName) {
   QApplication::restoreOverrideCursor();
 
   setCurrentFile(fileName);
+  gvedit::rememberFileDialogDirectory(fileName);
   return true;
 }
 

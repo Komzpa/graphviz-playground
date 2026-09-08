@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- GVedit now remembers the last directory used by its open and save file
+  dialogs. #440
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

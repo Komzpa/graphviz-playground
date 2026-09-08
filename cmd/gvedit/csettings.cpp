@@ -14,6 +14,7 @@
 #include "windows.h"
 #endif
 #include "csettings.h"
+#include "filedialog_utils.h"
 #include "mainwindow.h"
 #include "mdichild.h"
 #include "qfiledialog.h"
@@ -165,10 +166,12 @@ CFrmSettings::CFrmSettings() {
 void CFrmSettings::outputSlot() {
   QString _filter = QStringLiteral("Output File(*.%1)")
                         .arg(WIDGET(QComboBox, cbExtension)->currentText());
-  QString fileName = QFileDialog::getSaveFileName(this, tr("Save Graph As.."),
-                                                  QStringLiteral("/"), _filter);
-  if (!fileName.isEmpty())
+  QString fileName = QFileDialog::getSaveFileName(
+      this, tr("Save Graph As.."), gvedit::fileDialogPath(), _filter);
+  if (!fileName.isEmpty()) {
     WIDGET(QLineEdit, leOutput)->setText(fileName);
+    gvedit::rememberFileDialogDirectory(fileName);
+  }
 }
 
 void CFrmSettings::scopeChangedSlot(int id) {
@@ -230,7 +233,8 @@ void CFrmSettings::newSlot() {
 
 void CFrmSettings::openSlot() {
   QString fileName = QFileDialog::getOpenFileName(
-      this, tr("Open File"), QStringLiteral("/"), tr("Text file (*.*)"));
+      this, tr("Open File"), gvedit::lastFileDialogDirectory(),
+      tr("Text file (*.*)"));
   if (!fileName.isEmpty()) {
     QFile file(fileName);
     if (!file.open(QFile::ReadOnly | QFile::Text)) {
@@ -243,6 +247,7 @@ void CFrmSettings::openSlot() {
 
     QTextStream in(&file);
     WIDGET(QTextEdit, teAttributes)->setPlainText(in.readAll());
+    gvedit::rememberFileDialogDirectory(fileName);
   }
 }
 
@@ -255,7 +260,7 @@ void CFrmSettings::saveSlot() {
   }
 
   QString fileName = QFileDialog::getSaveFileName(
-      this, tr("Open File"), QStringLiteral("/"), tr("Text File(*.*)"));
+      this, tr("Open File"), gvedit::fileDialogPath(), tr("Text File(*.*)"));
   if (!fileName.isEmpty()) {
 
     QFile file(fileName);
@@ -269,6 +274,7 @@ void CFrmSettings::saveSlot() {
 
     QTextStream out(&file);
     out << WIDGET(QTextEdit, teAttributes)->toPlainText();
+    gvedit::rememberFileDialogDirectory(fileName);
   }
 }
 
