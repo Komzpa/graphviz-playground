@@ -617,6 +617,40 @@ def test_925():
     assert "ААА ААА ААА" in svg, "incorrect spacing in UTF-8 label"
 
 
+def test_1039():
+    """
+    opposite-direction edges sharing a port should not overlap
+    https://gitlab.com/graphviz/graphviz/-/issues/1039
+    """
+
+    source = """
+        digraph G {
+            node[shape=box]
+            bonn:s -> berlin
+            berlin -> bonn:s
+        }
+    """
+
+    plain = dot("plain", source=source).decode("utf-8")
+
+    edge_xs = {}
+    for line in plain.splitlines():
+        parts = line.split()
+        if not parts or parts[0] != "edge":
+            continue
+        tail, head = parts[1], parts[2]
+        point_count = int(parts[3])
+        coords = [float(c) for c in parts[4 : 4 + 2 * point_count]]
+        edge_xs[(tail, head)] = coords[::2]
+
+    down = edge_xs[("bonn", "berlin")]
+    up = edge_xs[("berlin", "bonn")]
+
+    assert any(
+        abs(a - b) > 0.01 for a, b in zip(down[1:], up[1:])
+    ), "opposite-direction port edges unexpectedly overlap"
+
+
 @pytest.mark.parametrize("testcase", ("1213-1.dot", "1213-2.dot"))
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1213"

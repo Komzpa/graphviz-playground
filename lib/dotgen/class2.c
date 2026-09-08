@@ -152,6 +152,17 @@ bool mergeable(edge_t *e, edge_t *f) {
          ED_label(e) == ED_label(f) && ports_eq(e, f);
 }
 
+static bool ports_eq_reversed(edge_t *e, edge_t *f) {
+  return ED_head_port(e).defined == ED_tail_port(f).defined &&
+         ((ED_head_port(e).p.x == ED_tail_port(f).p.x &&
+           ED_head_port(e).p.y == ED_tail_port(f).p.y) ||
+          !ED_head_port(e).defined) &&
+         ED_tail_port(e).defined == ED_head_port(f).defined &&
+         ((ED_tail_port(e).p.x == ED_head_port(f).p.x &&
+           ED_tail_port(e).p.y == ED_head_port(f).p.y) ||
+          !ED_tail_port(e).defined);
+}
+
 void class2(graph_t * g)
 {
     int c;
@@ -265,7 +276,7 @@ void class2(graph_t * g)
 		    if (ED_to_virt(opp) == NULL)
 			make_chain(g, agtail(opp), aghead(opp), opp);
 		    if (ED_label(e) == NULL && ED_label(opp) == NULL
-			&& ports_eq(e, opp)) {
+			&& ports_eq_reversed(e, opp)) {
 			if (Concentrate) {
 			    ED_edge_type(e) = IGNORED;
 			    ED_conc_opp_flag(opp) = true;
@@ -291,4 +302,3 @@ void class2(graph_t * g)
 	GD_comp(g).list[0] = GD_nlist(g);
     }
 }
-
