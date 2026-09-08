@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Smyrna builds no longer expose duplicate `quicksort_place` symbols from the
+  topfish and neatogen static libraries. #2823
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
