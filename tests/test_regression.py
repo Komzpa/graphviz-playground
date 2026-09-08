@@ -426,6 +426,30 @@ def test_258():
     assert edge_count == 1, "incorrect number of inter-cluster edges"
 
 
+def test_286():
+    """
+    clusters should be able to override the root graph's nodesep
+    https://gitlab.com/graphviz/graphviz/-/issues/286
+    """
+
+    input = Path(__file__).parent / "286.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    plain = dot("plain", input).decode("utf-8")
+    coords = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if fields[:1] == ["node"]:
+            coords[fields[1]] = (float(fields[2]), float(fields[3]))
+
+    close_gap = coords["c"][0] - coords["a"][0]
+    far_gap = coords["f"][0] - coords["d"][0]
+
+    assert close_gap < far_gap / 2, "cluster-specific nodesep was ignored"
+    assert coords["a"][1] == coords["b"][1] == coords["c"][1]
+    assert coords["d"][1] == coords["e"][1] == coords["f"][1]
+
+
 def test_358():
     """
     setting xdot version to 1.7 should enable font characteristics

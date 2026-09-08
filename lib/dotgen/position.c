@@ -261,7 +261,11 @@ make_LR_constraints(graph_t * g)
 	    }
 	    v = rank[i].v[j + 1];
 	    if (v) {
-		width = ND_rw(u) + ND_lw(v) + nodesep;
+		int pair_nodesep = nodesep;
+		if (ND_clust(u) && ND_clust(u) == ND_clust(v)) {
+		    pair_nodesep = GD_nodesep(ND_clust(u));
+		}
+		width = ND_rw(u) + ND_lw(v) + pair_nodesep;
 		e0 = make_aux_edge(u, v, width, 0);
 		last = (ND_rank(v) = last + width);
 	    }

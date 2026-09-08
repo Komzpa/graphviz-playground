@@ -30,8 +30,13 @@ dot_init_subg(graph_t * g, graph_t* droot)
 {
     graph_t* subg;
 
-    if ((g != agroot(g)))
+    if ((g != agroot(g))) {
 	agbindrec(g, "Agraphinfo_t", sizeof(Agraphinfo_t), true);
+	double nodesep = PS2INCH(GD_nodesep(agparent(g)));
+	nodesep = late_double(g, agfindgraphattr(g, "nodesep"), nodesep,
+	                      MIN_NODESEP);
+	GD_nodesep(g) = POINTS(nodesep);
+    }
     if (g == droot)
 	GD_dotroot(agroot(g)) = droot;
 	

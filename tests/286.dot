@@ -1,0 +1,19 @@
+digraph {
+  nodesep=2
+
+  subgraph cluster_close {
+    nodesep=0.02
+    rank=same
+    a
+    b
+    c
+  }
+
+  subgraph cluster_far {
+    nodesep=2
+    rank=same
+    d
+    e
+    f
+  }
+}
