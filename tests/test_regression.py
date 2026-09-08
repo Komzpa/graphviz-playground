@@ -3177,6 +3177,47 @@ def test_2342():
     dot("svg", input)
 
 
+def test_1128():
+    """
+    `arrowheadsize` and `arrowtailsize` should independently scale dot arrows.
+    `arrowsize` remains the fallback when neither side-specific attribute is
+    provided.
+    https://gitlab.com/graphviz/graphviz/-/issues/1128
+    """
+
+    input = """
+        digraph {
+            rankdir=LR;
+            a -> b [
+                dir=both
+                arrowhead=dot
+                arrowtail=dot
+                arrowheadsize=0.5
+                arrowtailsize=2.0
+            ];
+        }
+    """
+
+    root = ET.fromstring(dot("svg", source=input))
+    ellipses = root.findall(".//{http://www.w3.org/2000/svg}ellipse")
+    arrow_radii = sorted(float(e.get("rx")) for e in ellipses if float(e.get("rx")) < 10)
+
+    assert arrow_radii == [2.0, 8.0]
+
+    input = """
+        digraph {
+            rankdir=LR;
+            a -> b [dir=both arrowhead=dot arrowtail=dot arrowsize=1.25];
+        }
+    """
+
+    root = ET.fromstring(dot("svg", source=input))
+    ellipses = root.findall(".//{http://www.w3.org/2000/svg}ellipse")
+    arrow_radii = sorted(float(e.get("rx")) for e in ellipses if float(e.get("rx")) < 10)
+
+    assert arrow_radii == [5.0, 5.0]
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",

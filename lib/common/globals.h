@@ -82,10 +82,11 @@ GLOBALS_API EXTERN Agsym_t *N_height, *N_width, *N_shape, *N_color,
     *N_gradientangle;
 GLOBALS_API EXTERN Agsym_t *E_weight, *E_minlen, *E_color, *E_fillcolor,
     *E_fontsize, *E_fontname, *E_fontcolor, *E_label, *E_xlabel, *E_dir,
-    *E_style, *E_decorate, *E_showboxes, *E_arrowsz, *E_constr, *E_layer,
-    *E_comment, *E_label_float, *E_samehead, *E_sametail, *E_headlabel,
-    *E_taillabel, *E_labelfontsize, *E_labelfontname, *E_labelfontcolor,
-    *E_labeldistance, *E_labelangle, *E_tailclip, *E_headclip, *E_penwidth;
+    *E_style, *E_decorate, *E_showboxes, *E_arrowsz, *E_arrowheadsz,
+    *E_arrowtailsz, *E_constr, *E_layer, *E_comment, *E_label_float,
+    *E_samehead, *E_sametail, *E_headlabel, *E_taillabel, *E_labelfontsize,
+    *E_labelfontname, *E_labelfontcolor, *E_labeldistance, *E_labelangle,
+    *E_tailclip, *E_headclip, *E_penwidth;
 
 GLOBALS_API extern struct fdpParms_s *fdp_parms;
 

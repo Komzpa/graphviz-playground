@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- Edge arrows can now be scaled independently with `arrowheadsize` and
+  `arrowtailsize`. Both attributes fall back to `arrowsize` when unset. #1128
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

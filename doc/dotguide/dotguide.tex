@@ -537,7 +537,9 @@ if any, which is used at the head and tail ends of the edge.
 Allowed values are {\tt normal}, {\tt inv}, {\tt dot}, {\tt invdot}, 
 {\tt odot}, {\tt invodot} and {\tt none} (cf. Appendix~\ref{app:arrows}).
 The attribute {\tt arrowsize} specifies a multiplicative factor affecting
-the size of any arrowhead drawn on the edge.
+the size of any arrowhead drawn on the edge. The attributes
+{\tt arrowheadsize} and {\tt arrowtailsize} specify the factor independently
+for the head and tail ends; when unset, they default to {\tt arrowsize}.
 For example, {\tt arrowsize=2.0} makes the arrow twice as long and twice
 as wide.
 
@@ -1349,7 +1351,9 @@ cf. Section~\ref{sect:style} \\
 \begin{tabular}[t]{|l|l|p{3.5in}|} \hline
 Name & Default & Values \\ \hline
 {\tt arrowhead} & normal & style of arrowhead at head end \\
+{\tt arrowheadsize} & & scaling factor for arrowhead at head end \\
 {\tt arrowsize} & {\tt 1.0} & scaling factor for arrowheads \\
+{\tt arrowtailsize} & & scaling factor for arrowhead at tail end \\
 {\tt arrowtail} & normal & style of arrowhead at tail end \\
 {\tt color} & {\tt black} & edge stroke color \\
 {\tt colorscheme} & X11 & scheme for interpreting color names \\
