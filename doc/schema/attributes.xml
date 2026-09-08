@@ -1564,7 +1564,8 @@
 					left-to-right in the same order in which they are defined.
 					If "in", the edges *-&gt;n appear
 					left-to-right in the same order in which they are defined for all
-					nodes n.
+					nodes n. If "both", both incoming and outgoing edge orders are
+					preserved.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>

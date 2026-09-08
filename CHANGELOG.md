@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The dot `ordering` attribute now accepts `both` to preserve both incoming
+  and outgoing edge orders. #1645
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

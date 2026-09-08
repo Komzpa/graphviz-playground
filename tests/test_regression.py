@@ -1520,6 +1520,49 @@ def test_1676():
     assert ret != -signal.SIGSEGV, "Graphviz segfaulted"
 
 
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+@pytest.mark.parametrize("scope", ("graph", "node"))
+def test_1645(scope: str):
+    """
+    ordering=both should preserve both outgoing and incoming edge definition
+    order
+    https://gitlab.com/graphviz/graphviz/-/issues/1645
+    """
+
+    attrs = {
+        "graph": "graph [ordering=both]",
+        "node": "producer [ordering=both]\n  consumer [ordering=both]",
+    }
+    source = f"""
+digraph G {{
+  {attrs[scope]}
+  {{ rank=same; out3; out1; out2; in1; in2; in3 }}
+  producer -> out3
+  producer -> out1
+  producer -> out2
+  in3 -> consumer
+  in1 -> consumer
+  in2 -> consumer
+}}
+"""
+
+    dot_builtins = which("dot_builtins")
+    output = run(
+        dot_builtins,
+        "-Tjson",
+        input=source,
+    )
+    data = json.loads(output)
+    xs = {
+        o["name"]: float(o["pos"].split(",")[0])
+        for o in data["objects"]
+        if "name" in o and "pos" in o
+    }
+
+    assert xs["out3"] < xs["out1"] < xs["out2"]
+    assert xs["in3"] < xs["in1"] < xs["in2"]
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_1702():
     """
