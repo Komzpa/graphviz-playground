@@ -227,6 +227,20 @@ def test_146():
     ), "alpha=0 color set to something non-transparent"
 
 
+def test_2132():
+    """
+    SVG output should not confuse Graphviz green with SVG/CSS green
+    https://gitlab.com/graphviz/graphviz/-/issues/2132
+    """
+
+    svg = dot("svg", source='digraph { node [style=filled,color="green"]; a; }')
+
+    assert 'fill="#00ff00"' in svg
+    assert 'stroke="#00ff00"' in svg
+    assert 'fill="green"' not in svg
+    assert 'stroke="green"' not in svg
+
+
 def test_162():
     """
     `minlen=0` should not duplicate edges

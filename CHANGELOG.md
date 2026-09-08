@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- SVG output now emits Graphviz `green` as its RGB value instead of the
+  incompatible SVG/CSS color name. #2132
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
