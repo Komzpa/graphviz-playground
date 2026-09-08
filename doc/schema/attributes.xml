@@ -432,6 +432,10 @@
 			<xsd:documentation>
 				<html:p>
 					Style of arrowhead on the tail node of an edge. 
+					The <html:a rel="attr">arrowtail</html:a> attribute only selects
+					the tail arrow shape. To make Graphviz draw a tail arrow, set
+					<html:a rel="attr">dir</html:a> to <html:code>back</html:code>
+					or <html:code>both</html:code>.
 					See also the <html:a rel="attr">dir</html:a> attribute, 
 					and the <html:a rel="note">undirected</html:a> note.			
 				</html:p>

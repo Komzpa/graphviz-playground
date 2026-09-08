@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The `arrowtail` attribute documentation now clarifies that `dir=back` or
+  `dir=both` is needed to draw the selected tail arrow shape. #1589
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
