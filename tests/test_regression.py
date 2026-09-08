@@ -8,6 +8,7 @@ of these indicates that a past bug has been reintroduced.
 import dataclasses
 import hashlib
 import io
+import itertools
 import json
 import math
 import os
@@ -3104,6 +3105,51 @@ def test_2242():
     for _ in range(20):
         png = dot("png", input)
         assert ref == png, "repeated rendering changed output"
+
+
+def test_2249():
+    """
+    the edge from S5 to S2 in the collocated test case should be a simple
+    left-to-right curve, not a path with an avoidable visual hiccup.
+    https://gitlab.com/graphviz/graphviz/-/issues/2249
+    """
+
+    # find our collocated test case
+    input = Path(__file__).parent / "2249.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # run it through Graphviz. `plain` output for this issue's HTML-like labels
+    # can contain non-UTF-8 label bytes, so parse only the byte fields needed for
+    # the S5 -> S2 spline coordinates.
+    output = run_raw("dot", "-Tplain", input)
+    assert isinstance(output, bytes)
+
+    edge = next(
+        line for line in output.splitlines() if line.startswith(b"edge S5 S2 ")
+    )
+    fields = edge.split()
+    n = int(fields[3])
+    coordinates = [
+        (float(fields[4 + 2 * i]), float(fields[5 + 2 * i])) for i in range(n)
+    ]
+
+    # The edge should advance from left to right throughout.
+    assert all(
+        x0 <= x1 for (x0, _), (x1, _) in itertools.pairwise(coordinates)
+    ), "edge path doubled back horizontally"
+
+    # Smooth curves may rise and then fall, but a visible hiccup produces extra
+    # vertical-direction changes along the spline.
+    y_deltas = [
+        y1 - y0 for (_, y0), (_, y1) in itertools.pairwise(coordinates)
+    ]
+    y_signs = [
+        1 if delta > 1e-6 else -1
+        for delta in y_deltas
+        if abs(delta) > 1e-6
+    ]
+    reversals = sum(sign0 != sign1 for sign0, sign1 in itertools.pairwise(y_signs))
+    assert reversals <= 1, "edge path has extra vertical-direction reversals"
 
 
 @pytest.mark.skipif(
