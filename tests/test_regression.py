@@ -7789,3 +7789,64 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+def test_2190():
+    """
+    self-edges between same-node HTML table west ports should not loop through
+    the preceding table cell
+    https://gitlab.com/graphviz/graphviz/-/issues/2190
+    """
+
+    source = r"""
+        digraph graphviz {
+            rankdir=LR
+            node [shape=plaintext]
+
+            A [label=<
+                <TABLE>
+                <TR><TD>node A</TD></TR>
+                <TR><TD PORT="1">a_1</TD></TR>
+                <TR><TD PORT="2">a_2</TD></TR>
+                </TABLE>
+            >]
+
+            B [label=<
+                <TABLE>
+                <TR><TD>node B</TD></TR>
+                <TR><TD PORT="1">b_1</TD></TR>
+                <TR><TD PORT="2">b_2</TD></TR>
+                <TR><TD PORT="3">b_3</TD></TR>
+                </TABLE>
+            >]
+
+            A:1 -> B:1
+            B:3:w -> B:1:w
+            B:3:w -> B:2:w
+        }
+    """
+
+    xdot = dot("xdot", source=source)
+
+    node_a = re.search(
+        r"\n\tA\t\[.*?pos=\"(?P<x>[-+]?\d+(?:\.\d+)?),[^\"]+\""
+        r".*?width=(?P<width>[-+]?\d+(?:\.\d+)?)",
+        xdot,
+        re.DOTALL,
+    )
+    assert node_a is not None, "missing A node geometry"
+    a_right = float(node_a.group("x")) + float(node_a.group("width")) * 72 / 2
+
+    for edge in ("B:3:w -> B:1:w", "B:3:w -> B:2:w"):
+        match = re.search(
+            rf"\n\t{re.escape(edge)}\t\[.*?pos=\"(?P<pos>[^\"]+)\"",
+            xdot,
+            re.DOTALL,
+        )
+        assert match is not None, f"missing {edge} geometry"
+        coordinates = [
+            float(n)
+            for n in re.findall(r"[-+]?\d+(?:\.\d+)?", match.group("pos"))
+        ]
+        x_coordinates = coordinates[0::2]
+        assert min(x_coordinates) > a_right, f"{edge} loops through node A"
