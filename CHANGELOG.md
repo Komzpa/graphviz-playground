@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- The new `-Tascii:lineart` renderer produces semantic, plain-ASCII graph
+  diagrams without requiring AA-lib. #2829
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
