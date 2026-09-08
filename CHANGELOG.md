@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Cloning a subgraph with `gvpr` no longer leaks graph defaults from the cloned
+  subgraph into the root graph. #2835
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

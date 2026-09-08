@@ -6524,11 +6524,6 @@ def test_2827(tmp_path: Path):
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
-@pytest.mark.xfail(
-    raises=AssertionError,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2835",
-    strict=True,
-)
 def test_2835():
     """
     gvpr should apply cluster attributes to the correct graph, not the root graph
@@ -6560,6 +6555,27 @@ def test_2835():
 
     graph_style = re.search(r'\bstyle\s*="[^"]*"', graph[:first_cluster])
     assert graph_style is None, "style attribute was added to the root graph"
+
+    cluster_x = re.search(
+        r"subgraph clusterX \{\n(?P<cluster>(.|\n)+?)\n\t\}", graph, flags=re.MULTILINE
+    )
+    assert cluster_x is not None, "failed to find cloned clusterX output"
+    cluster = cluster_x.group("cluster")
+
+    assert re.search(r"\bcolor\s*=\s*purple\b", cluster) is not None
+    assert re.search(r'\bstyle\s*=\s*"dashed,rounded"', cluster) is not None
+    assert re.search(r"\bmargin\s*=\s*22\b", cluster) is None
+    assert re.search(r'\bstyle\s*=\s*"dotted,bold"', cluster) is None
+
+    cluster_y = re.search(
+        r"subgraph clusterY \{\n(?P<cluster>(.|\n)+?)\n\t\}", graph, flags=re.MULTILINE
+    )
+    assert cluster_y is not None, "failed to find cloned clusterY output"
+    cluster = cluster_y.group("cluster")
+
+    assert re.search(r"\bcolor\s*=\s*green\b", cluster) is not None
+    assert re.search(r"\bmargin\s*=\s*22\b", cluster) is not None
+    assert re.search(r'\bstyle\s*=\s*"dotted,bold"', cluster) is not None
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
