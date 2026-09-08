@@ -1005,6 +1005,197 @@ def test_1447_1():
     dot("png", input)
 
 
+def test_1415():
+    """
+    ortho edges to a north port should clip to the north side of the node
+    https://gitlab.com/graphviz/graphviz/-/issues/1415
+    """
+
+    source = """
+        digraph {
+          graph [splines = ortho];
+          A;
+          B;
+          C;
+          { A; B; C; } -> D:n;
+        }
+    """
+
+    data = json.loads(dot("json", source=textwrap.dedent(source)))
+    objects = {o["name"]: o for o in data["objects"]}
+    d_center_y = float(objects["D"]["pos"].split(",")[1])
+
+    edges_to_d = [
+        e for e in data["edges"] if data["objects"][e["head"]]["name"] == "D"
+    ]
+    assert len(edges_to_d) == 3
+    for edge in edges_to_d:
+        endpoint = edge["pos"].split()[0]
+        _, _, y = endpoint.split(",")
+        assert float(y) > d_center_y
+
+
+def test_106():
+    """
+    ortho edges to HTML table cell ports should use the cell side, not the
+    whole table side
+    https://gitlab.com/graphviz/graphviz/-/issues/106
+    """
+
+    input = Path(__file__).parent / "106.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    ortho = json.loads(dot("json", input))
+    polyline_source = input.read_text().replace(
+        'splines="ortho"', 'splines="polyline"'
+    )
+    polyline = json.loads(dot("json", source=polyline_source))
+
+    def endpoints(data):
+        result = {}
+        objects = data["objects"]
+        for edge in data["edges"]:
+            tail = objects[edge["tail"]]["name"]
+            head = objects[edge["head"]]["name"]
+            key = (tail, edge["tailport"], head, edge["headport"])
+            points = []
+            for token in edge["pos"].split():
+                if token.startswith(("s,", "e,")):
+                    token = token[2:]
+                x, y = token.split(",")
+                points.append((float(x), float(y)))
+            result[key] = (points[0], points[-1])
+        return result
+
+    ortho_endpoints = endpoints(ortho)
+    polyline_endpoints = endpoints(polyline)
+    assert ortho_endpoints.keys() == polyline_endpoints.keys()
+
+    for key in ortho_endpoints:
+        for ortho_point, polyline_point in zip(
+            ortho_endpoints[key], polyline_endpoints[key]
+        ):
+            assert math.dist(ortho_point, polyline_point) <= 1.1, key
+
+
+def test_2165():
+    """
+    ortho edges to compass ports should end at the requested node border
+    https://gitlab.com/graphviz/graphviz/-/issues/2165
+    """
+
+    input = Path(__file__).parent / "2165.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    ortho = json.loads(dot("json", input))
+    polyline_source = input.read_text().replace(
+        "splines=ortho", "splines=polyline"
+    )
+    polyline = json.loads(dot("json", source=polyline_source))
+
+    def head_endpoints(data):
+        result = {}
+        objects = data["objects"]
+        for edge in data["edges"]:
+            head = objects[edge["head"]]["name"]
+            assert head == "node2"
+            assert edge["headport"] in {"ne", "sw"}
+            endpoint = edge["pos"].split()[0]
+            assert endpoint.startswith("e,")
+            result[edge["headport"]] = tuple(
+                float(v) for v in endpoint[2:].split(",")
+            )
+        return result
+
+    ortho_endpoints = head_endpoints(ortho)
+    polyline_endpoints = head_endpoints(polyline)
+    assert ortho_endpoints.keys() == polyline_endpoints.keys()
+
+    for port, ortho_point in ortho_endpoints.items():
+        assert math.dist(ortho_point, polyline_endpoints[port]) <= 1.1, port
+
+
+def test_352():
+    """
+    ortho edges to record fields should attach to the requested field ports
+    https://gitlab.com/graphviz/graphviz/-/issues/352
+    """
+
+    input = Path(__file__).parent / "352.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    data = json.loads(dot("json", input))
+    objects = data["objects"]
+
+    expected_endpoints = {
+        ("struct1", "r1:e", "struct2", "l1:w"): ((61.25, 38.375), (97.25, 88.375)),
+        ("struct1", "r2:e", "struct3", "l2:w"): ((61.25, 13.125), (194.5, 25.125)),
+        ("struct2", "r2:e", "struct3", "l1:w"): ((158.5, 63.125), (194.5, 50.375)),
+        ("struct3", "r2:e", "struct1", "l2:w"): ((255.75, 25.125), (0.0, 13.125)),
+        ("struct2", "r0:e", "struct3", "l0:w"): ((158.5, 113.62), (194.5, 75.625)),
+    }
+
+    seen = set()
+    for edge in data["edges"]:
+        key = (
+            objects[edge["tail"]]["name"],
+            edge["tailport"],
+            objects[edge["head"]]["name"],
+            edge["headport"],
+        )
+        seen.add(key)
+
+        points = edge["pos"].split()
+        assert points[0].startswith("e,")
+        head_endpoint = tuple(float(v) for v in points[0][2:].split(","))
+        tail_endpoint = tuple(float(v) for v in points[1].split(","))
+        expected_tail, expected_head = expected_endpoints[key]
+
+        assert math.dist(tail_endpoint, expected_tail) <= 1.1, key
+        assert math.dist(head_endpoint, expected_head) <= 1.1, key
+
+    assert seen == set(expected_endpoints)
+
+
+def test_2674():
+    """
+    ortho edges with explicit head and tail ports should not penetrate nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/2674
+    """
+
+    input = Path(__file__).parent / "2674.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    data = json.loads(dot("json", input))
+    objects = {o["_gvid"]: o for o in data["objects"]}
+
+    def center(obj) -> tuple[float, float]:
+        x, y = obj["pos"].split(",")
+        return float(x), float(y)
+
+    def node_height_points(obj) -> float:
+        return float(obj["height"]) * 72
+
+    for edge in data["edges"]:
+        assert edge["tailport"] == "s"
+        assert edge["headport"] == "n"
+
+        tail = objects[edge["tail"]]
+        head = objects[edge["head"]]
+        tail_x, tail_y = center(tail)
+        head_x, head_y = center(head)
+        tail_south_y = tail_y - node_height_points(tail) / 2
+        head_north_y = head_y + node_height_points(head) / 2
+
+        points = edge["pos"].split()
+        assert points[0].startswith("e,")
+        head_endpoint = tuple(float(v) for v in points[0][2:].split(","))
+        tail_endpoint = tuple(float(v) for v in points[1].split(","))
+
+        assert math.dist(tail_endpoint, (tail_x, tail_south_y)) <= 1.1
+        assert math.dist(head_endpoint, (head_x, head_north_y)) <= 1.1
+
+
 def test_1449():
     """
     using the SVG color scheme should not cause warnings
@@ -1659,7 +1850,6 @@ def test_1845():
     dot("ps", input)
 
 
-@pytest.mark.xfail(strict=True)  # FIXME
 def test_1856():
     """
     headports and tailports should be respected
@@ -1674,16 +1864,10 @@ def test_1856():
     out = dot("json", input)
     data = json.loads(out)
 
-    # find the two nodes, “3” and “5”
+    # find the three nodes, “2”, “3”, and “5”
+    two = [x for x in data["objects"] if x["name"] == "2"][0]
     three = [x for x in data["objects"] if x["name"] == "3"][0]
     five = [x for x in data["objects"] if x["name"] == "5"][0]
-
-    # find the edge from “3” to “5”
-    edge = [
-        x
-        for x in data["edges"]
-        if x["tail"] == three["_gvid"] and x["head"] == five["_gvid"]
-    ][0]
 
     # The edge should look something like:
     #
@@ -1710,9 +1894,17 @@ def test_1856():
 
     top_of_five = max(y for _, y in five["_draw_"][1]["points"])
 
-    waypoints_y = [y for _, y in edge["_draw_"][1]["points"]]
+    for tail in (two, three):
+        # find the edge from the tail to “5”
+        edge = [
+            x
+            for x in data["edges"]
+            if x["tail"] == tail["_gvid"] and x["head"] == five["_gvid"]
+        ][0]
 
-    assert all(y >= top_of_five for y in waypoints_y), "edge dips below 5"
+        waypoints_y = [y for _, y in edge["_draw_"][1]["points"]]
+
+        assert all(y >= top_of_five for y in waypoints_y), "edge dips below 5"
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")

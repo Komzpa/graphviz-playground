@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Orthogonal edges now preserve explicit head and tail HTML cell and compass
+  ports at the first and last route segments. #106 #1415 #1856
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

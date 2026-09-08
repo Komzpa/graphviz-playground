@@ -1,0 +1,10 @@
+digraph "" {
+    edge [headport="n"; tailport="s"];
+    splines="ortho"
+    node8 -> node10
+    node4 -> node15
+    node4 -> node8
+    node10 -> node13
+    node13 -> node15
+    node10 -> node15
+}

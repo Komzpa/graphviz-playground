@@ -1,0 +1,10 @@
+digraph {
+        layout=fdp
+        overlap=true
+        splines=ortho
+
+        node1 [pos="0,0!"]
+        node2 [pos="2,0!"]
+        node1 -> node2:ne;
+        node1 -> node2:sw;
+}
