@@ -6230,14 +6230,8 @@ def test_2731():
                 reason="GDK plugin not supported",
             ),
         ),
-        pytest.param(
-            "jpg",
-            marks=pytest.mark.xfail(
-                is_fedora() or is_ubuntu_2604(),
-                strict=True,
-                reason="https://gitlab.com/graphviz/graphviz/-/issues/2732",
-            ),
-        ),
+        "jpg",
+        "jpg:cairo:gdk",
         pytest.param(
             "jpg:cairo:gd",
             marks=pytest.mark.skipif(
@@ -6256,12 +6250,27 @@ def test_2732(fmt: str):
         fmt: Format to pass to dot’s `-T…`.
     """
 
+    if ":" in fmt:
+        # Skip builds without the explicit backend this regression covers.
+        image_format = fmt.split(":", maxsplit=1)[0]
+        p = subprocess.run(
+            ["dot", f"-T{image_format}:unrecognized", "-o", os.devnull, os.devnull],
+            stderr=subprocess.PIPE,
+            check=False,
+            text=True,
+        )
+        if re.search(rf"\b{re.escape(fmt)}\b", p.stderr) is None:
+            pytest.skip(f'"{fmt}" output device not supported')
+
     # an arbitrary, trivial graph
     source = "graph G { a -- b; }"
 
     # confirm this produces non-empty output
     output = dot(fmt, source=source)
     assert output != b"", "empty output produced for valid graph"
+    if fmt.startswith("jpg"):
+        assert output.startswith(b"\xff\xd8\xff"), "output is not a JPEG"
+        assert Image.open(io.BytesIO(output)).format == "JPEG"
 
 
 def test_2734():

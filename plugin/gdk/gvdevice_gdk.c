@@ -44,24 +44,41 @@ static void gdk_format(GVJ_t * job)
     assert(job->device.id >= 0);
     assert(job->device.id < (int)(sizeof(format_strs) / sizeof(format_strs[0])));
     char *const format_str = format_strs[job->device.id];
-    GdkPixbuf *pixbuf;
-
-    argb2rgba(job->width, job->height, job->imagedata);
-
     assert(job->width <= INT_MAX / BYTES_PER_PIXEL && "width out of range");
     assert(job->height <= INT_MAX && "height out of range");
 
-    pixbuf = gdk_pixbuf_new_from_data(
-                job->imagedata,         // data
-                GDK_COLORSPACE_RGB,     // colorspace
-                TRUE,                   // has_alpha
-                8,                      // bits_per_sample
-                (int)job->width,        // width
-                (int)job->height,       // height
-                BYTES_PER_PIXEL * (int)job->width, // rowstride
-                NULL,                   // destroy_fn
-                NULL                    // destroy_fn_data
-               );
+    argb2rgba(job->width, job->height, job->imagedata);
+
+    const gboolean has_alpha = job->device.id != FORMAT_JPEG;
+    if (!has_alpha) {
+        // GDKPixbuf 2.44's Glycin-backed JPEG encoder rejects alpha channels.
+        // Compact the borrowed RGBA pixels to RGB in place before saving.
+        for (size_t y = 0; y < job->height; ++y) {
+            const guchar *src =
+                job->imagedata + y * job->width * BYTES_PER_PIXEL;
+            guchar *dst = job->imagedata + y * job->width * 3;
+            for (size_t x = 0; x < job->width; ++x) {
+                dst[0] = src[0];
+                dst[1] = src[1];
+                dst[2] = src[2];
+                src += BYTES_PER_PIXEL;
+                dst += 3;
+            }
+        }
+    }
+    const int rowstride =
+        (has_alpha ? BYTES_PER_PIXEL : 3) * (int)job->width;
+    GdkPixbuf *const pixbuf = gdk_pixbuf_new_from_data(
+        job->imagedata,         // data
+        GDK_COLORSPACE_RGB,     // colorspace
+        has_alpha,              // has_alpha
+        8,                      // bits_per_sample
+        (int)job->width,        // width
+        (int)job->height,       // height
+        rowstride,              // rowstride
+        NULL,                   // destroy_fn
+        NULL                    // destroy_fn_data
+    );
 
     agxbuf x_dpi = {0};
     agxbprint(&x_dpi, "%.0f", job->dpi.x);
