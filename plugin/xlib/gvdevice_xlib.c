@@ -481,7 +481,7 @@ static void xlib_finalize(GVJ_t *firstjob) {
       numfds = imax(inotify_fd, numfds);
 #endif
     }
-  } else {
+  } else if (isatty(STDIN_FILENO)) {
     watching_stdin_p = true;
 #ifdef F_DUPFD_CLOEXEC
     stdin_fd = fcntl(STDIN_FILENO, F_DUPFD_CLOEXEC, 0);

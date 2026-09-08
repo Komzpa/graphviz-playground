@@ -4293,6 +4293,14 @@ int gvRenderJobs (GVC_t * gvc, graph_t * g)
 	init_job_viewport(job, g);
 	init_job_pagination(job, g);
 
+	if ((job->flags & GVDEVICE_EVENTS) && !job->input_filename) {
+	    gvrender_end_job(job);
+	    gvc->active_jobs = NULL;
+	    gvc->common.viewNum = 0;
+	    prevjob = NULL;
+	    continue;
+	}
+
 	if (! (job->flags & GVDEVICE_EVENTS)) {
 	    if (debug) {
 		// Show_boxes is not defined, if at all, until splines are generated in dot
@@ -4364,4 +4372,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

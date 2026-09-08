@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The x11 output device now shows multiple graphs read from stdin in order.
+  #2603
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

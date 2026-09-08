@@ -1659,6 +1659,105 @@ def test_1845():
     dot("ps", input)
 
 
+@pytest.mark.skipif(which("dot") is None, reason="dot not available")
+@pytest.mark.skipif(shutil.which("Xvfb") is None, reason="Xvfb not available")
+@pytest.mark.skipif(shutil.which("xdotool") is None, reason="xdotool not available")
+@pytest.mark.skipif(shutil.which("import") is None, reason="ImageMagick import not available")
+def test_2603(tmp_path):
+    """
+    x11 output should show stdin graph streams in order
+    https://gitlab.com/graphviz/graphviz/-/issues/2603
+    """
+
+    display = f":{12000 + os.getpid() % 1000}"
+    environ_copy = os.environ.copy()
+    environ_copy["DISPLAY"] = display
+
+    xvfb = subprocess.Popen(
+        ["Xvfb", display, "-screen", "0", "800x600x24"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    proc = None
+    try:
+        time.sleep(0.5)
+        proc = subprocess.Popen(
+            ["dot", "-T", "x11"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            env=environ_copy,
+            text=True,
+        )
+        assert proc.stdin is not None
+        proc.stdin.write("digraph { A }\ndigraph { C -> D }\n")
+        proc.stdin.close()
+
+        window_ids = ""
+        for _ in range(50):
+            search = subprocess.run(
+                ["xdotool", "search", "--onlyvisible", "--class", "Graphviz"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                env=environ_copy,
+                text=True,
+                check=False,
+            )
+            window_ids = search.stdout.strip()
+            if window_ids:
+                break
+            time.sleep(0.1)
+        assert window_ids, "dot -T x11 did not open a window"
+
+        # Give the Xlib event loop time to process any ready stdin. Before the
+        # fix, this repainted the first window with the second graph.
+        time.sleep(0.5)
+        search = subprocess.run(
+            ["xdotool", "search", "--onlyvisible", "--class", "Graphviz"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=environ_copy,
+            text=True,
+            check=False,
+        )
+        window_ids = search.stdout.strip()
+        assert window_ids, "dot -T x11 window disappeared before capture"
+
+        graph_heights = []
+        for i, window in enumerate(window_ids.splitlines()):
+            screenshot = tmp_path / f"graph-{i}.png"
+            subprocess.run(
+                ["import", "-window", window, screenshot],
+                env=environ_copy,
+                check=True,
+            )
+
+            image = Image.open(screenshot).convert("RGB")
+            nonwhite = [
+                (x, y)
+                for y in range(image.height)
+                for x in range(image.width)
+                if not all(c > 248 for c in image.getpixel((x, y)))
+            ]
+            assert nonwhite, "captured x11 window was blank"
+            _, ys = zip(*nonwhite)
+            graph_heights.append(max(ys) - min(ys))
+
+        assert any(h < 100 for h in graph_heights), (
+            "x11 windows only showed the second graph"
+        )
+    finally:
+        if proc is not None:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
+            assert proc.stderr is not None
+            stderr = proc.stderr.read()
+            assert "Error" not in stderr
+        xvfb.kill()
+        xvfb.wait()
+
+
 @pytest.mark.xfail(strict=True)  # FIXME
 def test_1856():
     """
