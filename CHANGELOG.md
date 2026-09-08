@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` and `xdot` output no longer report head arrowheads on adjacent flat
+  edges as tail arrowheads. #2439
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
