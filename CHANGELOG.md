@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` debug builds no longer abort when recovering from a failed horizontal
+  balancing pass for some `newrank=false` graphs. #2521
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
