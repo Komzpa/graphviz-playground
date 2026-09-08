@@ -1504,6 +1504,54 @@ def test_1658():
     dot("png", input)
 
 
+def test_1669():
+    """
+    self-loop edge labels should not overlap nearby edge labels
+    https://gitlab.com/graphviz/graphviz/-/issues/1669
+    """
+
+    source = """\
+digraph G {
+  splines=line;
+  rankdir=LR;
+  A -> B [label="a long label"];
+  A -> C [label="a long label"];
+  A -> A [label="a very long label"];
+  A -> A [label="a very long label"];
+  A -> D [label="a long label"];
+}
+"""
+
+    output = dot("plain", source=source).decode("utf-8")
+
+    labels = []
+    for line in output.splitlines():
+        fields = shlex.split(line)
+        if not fields or fields[0] != "edge":
+            continue
+        npoints = int(fields[3])
+        label = fields[4 + 2 * npoints]
+        label_y = float(fields[4 + 2 * npoints + 2])
+        labels.append((fields[1], fields[2], label, label_y))
+
+    a_to_b_label_y = next(
+        y for tail, head, label, y in labels
+        if tail == "A" and head == "B" and label == "a long label"
+    )
+    self_loop_label_ys = [
+        y for tail, head, label, y in labels
+        if tail == "A" and head == "A" and label == "a very long label"
+    ]
+
+    assert self_loop_label_ys, "missing self-loop labels"
+
+    nearest_self_loop = min(
+        abs(y - a_to_b_label_y) for y in self_loop_label_ys
+    )
+
+    assert nearest_self_loop >= 0.2, "self-loop label overlaps the A->B label"
+
+
 def test_1676():
     """
     https://gitlab.com/graphviz/graphviz/-/issues/1676
