@@ -193,8 +193,16 @@ char *setv(Agnode_t *n, char *attr, char *val) {
     return nullptr;
   if (AGTYPE(n) == AGRAPH) { // protonode
     auto g = reinterpret_cast<Agraph_t *>(n);
-    (void)agattr_text(g, AGNODE, attr,
-                      val); // create default attribute in pseudo protonode
+    Agsym_t *a = agattr_text(g, AGNODE, attr, nullptr);
+    const char *oldval = a ? a->defval : emptystring;
+    if (!a)
+      (void)agattr_text(g, AGNODE, attr, emptystring);
+    a = agattr_text(g, AGNODE, attr,
+                    val); // create default attribute in pseudo protonode
+    for (Agnode_t *node = agfstnode(g); node; node = agnxtnode(g, node)) {
+      if (strcmp(agxget(node, a), oldval) == 0)
+        myagxset(node, a, val);
+    }
                             // FIXME? - deal with html in "label" attributes
     return val;
   }
