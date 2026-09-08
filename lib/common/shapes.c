@@ -3016,8 +3016,11 @@ static void poly_gencode(GVJ_t * job, node_t * n)
     }
 
     /* draw peripheries first */
-    size_t j;
-    for (j = 0; j < peripheries; j++) {
+    const bool fill_all_peripheries = filled == FILL && peripheries > 1 &&
+                                      !style.striped && !style.wedged;
+    const int periphery_fill = filled;
+    for (size_t k = 0; k < peripheries; k++) {
+	size_t j = fill_all_peripheries ? peripheries - 1 - k : k;
 	for (size_t i = 0; i < sides; i++) {
 	    P = vertices[i + j * sides];
 	    AF[i].x = P.x * xsize + ND_coord(n).x;
@@ -3051,8 +3054,12 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 	} else {
 	    gvrender_polygon(job, AF, sides, filled);
 	}
-	/* fill innermost periphery only */
-	filled = 0;
+	if (fill_all_peripheries) {
+	    filled = periphery_fill;
+	} else {
+	    /* fill innermost periphery only */
+	    filled = 0;
+	}
     }
 
     usershape_p = false;

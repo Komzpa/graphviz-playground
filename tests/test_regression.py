@@ -2029,6 +2029,31 @@ def test_1907():
     assert "<title>A&#45;&gt;B</title>" in output, "element title not found in SVG"
 
 
+@pytest.mark.skipif(which("twopi") is None, reason="twopi not available")
+def test_630():
+    """
+    filled nodes should fill all peripheries
+    https://gitlab.com/graphviz/graphviz/-/issues/630
+    """
+
+    input = """
+        digraph {
+            node [shape=oval fillcolor=green peripheries=4]
+            a [style=filled]
+        }
+    """
+
+    twopi = which("twopi")
+    output = run(twopi, "-Tsvg", input=input)
+    root = ET.fromstring(output)
+
+    ellipses = root.findall(".//{http://www.w3.org/2000/svg}ellipse")
+    assert len(ellipses) == 4, "expected all four peripheries in SVG output"
+    assert {ellipse.get("fill") for ellipse in ellipses} == {
+        "green"
+    }, "not all peripheries were filled"
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr not available")
 def test_1909():
     """

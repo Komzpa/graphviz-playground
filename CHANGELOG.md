@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Filled nodes with multiple peripheries now fill every periphery, rather than
+  only the innermost one. #630
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
