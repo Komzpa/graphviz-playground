@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `gvpack` no longer crashes while cloning nested subgraphs with default node
+  or edge attributes. #2239
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

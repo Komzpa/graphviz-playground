@@ -7016,17 +7016,10 @@ def test_changelog_dates():
             ), f"CHANGELOG.md:{lineno}: date in incorrect format: {line}"
 
 
-@pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
-def test_duplicate_hard_coded_metrics_warnings():
-    """
-    Check “no hard-coded metrics” warnings are not repeated
-    """
-
-    # use the #2239 test case that happens to provoke this
+def _run_gvpack_2239():
     input = Path(__file__).parent / "2239.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    # run it through gvpack
     gvpack = which("gvpack")
     p = subprocess.run(
         [gvpack, "-u", "-o", os.devnull, input],
@@ -7034,10 +7027,33 @@ def test_duplicate_hard_coded_metrics_warnings():
         check=False,
         text=True,
     )
+    p.check_returncode()
+    return p
+
+
+@pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
+def test_gvpack_2239():
+    """
+    `gvpack -u` should not fail on #2239.
+
+    Its nested subgraphs inherit node and edge defaults, exercising gvpack's
+    clone path through nested clusters.
+    """
+
+    _run_gvpack_2239()
+
+
+@pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
+def test_duplicate_hard_coded_metrics_warnings():
+    """
+    Check #2239 through `-u` and verify warnings do not repeat.
+    """
+
+    p = _run_gvpack_2239()
 
     assert (
         p.stderr.count("no hard-coded metrics for 'sans'") <= 1
-    ), "multiple identical “no hard-coded metrics” warnings printed"
+    ), "unexpected count of hard-coded metrics warnings"
 
 
 @pytest.mark.parametrize("branch", (0, 1, 2, 3))
