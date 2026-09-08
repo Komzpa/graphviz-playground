@@ -84,6 +84,12 @@ int gvLayoutJobs(GVC_t * gvc, Agraph_t * g)
 	gvle->layout(g);
 
 
+	if (!LAYOUT_DONE(g)) {
+	    if (agbindrec(g, "Agraphinfo_t", 0, true))
+		GD_cleanup(g) = NULL;
+	    gv_fixLocale(0);
+	    return -1;
+	}
 	if (gvle->cleanup)
 	    GD_cleanup(g) = gvle->cleanup;
     }

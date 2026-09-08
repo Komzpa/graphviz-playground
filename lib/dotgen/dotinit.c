@@ -24,6 +24,16 @@
 #include <util/debug.h>
 #include <util/itos.h>
 #include <util/streq.h>
+#include <xdot/xdot.h>
+
+static void free_layout_drawing(layout_t *drawing)
+{
+    if (drawing && drawing->xdots)
+	freeXDot(drawing->xdots);
+    if (drawing)
+	free(drawing->id);
+    free(drawing);
+}
 
 static void
 dot_init_subg(graph_t * g, graph_t* droot)
@@ -511,6 +521,16 @@ void dot_layout(Agraph_t * g)
 {
     if (agnnodes(g)) {
 	if (doDot(g) != 0) { // error?
+	    /*
+	     * graph_init() allocated GD_drawing(g). The generic render path
+	     * treats this field as the "layout completed" marker, so clear it
+	     * when dot layout fails.
+	     */
+	    layout_t *drawing = GD_drawing(g);
+	    if (GD_drawing(agroot(g)) == drawing)
+		GD_drawing(agroot(g)) = NULL;
+	    GD_drawing(g) = NULL;
+	    free_layout_drawing(drawing);
 	    return;
 	}
     }

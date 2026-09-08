@@ -6327,6 +6327,63 @@ def test_2743():
     dot("dot", src)
 
 
+@pytest.mark.skipif(which("dot") is None, reason="dot not available")
+def test_2761():
+    """
+    Malformed input should not render a partially laid-out graph.
+    https://gitlab.com/graphviz/graphviz/-/issues/2761
+    """
+
+    src = Path(__file__).parent / "2761.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    dot_bin = which("dot")
+    assert dot_bin is not None, "dot not available"
+    # Prefer the no-plugin binary in in-tree builds. This keeps the regression
+    # aimed at dot layout/rendering rather than the local plugin registry.
+    dot_builtins = which("dot_builtins")
+    dot_command = dot_builtins if dot_builtins is not None else dot_bin
+
+    ret = subprocess.call(
+        [dot_command, "-Kdot", "-Tdot", src],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    assert ret == 1, f"malformed graph returned unexpected status {ret}"
+
+
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
+def test_2761_c_api(tmp_path: Path):
+    """A failed dot layout should propagate through the public C API."""
+
+    c_src = (Path(__file__).parent / "2761.c").resolve()
+    assert c_src.exists(), "missing test case"
+
+    dot_layout = _find_plugin_so("dot_layout")
+    assert dot_layout is not None, "dot layout plugin library not found"
+
+    exe = tmp_path / "a.exe"
+    compile_c(c_src, link=["cgraph", "gvc", dot_layout], dst=exe)
+
+    env = os.environ.copy()
+    library_path_variable = "DYLD_LIBRARY_PATH" if is_macos() else "LD_LIBRARY_PATH"
+    current_library_path = env.get(library_path_variable)
+    env[library_path_variable] = str(dot_layout.parent)
+    if current_library_path:
+        env[library_path_variable] += f":{current_library_path}"
+    dot_exe = which("dot")
+    if dot_exe is not None and is_asan_instrumented(dot_exe):
+        cc = os.environ.get("CC", "gcc")
+        libasan = run(cc, "-print-file-name=libasan.so").strip()
+        print(f"setting LD_PRELOAD={libasan}")
+        env["LD_PRELOAD"] = libasan
+
+    subprocess.run([exe], env=env, check=True)
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",

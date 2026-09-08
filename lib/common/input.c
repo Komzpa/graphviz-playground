@@ -788,13 +788,18 @@ void graph_init(graph_t * g, bool use_rankdir)
 	GD_drawing(g)->id = strdup_and_subst_obj(p, g);
 }
 
+static void free_layout_drawing(layout_t *drawing)
+{
+    if (drawing && drawing->xdots)
+	freeXDot(drawing->xdots);
+    if (drawing)
+	free(drawing->id);
+    free(drawing);
+}
+
 void graph_cleanup(graph_t *g)
 {
-    if (GD_drawing(g) && GD_drawing(g)->xdots)
-	freeXDot(GD_drawing(g)->xdots);
-    if (GD_drawing(g))
-	free (GD_drawing(g)->id);
-    free(GD_drawing(g));
+    free_layout_drawing(GD_drawing(g));
     GD_drawing(g) = NULL;
     free_label(GD_label(g));
     //FIX HERE , STILL SHALLOW
