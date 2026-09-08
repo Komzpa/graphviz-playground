@@ -315,6 +315,7 @@ static shape_desc Shapes[] = {	/* first entry is default for no such shape */
     {.name = "box3d", .fns = &poly_fns, .polygon = &p_box3d},
     {.name = "component", .fns = &poly_fns, .polygon = &p_component},
     {.name = "cylinder", .fns = &cylinder_fns, .polygon = &p_cylinder},
+    {.name = "database", .fns = &cylinder_fns, .polygon = &p_cylinder},
     {.name = "rect", .fns = &poly_fns, .polygon = &p_box},
     {.name = "rectangle", .fns = &poly_fns, .polygon = &p_box},
     {.name = "square", .fns = &poly_fns, .polygon = &p_square},
