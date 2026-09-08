@@ -292,6 +292,27 @@ attach_phase_attrs (Agraph_t * g, int maxphase)
     }
 }
 
+static const char *graph_attr_value(Agraph_t *g, const char *name,
+                                    const char *default_value) {
+    const char *value = agget(g, (char *)name);
+    return value && value[0] ? value : default_value;
+}
+
+static void dot_verbose_performance_attrs(Agraph_t *g) {
+    if (!Verbose) {
+	return;
+    }
+
+    fprintf(stderr,
+            "dot performance attributes: mclimit=%s nslimit=%s nslimit1=%s "
+            "remincross=%s searchsize=%s\n",
+            graph_attr_value(g, "mclimit", "1.0"),
+            graph_attr_value(g, "nslimit", "<unset>"),
+            graph_attr_value(g, "nslimit1", "<unset>"),
+            graph_attr_value(g, "remincross", "false"),
+            graph_attr_value(g, "searchsize", "30"));
+}
+
 /// @return 0 on success
 static int dotLayout(Agraph_t *g) {
     int maxphase = late_int(g, agfindgraphattr(g,"phase"), -1, 1);
@@ -301,6 +322,8 @@ static int dotLayout(Agraph_t *g) {
 
     dot_init_subg(g,g);
     dot_init_node_edge(g);
+
+    dot_verbose_performance_attrs(g);
 
     GV_INFO("Starting phase 1 [dot_rank]");
     dot_rank(g);
