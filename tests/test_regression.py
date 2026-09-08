@@ -358,6 +358,19 @@ def test_191():
         assert p.returncode != 0, "syntax error was only a warning, not an error"
 
 
+def test_1059():
+    """
+    setdash should allow custom dash and gap lengths
+    https://gitlab.com/graphviz/graphviz/-/issues/1059
+    """
+
+    source = 'digraph G { a -> b [style="setdash(4,3)"]; }'
+
+    svg = dot("svg", source=source)
+
+    assert 'stroke-dasharray="4,3"' in svg
+
+
 def test_218():
     """
     out-of-spec font names should cause warnings in the core PS renderer
