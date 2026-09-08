@@ -7789,3 +7789,32 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+@pytest.mark.parametrize(
+    ("shape", "min_points"),
+    (
+        ("semiellipse", 17),
+        ("semioval", 17),
+        ("semicircle", 17),
+        ("semioctagon", 5),
+    ),
+)
+def test_2251(shape: str, min_points: int):
+    """
+    Semi-circle/ellipse/octagon node shapes should be recognized and rendered.
+    https://gitlab.com/graphviz/graphviz/-/issues/2251
+    """
+
+    svg = dot(
+        "svg",
+        source=f'graph G {{ {shape} [label="" shape={shape} style=filled] }}',
+    )
+    root = ET.fromstring(svg)
+    polygon = root.find(
+        ".//{http://www.w3.org/2000/svg}title"
+        f"[.='{shape}']/../{{http://www.w3.org/2000/svg}}polygon"
+    )
+
+    assert polygon is not None, f"{shape} was not rendered as a polygon"
+    assert len(polygon.get("points").split()) >= min_points

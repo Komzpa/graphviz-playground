@@ -34,6 +34,10 @@ set shapes {
 	folder {}
 	box3d {}
 	component {}
+	semiellipse {}
+	semioval {}
+	semicircle {}
+	semioctagon {}
 }
 
 set rowsize 4

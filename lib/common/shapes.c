@@ -90,6 +90,23 @@ static poly_desc_t cylinder_gen = {
     cylinder_vertices,
 };
 
+static pointf semiellipse_size(pointf);
+static pointf semicircle_size(pointf);
+static void semiellipse_vertices(pointf *, pointf *);
+static void semioctagon_vertices(pointf *, pointf *);
+static poly_desc_t semiellipse_gen = {
+    semiellipse_size,
+    semiellipse_vertices,
+};
+static poly_desc_t semicircle_gen = {
+    semicircle_size,
+    semiellipse_vertices,
+};
+static poly_desc_t semioctagon_gen = {
+    semicircle_size,
+    semioctagon_vertices,
+};
+
 /* polygon descriptions.  "polygon" with 0 sides takes all user control */
 
 /*			       regul perip sides orien disto skew */
@@ -128,6 +145,15 @@ static polygon_t p_cylinder = {.peripheries = 1,
                                .sides = 19,
                                .option = {.shape = CYLINDER},
                                .vertices = (pointf *)&cylinder_gen};
+static polygon_t p_semiellipse = {.peripheries = 1,
+                                  .sides = 17,
+                                  .vertices = (pointf *)&semiellipse_gen};
+static polygon_t p_semicircle = {.peripheries = 1,
+                                 .sides = 17,
+                                 .vertices = (pointf *)&semicircle_gen};
+static polygon_t p_semioctagon = {.peripheries = 1,
+                                  .sides = 5,
+                                  .vertices = (pointf *)&semioctagon_gen};
 
 /* redundant and undocumented builtin polygons */
 static polygon_t p_doublecircle = {
@@ -315,6 +341,10 @@ static shape_desc Shapes[] = {	/* first entry is default for no such shape */
     {.name = "box3d", .fns = &poly_fns, .polygon = &p_box3d},
     {.name = "component", .fns = &poly_fns, .polygon = &p_component},
     {.name = "cylinder", .fns = &cylinder_fns, .polygon = &p_cylinder},
+    {.name = "semiellipse", .fns = &poly_fns, .polygon = &p_semiellipse},
+    {.name = "semioval", .fns = &poly_fns, .polygon = &p_semiellipse},
+    {.name = "semicircle", .fns = &poly_fns, .polygon = &p_semicircle},
+    {.name = "semioctagon", .fns = &poly_fns, .polygon = &p_semioctagon},
     {.name = "rect", .fns = &poly_fns, .polygon = &p_box},
     {.name = "rectangle", .fns = &poly_fns, .polygon = &p_box},
     {.name = "square", .fns = &poly_fns, .polygon = &p_square},
@@ -4216,6 +4246,57 @@ static void cylinder_draw(GVJ_t *job, pointf *AF, size_t sides, int filled) {
 
     gvrender_beziercurve(job, AF, sides, filled);
     gvrender_beziercurve(job, vertices, 7, 0);
+}
+
+static pointf semiellipse_size(pointf sz)
+{
+    // The label is centered in the node, while the flat diameter is at the
+    // bottom of the half-ellipse. Add conservative padding so ordinary centered
+    // labels stay inside the curved half.
+    sz.x *= SQRT2;
+    sz.y *= 2.0;
+    return sz;
+}
+
+static pointf semicircle_size(pointf sz)
+{
+    sz = semiellipse_size(sz);
+
+    // A semicircle is a semiellipse with a 2:1 bounding-box aspect ratio.
+    if (sz.x < 2.0 * sz.y) {
+        sz.x = 2.0 * sz.y;
+    } else {
+        sz.y = sz.x / 2.0;
+    }
+    return sz;
+}
+
+static void semiellipse_vertices(pointf *vertices, pointf *bb)
+{
+    const size_t sides = 17;
+    const double rx = bb->x / 2.0;
+    const double ry = bb->y;
+    const double cy = -bb->y / 2.0;
+
+    for (size_t i = 0; i < sides; ++i) {
+        const double theta = M_PI * (double)i / (double)(sides - 1);
+        vertices[i].x = rx * cos(theta);
+        vertices[i].y = cy + ry * sin(theta);
+    }
+}
+
+static void semioctagon_vertices(pointf *vertices, pointf *bb)
+{
+    const size_t sides = 5;
+    const double rx = bb->x / 2.0;
+    const double ry = bb->y;
+    const double cy = -bb->y / 2.0;
+
+    for (size_t i = 0; i < sides; ++i) {
+        const double theta = M_PI * (double)i / (double)(sides - 1);
+        vertices[i].x = rx * cos(theta);
+        vertices[i].y = cy + ry * sin(theta);
+    }
 }
 
 static const char *side_port[] = {"s", "e", "n", "w"};
