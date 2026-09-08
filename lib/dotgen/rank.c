@@ -38,6 +38,19 @@
 static void dot1_rank(graph_t *g);
 static void dot2_rank(graph_t *g);
 
+static int dot_ns_iter_limit(graph_t *g, char *exact_limit,
+                             char *scaled_limit) {
+    char *s = agget(g, exact_limit);
+    if (s && s[0])
+	return late_int(g, agfindgraphattr(g, exact_limit), INT_MAX, 0);
+
+    s = agget(g, scaled_limit);
+    if (s)
+	return scale_clamp(agnnodes(g), atof(s));
+
+    return INT_MAX;
+}
+
 typedef LIST(edge_t *) edge_set_t;
 
 /// @param track An optional collection in which to record non-null entries we
@@ -452,11 +465,7 @@ minmax_edges2(graph_t * g, point slen)
 /* Run the network simplex algorithm on each component. */
 void rank1(graph_t * g)
 {
-    int maxiter = INT_MAX;
-    char *s;
-
-    if ((s = agget(g, "nslimit1")))
-	maxiter = scale_clamp(agnnodes(g), atof(s));
+    int maxiter = dot_ns_iter_limit(g, "nslimit1exact", "nslimit1");
     for (size_t c = 0; c < GD_comp(g).size; c++) {
 	GD_nlist(g) = GD_comp(g).list[c];
 	rank(g, GD_n_cluster(g) == 0 ? 1 : 0, maxiter); // TB balance
@@ -1076,7 +1085,8 @@ int infosizes[] = {
 
 void dot2_rank(graph_t *g) {
     int ssize;
-    int ncc, maxiter = INT_MAX;
+    int ncc;
+    int maxiter = dot_ns_iter_limit(g, "nslimit1exact", "nslimit1");
     char *s;
     graph_t *Xg;
 
@@ -1086,11 +1096,6 @@ void dot2_rank(graph_t *g) {
     agpushdisc(Xg,&mydisc,infosizes);
 
     edgelabel_ranks(g);
-
-    if ((s = agget(g, "nslimit1")))
-	maxiter = scale_clamp(agnnodes(g), atof(s));
-    else
-	maxiter = INT_MAX;
 
     compile_samerank(g, 0);
     compile_nodes(g, Xg);

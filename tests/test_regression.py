@@ -3318,6 +3318,36 @@ def test_2484(tmp_path: Path):
     )
 
 
+def test_2551():
+    """
+    dot should allow exact network-simplex iteration caps
+    https://gitlab.com/graphviz/graphviz/-/issues/2551
+    """
+
+    source = """
+        digraph G {
+            graph [nslimit=100, nslimit1=100, nslimitexact=9, nslimit1exact=7];
+            a -> b
+            a -> c
+            c -> d
+        }
+    """
+
+    dot_exe = which("dot_builtins") or which("dot")
+    assert dot_exe is not None, "dot not available"
+    proc = subprocess.run(
+        [dot_exe, "-Tdot", "-v"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+
+    assert "maxiter=7 balance=1" in proc.stderr, "nslimit1exact was not used"
+    assert "maxiter=9 balance=2" in proc.stderr, "nslimitexact was not used"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2592"
 )
