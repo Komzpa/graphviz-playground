@@ -1272,6 +1272,39 @@ def test_1594():
     assert "line 3:" in stderr, "GVPR did not identify correct line of syntax error"
 
 
+@pytest.mark.xfail(
+    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1610"
+)
+def test_1610():
+    """
+    dot should horizontally align record ports connected across record nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/1610
+    """
+
+    graph = r"""
+    digraph G {
+      node[shape=record]
+      dpi = 160
+      rankdir = LR
+
+      BT[label="<a>A|<b>B|C"]
+      TR[label="<a>A|<b>B"]
+
+      BT:a -> TR:a
+      BT:b -> TR:b
+    }
+    """
+
+    output = json.loads(dot("json", source=graph))
+    edges = [edge for edge in output["edges"] if edge["tail"] == 0 and edge["head"] == 1]
+    assert len(edges) == 2
+
+    for edge in edges:
+        points = next(draw["points"] for draw in edge["_draw_"] if draw["op"] == "b")
+        ys = [point[1] for point in points]
+        assert max(ys) - min(ys) < 0.01
+
+
 @pytest.mark.parametrize(
     "device",
     (
