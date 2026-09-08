@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `fdp` no longer crashes or renders bogus ellipse nodes when an unsupported
+  cluster edge names a cluster contained inside the other endpoint cluster.
+  #592
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

@@ -1800,6 +1800,48 @@ def test_1877():
     run(fdp, "-o", os.devnull, input=input)
 
 
+def test_592():
+    """
+    fdp should not crash or render bogus nodes for nested cluster edges
+    https://gitlab.com/graphviz/graphviz/-/issues/592
+    """
+
+    direct = """
+        graph {
+          layout=fdp
+          subgraph cluster_vhost {
+            subgraph cluster_vm {
+              item1
+            }
+            item2
+          }
+          cluster_vhost -- cluster_vm
+        }
+    """
+
+    chain = """
+        graph {
+          layout=fdp
+          subgraph cluster_vhost {
+            subgraph cluster_vm {
+              item1
+            }
+            item2
+          }
+          item3 -- cluster_vhost -- cluster_vm
+        }
+    """
+
+    dot("svg", source=direct)
+    output = json.loads(dot("json", source=chain))
+
+    cluster_vm_objects = [
+        obj for obj in output["objects"] if obj.get("name") == "cluster_vm"
+    ]
+    assert len(cluster_vm_objects) == 1, "cluster endpoint was rendered as a node"
+    assert "nodes" in cluster_vm_objects[0], "cluster_vm was not rendered as a cluster"
+
+
 def test_1880():
     """
     parsing a particular graph should not cause a Trapezoid-table overflow
