@@ -314,7 +314,7 @@ void mark_clusters(graph_t * g)
 	clust = GD_clust(g)[c];
 	for (n = agfstnode(clust); n; n = nn) {
 		nn = agnxtnode(clust,n);
-	    if (ND_ranktype(n) != NORMAL) {
+	    if (ND_ranktype(n) != NORMAL && ND_ranktype(n) != SAMERANK) {
 		agwarningf(
 		      "%s was already in a rankset, deleted from cluster %s\n",
 		      agnameof(n), agnameof(g));

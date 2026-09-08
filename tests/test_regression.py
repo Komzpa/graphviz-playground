@@ -598,6 +598,40 @@ def test_827():
     dot("svg", b15gv)
 
 
+def test_884():
+    """
+    clusters nested in a rank=same subgraph should keep their cluster boxes
+    https://gitlab.com/graphviz/graphviz/-/issues/884
+    """
+
+    source = """
+        digraph G {
+          subgraph {
+            rank=same;
+            subgraph cluster0 {
+              color=blue;
+              C D;
+            }
+            tag;
+          }
+        }
+    """
+
+    proc = subprocess.run(
+        ["dot", "-Tsvg"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        check=True,
+    )
+
+    assert not proc.stderr, "dot unexpectedly produced warnings"
+    assert '<g id="clust' in proc.stdout, "cluster group missing from SVG output"
+    assert "<title>cluster0</title>" in proc.stdout, "cluster title missing"
+    assert 'stroke="blue"' in proc.stdout, "cluster border missing from SVG output"
+
+
 def test_925():
     """
     spaces should be handled correctly in UTF-8-containing labels in record shapes
