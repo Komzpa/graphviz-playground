@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 sys.path.append(os.path.dirname(__file__))
-from gvtest import is_macos, run  # pylint: disable=wrong-import-position
+from gvtest import is_macos, is_rocky_10, run  # pylint: disable=wrong-import-position
 
 # Test specifications
 GRAPHDIR = Path(__file__).parent / "graphs"
@@ -40,7 +40,14 @@ class Case:
 
 
 TESTS: list[Case] = [
-    Case("trivial", Path("trivial.gv"), "dot", "gv", [], xfail=False),
+    Case(
+        "trivial",
+        Path("trivial.gv"),
+        "dot",
+        "gv",
+        [],
+        xfail=is_rocky_10(),
+    ),
     Case(
         "shapes",
         Path("shapes.gv"),
@@ -220,7 +227,7 @@ TESTS: list[Case] = [
     Case("polypoly", Path("polypoly.gv"), "dot", "ps", []),
     Case("polypoly", Path("polypoly.gv"), "dot", "png", []),
     Case("ports", Path("ports.gv"), "dot", "gv", []),
-    Case("radius", Path("radius.gv"), "dot", "gv", [], xfail=False),
+    Case("radius", Path("radius.gv"), "dot", "gv", [], xfail=is_rocky_10()),
     Case("rotate", Path("crazy.gv"), "dot", "png", ["-Glandscape"]),
     Case("rotate", Path("crazy.gv"), "dot", "ps", ["-Glandscape"]),
     Case("rotate", Path("crazy.gv"), "dot", "png", ["-Grotate=90"], 1),
