@@ -834,6 +834,18 @@
 					the <html:a rel="attr">fontpath</html:a> attribute.
 					The lookup does support various aliases for the common fonts.
 				</html:p>
+				<html:p>
+					The resolved font and text layout engine can also affect graph layout.
+					Graphviz measures text while calculating label, record, and HTML-like
+					label sizes, so different font files, font aliases, fontconfig
+					configuration, text layout libraries, or <html:code>DOTFONTPATH</html:code>
+					/ <html:code>GDFONTPATH</html:code> settings can change node dimensions,
+					record cell boundaries, and therefore edge and graph geometry even when
+					the <html:a rel="attr">fontname</html:a> attribute and Graphviz version are
+					the same. For reproducible layouts, use the same font files and font
+					configuration on every system, or point <html:a rel="attr">fontname</html:a>
+					and <html:a rel="attr">fontpath</html:a> at controlled fonts.
+				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>

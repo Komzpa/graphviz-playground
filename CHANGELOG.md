@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The `fontname` attribute documentation now explains that resolved font
+  metrics and text layout libraries can change node, record, and graph
+  geometry across systems. #1905
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
