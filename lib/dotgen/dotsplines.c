@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <common/boxes.h>
+#include <common/render.h>
 #include <dotgen/dot.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -83,6 +84,8 @@ static int make_flat_edge(graph_t *, const spline_info_t, path *, Agedge_t **,
                           unsigned, int);
 static void make_regular_edge(graph_t *g, spline_info_t *, path *, Agedge_t **,
                               unsigned, int);
+static void install_parallel_edge_splines(Agedge_t **, unsigned, Agnode_t *,
+                                          const points_t *, double);
 static boxf makeregularend(boxf, int, double);
 static boxf maximal_bbox(graph_t *g, const spline_info_t, Agnode_t *,
                          Agedge_t *, Agedge_t *);
@@ -103,6 +106,45 @@ static edge_t *getmainedge(edge_t *e) {
   while (ED_to_orig(le))
     le = ED_to_orig(le);
   return le;
+}
+
+static bool is_invisible_edge(edge_t *e) {
+  if (ED_edge_type(e) != NORMAL)
+    e = getmainedge(e);
+
+  char *const style = agget(e, "style");
+  if (style == NULL || style[0] == '\0')
+    return false;
+
+  char **const styles = parse_style(style);
+  for (char **sp = styles; *sp != NULL; sp++) {
+    if (strcmp(*sp, "invis") == 0 || strcmp(*sp, "invisible") == 0)
+      return true;
+  }
+
+  return false;
+}
+
+static void order_visible_edges_first(edge_t **edges, unsigned cnt) {
+  if (cnt < 2)
+    return;
+
+  edge_t **const ordered = gv_calloc(cnt, sizeof(edge_t *));
+  unsigned out = 0;
+  for (unsigned i = 0; i < cnt; i++) {
+    if (!is_invisible_edge(edges[i]))
+      ordered[out++] = edges[i];
+  }
+  if (out == cnt) {
+    free(ordered);
+    return;
+  }
+  for (unsigned i = 0; i < cnt; i++) {
+    if (is_invisible_edge(edges[i]))
+      ordered[out++] = edges[i];
+  }
+  memcpy(edges, ordered, cnt * sizeof(edge_t *));
+  free(ordered);
 }
 
 static bool spline_merge(node_t *n) {
@@ -384,6 +426,8 @@ static int dot_splines_(graph_t *g, int normalize) {
       if (ED_tree_index(LIST_GET(&edges, l)) & MAINGRAPH) /* Aha! -C is on */
         break;
     }
+
+    order_visible_edges_first(LIST_AT(&edges, ind), cnt);
 
     if (et == EDGETYPE_CURVED) {
       edge_t **edgelist = gv_calloc(cnt, sizeof(edge_t *));
@@ -1889,6 +1933,37 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     LIST_FREE(&pointfs2);
     return;
   }
+
+  unsigned visible_cnt = 0;
+  for (unsigned i = 0; i < cnt; i++) {
+    if (!is_invisible_edge(edges[i]))
+      visible_cnt++;
+  }
+  if (visible_cnt > 0 && visible_cnt < cnt) {
+    edge_t **const visible_edges = gv_calloc(visible_cnt, sizeof(edge_t *));
+    edge_t **const invisible_edges =
+        gv_calloc(cnt - visible_cnt, sizeof(edge_t *));
+    unsigned v = 0;
+    unsigned iv = 0;
+    for (unsigned i = 0; i < cnt; i++) {
+      if (is_invisible_edge(edges[i]))
+        invisible_edges[iv++] = edges[i];
+      else
+        visible_edges[v++] = edges[i];
+    }
+
+    install_parallel_edge_splines(visible_edges, visible_cnt, hn, &pointfs,
+                                  sp->Multisep);
+    install_parallel_edge_splines(invisible_edges, cnt - visible_cnt, hn,
+                                  &pointfs, sp->Multisep);
+
+    free(visible_edges);
+    free(invisible_edges);
+    LIST_FREE(&pointfs);
+    LIST_FREE(&pointfs2);
+    return;
+  }
+
   const double dx = sp->Multisep * (cnt - 1) / 2;
   for (size_t k = 1; k + 1 < LIST_SIZE(&pointfs); k++)
     LIST_AT(&pointfs, k)->x -= dx;
@@ -1914,6 +1989,48 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
   }
   LIST_FREE(&pointfs);
   LIST_FREE(&pointfs2);
+}
+
+static void install_parallel_edge_splines(edge_t **edges, unsigned cnt,
+                                          node_t *hn, const points_t *points,
+                                          double separation) {
+  assert(cnt > 0);
+
+  Agedgeinfo_t fwdedgei;
+  Agedgepair_t fwdedge;
+  points_t shifted = {0};
+  points_t copy = {0};
+
+  fwdedge.out.base.data = &fwdedgei.hdr;
+
+  for (size_t k = 0; k < LIST_SIZE(points); k++)
+    LIST_APPEND(&shifted, LIST_GET(points, k));
+
+  const double dx = separation * (cnt - 1) / 2;
+  for (size_t k = 1; k + 1 < LIST_SIZE(&shifted); k++)
+    LIST_AT(&shifted, k)->x -= dx;
+
+  for (unsigned j = 0; j < cnt; j++) {
+    edge_t *e = edges[j];
+    node_t *head = j == 0 ? hn : aghead(e);
+    if (ED_tree_index(e) & BWDEDGE) {
+      makefwdedge(&fwdedge.out, e);
+      e = &fwdedge.out;
+      head = aghead(e);
+    }
+
+    LIST_CLEAR(&copy);
+    for (size_t k = 0; k < LIST_SIZE(&shifted); k++)
+      LIST_APPEND(&copy, LIST_GET(&shifted, k));
+    LIST_SYNC(&copy);
+    clip_and_install(e, head, LIST_FRONT(&copy), LIST_SIZE(&copy), &sinfo);
+
+    for (size_t k = 1; k + 1 < LIST_SIZE(&shifted); k++)
+      LIST_AT(&shifted, k)->x += separation;
+  }
+
+  LIST_FREE(&shifted);
+  LIST_FREE(&copy);
 }
 
 /* regular edges */

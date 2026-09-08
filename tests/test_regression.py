@@ -84,6 +84,84 @@ def test_14():
     dot("svg", input)
 
 
+def test_1093():
+    """
+    invisible edges should not displace visible parallel edges
+    https://gitlab.com/graphviz/graphviz/-/issues/1093
+    """
+
+    input = Path(__file__).parent / "1093.dot"
+    plain = dot("plain", input)
+    if isinstance(plain, bytes):
+        plain = plain.decode("utf-8")
+
+    node_x = {}
+    visible_edges = []
+    invisible_edges = []
+    for line in plain.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+        if fields[0] == "node":
+            node_x[fields[1]] = float(fields[2])
+        elif fields[0] == "edge":
+            npoints = int(fields[3])
+            coords = [
+                (float(fields[4 + 2 * i]), float(fields[5 + 2 * i]))
+                for i in range(npoints)
+            ]
+            style = fields[4 + 2 * npoints]
+            if style == "invis":
+                invisible_edges.append(coords)
+            else:
+                visible_edges.append(coords)
+
+    assert len(visible_edges) == 1
+    assert len(invisible_edges) == 1
+
+    expected_x = node_x["a"]
+    assert expected_x == node_x["b"]
+    for x, _ in visible_edges[0]:
+        assert math.isclose(x, expected_x)
+
+
+def test_2525():
+    """
+    style=invisible should hide nodes and edges like style=invis
+    https://gitlab.com/graphviz/graphviz/-/issues/2525
+    """
+
+    usershape = Path(__file__).parent / "usershape.svg"
+    input = f"""
+    digraph G {{
+      visible_image [label="VISIBLE_IMAGE_LABEL" image="{usershape}"];
+      invis_image [label="INVIS_NODE_LABEL" image="{usershape}" style="invis"];
+      invisible_image [
+        label="INVISIBLE_NODE_LABEL"
+        image="{usershape}"
+        style="invisible"
+      ];
+
+      visible_edge_a -> visible_edge_b [xlabel="VISIBLE_EDGE_XLABEL"];
+      invis_edge_a -> invis_edge_b [xlabel="INVIS_EDGE_XLABEL" style="invis"];
+      invisible_edge_a -> invisible_edge_b [
+        xlabel="INVISIBLE_EDGE_XLABEL"
+        style="invisible"
+      ];
+    }}
+    """
+
+    svg = dot("svg", source=input)
+
+    assert "VISIBLE_IMAGE_LABEL" in svg
+    assert svg.count("usershape.svg") == 1
+    assert "INVIS_NODE_LABEL" not in svg
+    assert "INVISIBLE_NODE_LABEL" not in svg
+    assert "VISIBLE_EDGE_XLABEL" in svg
+    assert "INVIS_EDGE_XLABEL" not in svg
+    assert "INVISIBLE_EDGE_XLABEL" not in svg
+
+
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
 def test_42():
     """
