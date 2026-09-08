@@ -24,6 +24,8 @@ enum {QUAD_TREE_HYBRID_SIZE = 10000};
 
 enum {QUAD_TREE_NONE = 0, QUAD_TREE_NORMAL, QUAD_TREE_FAST, QUAD_TREE_HYBRID};
 
+enum {MODE_SPRING, MODE_MAXENT};
+
 typedef struct {
   double p; ///< a negative real number default to -1. repulsive force = distᵖ
   double K;/* the natural distance. If K < 0, K will be set to the average distance of an edge */
@@ -44,6 +46,7 @@ typedef struct {
 			  to average label size.
 			  */
   double rotation;/* degree of rotation */
+  int mode;
   int edge_labeling_scheme; /* specifying whether to treat node of the form |edgelabel|* as a special node representing an edge label. 
 			       0 (no action, default), 1 (penalty based method to make that kind of node close to the center of its neighbor), 
 			       1 (penalty based method to make that kind of node close to the old center of its neighbor),

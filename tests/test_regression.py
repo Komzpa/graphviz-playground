@@ -3519,6 +3519,62 @@ def test_2225():
     p.check_returncode()
 
 
+@pytest.mark.skipif(which("sfdp") is None, reason="sfdp not available")
+def test_1966():
+    """
+    sfdp mode=maxent should take edge lengths into account
+    https://gitlab.com/graphviz/graphviz/-/issues/1966
+    """
+
+    graph = """\
+graph {
+  graph [start=123 overlap=false]
+  a -- b [len=10]
+  b -- c [len=1]
+  c -- d [len=1]
+  d -- a [len=1]
+}
+"""
+
+    def edge_lengths(mode: str) -> tuple[float, float]:
+        sfdp = which("sfdp")
+        p = subprocess.run(
+            [sfdp, f"-Gmode={mode}", "-Tplain"],
+            input=graph,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            text=True,
+        )
+
+        # If sfdp was built without libgts, overlap removal reports an error
+        # after producing layout output.
+        no_gts_error = "remove_overlap: Graphviz not built with triangulation library"
+        if no_gts_error not in p.stderr:
+            p.check_returncode()
+
+        nodes = {}
+        for line in p.stdout.splitlines():
+            parts = line.split()
+            if parts[:1] == ["node"]:
+                nodes[parts[1]] = (float(parts[2]), float(parts[3]))
+
+        assert {"a", "b", "c"} <= nodes.keys(), "missing node positions"
+
+        def distance(tail: str, head: str) -> float:
+            tail_x, tail_y = nodes[tail]
+            head_x, head_y = nodes[head]
+            return math.hypot(tail_x - head_x, tail_y - head_y)
+
+        return distance("a", "b"), distance("b", "c")
+
+    spring_ab, spring_bc = edge_lengths("spring")
+    maxent_ab, maxent_bc = edge_lengths("maxent")
+
+    assert spring_ab < 1.1 * spring_bc
+    assert maxent_ab > 2 * maxent_bc
+
+
 def test_2257():
     """
     `$GV_FILE_PATH` being set should prevent Graphviz from running

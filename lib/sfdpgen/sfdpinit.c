@@ -82,6 +82,53 @@ static double *getPos(Agraph_t * g)
     return pos;
 }
 
+static SparseMatrix makeEdgeLengthMatrix(Agraph_t *g)
+{
+    if (!g)
+	return NULL;
+
+    const int nnodes = agnnodes(g);
+    const int nedges = agnedges(g);
+    int *I = gv_calloc(nedges, sizeof(int));
+    int *J = gv_calloc(nedges, sizeof(int));
+    double *val = gv_calloc(nedges, sizeof(double));
+    Agsym_t *len = agfindedgeattr(g, "len");
+
+    int i = 0;
+    for (Agnode_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+	const int row = ND_id(n);
+	for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+	    double v = 1;
+	    if (len != NULL) {
+		const char *s = agxget(e, len);
+		if (s != NULL && *s != '\0' && (sscanf(s, "%lf", &v) != 1 || v <= 0)) {
+		    agwarningf("bad edge len \"%s\" in graph %s - setting to 1.00\n",
+			       s, agnameof(g));
+		    v = 1;
+		}
+	    }
+	    I[i] = row;
+	    J[i] = ND_id(aghead(e));
+	    val[i] = v;
+	    i++;
+	}
+    }
+
+    SparseMatrix D0 = SparseMatrix_from_coordinate_arrays((size_t)nedges,
+							  (size_t)nnodes, nnodes,
+							  I, J, val,
+							  MATRIX_TYPE_REAL,
+							  sizeof(double));
+    SparseMatrix D1 = SparseMatrix_symmetrize(D0, false);
+    SparseMatrix D = SparseMatrix_remove_diagonal(D1);
+
+    SparseMatrix_delete(D0);
+    free(I);
+    free(J);
+    free(val);
+    return D;
+}
+
 static void sfdpLayout(graph_t * g, spring_electrical_control *ctrl,
                        pointf pad) {
     double *sizes;
@@ -90,6 +137,7 @@ static void sfdpLayout(graph_t * g, spring_electrical_control *ctrl,
     int flag, i;
     int n_edge_label_nodes = 0, *edge_label_nodes = NULL;
     SparseMatrix A = makeMatrix(g);
+    SparseMatrix D = NULL;
 
     if (ctrl->overlap >= 0) {
 	if (ctrl->edge_labeling_scheme > 0)
@@ -102,6 +150,10 @@ static void sfdpLayout(graph_t * g, spring_electrical_control *ctrl,
     pos = getPos(g);
 
     multilevel_spring_electrical_embedding(Ndim, A, ctrl, sizes, pos, n_edge_label_nodes, edge_label_nodes, &flag);
+    if (ctrl->mode == MODE_MAXENT) {
+	D = makeEdgeLengthMatrix(g);
+	spring_electrical_spring_embedding(Ndim, A, D, ctrl, pos);
+    }
 
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	double *npos = pos + (Ndim * ND_id(n));
@@ -113,6 +165,7 @@ static void sfdpLayout(graph_t * g, spring_electrical_control *ctrl,
     free(sizes);
     free(pos);
     SparseMatrix_delete (A);
+    SparseMatrix_delete(D);
     free(edge_label_nodes);
 }
 
@@ -213,6 +266,14 @@ static void tuneControl(graph_t *g, spring_electrical_control *ctrl) {
     ctrl->multilevels = late_int(g, agfindgraphattr(g, "levels"), INT_MAX, 0);
     ctrl->smoothing = late_smooth(g, agfindgraphattr(g, "smoothing"), SMOOTHING_NONE);
     ctrl->tscheme = late_quadtree_scheme(g, agfindgraphattr(g, "quadtree"), QUAD_TREE_NORMAL);
+    char *mode = agget(g, "mode");
+    if (mode == NULL || *mode == '\0' || !strcasecmp(mode, "spring"))
+	ctrl->mode = MODE_SPRING;
+    else if (!strcasecmp(mode, "maxent"))
+	ctrl->mode = MODE_MAXENT;
+    else
+	agwarningf("Illegal value %s for attribute \"mode\" in graph %s - ignored\n",
+		   mode, agnameof(g));
     ctrl->beautify_leaves = mapbool(agget(g, "beautify"));
     ctrl->do_shrinking = mapBool(agget(g, "overlap_shrink"), true);
     ctrl->rotation = late_double(g, agfindgraphattr(g, "rotation"), 0.0, -DBL_MAX);
