@@ -7,6 +7,7 @@ EXTRA_DIST = \
 	graphs \
 	gvtest.py \
 	nshare \
+	test_gallery.py \
 	test_rtest.py \
 	tests.txt \
 	test_regression.py
