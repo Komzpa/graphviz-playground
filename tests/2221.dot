@@ -1,0 +1,7 @@
+digraph {
+  0 -> 1
+  0 -> 2
+  0 -> 3
+  1 -> 2 [minlen=0]
+  subgraph cluster { 1 2 3 }
+}
