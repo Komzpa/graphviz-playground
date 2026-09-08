@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The documentation for the node `orientation` attribute now clarifies that it
+  is not a center rotation for non-regular polygons. #1667
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
