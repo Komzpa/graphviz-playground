@@ -467,6 +467,191 @@ def test_452(attribute: str):
     dot("svg", source=graph.getvalue())
 
 
+@pytest.mark.parametrize("rankdir", ("TB", "LR", "BT", "RL"))
+@pytest.mark.parametrize("fields", (2, 3))
+@pytest.mark.parametrize("same_rank", (False, True))
+def test_501(rankdir: str, fields: int, same_rank: bool):
+    """
+    dot should route port edges between same-rank record nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/501
+    """
+
+    ports = "|".join(f"<f{i}> field {i}" for i in range(fields))
+    rank = "{ rank=same; a; b; }" if same_rank else ""
+    source = f"""
+        digraph G {{
+            rankdir={rankdir};
+            node [shape=record];
+            a [label="{{{ports}}}"];
+            b [label="{{{ports}}}"];
+            {rank}
+            a:f{fields - 1} -> b:f0;
+        }}
+    """
+
+    layout = json.loads(dot("json", source=source))
+    nodes = {node["name"]: node for node in layout["objects"] if "name" in node}
+    edge = layout["edges"][0]
+
+    # The JSON draw operation is the rendered spline, not merely a serialized
+    # edge declaration. Its tail and arrow tip must be in their named fields.
+    spline = next(op for op in edge["_draw_"] if op["op"] == "b")
+    tail = spline["points"][0]
+    head = [float(value) for value in edge["pos"].split()[0][2:].split(",")]
+
+    def field(node: dict, index: int) -> tuple[float, float, float, float]:
+        return tuple(float(value) for value in node["rects"].split()[index].split(","))
+
+    def contains(rect: tuple[float, float, float, float], point: list[float]) -> bool:
+        xmin, ymin, xmax, ymax = rect
+        x, y = point
+        return xmin - 1 <= x <= xmax + 1 and ymin - 1 <= y <= ymax + 1
+
+    assert contains(field(nodes["a"], fields - 1), tail)
+    assert contains(field(nodes["b"], 0), head)
+    assert "_hdraw_" in edge, "directed edge lost its arrowhead"
+
+
+def test_501_compass_ports():
+    """flat record edges should leave and enter in the requested directions"""
+
+    source = r"""
+        digraph G {
+            node [shape=record];
+            a [label="{<l> left|<r> right}"];
+            b [label="{<l> left|<r> right}"];
+            { rank=same; a; b; }
+            a:r:e -> b:l:w [dir=none];
+        }
+    """
+    layout = json.loads(dot("json", source=source))
+    nodes = {node["name"]: node for node in layout["objects"] if "name" in node}
+    points = next(
+        op["points"] for op in layout["edges"][0]["_draw_"] if op["op"] == "b"
+    )
+
+    tail_field = tuple(
+        float(value) for value in nodes["a"]["rects"].split()[1].split(",")
+    )
+    head_field = tuple(
+        float(value) for value in nodes["b"]["rects"].split()[0].split(",")
+    )
+    tail = (tail_field[2], (tail_field[1] + tail_field[3]) / 2)
+    head = (head_field[0], (head_field[1] + head_field[3]) / 2)
+
+    assert points[0] == pytest.approx(tail, abs=0.01)
+    assert points[1][0] > points[0][0]
+    assert points[1][1] == pytest.approx(points[0][1], abs=0.01)
+    assert points[-1] == pytest.approx(head, abs=0.01)
+    assert points[-2][0] < points[-1][0]
+    assert points[-2][1] == pytest.approx(points[-1][1], abs=0.01)
+
+
+def test_501_edge_labels():
+    """the auxiliary route should retain both ordinary and external labels"""
+
+    source = r"""
+        digraph G {
+            node [shape=record];
+            a [label="{<l> left|<r> right}"];
+            b [label="{<l> left|<r> right}"];
+            { rank=same; a; b; }
+            a:r:e -> b:l:w [label="edge", xlabel="external"];
+        }
+    """
+    edge = json.loads(dot("json", source=source))["edges"][0]
+    texts = {op["text"] for op in edge["_ldraw_"] if op["op"] == "T"}
+
+    assert edge["lp"]
+    assert edge["xlp"]
+    assert texts == {"edge", "external"}
+    assert "_hdraw_" in edge
+
+
+def test_501_parallel_edges():
+    """parallel flat record-port edges should not collapse onto one spline"""
+
+    source = r"""
+        digraph G {
+            node [shape=record];
+            a [label="{<l> left|<r> right}"];
+            b [label="{<l> left|<r> right}"];
+            { rank=same; a; b; }
+            a:r:e -> b:l:w;
+            a:r:e -> b:l:w;
+            a:r:e -> b:l:w;
+        }
+    """
+    edges = json.loads(dot("json", source=source))["edges"]
+
+    assert len(edges) == 3
+    assert len({edge["pos"] for edge in edges}) == 3
+
+
+@pytest.mark.parametrize("record_at", ("tail", "head"))
+def test_501_mixed_record_endpoint(record_at: str):
+    """one record endpoint should not disable the ordinary endpoint's route"""
+
+    if record_at == "tail":
+        nodes = 'a [shape=record, label="{<l> left|<r> right}"]; b [shape=box];'
+        edge = "a:r:e -> b:w"
+    else:
+        nodes = 'a [shape=box]; b [shape=record, label="{<l> left|<r> right}"];'
+        edge = "a:e -> b:l:w"
+    source = f"digraph G {{ {nodes} {{ rank=same; a; b; }} {edge}; }}"
+    routed = json.loads(dot("json", source=source))["edges"][0]
+
+    assert any(op["op"] == "b" for op in routed["_draw_"])
+    assert "_hdraw_" in routed
+
+
+@pytest.mark.parametrize("splines", ("spline", "polyline", "line"))
+def test_501_spline_types(splines: str):
+    """record-port anchoring should survive the flat-edge route variants"""
+
+    source = f"""
+        digraph G {{
+            graph [splines={splines}];
+            node [shape=record];
+            a [label="{{<l> left|<r> right}}"];
+            b [label="{{<l> left|<r> right}}"];
+            {{ rank=same; a; b; }}
+            a:r:e -> b:l:w [dir=none];
+        }}
+    """
+    layout = json.loads(dot("json", source=source))
+    nodes = {node["name"]: node for node in layout["objects"] if "name" in node}
+    points = next(
+        op["points"] for op in layout["edges"][0]["_draw_"] if op["op"] == "b"
+    )
+    tail_field = tuple(
+        float(value) for value in nodes["a"]["rects"].split()[1].split(",")
+    )
+    head_field = tuple(
+        float(value) for value in nodes["b"]["rects"].split()[0].split(",")
+    )
+
+    assert points[0] == pytest.approx(
+        (tail_field[2], (tail_field[1] + tail_field[3]) / 2), abs=0.01
+    )
+    assert points[-1] == pytest.approx(
+        (head_field[0], (head_field[1] + head_field[3]) / 2), abs=0.01
+    )
+
+
+def test_2248():
+    """
+    no-port flat record edges should remain routed
+    https://gitlab.com/graphviz/graphviz/-/issues/2248
+    """
+
+    layout = json.loads(
+        dot("json", source="graph { node [shape=record]; { rank=same; a -- b; } }")
+    )
+    assert len(layout["edges"]) == 1
+    assert any(op["op"] == "b" for op in layout["edges"][0]["_draw_"])
+
+
 def test_510():
     """
     HSV colors should also support an alpha channel
