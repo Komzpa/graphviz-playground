@@ -25,9 +25,9 @@
 #include <gd.h>
 
 enum {
-    FORMAT_PNG_GD, FORMAT_GIF_GD, FORMAT_JPG_GD, FORMAT_GD_GD, FORMAT_GD2_GD, FORMAT_XPM_GD, FORMAT_WBMP_GD, FORMAT_XBM_GD,
-    FORMAT_PNG_PS, FORMAT_GIF_PS, FORMAT_JPG_PS, FORMAT_GD_PS, FORMAT_GD2_PS, FORMAT_XPM_PS, FORMAT_WBMP_PS, FORMAT_XBM_PS,
-    FORMAT_PNG_CAIRO, FORMAT_GIF_CAIRO, FORMAT_JPG_CAIRO, FORMAT_GD_CAIRO, FORMAT_GD2_CAIRO, FORMAT_XPM_CAIRO, FORMAT_WBMP_CAIRO, FORMAT_XBM_CAIRO,
+    FORMAT_BMP_GD, FORMAT_PNG_GD, FORMAT_GIF_GD, FORMAT_JPG_GD, FORMAT_GD_GD, FORMAT_GD2_GD, FORMAT_XPM_GD, FORMAT_WBMP_GD, FORMAT_XBM_GD,
+    FORMAT_BMP_PS, FORMAT_PNG_PS, FORMAT_GIF_PS, FORMAT_JPG_PS, FORMAT_GD_PS, FORMAT_GD2_PS, FORMAT_XPM_PS, FORMAT_WBMP_PS, FORMAT_XBM_PS,
+    FORMAT_BMP_CAIRO, FORMAT_PNG_CAIRO, FORMAT_GIF_CAIRO, FORMAT_JPG_CAIRO, FORMAT_GD_CAIRO, FORMAT_GD2_CAIRO, FORMAT_XPM_CAIRO, FORMAT_WBMP_CAIRO, FORMAT_XBM_CAIRO,
 };
 
 static void gd_freeimage(usershape_t *us)
@@ -61,6 +61,11 @@ static gdImagePtr gd_loadimage(usershape_t *us) {
 #ifdef HAVE_GD_JPEG
 	    case FT_JPEG:
 		us->data = gdImageCreateFromJpeg(us->f);
+		break;
+#endif
+#ifdef HAVE_GD_BMP
+	    case FT_BMP:
+		us->data = gdImageCreateFromBmp(us->f);
 		break;
 #endif
 	    default:
@@ -251,6 +256,9 @@ static gvloadimage_engine_t engine_cairo = {
 #endif
 
 gvplugin_installed_t gvloadimage_gd_types[] = {
+#ifdef HAVE_GD_BMP
+    {FORMAT_BMP_GD, "bmp:gd", 1, &engine, NULL},
+#endif
     {FORMAT_GD_GD, "gd:gd", 1, &engine, NULL},
     {FORMAT_GD2_GD, "gd2:gd", 1, &engine, NULL},
     {FORMAT_GIF_GD, "gif:gd", 1, &engine, NULL},
@@ -269,6 +277,10 @@ gvplugin_installed_t gvloadimage_gd_types[] = {
     {FORMAT_XBM_GD, "xbm:gd", 1, &engine, NULL},
 #endif
 
+#ifdef HAVE_GD_BMP
+    {FORMAT_BMP_PS, "bmp:ps", 1, &engine_ps, NULL},
+    {FORMAT_BMP_PS, "bmp:lasi", 1, &engine_ps, NULL},
+#endif
     {FORMAT_GD_PS, "gd:ps", 1, &engine_ps, NULL},
     {FORMAT_GD_PS, "gd:lasi", 1, &engine_ps, NULL},
     {FORMAT_GD2_PS, "gd2:ps", 1, &engine_ps, NULL},
@@ -297,6 +309,9 @@ gvplugin_installed_t gvloadimage_gd_types[] = {
 #endif
 
 #ifdef HAVE_PANGOCAIRO
+#ifdef HAVE_GD_BMP
+    {FORMAT_BMP_CAIRO, "bmp:cairo", 1, &engine_cairo, NULL},
+#endif
     {FORMAT_GD_CAIRO, "gd:cairo", 1, &engine_cairo, NULL},
     {FORMAT_GD2_CAIRO, "gd2:cairo", 1, &engine_cairo, NULL},
     {FORMAT_GIF_CAIRO, "gif:cairo", 1, &engine_cairo, NULL},

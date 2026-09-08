@@ -55,6 +55,8 @@ if(PkgConfig_FOUND)
 endif()
 
 if(GD_LIBRARY)
+  include(CheckCSourceCompiles)
+
   find_program(GDLIB_CONFIG gdlib-config)
   if(GDLIB_CONFIG)
     message(STATUS "Found gdlib-config: ${GDLIB_CONFIG}")
@@ -92,4 +94,19 @@ if(GD_LIBRARY)
       WARNING
       "gdlib-config/gdlib pkgconfig not found; skipping feature checks")
   endif()
+
+  set(_save_CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES})
+  set(_save_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
+  set(CMAKE_REQUIRED_INCLUDES ${GD_INCLUDE_DIRS})
+  set(CMAKE_REQUIRED_LIBRARIES ${GD_LIBRARIES})
+  check_c_source_compiles("
+    #include <gd.h>
+    int main(void) {
+      gdImageBmpCtx(0, 0, 0);
+      (void)gdImageCreateFromBmp(0);
+      return 0;
+    }
+  " HAVE_GD_BMP)
+  set(CMAKE_REQUIRED_INCLUDES ${_save_CMAKE_REQUIRED_INCLUDES})
+  set(CMAKE_REQUIRED_LIBRARIES ${_save_CMAKE_REQUIRED_LIBRARIES})
 endif()

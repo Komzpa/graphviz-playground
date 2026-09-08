@@ -40,6 +40,7 @@ void gvdevice_gd_putC (gdIOCtx *context, int C)
 
 #ifdef HAVE_PANGOCAIRO
 enum {
+	FORMAT_BMP,
 	FORMAT_GIF,
 	FORMAT_JPEG,
 	FORMAT_PNG,
@@ -121,6 +122,12 @@ static void gd_format(GVJ_t * job)
     }
 
     switch (job->device.id) {
+#ifdef HAVE_GD_BMP
+    case FORMAT_BMP:
+	gdImageBmpCtx(im, &gd_context.ctx, 0);
+        break;
+#endif
+
     case FORMAT_GIF:
 	gdImageTrueColorToPalette(im, 0, 256);
 	gdImageGifCtx(im, &gd_context.ctx);
@@ -200,6 +207,10 @@ static gvdevice_features_t device_features_gd_no_writer = {
 
 gvplugin_installed_t gvdevice_gd_types[] = {
 #ifdef HAVE_PANGOCAIRO
+#ifdef HAVE_GD_BMP
+    {FORMAT_BMP, "bmp:cairo", 5, &gd_engine, &device_features_gd},
+#endif
+
     {FORMAT_GIF, "gif:cairo", 10, &gd_engine, &device_features_gd},
     {FORMAT_WBMP, "wbmp:cairo", 5, &gd_engine, &device_features_gd},
 
