@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Packed `dot` layouts no longer drop external label positions when emitting
+  output after component packing. #2592
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

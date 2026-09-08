@@ -3318,9 +3318,6 @@ def test_2484(tmp_path: Path):
     )
 
 
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2592"
-)
 def test_2592():
     """
     pack modes should not remove xlabels
@@ -3331,10 +3328,23 @@ def test_2592():
     input = Path(__file__).parent / "2592.dot"
     assert input.exists(), "unexpectedly missing test case"
 
-    # run it through Graphviz
+    # run the packed case through Graphviz
     svg = dot("svg", input)
+    layout = dot("dot", input)
 
     assert "comment not included" in svg, "missing xlabel in packed graph"
+    assert re.search(r'\bxlp="[^"]+"', layout), "missing xlp in packed graph"
+
+    # the same graph without pack remains the negative control
+    src = input.read_text(encoding="utf-8")
+    src = re.sub(r"^\s*pack(?:mode)?=.*\n", "", src, flags=re.MULTILINE)
+
+    control_svg = dot("svg", source=src)
+    control_layout = dot("dot", source=src)
+
+    assert "comment included" in control_svg, "missing regular label in no-pack control"
+    assert "comment not included" in control_svg, "missing xlabel in no-pack control"
+    assert re.search(r'\bxlp="[^"]+"', control_layout), "missing xlp in no-pack control"
 
 
 def test_package_version(tmp_path: Path):
