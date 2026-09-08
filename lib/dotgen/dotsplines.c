@@ -151,6 +151,19 @@ static void swap_bezier(bezier *b) {
   SWAP(&b->sp, &b->ep);
 }
 
+static bool has_well_formed_bezier(const bezier *b) {
+  return b->list != NULL && b->size >= 4 && (b->size - 1) % 3 == 0;
+}
+
+static bool has_well_formed_spline(const splines *s) {
+  for (size_t i = 0; i < s->size; ++i) {
+    if (!has_well_formed_bezier(&s->list[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void swap_spline(splines *s) {
   const size_t sz = s->size;
 
@@ -171,10 +184,20 @@ static void swap_spline(splines *s) {
  * we reverse them if necessary.
  */
 static void edge_normalize(graph_t *g) {
+  static atomic_flag warned;
+
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (sinfo.swapEnds(e) && ED_spl(e))
+      if (sinfo.swapEnds(e) && ED_spl(e)) {
+        if (!has_well_formed_spline(ED_spl(e))) {
+          if (!atomic_flag_test_and_set(&warned)) {
+            agwarningf("dropping malformed spline\n");
+          }
+          ED_spl(e) = NULL;
+          continue;
+        }
         swap_spline(ED_spl(e));
+      }
     }
   }
 }
