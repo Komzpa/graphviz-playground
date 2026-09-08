@@ -100,10 +100,20 @@ typedef struct {
 
 typedef LIST(pathpoint) vararr_t;
 
+static double l2dist (pointf p0, pointf p1);
+
 static void
-insertArr (vararr_t* arr, pointf p, double l)
+insertArr (vararr_t* arr, pointf p, double *linelen)
 {
-  pathpoint pt = {.x = p.x, .y = p.y, .lengthsofar = l};
+  if (LIST_SIZE(arr) > 0) {
+    pathpoint last = LIST_GET(arr, LIST_SIZE(arr) - 1);
+    pointf last_point = {last.x, last.y};
+    double seglen = l2dist(last_point, p);
+    if (seglen == 0)
+      return;
+    *linelen += seglen;
+  }
+  pathpoint pt = {.x = p.x, .y = p.y, .lengthsofar = *linelen};
   LIST_APPEND(arr, pt);
 }
 
@@ -128,33 +138,35 @@ static double l2dist (pointf p0, pointf p1)
 /* analyze current path, creating pathpoints array
  * turn all curves into lines
  */
-static vararr_t pathtolines(bezier *bez) {
+static vararr_t pathtolines(splines *spl) {
     int step;
-    double seglen, linelen = 0;
+    double linelen = 0;
     vararr_t arr = {0};
-    pointf p0, p1, V[4];
-    const size_t n = bez->size;
-    pointf* A = bez->list;
+    pointf p1, V[4];
 
-    insertArr(&arr, A[0], 0);
-    V[3] = A[0];
-    for (size_t i = 0; i + 3 < n; i += 3) {
-	V[0] = V[3];
-	for (size_t j = 1; j <= 3; j++)
-	    V[j] = A[i + j];
-	p0 = V[0];
-	for (step = 1; step <= BEZIERSUBDIVISION; step++) {
-	    p1 = Bezier(V, (double) step / BEZIERSUBDIVISION, NULL, NULL);
-	    seglen = l2dist(p0, p1);
-	    /* If initwid is large, this may never happen, so turn off. I assume this is to prevent
-	     * too man points or too small a movement. Perhaps a better test can be made, but for now
-	     * we turn it off. 
-	     */
-	    /* if (seglen > initwid/10) { */
-		linelen += seglen;
-		insertArr(&arr, p1, linelen);
-	    /* } */
-	    p0 = p1;
+    /* A concentrated edge can span several adjacent Bezier segments; taper
+     * the complete ordered path so the shared tail remains visible. */
+    for (size_t bez_i = 0; bez_i < spl->size; bez_i++) {
+	bezier *bez = &spl->list[bez_i];
+	const size_t n = bez->size;
+	pointf* A = bez->list;
+
+	insertArr(&arr, A[0], &linelen);
+	V[3] = A[0];
+	for (size_t i = 0; i + 3 < n; i += 3) {
+	    V[0] = V[3];
+	    for (size_t j = 1; j <= 3; j++)
+		V[j] = A[i + j];
+	    for (step = 1; step <= BEZIERSUBDIVISION; step++) {
+		p1 = Bezier(V, (double) step / BEZIERSUBDIVISION, NULL, NULL);
+		/* If initwid is large, this may never happen, so turn off. I assume this is to prevent
+		 * too man points or too small a movement. Perhaps a better test can be made, but for now
+		 * we turn it off.
+		 */
+		/* if (seglen > initwid/10) { */
+		insertArr(&arr, p1, &linelen);
+		/* } */
+	    }
 	}
     }
     if (debug) {
@@ -178,14 +190,14 @@ static void drawbevel(double x, double lineout, bool forward, double dir,
 typedef double (*radfunc_t) (double curlen, double totallen, double initwid);
 
 /* taper:
- * Given a B-spline bez, returns a polygon that represents spline as a tapered
+ * Given B-splines spl, returns a polygon that represents them as a tapered
  * edge, starting with width initwid.
  * The radfunc determines the half-width along the curve. Typically, this will
  * decrease from initwid to 0 as the curlen goes from 0 to totallen.
  */
-stroke_t taper(bezier *bez, radfunc_t radfunc, double initwid) {
+stroke_t taper(splines *spl, radfunc_t radfunc, double initwid) {
     double direction=0, direction_2=0;
-    vararr_t arr = pathtolines(bez);
+    vararr_t arr = pathtolines(spl);
     pathpoint cur_point, last_point, next_point;
     double x=0, y=0, dist;
     double nx, ny, ndir;
@@ -224,7 +236,7 @@ stroke_t taper(bezier *bez, radfunc_t radfunc, double initwid) {
 	    /* effective line radius at this point */
 	linerad = radfunc(dist, linelen, initwid);
 
- 	if (i == 0 || i == pathcount-1) {
+	if (i == 0 || i == pathcount-1) {
 	    lineout = linerad;
 	    if (i == 0) {
 		direction = ndir + D2R(90);
@@ -302,7 +314,7 @@ stroke_t taper(bezier *bez, radfunc_t radfunc, double initwid) {
 	bool bevel = cur_point.bevel;
 	direction_2 = cur_point.dir2 + D2R(180);
 	lineto(&p, x+cos(direction_2)*lineout, y+sin(direction_2)*lineout);
-	if (bevel) { 
+	if (bevel) {
 	    drawbevel(x, lineout, false, direction, direction_2, &p);
 	}
     }
@@ -327,10 +339,15 @@ main ()
 {
     stroke_t* sp;
     bezier bez;
+    splines spl;
 
     bez.size = sizeof(pts)/sizeof(pointf);
     bez.list = pts;
-    sp = taper(&bez, halffunc, 20.0);
+    spl.size = 1;
+    spl.list = &bez;
+    spl.bb.LL.x = spl.bb.LL.y = 0;
+    spl.bb.UR.x = spl.bb.UR.y = 0;
+    sp = taper(&spl, halffunc, 20.0);
     printf ("newpath\n");
     printf ("%.02f %.02f moveto\n", sp->vertices[0].x, sp->vertices[0].y);
     for (size_t i = 1; i < sp->nvertices; i++)

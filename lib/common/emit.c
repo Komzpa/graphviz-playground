@@ -2420,21 +2420,23 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 	color = pencolor;
 
 	if (tapered) {
+	    splines *spl = ED_spl(e);
 	    if (*color == '\0') color = DEFAULT_COLOR;
 	    if (*fillcolor == '\0') fillcolor = DEFAULT_COLOR;
-    	    gvrender_set_pencolor(job, "transparent");
+	    gvrender_set_pencolor(job, "transparent");
 	    gvrender_set_fillcolor(job, color);
-	    bz = ED_spl(e)->list[0];
-	    stroke_t stp = taper(&bz, taperfun (e), penwidth);
+	    bz = spl->list[0];
+	    stroke_t stp = taper(spl, taperfun (e), penwidth);
 	    assert(stp.nvertices <= INT_MAX);
 	    gvrender_polygon(job, stp.vertices, stp.nvertices, 1);
 	    free_stroke(stp);
-    	    gvrender_set_pencolor(job, color);
+	    gvrender_set_pencolor(job, color);
 	    if (fillcolor != color)
 		gvrender_set_fillcolor(job, fillcolor);
 	    if (bz.sflag) {
 		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0], arrowsize, penwidth, bz.sflag);
 	    }
+	    bz = spl->list[spl->size - 1];
 	    if (bz.eflag) {
 		arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize, penwidth, bz.eflag);
 	    }
@@ -4364,4 +4366,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

@@ -1,0 +1,13 @@
+digraph {
+  edge [
+    style="tapered"
+  ];
+
+  concentrate=true;
+
+  a -> b
+  b -> c
+  a -> d
+  b -> d
+  c -> d
+}

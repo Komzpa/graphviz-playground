@@ -13,6 +13,8 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Tapered edges now retain shared segments created by `concentrate=true`. #2075
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
