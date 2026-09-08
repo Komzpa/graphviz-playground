@@ -467,6 +467,31 @@ def test_452(attribute: str):
     dot("svg", source=graph.getvalue())
 
 
+def test_506():
+    """
+    SVG output should preserve graph layers as layer groups
+    https://gitlab.com/graphviz/graphviz/-/issues/506
+    """
+
+    source = """
+        digraph {
+          graph [layers="one:two"]
+          a [layer="one"]
+          b [layer="two"]
+          a -> b [layer="one:two"]
+        }
+    """
+
+    root = ET.fromstring(dot("svg", source=source))
+    layer_groups = [
+        element
+        for element in root.iter()
+        if element.tag.endswith("g") and element.attrib.get("class") == "layer"
+    ]
+
+    assert [group.attrib["id"] for group in layer_groups] == ["one", "two"]
+
+
 def test_510():
     """
     HSV colors should also support an alpha channel
