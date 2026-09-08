@@ -58,6 +58,13 @@ static const char transparent[] = "transparent";
 static const char none[] = "none";
 static const char black[] = "black";
 
+typedef struct {
+    const GVJ_t *job;
+    bool html;
+} svg_label_state_t;
+
+static svg_label_state_t svg_label_state = {0};
+
 static bool emit_standalone_headers(const GVJ_t *job) {
   return job->render.id != FORMAT_SVG_INLINE;
 }
@@ -437,34 +444,11 @@ static void svg_end_anchor(GVJ_t * job)
                 "</g>\n");
 }
 
-static void svg_textspan(GVJ_t * job, pointf p, textspan_t * span)
-{
-    obj_state_t *obj = job->obj;
+static void svg_apply_font_attrs(GVJ_t *job, textspan_t *span) {
     PostscriptAlias *pA;
     char *family = NULL, *weight = NULL, *stretch = NULL, *style = NULL;
     unsigned int flags;
 
-    gvputs(job, "<text xml:space=\"preserve\"");
-    switch (span->just) {
-    case 'l':
-	gvputs(job, " text-anchor=\"start\"");
-	break;
-    case 'r':
-	gvputs(job, " text-anchor=\"end\"");
-	break;
-    default:
-    case 'n':
-	gvputs(job, " text-anchor=\"middle\"");
-	break;
-    }
-    p.y += span->yoffset_centerline;
-    if (!obj->labeledgealigned) {
-	gvputs(job, " x=\"");
-        gvprintdouble(job, p.x);
-        gvputs(job, "\" y=\"");
-        gvprintdouble(job, -p.y);
-        gvputs(job, "\"");
-    }
     pA = span->font->postscript_alias;
     if (pA) {
 	switch (GD_fontnames(job->gvc->g)) {
@@ -497,8 +481,9 @@ static void svg_textspan(GVJ_t * job, pointf p, textspan_t * span)
 	    gvprintf(job, " font-stretch=\"%s\"", stretch);
 	if (style)
 	    gvprintf(job, " font-style=\"%s\"", style);
-    } else
+    } else {
 	gvprintf(job, " font-family=\"%s\"", span->font->name);
+    }
     if ((flags = span->font->flags)) {
 	if ((flags & HTML_BF) && !weight)
 	    gvputs(job, " font-weight=\"bold\"");
@@ -524,8 +509,12 @@ static void svg_textspan(GVJ_t * job, pointf p, textspan_t * span)
 	if (flags & HTML_SUB)
 	    gvputs(job, " baseline-shift=\"sub\"");
     }
-
     gvprintf(job, " font-size=\"%.2f\"", span->font->size);
+}
+
+static void svg_apply_fill_attrs(GVJ_t *job) {
+    obj_state_t *obj = job->obj;
+
     switch (obj->pencolor.type) {
     case COLOR_STRING:
 	if (strcasecmp(obj->pencolor.u.string, "black"))
@@ -541,19 +530,80 @@ static void svg_textspan(GVJ_t * job, pointf p, textspan_t * span)
     default:
 	UNREACHABLE(); // internal error
     }
-    gvputc(job, '>');
-    if (obj->labeledgealigned) {
-	gvputs(job, "<textPath xlink:href=\"#");
-	gvputs_xml(job, obj->id);
-	gvputs(job, "_p\" startOffset=\"50%\"><tspan x=\"0\" dy=\"");
+}
+
+static void svg_begin_label(GVJ_t *job, label_type type) {
+    svg_label_state.job = job;
+    svg_label_state.html = (type == LABEL_HTML);
+
+    if (svg_label_state.html && !job->obj->labeledgealigned)
+	gvputs(job, "<text xml:space=\"preserve\">");
+}
+
+static void svg_end_label(GVJ_t *job) {
+    if (svg_label_state.html && svg_label_state.job == job && !job->obj->labeledgealigned)
+	gvputs(job, "</text>\n");
+
+    svg_label_state = (svg_label_state_t){0};
+}
+
+static void svg_textspan(GVJ_t * job, pointf p, textspan_t * span)
+{
+    obj_state_t *obj = job->obj;
+    const bool use_html_tspans =
+	svg_label_state.html && svg_label_state.job == job && !obj->labeledgealigned;
+
+    p.y += span->yoffset_centerline;
+    if (use_html_tspans) {
+	gvputs(job, "<tspan x=\"");
+        gvprintdouble(job, p.x);
+        gvputs(job, "\" y=\"");
         gvprintdouble(job, -p.y);
-        gvputs(job, "\">");
+        gvputc(job, '"');
+	svg_apply_font_attrs(job, span);
+	svg_apply_fill_attrs(job);
+	gvputc(job, '>');
+    } else {
+	gvputs(job, "<text xml:space=\"preserve\"");
+	switch (span->just) {
+	case 'l':
+	    gvputs(job, " text-anchor=\"start\"");
+	    break;
+	case 'r':
+	    gvputs(job, " text-anchor=\"end\"");
+	    break;
+	default:
+	case 'n':
+	    gvputs(job, " text-anchor=\"middle\"");
+	    break;
+	}
+	if (!obj->labeledgealigned) {
+	    gvputs(job, " x=\"");
+            gvprintdouble(job, p.x);
+            gvputs(job, "\" y=\"");
+            gvprintdouble(job, -p.y);
+            gvputs(job, "\"");
+	}
+	svg_apply_font_attrs(job, span);
+	svg_apply_fill_attrs(job);
+	gvputc(job, '>');
+	if (obj->labeledgealigned) {
+	    gvputs(job, "<textPath xlink:href=\"#");
+	    gvputs_xml(job, obj->id);
+	    gvputs(job, "_p\" startOffset=\"50%\"><tspan x=\"0\" dy=\"");
+            gvprintdouble(job, -p.y);
+            gvputs(job, "\">");
+	}
     }
     const xml_flags_t xml_flags = {.raw = 1, .dash = 1, .nbsp = 1};
     gv_xml_escape(span->str, xml_flags, gvputs_wrapper, job);
-    if (obj->labeledgealigned)
-	gvputs(job, "</tspan></textPath>");
-    gvputs(job, "</text>\n");
+    if (use_html_tspans) {
+	gvputs(job, "</tspan>");
+    } else {
+	if (obj->labeledgealigned)
+	    gvputs(job, "</tspan></textPath>");
+	gvputs(job, "</text>\n");
+    }
 }
 
 static void svg_print_stop(GVJ_t * job, double offset, gvcolor_t color)
@@ -793,8 +843,8 @@ static gvrender_engine_t svg_engine = {
     svg_end_edge,
     svg_begin_anchor,
     svg_end_anchor,
-    0,				/* svg_begin_anchor */
-    0,				/* svg_end_anchor */
+    svg_begin_label,
+    svg_end_label,
     svg_textspan,
     0,				/* svg_resolve_color */
     svg_ellipse,

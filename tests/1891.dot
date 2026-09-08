@@ -1,0 +1,5 @@
+digraph {
+  main [
+    label=<<font color='red'>main</font>( _1: <font color='darkgreen'>impl Fn()</font>, _2: <font color='darkgreen'>usize</font> )>
+  ]
+}
