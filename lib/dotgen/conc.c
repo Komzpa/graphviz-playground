@@ -17,6 +17,9 @@
 
 #include	<dotgen/dot.h>
 #include	<stdbool.h>
+#include	<stdint.h>
+#include	<string.h>
+#include	<util/alloc.h>
 
 #define		UP		0
 #define		DOWN	1
@@ -63,6 +66,122 @@ static bool upcandidate(node_t * v)
 	    && ND_in(v).size == 1 && ND_label(v) == NULL;
 }
 
+typedef struct {
+    node_t *endpoint;
+    port endpoint_port;
+    edge_t *continuation;
+} continuation_slot_t;
+
+typedef struct {
+    continuation_slot_t *slots;
+    size_t slot_count;
+} continuation_index_t;
+
+static node_t *continuation_endpoint(edge_t *edge, int dir)
+{
+    return dir == DOWN ? aghead(edge) : agtail(edge);
+}
+
+static port continuation_port(edge_t *edge, int dir)
+{
+    return dir == DOWN ? ED_head_port(edge) : ED_tail_port(edge);
+}
+
+static bool compatible_continuation(edge_t *candidate, edge_t *edge, int dir)
+{
+    /* Continuations may share a trunk only when they keep the same endpoint port. */
+    return continuation_endpoint(candidate, dir) == continuation_endpoint(edge, dir)
+	&& portcmp(continuation_port(candidate, dir),
+		   continuation_port(edge, dir)) == 0;
+}
+
+static uint64_t hash_double(double value)
+{
+    uint64_t bits = 0;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+static size_t continuation_index_size(graph_t *g, int r, int lpos, int rpos, int dir)
+{
+    size_t continuations = 0;
+
+    for (int i = lpos; i <= rpos; ++i) {
+	node_t *const n = GD_rank(g)[r].v[i];
+	continuations += dir == DOWN ? ND_out(n).size : ND_in(n).size;
+    }
+
+    /* One entry per input continuation keeps this linear-probe table at most
+     * one quarter full. */
+    size_t slot_count = 8;
+    while (slot_count < continuations * 4)
+	slot_count *= 2;
+
+    return slot_count;
+}
+
+static continuation_index_t new_continuation_index(size_t slot_count)
+{
+    continuation_index_t index = {
+	.slots = gv_calloc(slot_count, sizeof(*index.slots)),
+	.slot_count = slot_count,
+    };
+    return index;
+}
+
+static void free_continuation_index(continuation_index_t *index)
+{
+    free(index->slots);
+    index->slots = NULL;
+    index->slot_count = 0;
+}
+
+static continuation_slot_t *continuation_slot(continuation_index_t *index,
+					      node_t *endpoint, port p)
+{
+    uint64_t hash = (uint64_t)(uintptr_t) endpoint;
+    if (p.defined) {
+	hash ^= hash_double(p.p.x) + UINT64_C(0x9e3779b97f4a7c15);
+	hash ^= (hash_double(p.p.y) << 1) | (hash_double(p.p.y) >> 63);
+    }
+
+    const size_t mask = index->slot_count - 1;
+    size_t pos = (size_t)hash & mask;
+
+    for (;;) {
+	continuation_slot_t *const slot = &index->slots[pos];
+	if (slot->continuation == NULL)
+	    return slot;
+	if (slot->endpoint == endpoint && portcmp(slot->endpoint_port, p) == 0)
+	    return slot;
+	pos = (pos + 1) & mask;
+    }
+}
+
+static edge_t *find_continuation(continuation_index_t *index, edge_t *edge, int dir)
+{
+    continuation_slot_t *const slot =
+	continuation_slot(index, continuation_endpoint(edge, dir),
+			  continuation_port(edge, dir));
+    if (slot->continuation == NULL)
+	return NULL;
+    return compatible_continuation(slot->continuation, edge, dir)
+	       ? slot->continuation
+	       : NULL;
+}
+
+static void remember_continuation(continuation_index_t *index, edge_t *edge, int dir)
+{
+    continuation_slot_t *const slot =
+	continuation_slot(index, continuation_endpoint(edge, dir),
+			  continuation_port(edge, dir));
+    if (slot->continuation == NULL) {
+	slot->endpoint = continuation_endpoint(edge, dir);
+	slot->endpoint_port = continuation_port(edge, dir);
+	slot->continuation = edge;
+    }
+}
+
 static bool bothupcandidates(node_t * u, node_t * v)
 {
     edge_t *e, *f;
@@ -80,18 +199,27 @@ static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
     int k;
     node_t *left;
     edge_t *e, *f, *e0;
+    continuation_index_t continuations =
+	new_continuation_index(continuation_index_size(g, r, lpos, rpos, dir));
 
     left = GD_rank(g)[r].v[lpos];
+    if (dir == DOWN) {
+	for (k = 0; (f = ND_out(left).list[k]); ++k)
+	    remember_continuation(&continuations, f, dir);
+    } else {
+	for (k = 0; (f = ND_in(left).list[k]); ++k)
+	    remember_continuation(&continuations, f, dir);
+    }
+
     /* merge all right nodes into the leftmost one */
     for (int i = lpos + 1; i <= rpos; i++) {
 	node_t *const right = GD_rank(g)[r].v[i];
 	if (dir == DOWN) {
 	    while ((e = ND_out(right).list[0])) {
-		for (k = 0; (f = ND_out(left).list[k]); k++)
-		    if (aghead(f) == aghead(e))
-			break;
+		f = find_continuation(&continuations, e, dir);
 		if (f == NULL)
 		    f = virtual_edge(left, aghead(e), e);
+		remember_continuation(&continuations, f, dir);
 		while ((e0 = ND_in(right).list[0])) {
 		    merge_oneway(e0, f);
 		    delete_fast_edge(e0);
@@ -100,11 +228,10 @@ static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
 	    }
 	} else {
 	    while ((e = ND_in(right).list[0])) {
-		for (k = 0; (f = ND_in(left).list[k]); k++)
-		    if (agtail(f) == agtail(e))
-			break;
+		f = find_continuation(&continuations, e, dir);
 		if (f == NULL)
 		    f = virtual_edge(agtail(e), left, e);
+		remember_continuation(&continuations, f, dir);
 		while ((e0 = ND_out(right).list[0])) {
 		    merge_oneway(e0, f);
 		    delete_fast_edge(e0);
@@ -115,6 +242,7 @@ static void mergevirtual(graph_t * g, int r, int lpos, int rpos, int dir)
 	assert(ND_in(right).size + ND_out(right).size == 0);
 	delete_fast_node(g, right);
     }
+    free_continuation_index(&continuations);
     k = lpos + 1;
     for (int i = rpos + 1; i < GD_rank(g)[r].n; ++i) {
 	node_t *const n = GD_rank(g)[r].v[k] = GD_rank(g)[r].v[i];

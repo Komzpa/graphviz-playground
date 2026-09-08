@@ -1003,13 +1003,15 @@ static void make_leafslots(graph_t * g)
 
 int ports_eq(edge_t * e, edge_t * f)
 {
+    /* Both endpoints must agree on whether they name a physical port. */
     return ED_head_port(e).defined == ED_head_port(f).defined
-	    && ((ED_head_port(e).p.x == ED_head_port(f).p.x &&
-		 ED_head_port(e).p.y == ED_head_port(f).p.y)
-		|| !ED_head_port(e).defined)
-	    && ((ED_tail_port(e).p.x == ED_tail_port(f).p.x &&
-		 ED_tail_port(e).p.y == ED_tail_port(f).p.y)
-		|| !ED_tail_port(e).defined);
+	    && (!ED_head_port(e).defined
+		|| (ED_head_port(e).p.x == ED_head_port(f).p.x &&
+		    ED_head_port(e).p.y == ED_head_port(f).p.y))
+	    && ED_tail_port(e).defined == ED_tail_port(f).defined
+	    && (!ED_tail_port(e).defined
+		|| (ED_tail_port(e).p.x == ED_tail_port(f).p.x &&
+		    ED_tail_port(e).p.y == ED_tail_port(f).p.y));
 }
 
 static void expand_leaves(graph_t * g)

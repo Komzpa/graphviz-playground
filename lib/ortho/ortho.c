@@ -33,18 +33,30 @@
 #include <common/geomprocs.h>
 #include <common/globals.h>
 #include <common/render.h>
-#include <common/pointset.h>
 #include <util/alloc.h>
 #include <util/exit.h>
 #include <util/gv_math.h>
 #include <util/list.h>
 #include <util/optional.h>
 #include <util/unused.h>
+#include <cdt.h>
 
 typedef struct {
     double d;
     Agedge_t* e;
 } epair_t;
+
+typedef struct {
+    int tail;
+    int head;
+    port tail_port;
+    port head_port;
+} edge_key_id_t;
+
+typedef struct {
+    Dtlink_t link;
+    edge_key_id_t id;
+} edge_key_t;
 
 static UNUSED void emitSearchGraph(FILE *fp, sgraph *sg);
 static UNUSED void emitGraph(FILE *fp, maze *mp, size_t n_edges,
@@ -54,6 +66,82 @@ int odb_flags;
 #endif
 
 #define CELL(n) ((cell*)ND_alg(n))
+
+static int portkeycmp(const port *p0, const port *p1) {
+    if (!p1->defined)
+        return p0->defined ? 1 : 0;
+    if (!p0->defined)
+        return -1;
+    if (p0->p.x < p1->p.x)
+        return -1;
+    if (p0->p.x > p1->p.x)
+        return 1;
+    if (p0->p.y < p1->p.y)
+        return -1;
+    if (p0->p.y > p1->p.y)
+        return 1;
+    return 0;
+}
+
+static int cmpedgekey(void *k1, void *k2) {
+    const edge_key_id_t *key1 = k1;
+    const edge_key_id_t *key2 = k2;
+
+    if (key1->tail < key2->tail)
+        return -1;
+    if (key1->tail > key2->tail)
+        return 1;
+    if (key1->head < key2->head)
+        return -1;
+    if (key1->head > key2->head)
+        return 1;
+
+    const int rv = portkeycmp(&key1->tail_port, &key2->tail_port);
+    if (rv != 0)
+        return rv;
+
+    return portkeycmp(&key1->head_port, &key2->head_port);
+}
+
+static Dtdisc_t edgeKeyDisc = {
+    offsetof(edge_key_t, id),
+    sizeof(edge_key_id_t),
+    offsetof(edge_key_t, link),
+    0,
+    free,
+    cmpedgekey,
+};
+
+static edge_key_id_t edgekeyid(Agedge_t *e) {
+    edge_key_id_t key = {
+        .tail = AGSEQ(agtail(e)),
+        .head = AGSEQ(aghead(e)),
+        .tail_port = ED_tail_port(e),
+        .head_port = ED_head_port(e),
+    };
+
+    if (key.tail > key.head) {
+        SWAP(&key.tail, &key.head);
+        SWAP(&key.tail_port, &key.head_port);
+    }
+
+    return key;
+}
+
+static Dt_t *newEdgeKeySet(void) {
+    return dtopen(&edgeKeyDisc, Dtoset);
+}
+
+static bool addEdgeKey(Dt_t *set, Agedge_t *e) {
+    edge_key_t *key = gv_alloc(sizeof(edge_key_t));
+    key->id = edgekeyid(e);
+
+    if (dtinsert(set, key) == key)
+        return true;
+
+    free(key);
+    return false;
+}
 
 static double MID(double a, double b) {
   return (a + b) / 2.0;
@@ -1160,10 +1248,10 @@ static bool swap_ends_p(edge_t * e)
  */
 int orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
-    PointSet* ps = NULL;
+    Dt_t *keys = NULL;
 
     if (Concentrate) 
-	ps = newPS();
+	keys = newEdgeKeySet();
 
 #ifdef DEBUG
     {
@@ -1215,20 +1303,10 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     /* store edges to be routed in es, along with their lengths */
     size_t n_edges = 0;
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
-        for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
+	for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
-	    if (Concentrate) {
-		int ti = AGSEQ(agtail(e));
-		int hi = AGSEQ(aghead(e));
-		if (ti <= hi) {
-		    if (isInPS (ps,ti,hi)) continue;
-		    addPS(ps,ti,hi);
-		}
-		else {
-		    if (isInPS (ps,hi,ti)) continue;
-		    addPS(ps,hi,ti);
-		}
-	    }
+	    if (Concentrate && !addEdgeKey(keys, e))
+		continue;
 	    es[n_edges].e = e;
 	    es[n_edges].d = edgeLen (e);
 	    n_edges++;
@@ -1280,7 +1358,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
 
 orthofinish:
     if (Concentrate)
-	freePS (ps);
+	dtclose(keys);
 
     for (size_t i=0; i < n_edges; i++)
 	free (route_list[i].segs);
