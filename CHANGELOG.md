@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `agwrite()` now preserves programmatically defined empty default attribute
+  values such as `node [label=""]`. #1887
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
