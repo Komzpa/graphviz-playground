@@ -18,6 +18,7 @@
 #include <gvc/gvc.h>
 #include <xdot/xdot.h>
 #include <limits.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,6 +100,19 @@ int dotneato_usage(const char *argv0, int exval) {
     if (GvExitOnUsage && exval >= 0)
 	graphviz_exit(exval);
     return exval + 1;
+}
+
+static int
+graph_sep_points(const char *name, double inches, double default_inches)
+{
+    const double max_inches = ((double)INT_MAX - 0.5) / POINTS_PER_INCH;
+    if (!isfinite(inches) || inches > max_inches) {
+	agerrorf("%s %f larger than maximum %f allowed.\nCheck for malformed or "
+		 "overwide graph separation attributes.\n",
+		 name, inches, max_inches);
+	inches = default_inches;
+    }
+    return POINTS(inches);
 }
 
 /* Look for flag parameter. idx is index of current argument.
@@ -656,7 +670,7 @@ void graph_init(graph_t * g, bool use_rankdir)
 
     xf = late_double(g, agfindgraphattr(g, "nodesep"),
 		DEFAULT_NODESEP, MIN_NODESEP);
-    GD_nodesep(g) = POINTS(xf);
+    GD_nodesep(g) = graph_sep_points("nodesep", xf, DEFAULT_NODESEP);
 
     p = late_string(g, agfindgraphattr(g, "ranksep"), NULL);
     if (p) {
@@ -670,7 +684,7 @@ void graph_init(graph_t * g, bool use_rankdir)
 	    GD_exact_ranksep(g) = true;
     } else
 	xf = DEFAULT_RANKSEP;
-    GD_ranksep(g) = POINTS(xf);
+    GD_ranksep(g) = graph_sep_points("ranksep", xf, DEFAULT_RANKSEP);
 
     {
 	int showboxes = late_int(g, agfindgraphattr(g, "showboxes"), 0, 0);

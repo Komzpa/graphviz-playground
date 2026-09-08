@@ -1,0 +1,5 @@
+digraph {
+  graph [concentrate=true splines=curved]
+  a -> c [minlen=3 color=red]
+  a -> c [minlen=3 color=red]
+}

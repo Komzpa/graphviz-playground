@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <common/edgeattr.h>
 #include <common/geomprocs.h>
 #include <dotgen/dot.h>
 #include <dotgen/aspect.h>
@@ -27,6 +28,13 @@
 #include <stdlib.h>
 #include <util/alloc.h>
 #include <util/gv_math.h>
+
+/* Room between the two arrowheads of a both-ended flat edge, on top of their
+ * own lengths. 2.0 left a 1.1pt shaft and the heads met into a diamond —
+ * Darafei, 2026-07-28: "ромб вместо стрелок - надо ещё раздвинуть". One
+ * arrowhead length is the smallest gap that reads as a shaft rather than a
+ * join, so scale with the arrows instead of using a constant. */
+#define FLAT_BOTH_ARROW_MARGIN 2.0
 
 static int nsiter2(graph_t * g);
 static void create_aux_edges(graph_t * g);
@@ -135,6 +143,7 @@ int dot_position(graph_t *g) {
 	    return rc;
 	}
     }
+    dot_bundle_load_dump(g, "after-concentrate");
     expand_leaves(g);
     if (flat_edges(g))
 	set_ycoords(g);
@@ -198,6 +207,16 @@ edge_t *make_aux_edge(node_t * u, node_t * v, double len, int wt)
     return e;
 }
 
+static double flat_both_arrow_room(edge_t *e) {
+    const double start_length = edge_arrow_length(e, EDGE_ARROW_START);
+    const double end_length = edge_arrow_length(e, EDGE_ARROW_END);
+    if (start_length == 0 || end_length == 0)
+	return 0;
+
+    /* Reserve a visible shaft during layout; spline clipping uses this room. */
+    return start_length + end_length + MAX(start_length, end_length);
+}
+
 static void allocate_aux_edges(graph_t * g)
 {
     int i, j, n_in;
@@ -237,10 +256,14 @@ make_LR_constraints(graph_t * g)
     }
     /* make edges to constrain left-to-right ordering */
     for (i = GD_minrank(g); i <= GD_maxrank(g); i++) {
+	if (rank[i].n == 0 || rank[i].v[0] == NULL)
+	    continue;
 	double last = ND_rank(rank[i].v[0]) = 0;
 	nodesep = sep[i & 1];
 	for (j = 0; j < rank[i].n; j++) {
 	    u = rank[i].v[j];
+	    if (u == NULL)
+		continue;
 	    ND_mval(u) = ND_rw(u);	/* keep it somewhere safe */
 	    if (ND_other(u).size > 0) {	/* compute self size */
 		/* FIX: dot assumes all self-edges go to the right. This
@@ -298,12 +321,14 @@ make_LR_constraints(graph_t * g)
 		}
 
 		width = ND_rw(t0) + ND_lw(h0);
-		m0 = ED_minlen(e) * GD_nodesep(g) + width;
+		const double arrow_room = flat_both_arrow_room(e);
+		m0 = MAX(ED_minlen(e) * GD_nodesep(g) + width,
+			 width + arrow_room);
 
 		if ((e0 = find_fast_edge(t0, h0))) {
 		    /* flat edge between adjacent neighbors 
-                     * ED_dist contains the largest label width.
-                     */
+		     * ED_dist contains the largest label width.
+		     */
 		    m0 = MAX(m0, width + GD_nodesep(g) + ROUND(ED_dist(e)));
 		    ED_minlen(e0) = MAX(ED_minlen(e0), m0);
 		    ED_weight(e0) = MAX(ED_weight(e0), ED_weight(e));
@@ -380,6 +405,31 @@ static bool vnode_not_related_to(graph_t *g, node_t *v) {
     return true;
 }
 
+static bool cluster_outside_node(graph_t *g, node_t *u) {
+    return !agcontains(g, u) &&
+           (ND_node_type(u) == NORMAL || vnode_not_related_to(g, u));
+}
+
+static bool cluster_rank_orders(graph_t *g, int r, int *left, int *right) {
+    if (GD_rank(g)[r].n == 0 || GD_rank(g)[r].v[0] == NULL)
+	return false;
+
+    *left = ND_order(GD_rank(g)[r].v[0]);
+    *right = *left + GD_rank(g)[r].n - 1;
+    return true;
+}
+
+static bool nearest_cluster_rank_orders(graph_t *g, int r, int *left, int *right) {
+    for (int d = 0; r - d >= GD_minrank(g) || r + d <= GD_maxrank(g); d++) {
+	if (r - d >= GD_minrank(g) && cluster_rank_orders(g, r - d, left, right))
+	    return true;
+	if (d > 0 && r + d <= GD_maxrank(g) &&
+	    cluster_rank_orders(g, r + d, left, right))
+	    return true;
+    }
+    return false;
+}
+
 /* Guarantee nodes outside the cluster g are placed outside of it.
  * This is done by adding constraints to make sure such nodes have
  * a gap of margin from the left or right bounding box node ln or rn.
@@ -391,31 +441,24 @@ static bool vnode_not_related_to(graph_t *g, node_t *v) {
  */
 static void keepout_othernodes(graph_t * g)
 {
-    int i, c, r, margin;
-    node_t *u, *v;
+    int i, c, r, margin, left, right;
+    node_t *u;
+    rank_t *root_rank;
 
     margin = late_int (g, G_margin, CL_OFFSET, 0);
     for (r = GD_minrank(g); r <= GD_maxrank(g); r++) {
-	if (GD_rank(g)[r].n == 0)
+	root_rank = &GD_rank(dot_root(g))[r];
+	if (!nearest_cluster_rank_orders(g, r, &left, &right))
 	    continue;
-	v = GD_rank(g)[r].v[0];
-	if (v == NULL)
-	    continue;
-	for (i = ND_order(v) - 1; i >= 0; i--) {
-	    u = GD_rank(dot_root(g))[r].v[i];
+	for (i = 0; i < root_rank->n; i++) {
+	    u = root_rank->v[i];
 	    /* can't use "is_a_vnode_of" because elists are swapped */
-	    if (ND_node_type(u) == NORMAL || vnode_not_related_to(g, u)) {
+	    if (!cluster_outside_node(g, u))
+		continue;
+	    if (i < left || (i <= right && i - left <= right - i))
 		make_aux_edge(u, GD_ln(g), margin + ND_rw(u), 0);
-		break;
-	    }
-	}
-	for (i = ND_order(v) + GD_rank(g)[r].n; i < GD_rank(dot_root(g))[r].n;
-	     i++) {
-	    u = GD_rank(dot_root(g))[r].v[i];
-	    if (ND_node_type(u) == NORMAL || vnode_not_related_to(g, u)) {
+	    else
 		make_aux_edge(GD_rn(g), u, margin + ND_lw(u), 0);
-		break;
-	    }
 	}
     }
 
@@ -774,13 +817,19 @@ static void set_ycoords(graph_t * g)
     /* make the initial assignment of ycoords to leftmost nodes by ranks */
     double maxht = 0;
     int r = GD_maxrank(g);
-    ND_coord(rank[r].v[0]).y = rank[r].ht1;
+    while (r >= GD_minrank(g) && (rank[r].n == 0 || rank[r].v[0] == NULL))
+	r--;
+    if (r < GD_minrank(g))
+	return;
+    double y = rank[r].ht1;
+    ND_coord(rank[r].v[0]).y = y;
     while (--r >= GD_minrank(g)) {
 	const double d0 = rank[r + 1].pht2 + rank[r].pht1 + GD_ranksep(g); // prim node sep
 	const double d1 = rank[r + 1].ht2 + rank[r].ht1 + CL_OFFSET; // cluster sep
 	const double delta = fmax(d0, d1);
-	if (rank[r].n > 0)	/* this may reflect some problem */
-		ND_coord(rank[r].v[0]).y = ND_coord(rank[r + 1].v[0]).y + delta;
+	y += delta;
+	if (rank[r].n > 0 && rank[r].v[0] != NULL)	/* this may reflect some problem */
+		ND_coord(rank[r].v[0]).y = y;
 #ifdef DEBUG
 	else
 	    fprintf(stderr, "dot set_ycoords: rank %d is empty\n",
@@ -799,11 +848,19 @@ static void set_ycoords(graph_t * g)
 	if (GD_exact_ranksep(g)) {  /* recompute maxht */
 	    maxht = 0;
 	    r = GD_maxrank(g);
+	    while (r >= GD_minrank(g) && (rank[r].n == 0 || rank[r].v[0] == NULL))
+		r--;
+	    if (r < GD_minrank(g))
+		return;
+	    int last_nonempty_rank = r;
 	    double d0 = ND_coord(rank[r].v[0]).y;
 	    while (--r >= GD_minrank(g)) {
+		if (rank[r].n == 0 || rank[r].v[0] == NULL)
+		    continue;
 		const double d1 = ND_coord(rank[r].v[0]).y;
-		const double delta = d1 - d0;
+		const double delta = (d1 - d0) / (last_nonempty_rank - r);
 		maxht = fmax(maxht, delta);
+		last_nonempty_rank = r;
 		d0 = d1;
 	    }
 	}
@@ -811,14 +868,23 @@ static void set_ycoords(graph_t * g)
 
     /* re-assign if ranks are equally spaced */
     if (GD_exact_ranksep(g)) {
-	for (r = GD_maxrank(g) - 1; r >= GD_minrank(g); r--)
-	    if (rank[r].n > 0)	/* this may reflect the same problem :-() */
-			ND_coord(rank[r].v[0]).y = ND_coord(rank[r + 1].v[0]).y + maxht;
+	r = GD_maxrank(g);
+	while (r >= GD_minrank(g) && (rank[r].n == 0 || rank[r].v[0] == NULL))
+	    r--;
+	if (r < GD_minrank(g))
+	    return;
+	y = ND_coord(rank[r].v[0]).y;
+	while (--r >= GD_minrank(g)) {
+	    y += maxht;
+	    if (rank[r].n > 0 && rank[r].v[0] != NULL)	/* this may reflect the same problem :-() */
+		ND_coord(rank[r].v[0]).y = y;
+	}
     }
 
     /* copy ycoord assignment from leftmost nodes to others */
     for (node_t *n = GD_nlist(g); n; n = ND_next(n))
-	ND_coord(n).y = ND_coord(rank[ND_rank(n)].v[0]).y;
+	if (rank[ND_rank(n)].v[0] != NULL)
+	    ND_coord(n).y = ND_coord(rank[ND_rank(n)].v[0]).y;
 }
 
 /* Compute bounding box of g.
@@ -1003,13 +1069,9 @@ static void make_leafslots(graph_t * g)
 
 int ports_eq(edge_t * e, edge_t * f)
 {
-    return ED_head_port(e).defined == ED_head_port(f).defined
-	    && ((ED_head_port(e).p.x == ED_head_port(f).p.x &&
-		 ED_head_port(e).p.y == ED_head_port(f).p.y)
-		|| !ED_head_port(e).defined)
-	    && ((ED_tail_port(e).p.x == ED_tail_port(f).p.x &&
-		 ED_tail_port(e).p.y == ED_tail_port(f).p.y)
-		|| !ED_tail_port(e).defined);
+    edge_t *const e0 = ED_to_orig(e) != NULL ? ED_to_orig(e) : e;
+    edge_t *const f0 = ED_to_orig(f) != NULL ? ED_to_orig(f) : f;
+    return gv_edge_ports_are_equal(e0, f0);
 }
 
 static void expand_leaves(graph_t * g)

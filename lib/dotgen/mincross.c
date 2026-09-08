@@ -584,40 +584,40 @@ static bool left2right(graph_t *g, node_t *v, node_t *w) {
   return matrix_get(M, (size_t)flatindex(v), (size_t)flatindex(w));
 }
 
-static int64_t in_cross(node_t *v, node_t *w) {
-  edge_t **e1, **e2;
-  int inv, t;
-  int64_t cross = 0;
-
-  for (e2 = ND_in(w).list; *e2; e2++) {
-    int cnt = ED_xpenalty(*e2);
-
-    inv = ND_order(agtail(*e2));
-
-    for (e1 = ND_in(v).list; *e1; e1++) {
-      t = ND_order(agtail(*e1)) - inv;
-      if (t > 0 || (t == 0 && ED_tail_port(*e1).p.x > ED_tail_port(*e2).p.x))
-        cross += ED_xpenalty(*e1) * cnt;
+static int mincross_penalty(edge_t *e) { return MAX(ED_xpenalty(e), 0); }
+static void in_cross_pair(node_t *v, node_t *w, int64_t *vw, int64_t *wv) {
+  *vw = *wv = 0;
+  for (edge_t **v_edge = ND_in(v).list; *v_edge; v_edge++) {
+    const int v_penalty = mincross_penalty(*v_edge);
+    const int v_order = ND_order(agtail(*v_edge));
+    const double v_port = ED_tail_port(*v_edge).p.x;
+    for (edge_t **w_edge = ND_in(w).list; *w_edge; w_edge++) {
+      const int w_penalty = mincross_penalty(*w_edge);
+      const int t = v_order - ND_order(agtail(*w_edge));
+      const int64_t penalty = (int64_t)v_penalty * w_penalty;
+      if (t > 0 || (t == 0 && v_port > ED_tail_port(*w_edge).p.x))
+        *vw += penalty;
+      else if (t < 0 || (t == 0 && v_port < ED_tail_port(*w_edge).p.x))
+        *wv += penalty;
     }
   }
-  return cross;
 }
-
-static int out_cross(node_t *v, node_t *w) {
-  edge_t **e1, **e2;
-  int inv, cross = 0, t;
-
-  for (e2 = ND_out(w).list; *e2; e2++) {
-    int cnt = ED_xpenalty(*e2);
-    inv = ND_order(aghead(*e2));
-
-    for (e1 = ND_out(v).list; *e1; e1++) {
-      t = ND_order(aghead(*e1)) - inv;
-      if (t > 0 || (t == 0 && ED_head_port(*e1).p.x > ED_head_port(*e2).p.x))
-        cross += ED_xpenalty(*e1) * cnt;
+static void out_cross_pair(node_t *v, node_t *w, int64_t *vw, int64_t *wv) {
+  *vw = *wv = 0;
+  for (edge_t **v_edge = ND_out(v).list; *v_edge; v_edge++) {
+    const int v_penalty = mincross_penalty(*v_edge);
+    const int v_order = ND_order(aghead(*v_edge));
+    const double v_port = ED_head_port(*v_edge).p.x;
+    for (edge_t **w_edge = ND_out(w).list; *w_edge; w_edge++) {
+      const int w_penalty = mincross_penalty(*w_edge);
+      const int t = v_order - ND_order(aghead(*w_edge));
+      const int64_t penalty = (int64_t)v_penalty * w_penalty;
+      if (t > 0 || (t == 0 && v_port > ED_head_port(*w_edge).p.x))
+        *vw += penalty;
+      else if (t < 0 || (t == 0 && v_port < ED_head_port(*w_edge).p.x))
+        *wv += penalty;
     }
   }
-  return cross;
 }
 
 static void exchange(node_t *v, node_t *w) {
@@ -635,7 +635,6 @@ static void exchange(node_t *v, node_t *w) {
 static int64_t transpose_step(graph_t *g, int r, bool reverse) {
   int i;
   node_t *v, *w;
-
   int64_t rv = 0;
   GD_rank(g)[r].candidate = false;
   for (i = 0; i < GD_rank(g)[r].n - 1; i++) {
@@ -644,15 +643,18 @@ static int64_t transpose_step(graph_t *g, int r, bool reverse) {
     assert(ND_order(v) < ND_order(w));
     if (left2right(g, v, w))
       continue;
-    int64_t c0 = 0;
-    int64_t c1 = 0;
+    int64_t c0 = 0, c1 = 0;
     if (r > 0) {
-      c0 += in_cross(v, w);
-      c1 += in_cross(w, v);
+      int64_t vw = 0, wv = 0;
+      in_cross_pair(v, w, &vw, &wv);
+      c0 += vw;
+      c1 += wv;
     }
     if (GD_rank(g)[r + 1].n > 0) {
-      c0 += out_cross(v, w);
-      c1 += out_cross(w, v);
+      int64_t vw = 0, wv = 0;
+      out_cross_pair(v, w, &vw, &wv);
+      c0 += vw;
+      c1 += wv;
     }
     if (c1 < c0 || (c0 > 0 && reverse && c1 == c0)) {
       exchange(v, w);
@@ -868,18 +870,6 @@ static void cleanup2(graph_t *g, int64_t nc, bool has_vlists) {
             agnameof(g), nc, elapsed_sec());
 }
 
-static node_t *neighbor(node_t *v, int dir) {
-  node_t *rv = NULL;
-  assert(v);
-  if (dir < 0) {
-    if (ND_order(v) > 0)
-      rv = GD_rank(Root)[ND_rank(v)].v[ND_order(v) - 1];
-  } else
-    rv = GD_rank(Root)[ND_rank(v)].v[ND_order(v) + 1];
-  assert(rv == 0 || (ND_order(rv) - ND_order(v)) * dir > 0);
-  return rv;
-}
-
 static bool is_a_normal_node_of(graph_t *g, node_t *v) {
   return ND_node_type(v) == NORMAL && agcontains(g, v);
 }
@@ -897,17 +887,6 @@ static bool is_a_vnode_of_an_edge_of(graph_t *g, node_t *v) {
 
 static bool inside_cluster(graph_t *g, node_t *v) {
   return is_a_normal_node_of(g, v) || is_a_vnode_of_an_edge_of(g, v);
-}
-
-static node_t *furthestnode(graph_t *g, node_t *v, int dir) {
-  node_t *rv = v;
-  for (node_t *u = v; (u = neighbor(u, dir));) {
-    if (is_a_normal_node_of(g, u))
-      rv = u;
-    else if (is_a_vnode_of_an_edge_of(g, u))
-      rv = u;
-  }
-  return rv;
 }
 
 void save_vlist(graph_t *g) {
@@ -934,15 +913,27 @@ void rec_reset_vlists(graph_t *g) {
 
   if (GD_rankleader(g))
     for (int r = GD_minrank(g); r <= GD_maxrank(g); r++) {
-      node_t *const v = GD_rankleader(g)[r];
-      if (v == NULL) {
+      node_t *u = NULL;
+      node_t *w = NULL;
+      // Rankleaders may have been removed; rebuild the bounds from live nodes.
+      for (int i = 0; i < GD_rank(dot_root(g))[r].n; i++) {
+        node_t *const v = GD_rank(dot_root(g))[r].v[i];
+        if (!inside_cluster(g, v)) {
+          continue;
+        }
+        if (u == NULL) {
+          u = v;
+        }
+        w = v;
+      }
+      if (u == NULL) {
+        // Cluster ranks should not go empty here; if they do, drop the stale
+        // pre-removal slice instead of preserving it.
+        GD_rankleader(g)[r] = NULL;
+        GD_rank(g)[r].v = GD_rank(dot_root(g))[r].v + GD_rank(dot_root(g))[r].n;
+        GD_rank(g)[r].n = 0;
         continue;
       }
-#ifdef DEBUG
-      node_in_root_vlist(v);
-#endif
-      node_t *const u = furthestnode(g, v, -1);
-      node_t *const w = furthestnode(g, v, 1);
       GD_rankleader(g)[r] = u;
 #ifdef DEBUG
       assert(GD_rank(dot_root(g))[r].v[ND_order(u)] == u);
@@ -1022,7 +1013,7 @@ static void init_mincross(graph_t *g) {
   mincross_options(g);
   if (GD_flags(g) & NEW_RANK)
     fillRanks(g);
-  class2(g);
+  build_edge_chains(g);
   decompose(g, 1);
   allocate_ranks(g);
   ordered_edges(g);
@@ -1201,6 +1192,7 @@ int build_ranks(graph_t *g, int pass) {
   node_t *n, *ns;
   edge_t **otheredges;
   node_queue_t q = {0};
+
   for (n = GD_nlist(g); n; n = ND_next(n))
     MARK(n) = false;
 
@@ -1218,6 +1210,9 @@ int build_ranks(graph_t *g, int pass) {
 
   for (i = GD_minrank(g); i <= GD_maxrank(g); i++)
     GD_rank(g)[i].n = 0;
+
+  if (GD_nlist(g) == NULL)
+    return 0;
 
   const bool walkbackwards = g != agroot(g); // if this is a cluster, need to
                                              // walk GD_nlist backward to
@@ -1488,14 +1483,14 @@ static int local_cross(elist l, int dir) {
         if ((ND_order(aghead(f)) - ND_order(aghead(e))) *
                 (ED_tail_port(f).p.x - ED_tail_port(e).p.x) <
             0)
-          cross += ED_xpenalty(e) * ED_xpenalty(f);
+          cross += mincross_penalty(e) * mincross_penalty(f);
       }
     else
       for (j = i + 1; (f = l.list[j]); j++) {
         if ((ND_order(agtail(f)) - ND_order(agtail(e))) *
                 (ED_head_port(f).p.x - ED_head_port(e).p.x) <
             0)
-          cross += ED_xpenalty(e) * ED_xpenalty(f);
+          cross += mincross_penalty(e) * mincross_penalty(f);
       }
   }
   return cross;
@@ -1516,14 +1511,14 @@ static int64_t rcross(graph_t *g, int r) {
     if (max > 0) {
       for (i = 0; (e = ND_out(rtop[top]).list[i]); i++) {
         for (k = ND_order(aghead(e)) + 1; k <= max; k++)
-          cross += Count[k] * ED_xpenalty(e);
+          cross += Count[k] * mincross_penalty(e);
       }
     }
     for (i = 0; (e = ND_out(rtop[top]).list[i]); i++) {
       int inv = ND_order(aghead(e));
       if (inv > max)
         max = inv;
-      Count[inv] += ED_xpenalty(e);
+      Count[inv] += mincross_penalty(e);
     }
   }
   for (top = 0; top < GD_rank(g)[r].n; top++) {
@@ -1719,14 +1714,8 @@ void virtual_weight(edge_t *e) {
   int t;
   t = table[endpoint_class(agtail(e))][endpoint_class(aghead(e))];
 
-  /* check whether the upcoming computation will overflow */
   assert(t >= 0);
-  if (INT_MAX / t < ED_weight(e)) {
-    agerrorf("overflow when calculating virtual weight of edge\n");
-    graphviz_exit(EXIT_FAILURE);
-  }
-
-  ED_weight(e) *= t;
+  dot_bundle_load_set_position_scale(e, (uint64_t)t);
 }
 
 #ifdef DEBUG

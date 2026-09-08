@@ -18,6 +18,13 @@ from pexpect.popen_spawn import PopenSpawn
 ROOT = Path(__file__).resolve().parent.parent
 """absolute path to the root of the repository"""
 
+BUILT_DOT_DIR = ROOT / "build" / "cmd" / "dot"
+BUILT_DOT = BUILT_DOT_DIR / "dot_builtins"
+if not BUILT_DOT.exists():
+    BUILT_DOT = BUILT_DOT_DIR / "dot"
+if BUILT_DOT.exists():
+    os.environ["PATH"] = f"{BUILT_DOT_DIR}{os.pathsep}{os.environ['PATH']}"
+
 
 def pexpect_spawn_tclsh(
     env: collections.abc.Mapping, timeout: Optional[int]
@@ -72,6 +79,9 @@ def run_raw(*args: Union[Path, str], **kwargs) -> Optional[Union[bytes, str]]:
     Return:
         The command’s stdout output.
     """
+
+    if args and args[0] == "dot" and BUILT_DOT.exists():
+        args = (BUILT_DOT, *args[1:])
 
     # dump the command being run for the user to observe if the test fails
     print(f"+ {shlex.join(str(x) for x in args)}", flush=True)
@@ -261,7 +271,7 @@ def dot(
         kwargs["encoding"] = "utf-8"
         kwargs["text"] = True
 
-    args = ["dot", f"-T{T}"]
+    args = [which("dot") or "dot", f"-T{T}"]
 
     if source_file is not None:
         args += [source_file]
@@ -551,6 +561,11 @@ def which(cmd: str) -> Optional[Path]:
     testing, as this older `mingle` will then load shared libraries from the
     installation you just created, most likely crashing.
     """
+
+    if cmd == "dot" and BUILT_DOT.exists():
+        return BUILT_DOT
+    if cmd == "neato" and BUILT_DOT.name == "dot_builtins":
+        return None
 
     # try a straightforward lookup of the command
     abs_cmd = shutil.which(cmd)
