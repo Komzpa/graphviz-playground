@@ -9800,6 +9800,98 @@ def test_concentrate_issue_2765_public_repro_renders_edge_splines():
     _assert_public_concentrate_crash_repro_renders(2765)
 
 
+def test_concentrate_same_rank_reverse_edges():
+    """
+    `concentrate=true` should only concentrate equivalent same-rank edges.
+    https://gitlab.com/graphviz/graphviz/-/issues/150
+    """
+
+    def json_layout(source: str) -> dict:
+        return json.loads(dot("json", source=source))
+
+    same_rank_source = """
+        strict digraph {
+          concentrate=true
+          subgraph foo {
+            rank=same
+            a
+            b
+          }
+          a -> b
+          b -> a
+        }
+    """
+
+    def rank_positions(layout: dict) -> dict[str, tuple[float, float]]:
+        return {
+            node["name"]: tuple(float(coord) for coord in node["pos"].split(","))
+            for node in layout["objects"]
+            if node.get("name") in {"a", "b", "c"}
+        }
+
+    def drawn_edges(layout: dict) -> list[dict]:
+        return [edge for edge in layout["edges"] if "_draw_" in edge]
+
+    def drawn_colors(layout: dict) -> list[str]:
+        return [
+            operation["color"]
+            for edge in layout["edges"]
+            for operation in edge.get("_draw_", ())
+            if operation["op"] == "c"
+        ]
+
+    layout = json_layout(same_rank_source)
+    assert math.isclose(
+        rank_positions(layout)["a"][1],
+        rank_positions(layout)["b"][1],
+        rel_tol=0,
+        abs_tol=0,
+    ), "same-rank nodes were not placed on the same Y coordinate"
+    drawn = drawn_edges(layout)
+    assert len(drawn) == 1, "same-rank reverse edges were not concentrated"
+
+    disabled = same_rank_source.replace("concentrate=true", "concentrate=false")
+    disabled_layout = json_layout(disabled)
+    assert len(drawn_edges(disabled_layout)) == 2, "concentrate=false changed edge drawing"
+
+    distinct = same_rank_source.replace("a -> b", "a -> b [color=red]").replace(
+        "b -> a", "b -> a [color=blue]"
+    )
+    distinct_layout = json_layout(distinct)
+    assert len(drawn_edges(distinct_layout)) == 2, "distinct reverse edges were concentrated"
+    assert set(drawn_colors(distinct_layout)) == {
+        "#ff0000",
+        "#0000ff",
+    }
+
+    # dot_concentrate() takes its early path for rank spans of zero and one.
+    # `c -> a` makes the span one while `a` and `b` remain in the same rank.
+    rank_span_one = """
+        strict digraph {
+          concentrate=true
+          subgraph foo {
+            rank=same
+            a
+            b
+          }
+          c -> a [color="#00aa00"]
+          a -> b [color=red]
+          b -> a [color=red]
+        }
+    """
+    layout = json.loads(dot("json", source=rank_span_one))
+    positions = {
+        node["name"]: node["pos"].rsplit(",", 1)[1]
+        for node in layout["objects"]
+        if node["name"] in {"a", "b", "c"}
+    }
+    assert positions["a"] == positions["b"]
+    assert positions["a"] != positions["c"], "expected exactly two rank layers"
+    colors = drawn_colors(layout)
+    assert colors.count("#ff0000") == 1, "rank-span-1 reverse edges were not concentrated"
+    assert colors.count("#00aa00") == 1
+
+
 @pytest.mark.skipif(which("fdp") is None, reason="fdp not available")
 def test_2563():
     """

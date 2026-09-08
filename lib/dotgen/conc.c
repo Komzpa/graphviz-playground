@@ -364,23 +364,23 @@ static bool edges_run_in_opposite_directions(edge_t *first_edge,
          agtail(first_edge) != aghead(first_edge);
 }
 
+static edge_t *flat_edge_original(edge_t *edge) {
+  while (edge != NULL && ED_edge_type(edge) != NORMAL)
+    edge = ED_to_orig(edge);
+  return edge;
+}
+
 static bool flat_edges_are_equivalent(edge_t *edge,
                                       edge_t *representative_edge) {
-  if (representative_edge == NULL) {
-    return false;
-  }
-  if (ED_edge_type(edge) != NORMAL ||
-      ED_edge_type(representative_edge) != NORMAL) {
-    /*
-     * flat_breakcycles() can represent a same-rank cycle by a manually
-     * allocated REVERSED edge. That route artifact is not a Cgraph edge, so it
-     * must not be used for agxget()/agbindrec()-based semantic comparison or
-     * as the retained original edge for arrow recovery.
-     */
+  edge_t *const original_edge = flat_edge_original(edge);
+  edge_t *const original_representative =
+      flat_edge_original(representative_edge);
+  if (original_edge == NULL || original_representative == NULL) {
     return false;
   }
 
-  const bool edge_is_flat = ND_rank(agtail(edge)) == ND_rank(aghead(edge));
+  const bool edge_is_flat = ND_rank(agtail(original_edge)) ==
+                            ND_rank(aghead(original_edge));
   if (!edge_is_flat) {
     return false;
   }
@@ -390,31 +390,39 @@ static bool flat_edges_are_equivalent(edge_t *edge,
    * tooltips remain in the attribute comparison below so reverse edges can
    * concentrate only when they match at the same physical endpoint.
    */
-  if (ED_label(edge) != NULL || ED_label(representative_edge) != NULL ||
-      ED_xlabel(edge) != NULL || ED_xlabel(representative_edge) != NULL) {
+  if (ED_label(original_edge) != NULL ||
+      ED_label(original_representative) != NULL ||
+      ED_xlabel(original_edge) != NULL ||
+      ED_xlabel(original_representative) != NULL) {
     return false;
   }
 
-  const bool same_direction = agtail(edge) == agtail(representative_edge) &&
-                              aghead(edge) == aghead(representative_edge);
+  const bool same_direction =
+      agtail(original_edge) == agtail(original_representative) &&
+      aghead(original_edge) == aghead(original_representative);
   if (same_direction) {
-    return ports_eq(edge, representative_edge) &&
-           gv_edge_attributes_are_equal(edge, representative_edge) &&
+    return ports_eq(original_edge, original_representative) &&
+           gv_edge_attributes_are_equal(original_edge, original_representative) &&
            same_direction_edge_arrow_decorations_are_mergeable(
-               representative_edge, edge);
+               original_representative, original_edge);
   }
 
-  return edges_run_in_opposite_directions(edge, representative_edge) &&
-         gv_opposite_edge_ports_are_equal(edge, representative_edge) &&
-         gv_opposite_edge_attributes_are_equal(edge, representative_edge) &&
+  return edges_run_in_opposite_directions(original_edge,
+                                          original_representative) &&
+         gv_opposite_edge_ports_are_equal(original_edge,
+                                          original_representative) &&
+         gv_opposite_edge_attributes_are_equal(original_edge,
+                                               original_representative) &&
          opposite_direction_edge_arrow_decorations_are_mergeable(
-             representative_edge, edge);
+             original_representative, original_edge);
 }
 
 typedef struct {
   graph_t *graph;
   edge_t *edge;
   edge_t *representative;
+  edge_t *original_edge;
+  edge_t *original_representative;
   int rank;
   int left_position;
   int right_position;
@@ -454,16 +462,18 @@ execute_concentration_candidate(const gv_concentration_candidate_t *candidate,
 
   switch (candidate->action) {
   case GV_CONCENTRATION_SUPPRESS_FLAT: {
-    gv_concentration_transaction_record_arrow(handle, payload->representative);
+    gv_concentration_transaction_record_arrow(handle,
+                                              payload->original_representative);
     const bool opposite_direction = edges_run_in_opposite_directions(
-        payload->edge, payload->representative);
-    fold_concentrated_edge_arrow_decorations(payload->representative,
-                                             payload->edge, opposite_direction);
+        payload->original_edge, payload->original_representative);
+    fold_concentrated_edge_arrow_decorations(payload->original_representative,
+                                             payload->original_edge,
+                                             opposite_direction);
     if (opposite_direction) {
       gv_concentration_transaction_record(
-          handle, &ED_conc_opp_flag(payload->representative),
-          sizeof(ED_conc_opp_flag(payload->representative)));
-      ED_conc_opp_flag(payload->representative) = true;
+          handle, &ED_conc_opp_flag(payload->original_representative),
+          sizeof(ED_conc_opp_flag(payload->original_representative)));
+      ED_conc_opp_flag(payload->original_representative) = true;
     }
     gv_concentration_transaction_record_elist(handle,
                                               &ND_other(agtail(payload->edge)));
@@ -502,6 +512,8 @@ generate_flat_candidate(gv_concentration_plan_context_t *context,
       .graph = graph,
       .edge = edge,
       .representative = representative,
+      .original_edge = flat_edge_original(edge),
+      .original_representative = flat_edge_original(representative),
   };
   gv_concentration_candidate_set_init(
       context, set, "concentrate-flat", GV_CONCENTRATION_SUPPRESS_FLAT,
