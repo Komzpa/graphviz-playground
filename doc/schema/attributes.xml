@@ -579,7 +579,10 @@
 		<xsd:annotation>
 			<xsd:documentation>
 				<html:p>
-					If <html:span class="val">true</html:span>, use edge concentrators.
+					If <html:span class="val">true</html:span>, use edge concentrators. For eligible incoming and outgoing edge fans, dot may insert point junction nodes before ranking so the edges share one trunk.
+				</html:p>
+				<html:p>
+					Because these junction nodes participate in ranking, <html:span class="val">concentrate=true</html:span> can change node ranks and therefore the drawing, even for graphs that already used this attribute.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>

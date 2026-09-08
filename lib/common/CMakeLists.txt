@@ -41,6 +41,7 @@ add_library(common_obj OBJECT
   attrname.c
   colxlate.c
   concentrate_plan.c
+  concentrate_junction.c
   edgeattr.c
   ellipse.c
   emit.c

@@ -26,6 +26,7 @@
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
+#include <common/concentrate_junction.h>
 #include <common/geomprocs.h>
 #include <common/render.h>
 #include <common/htmltable.h>
@@ -1802,7 +1803,7 @@ static void emit_node(GVJ_t * job, node_t * n)
     char **styles = NULL;
     char **sp;
     char *p;
-
+    if (concentrate_junction_skip_node(n)) return;
     if (ND_shape(n) 				     /* node has a shape */
 	    && node_in_layer(job, agraphof(n), n)    /* and is in layer */
 	    && node_in_box(n, job->clip)             /* and is in page/view */
@@ -2371,7 +2372,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
     char* p;
     bool tapered = false;
     agxbuf buf = {0};
-
+    size_t emit_splines = concentrate_junction_draw_spline_count(e);
 #define SEP 2.0
 
     if (ED_spl(e)) {
@@ -2466,7 +2467,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 	/* if more than one color - then generate parallel Béziers, one per color */
 	else if (numc) {
 	    /* calculate and save offset vector spline and initialize first offset spline */
-	    tmpspl.size = offspl.size = ED_spl(e)->size;
+	    tmpspl.size = offspl.size = emit_splines;
 	    offspl.list = gv_calloc(offspl.size, sizeof(bezier));
 	    tmpspl.list = gv_calloc(tmpspl.size, sizeof(bezier));
 	    numc2 = (2 + (double)numc) / 2.0;
@@ -2577,7 +2578,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 			gvrender_set_fillcolor(job, DEFAULT_COLOR);
 	        }
 	    }
-	    for (size_t i = 0; i < ED_spl(e)->size; i++) {
+	    for (size_t i = 0; i < emit_splines; i++) {
 		bz = ED_spl(e)->list[i];
 
 		/* Check if this edge has orthogonal routing and wants rounded corners */
@@ -2709,10 +2710,10 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1],
 		              end_arrowsize, penwidth, bz.eflag);
 		}
-		if (ED_spl(e)->size > 1 && (bz.sflag || bz.eflag) && styles)
+		if (emit_splines > 1 && (bz.sflag || bz.eflag) && styles)
 		    gvrender_set_style(job, styles);
 		}
-	}
+	    }
     }
 
 done:
@@ -3042,8 +3043,7 @@ static void emit_end_edge(GVJ_t * job)
 	nodeIntersect(job, p, obj->explicit_headurl != 0, obj->headurl,
 	              obj->explicit_headtooltip != 0);
     }
-
-    emit_edge_label(job, ED_label(e), EMIT_ELABEL,
+    emit_edge_label(job, concentrate_junction_label(e), EMIT_ELABEL,
 	obj->explicit_labeltooltip, 
 	obj->labelurl, obj->labeltooltip, obj->labeltarget, obj->id, 
 	((mapbool(late_string(e, E_decorate, "false")) && ED_spl(e)) ? ED_spl(e) : 0));
@@ -3059,7 +3059,6 @@ static void emit_end_edge(GVJ_t * job)
 	obj->explicit_tailtooltip,
 	obj->tailurl, obj->tailtooltip, obj->tailtarget, obj->id,
 	0);
-
     gvrender_end_edge(job);
     pop_obj_state(job);
 }
@@ -3071,7 +3070,7 @@ static void emit_edge(GVJ_t * job, edge_t * e)
     char **styles = NULL;
     char **sp;
     char *p;
-
+    if (concentrate_junction_skip_edge(e)) return;
     if (edge_in_box(e, job->clip) && edge_in_layer(job, e) ) {
 
 	agxbuf edge = {0};
