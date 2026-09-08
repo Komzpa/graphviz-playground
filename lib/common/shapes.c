@@ -2215,8 +2215,19 @@ static void poly_init(node_t * n)
 	if (ND_shape(n)->polygon->vertices) {
 	    poly_desc_t* pd = (poly_desc_t*)ND_shape(n)->polygon->vertices;
 	    pd->vertex_gen (vertices, &bb);
-	    xmax = bb.x/2;
-	    ymax = bb.y/2;
+	    xmax = ymax = 0;
+	    for (size_t i = 0; i < sides; i++) {
+		pointf P = vertices[i];
+		alpha = RADIANS(orientation) + atan2(P.y, P.x);
+		sinx = sin(alpha);
+		cosx = cos(alpha);
+		P.x = P.y = hypot(P.x, P.y);
+		P.x *= cosx;
+		P.y *= sinx;
+		xmax = fmax(fabs(P.x), xmax);
+		ymax = fmax(fabs(P.y), ymax);
+		vertices[i] = P;
+	    }
 	} else {
 	    double angle, sectorangle, sidelength, skewdist, gdistortion, gskew;
 	    sectorangle = 2. * M_PI / (double)sides;
@@ -4198,20 +4209,20 @@ static void cylinder_vertices (pointf* vertices, pointf* bb)
 
 static void cylinder_draw(GVJ_t *job, pointf *AF, size_t sides, int filled) {
     pointf vertices[7];
-    double y0 = AF[0].y;
-    double y02 = y0+y0;
+    const pointf A = AF[0];
+    const pointf B = AF[6];
+    const pointf AB = {.x = B.x - A.x, .y = B.y - A.y};
+    const double len2 = AB.x * AB.x + AB.y * AB.y;
+    assert(len2 > 0);
 
     vertices[0] = AF[0];
-    vertices[1].x = AF[1].x;
-    vertices[1].y = y02 - AF[1].y;
-    vertices[2].x = AF[2].x;
-    vertices[2].y = y02 - AF[2].y;
-    vertices[3].x = AF[3].x;
-    vertices[3].y = y02 - AF[3].y;
-    vertices[4].x = AF[4].x;
-    vertices[4].y = y02 - AF[4].y;
-    vertices[5].x = AF[5].x;
-    vertices[5].y = y02 - AF[5].y;
+    for (size_t i = 1; i < 6; i++) {
+	pointf AP = {.x = AF[i].x - A.x, .y = AF[i].y - A.y};
+	const double t = (AP.x * AB.x + AP.y * AB.y) / len2;
+	pointf projection = {.x = A.x + t * AB.x, .y = A.y + t * AB.y};
+	vertices[i].x = 2 * projection.x - AF[i].x;
+	vertices[i].y = 2 * projection.y - AF[i].y;
+    }
     vertices[6] = AF[6];
 
     gvrender_beziercurve(job, AF, sides, filled);
