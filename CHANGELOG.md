@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The cmap/cmapx renderers once again emit image-map areas for edge `headURL`
+  and `tailURL` attributes. #1090
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
