@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Cluster margins specified as points now apply the x and y components
+  independently instead of using the x component for both axes. #1964
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
