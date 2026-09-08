@@ -294,6 +294,7 @@
 			<xsd:enumeration value="polygon" />
 			<xsd:enumeration value="ellipse" />
 			<xsd:enumeration value="circle" />
+			<xsd:enumeration value="donut" />
 			<xsd:enumeration value="point" />
 			<xsd:enumeration value="egg" />
 			<xsd:enumeration value="triangle" />

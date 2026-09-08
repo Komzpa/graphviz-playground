@@ -13,6 +13,12 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+
+### Added
+
+- A `donut` node shape is now available for rendering annular nodes such as
+  wedged donut charts. #1313
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
