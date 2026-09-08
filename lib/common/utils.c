@@ -68,6 +68,54 @@ double late_double(void *obj, attrsym_t *attr, double defaultValue,
     return rv;
 }
 
+static bool unit_equals(const char *unit, size_t unit_len, const char *expected) {
+    return unit_len == strlen(expected) &&
+           strncasecmp(unit, expected, unit_len) == 0;
+}
+
+double explicit_units_to_inches(double value, const char *unit,
+                                const char *unit_end) {
+  while (unit < unit_end && gv_isspace(*unit))
+    ++unit;
+
+  while (unit_end > unit && gv_isspace(unit_end[-1]))
+    --unit_end;
+  size_t unit_len = (size_t)(unit_end - unit);
+
+  if (unit_len == 0)
+    return value;
+  if (unit_equals(unit, unit_len, "i") || unit_equals(unit, unit_len, "in"))
+    return value;
+  if (unit_equals(unit, unit_len, "pt"))
+    return value / POINTS_PER_INCH;
+  if (unit_equals(unit, unit_len, "px"))
+    return value / 96.0;
+  if (unit_equals(unit, unit_len, "cm"))
+    return value / 2.54;
+  if (unit_equals(unit, unit_len, "mm"))
+    return value / 25.4;
+
+  // Preserve historical strtod-like behavior for unknown suffixes.
+  return value;
+}
+
+double late_inch(void *obj, attrsym_t *attr, double defaultValue,
+                 double minimum) {
+    if (!attr || !obj)
+        return defaultValue;
+    char *p = agxget(obj, attr);
+    if (!p || p[0] == '\0')
+        return defaultValue;
+    char *endp;
+    double rv = strtod(p, &endp);
+    if (p == endp)
+        return defaultValue; /* invalid double format */
+    rv = explicit_units_to_inches(rv, endp, endp + strlen(endp));
+    if (rv < minimum)
+        return minimum;
+    return rv;
+}
+
 /** Return value for PSinputscale. If this is > 0, it has been set on the
  * command line and this value is used.
  * Otherwise, we check the graph's inputscale attribute. If this is not set
@@ -428,10 +476,8 @@ void common_init_node(node_t * n)
 {
     struct fontinfo fi;
     char *str;
-    ND_width(n) =
-	late_double(n, N_width, DEFAULT_NODEWIDTH, MIN_NODEWIDTH);
-    ND_height(n) =
-	late_double(n, N_height, DEFAULT_NODEHEIGHT, MIN_NODEHEIGHT);
+    ND_width(n) = late_inch(n, N_width, DEFAULT_NODEWIDTH, MIN_NODEWIDTH);
+    ND_height(n) = late_inch(n, N_height, DEFAULT_NODEHEIGHT, MIN_NODEHEIGHT);
     ND_shape(n) =
 	bind_shape(late_nnstring(n, N_shape, DEFAULT_NODESHAPE), n);
     str = agxget(n, N_label);

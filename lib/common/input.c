@@ -14,9 +14,9 @@
 
 #include <common/render.h>
 #include <common/htmltable.h>
+#include <common/utils.h>
 #include <errno.h>
 #include <gvc/gvc.h>
-#include <xdot/xdot.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -30,6 +30,7 @@
 #include <util/startswith.h>
 #include <util/strcasecmp.h>
 #include <util/streq.h>
+#include <xdot/xdot.h>
 
 static char *usageFmt =
     "Usage: %s [-Vv?] [-(GNEA)name=val] [-(KTlso)<val>] <dot files>\n";
@@ -469,35 +470,58 @@ int dotneato_args_initialize(GVC_t * gvc, int argc, char **argv)
     return 0;
 }
 
+static bool parse_dimension(const char **cursor, double *result) {
+  const char *p = *cursor;
+  while (gv_isspace(*p))
+    ++p;
+
+  char *endp = NULL;
+  double value = strtod(p, &endp);
+  if (p == endp)
+    return false;
+
+  const char *unit_end = endp;
+  while (*unit_end != '\0' && *unit_end != ',' && *unit_end != '!')
+    ++unit_end;
+
+  *result = explicit_units_to_inches(value, endp, unit_end);
+  *cursor = unit_end;
+  return true;
+}
+
 /* converts a graph attribute in inches to a pointf in points.
  * If only one number is given, it is used for both x and y.
  * Returns true if the attribute ends in '!'.
  */
 static bool getdoubles2ptf(graph_t *g, char *name, pointf *result) {
-    char *p;
-    int i;
-    double xf, yf;
-    char c = '\0';
-    bool rv = false;
+  char *p;
+  double xf, yf;
+  bool rv = false;
 
-    if ((p = agget(g, name))) {
-	i = sscanf(p, "%lf,%lf%c", &xf, &yf, &c);
-	if (i > 1 && xf > 0 && yf > 0) {
-	    result->x = POINTS(xf);
-	    result->y = POINTS(yf);
-	    if (c == '!')
-		rv = true;
-	}
-	else {
-	    c = '\0';
-	    i = sscanf(p, "%lf%c", &xf, &c);
-	    if (i > 0 && xf > 0) {
-		result->y = result->x = POINTS(xf);
-		if (c == '!') rv = true;
-	    }
-	}
+  if ((p = agget(g, name))) {
+    const char *cursor = p;
+    if (!parse_dimension(&cursor, &xf) || xf <= 0)
+      return false;
+
+    while (gv_isspace(*cursor))
+      ++cursor;
+    if (*cursor == ',') {
+      ++cursor;
+      if (!parse_dimension(&cursor, &yf) || yf <= 0)
+        return false;
+    } else {
+      yf = xf;
     }
-    return rv;
+
+    result->x = POINTS(xf);
+    result->y = POINTS(yf);
+
+    while (gv_isspace(*cursor))
+      ++cursor;
+    if (*cursor == '!')
+      rv = true;
+  }
+  return rv;
 }
 
 void getdouble(graph_t * g, char *name, double *result)

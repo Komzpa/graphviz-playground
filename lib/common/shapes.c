@@ -1900,8 +1900,8 @@ void round_corners(GVJ_t *job, pointf *AF, size_t sides,
 static double userSize(node_t * n)
 {
     double w, h;
-    w = late_double(n, N_width, 0.0, MIN_NODEWIDTH);
-    h = late_double(n, N_height, 0.0, MIN_NODEHEIGHT);
+    w = late_inch(n, N_width, 0.0, MIN_NODEWIDTH);
+    h = late_inch(n, N_height, 0.0, MIN_NODEHEIGHT);
     return INCH2PS(fmax(w, h));
 }
 
@@ -3114,8 +3114,8 @@ static void point_init(node_t * n)
      * if both are set, use smallest.
      * if neither, use default
      */
-    w = late_double(n, N_width, DBL_MAX, MIN_NODEWIDTH);
-    h = late_double(n, N_height, DBL_MAX, MIN_NODEHEIGHT);
+    w = late_inch(n, N_width, DBL_MAX, MIN_NODEWIDTH);
+    h = late_inch(n, N_height, DBL_MAX, MIN_NODEHEIGHT);
     w = fmin(w, h);
     if (is_exactly_equal(w, DBL_MAX) &&
         is_exactly_equal(h, DBL_MAX)) // neither defined
