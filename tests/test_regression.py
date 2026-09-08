@@ -3780,6 +3780,69 @@ def test_2300_1():
     run_raw(gxl2gv, input)
 
 
+def test_2305():
+    """
+    box3d labels should be centered in the front face
+    https://gitlab.com/graphviz/graphviz/-/issues/2305
+    """
+
+    svg = dot(
+        "svg",
+        source='''\
+digraph G {
+  box3d [label=<<B>ENG-16962</B><BR/>Add FooBar beta feature flag>,
+         shape=box3d style=filled fillcolor=white color=""]
+  box [label=<<B>ENG-16962</B><BR/>Add FooBar beta feature flag>,
+       shape=box style=filled fillcolor=white color=""]
+}
+''',
+    )
+    root = ET.fromstring(svg)
+
+    def node(name: str) -> ET.Element:
+        found = root.find(
+            f".//{{http://www.w3.org/2000/svg}}title[.='{name}']/.."
+        )
+        assert found is not None, f"could not find {name}"
+        return found
+
+    def polygon_points(node: ET.Element) -> list[tuple[float, float]]:
+        polygon = node.find("{http://www.w3.org/2000/svg}polygon")
+        assert polygon is not None, "could not find node polygon"
+        return [
+            tuple(float(coord) for coord in point.split(","))
+            for point in polygon.get("points").split()
+        ]
+
+    def first_text_position(node: ET.Element) -> tuple[float, float]:
+        text = node.find("{http://www.w3.org/2000/svg}text")
+        assert text is not None, "could not find node text"
+        return float(text.get("x")), float(text.get("y"))
+
+    box_points = polygon_points(node("box"))
+    box_left = min(x for x, _ in box_points)
+    box_right = max(x for x, _ in box_points)
+    box_top = min(y for _, y in box_points)
+    box_bottom = max(y for _, y in box_points)
+    box_text_x, box_text_y = first_text_position(node("box"))
+
+    box3d_points = polygon_points(node("box3d"))
+    assert len(box3d_points) == 7, "box3d should have a 3D outline"
+
+    # The front face of a box3d polygon is the rectangle from the lower-left
+    # corner through the front lower-right corner and front upper-left corner.
+    box3d_left = box3d_points[3][0]
+    box3d_right = box3d_points[4][0]
+    box3d_top = box3d_points[2][1]
+    box3d_bottom = box3d_points[3][1]
+    box3d_text_x, box3d_text_y = first_text_position(node("box3d"))
+
+    assert box3d_right - box3d_left == pytest.approx(box_right - box_left)
+    assert box3d_bottom - box3d_top == pytest.approx(box_bottom - box_top)
+    assert box3d_text_x - box3d_left == pytest.approx(box_text_x - box_left)
+    assert box3d_text_y - box3d_top == pytest.approx(box_text_y - box_top)
+
+
 def test_2307():
     """
     'id' attribute should be propagated to 'url' links in SVG output

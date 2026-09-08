@@ -28,6 +28,7 @@
 #include <util/unreachable.h>
 
 #define RBCONST 12
+#define BOX3D_DEPTH (RBCONST / 3.0)
 #define RBCURVE .5
 
 typedef struct {
@@ -2103,6 +2104,10 @@ static void poly_init(node_t * n)
     }
 
     /* at this point, bb is the minimum size of node that can hold the label */
+    if (ND_shape(n)->polygon->option.shape == BOX3D) {
+	bb.x += BOX3D_DEPTH;
+	bb.y += BOX3D_DEPTH;
+    }
     min_bb = bb;
 
     /* increase node size to width/height if needed */
@@ -2951,6 +2956,10 @@ static void poly_gencode(GVJ_t * job, node_t * n)
     ysize = ND_ht(n) / INCH2PS(ND_height(n));
 
     const graphviz_polygon_style_t style = stylenode(job, n);
+    if (style.shape == BOX3D) {
+	ND_label(n)->pos.x -= BOX3D_DEPTH / 2.;
+	ND_label(n)->pos.y -= BOX3D_DEPTH / 2.;
+    }
 
     char *clrs[2] = {0};
     if (ND_gui_state(n) & GUI_STATE_ACTIVE) {
