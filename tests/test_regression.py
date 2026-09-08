@@ -6327,6 +6327,29 @@ def test_2743():
     dot("dot", src)
 
 
+@pytest.mark.parametrize("issue", (2748, 2756))
+def test_2748_2756(issue: int):
+    """
+    Graphviz should not crash when processing labeled equivalent flat edges on
+    rank 0
+    https://gitlab.com/graphviz/graphviz/-/issues/2748
+    https://gitlab.com/graphviz/graphviz/-/issues/2756
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / f"{issue}.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz. These inputs still trip a routesplines failure,
+    # but should no longer crash while placing the flat edge label.
+    try:
+        dot("dot", src)
+    except subprocess.CalledProcessError as e:
+        # only fail if we crashed, not exited with failure
+        if e.returncode != 1:
+            raise
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",

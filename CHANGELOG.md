@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Placing labels on equivalent flat edges on rank 0 no longer crashes. #2748,
+  #2756
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
