@@ -896,6 +896,34 @@ def test_1425_1():
     assert re.search(r"\btable tip\b", svg) is not None, "tooltip not propagated to SVG"
 
 
+def test_1426():
+    """
+    HTML-like label rows with different font sizes should remain centered
+    https://gitlab.com/graphviz/graphviz/-/issues/1426
+    """
+
+    source = (
+        "digraph {"
+        "node [shape=box];"
+        'foo[label=<Text text<br/><font point-size="10">'
+        "longer text below longer text below longer text below"
+        "</font>>]"
+        "}"
+    )
+
+    output = dot("json", source=source)
+    graph = json.loads(output)
+    node = graph["objects"][0]
+    node_x = float(node["pos"].split(",")[0])
+    text_rows = [op for op in node["_ldraw_"] if op["op"] == "T"]
+    assert len(text_rows) == 2
+
+    for row in text_rows:
+        assert row["align"] == "l"
+        row_center = row["pt"][0] + row["width"] / 2
+        assert math.isclose(row_center, node_x, abs_tol=0.01)
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1435"
 )
