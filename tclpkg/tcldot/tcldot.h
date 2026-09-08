@@ -68,6 +68,7 @@ void setnodeattributes(Agraph_t *g, Agnode_t *n, char *argv[], Tcl_Size argc);
 extern size_t Tcldot_string_writer(GVJ_t *job, const char *s, size_t len);
 extern size_t Tcldot_channel_writer(GVJ_t *job, const char *s, size_t len);
 
+extern void tcldot_invalidate_layout(GVC_t *gvc, Agraph_t *g);
 extern void tcldot_layout(GVC_t *gvc, Agraph_t * g, const char *engine);
 
 /// duplicate the strings pointed to by `argv` as non-const strings

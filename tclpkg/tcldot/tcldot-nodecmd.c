@@ -25,6 +25,7 @@ static int nodecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
   Agedge_t *e;
   Agsym_t *a;
   gctx_t *gctx = (gctx_t *)clientData;
+  GVC_t *gvc = gctx->ictx->gvc;
 
   if (argc < 2) {
     Tcl_AppendResult(interp, "wrong # args: should be \"", argv[0],
@@ -58,12 +59,14 @@ static int nodecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
                        " are not in the same graph.", NULL);
       return TCL_ERROR;
     }
+    tcldot_invalidate_layout(gvc, g);
     e = agedge(g, n, head, NULL, 1);
     Tcl_AppendResult(interp, obj2cmd(e), NULL);
     setedgeattributes(agroot(g), e, &argv[3], (Tcl_Size)argc - 3);
     return TCL_OK;
 
   } else if (streq("delete", argv[1])) {
+    tcldot_invalidate_layout(gvc, g);
     deleteNode(gctx, g, n);
     return TCL_OK;
 
@@ -165,6 +168,7 @@ static int nodecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
         return TCL_ERROR;
       }
       char **argv2_copy = tcldot_argv_dup(argc2, argv2);
+      tcldot_invalidate_layout(gvc, g);
       setnodeattributes(g, n, argv2_copy, argc2);
       tcldot_argv_free(argc2, argv2_copy);
       Tcl_Free((char *)argv2);
@@ -176,6 +180,7 @@ static int nodecmd_internal(ClientData clientData, Tcl_Interp *interp, int argc,
                          NULL);
         return TCL_ERROR;
       }
+      tcldot_invalidate_layout(gvc, g);
       setnodeattributes(g, n, &argv[2], (Tcl_Size)argc - 2);
     }
     return TCL_OK;

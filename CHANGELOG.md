@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Tcldot now recomputes layouts after graph, node, edge, and default attribute
+  mutations instead of reusing stale layout state. #173
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

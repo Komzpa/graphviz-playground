@@ -3931,6 +3931,161 @@ def test_2368(testcase: str):
     dot("svg", input)
 
 
+def _prepare_tcldot_test(tmp_path: Path):
+    dot_exe = which("dot")
+    wish_exe = shutil.which("wish8.6") or shutil.which("wish")
+    assert dot_exe is not None, "`dot` not found"
+    assert wish_exe is not None, "`wish` not found"
+
+    # stage a disposable plugin registry like the original reproduction
+    source_plugin = _find_plugin_so("core")
+    assert source_plugin is not None, "core plugin library not found"
+    plugin_dir = tmp_path / "graphviz"
+    plugin_dir.mkdir()
+    for plugin in source_plugin.parent.glob("libgvplugin_*"):
+        if plugin.is_file():
+            shutil.copy2(plugin, plugin_dir / plugin.name)
+    for plugin in source_plugin.parent.parent.glob("*/libgvplugin_*"):
+        if plugin.is_file():
+            shutil.copy2(plugin, plugin_dir / plugin.name)
+
+    env = os.environ.copy()
+    for root in source_plugin.parents:
+        tcldot_pkg = root / "tclpkg" / "tcldot"
+        if (tcldot_pkg / "pkgIndex.tcl").exists():
+            tcllibpath = [str(tcldot_pkg)]
+            if "TCLLIBPATH" in env:
+                tcllibpath.append(env["TCLLIBPATH"])
+            env["TCLLIBPATH"] = " ".join(tcllibpath)
+            break
+
+    library_key = (
+        "DYLD_LIBRARY_PATH" if is_macos() else "PATH" if platform.system() == "Windows" else "LD_LIBRARY_PATH"
+    )
+    library_path = [str(plugin_dir), str(source_plugin.parent)]
+    existing_library_path = env.get(library_key)
+    if existing_library_path:
+        library_path.append(existing_library_path)
+    env[library_key] = os.pathsep.join(library_path)
+    env["GVBINDIR"] = str(plugin_dir)
+
+    # if this appears to be an ASan-enabled CI job, teach `wish` to load ASan’s
+    # supporting library because it is otherwise unaware that Tcldot depends on this
+    # being loaded first
+    if is_asan_instrumented(dot_exe):
+        cc = os.environ.get("CC", "gcc")
+        libasan = run(cc, "-print-file-name=libasan.so").strip()
+        print(f"setting LD_PRELOAD={libasan}")
+        env["LD_PRELOAD"] = libasan
+
+    config = subprocess.run(
+        [str(dot_exe), "-c"],
+        check=False,
+        cwd=tmp_path,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert config.returncode == 0, (
+        f"dot -c failed with {config.returncode}:\n"
+        f"stdout:\n{config.stdout}\n"
+        f"stderr:\n{config.stderr}"
+    )
+    assert (plugin_dir / "config8").exists(), "dot -c did not create config8"
+
+    return wish_exe, env
+
+
+@pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
+@pytest.mark.skipif(shutil.which("wish") is None, reason="wish not available")
+def test_173(tmp_path: Path):
+    """
+    Tcldot should recompute layout after a graph mutation
+    https://gitlab.com/graphviz/graphviz/-/issues/173
+    """
+
+    # locate the exact TCL script for this regression
+    prelude = Path(__file__).parent / "173.tcl"
+    assert prelude.exists(), "unexpectedly missing test collateral"
+
+    wish_exe, env = _prepare_tcldot_test(tmp_path)
+
+    runner = tmp_path / "run-173.tcl"
+    runner.write_text(f'source "{prelude}"\nexit\n', encoding="utf-8")
+
+    proc = subprocess.run(
+        [wish_exe, str(runner)],
+        check=False,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert proc.returncode == 0, (
+        f"wish exited with {proc.returncode}:\n"
+        f"stdout:\n{proc.stdout}\n"
+        f"stderr:\n{proc.stderr}"
+    )
+
+    one_layout = tmp_path / "one-layout.tcl"
+    one_layout.write_text(
+        textwrap.dedent(
+            """
+            package require Tcldot
+            wm title . "Fluid"
+            set w .g
+            set c [canvas $w -bd 0]
+            pack $c
+            set g [dotnew digraph rankdir LR]
+            $g addnode nx
+            $g layout
+            eval [$g render]
+            update
+            """
+        ).strip()
+        + "\nexit\n",
+        encoding="utf-8",
+    )
+    control = subprocess.run(
+        [wish_exe, str(one_layout)],
+        check=False,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert control.returncode == 0, (
+        f"one-layout control exited with {control.returncode}:\n"
+        f"stdout:\n{control.stdout}\n"
+        f"stderr:\n{control.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
+@pytest.mark.skipif(shutil.which("wish") is None, reason="wish not available")
+def test_173_default_attributes(tmp_path: Path):
+    """Graph-handle default attribute changes should recompute layout."""
+
+    prelude = Path(__file__).parent / "173-default-attributes.tcl"
+    assert prelude.exists(), "unexpectedly missing test collateral"
+
+    wish_exe, env = _prepare_tcldot_test(tmp_path)
+    proc = subprocess.run(
+        [wish_exe, str(prelude)],
+        check=False,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert proc.returncode == 0, (
+        f"wish exited with {proc.returncode}:\n"
+        f"stdout:\n{proc.stdout}\n"
+        f"stderr:\n{proc.stderr}"
+    )
+
+
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")
 def test_2370():
     """
@@ -5854,6 +6009,15 @@ def _find_plugin_so(plugin: str) -> Optional[Path]:
 
     # figure out the path to installed root based on binaries
     dot_bin = which("dot")
+
+    # CMake build-tree binaries live below build/cmd/dot, while plugins live
+    # below build/plugin/<name>. Check this layout before installed paths.
+    for root in dot_bin.parents:
+        candidate = root / "plugin" / plugin / f"libgvplugin_{plugin}.so"
+        print(f"checking {candidate}")  # log some useful information
+        if candidate.exists():
+            return candidate
+
     root = dot_bin.parents[1]
 
     # extract plugin version
