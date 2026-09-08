@@ -1850,6 +1850,40 @@ def test_1896():
         dot("xdot1.2", input)
 
 
+def test_1897():
+    """
+    clusters should not left-align a two-leaf subtree
+    https://gitlab.com/graphviz/graphviz/-/issues/1897
+    """
+
+    source = """
+        digraph G {
+            subgraph cluster_1 {
+                a;
+            }
+            subgraph cluster_2 {
+                b -> c1;
+                b -> c2;
+            }
+            a -> b;
+        }
+    """
+
+    graph = json.loads(dot("json", source=source))
+
+    x_positions = {}
+    for obj in graph["objects"]:
+        if obj.get("name") in {"a", "b", "c1", "c2"}:
+            x, _ = obj["pos"].split(",", maxsplit=1)
+            x_positions[obj["name"]] = float(x)
+
+    assert set(x_positions) == {"a", "b", "c1", "c2"}
+
+    leaf_midpoint = (x_positions["c1"] + x_positions["c2"]) / 2
+    assert math.isclose(x_positions["b"], leaf_midpoint, abs_tol=1)
+    assert math.isclose(x_positions["a"], x_positions["b"], abs_tol=1)
+
+
 def test_1898():
     """
     test a segfault from https://gitlab.com/graphviz/graphviz/-/issues/1898 has
