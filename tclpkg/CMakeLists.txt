@@ -9,6 +9,17 @@ else()
   list(APPEND CMAKE_INSTALL_RPATH "\$ORIGIN/../..")
 endif()
 
+function(graphviz_tcl_package_file output filename)
+  set(package_file "${filename}")
+  if(WIN32)
+    file(RELATIVE_PATH runtime_dir
+      "${CMAKE_INSTALL_PREFIX}/${LIBRARY_INSTALL_DIR}/graphviz/tcl"
+      "${CMAKE_INSTALL_PREFIX}/${BINARY_INSTALL_DIR}")
+    set(package_file "${runtime_dir}/${filename}")
+  endif()
+  set("${output}" "${package_file}" PARENT_SCOPE)
+endfunction()
+
 if(ENABLE_TCL)
   add_subdirectory(gdtclft)
   add_subdirectory(tcldot)

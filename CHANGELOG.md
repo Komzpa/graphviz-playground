@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- CMake MinGW installs now generate TCL package indexes that load Graphviz TCL
+  extension DLLs from the installed `bin` directory. #2817
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
