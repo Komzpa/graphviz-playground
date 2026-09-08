@@ -649,6 +649,46 @@ def test_1221():
     dot("svg", input)
 
 
+def test_1263():
+    """
+    an edge with west tail and head ports should route left from the tail node
+    towards the nearby intermediate node before returning to the head node.
+    https://gitlab.com/graphviz/graphviz/-/issues/1263
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1263.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    def points_for_edge(edge: list[bytes]) -> list[tuple[float, float]]:
+        n = int(edge[3])
+        return [
+            (float(edge[4 + 2 * i]), float(edge[5 + 2 * i])) for i in range(n)
+        ]
+
+    def left_side(node: list[bytes]) -> float:
+        x = float(node[2])
+        width = float(node[4])
+        return x - width / 2
+
+    # process this with dot
+    output = run_raw("dot", "-Tplain", input)
+    assert isinstance(output, bytes)
+
+    fields = [line.split() for line in output.splitlines()]
+    node2 = next(line for line in fields if line[:2] == [b"node", b"2"])
+    node5 = next(line for line in fields if line[:2] == [b"node", b"5"])
+    node6 = next(line for line in fields if line[:2] == [b"node", b"6"])
+    edge = next(line for line in fields if line[:3] == [b"edge", b"6", b"2"])
+    points = points_for_edge(edge)
+
+    # The reported problem was that this red edge could take an avoidably
+    # crossing route instead of going left of node 5 ("(3, 6)").
+    assert points[0][0] <= left_side(node6), "edge does not exit node 6 to the left"
+    assert points[1][0] < left_side(node5), "edge does not route left of node 5"
+    assert points[-1][0] <= left_side(node2), "edge does not enter node 2 from the left"
+
+
 @pytest.mark.skipif(which("gv2gml") is None, reason="gv2gml not available")
 def test_1276():
     """
