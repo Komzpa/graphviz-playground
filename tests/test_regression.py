@@ -4576,6 +4576,30 @@ def test_2502():
     dot("dot", input)
 
 
+def test_2505():
+    """
+    edge expansion from an anonymous subgraph should preserve lexical node order
+    https://gitlab.com/graphviz/graphviz/-/issues/2505
+    """
+
+    input = Path(__file__).parent / "2505.dot"
+    expected = ["d0", "f0", "e0", "g0", "c0", "b0"]
+
+    p = subprocess.run(
+        ["dot", "-Tplain"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+        input=input.read_text(),
+    )
+    positions = {}
+    for line in p.stdout.splitlines():
+        parts = line.split()
+        if parts[:1] == ["node"]:
+            positions[parts[1]] = float(parts[2])
+    assert sorted(expected, key=positions.__getitem__) == expected
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2516"
 )

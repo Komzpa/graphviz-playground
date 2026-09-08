@@ -95,7 +95,9 @@ typedef struct list_s {		/* maintain head and tail ptrs for fast append */
 typedef struct gstack_s {
 	Agraph_t *g;
 	Agraph_t *subg;
-	list_t	nodelist,edgelist,attrlist;
+	list_t nodelist, edgelist, attrlist;
+	list_t body_nodelist; /* lexical nodes in this subgraph body */
+	list_t pending_subg_nodelist; /* nodes from the most recent child subgraph */
 	struct gstack_s *down;
 } gstack_t;
 
@@ -405,6 +407,8 @@ static void appendnode(aagscan_t scanner, char *name, char *port, char *sport)
 	}
 	elt = cons_node(agnode(S->g, name, 1), port);
 	listapp(&S->nodelist, elt);
+	if (S->down)
+		listapp(&S->body_nodelist, cons_node(elt->u.n, port));
 	agstrfree(G, name, false);
 }
 
@@ -426,6 +430,8 @@ static void endnode(aagscan_t scanner)
 	deletelist(G, &S->nodelist);
 	deletelist(G, &S->attrlist);
 	deletelist(G, &S->edgelist);
+	if (S->subg)
+		deletelist(G, &S->pending_subg_nodelist);
 	S->subg = 0;  /* notice a pattern here? :-( */
 }
 
@@ -441,7 +447,18 @@ static void getedgeitems(aagscan_t scanner)
 		v = cons_list(S->nodelist.first);
 		S->nodelist.first = S->nodelist.last = NULL;
 	}
-	else {if (S->subg) v = cons_subg(S->subg); S->subg = 0;}
+	else {
+		if (S->subg) {
+			if (S->pending_subg_nodelist.first) {
+				v = cons_list(S->pending_subg_nodelist.first);
+				S->pending_subg_nodelist.first = NULL;
+				S->pending_subg_nodelist.last = NULL;
+			} else {
+				v = cons_subg(S->subg);
+			}
+		}
+		S->subg = 0;
+	}
 	/* else nil append */
 	if (v) listapp(&S->edgelist, v);
 }
@@ -480,6 +497,8 @@ static void endedge(aagscan_t scanner)
 	deletelist(G, &ctx->S->nodelist);
 	deletelist(G, &ctx->S->edgelist);
 	deletelist(G, &ctx->S->attrlist);
+	if (ctx->S->subg)
+		deletelist(G, &ctx->S->pending_subg_nodelist);
 	ctx->S->subg = 0;
 }
 
@@ -598,10 +617,16 @@ static void closesubg(aagscan_t scanner)
 {
 	aagextra_t *ctx = aagget_extra(scanner);
 	Agraph_t *subg = ctx->S->g;
+	list_t body_nodelist = ctx->S->body_nodelist;
+
+	ctx->S->body_nodelist.first = NULL;
+	ctx->S->body_nodelist.last = NULL;
 
 	--ctx->SubgraphDepth;
 	ctx->S = pop(ctx->S);
+	deletelist(ctx->G, &ctx->S->pending_subg_nodelist);
 	ctx->S->subg = subg;
+	ctx->S->pending_subg_nodelist = body_nodelist;
 	assert(subg);
 }
 
@@ -612,6 +637,8 @@ static void freestack(aagscan_t scanner)
 		deletelist(ctx->G, &ctx->S->nodelist);
 		deletelist(ctx->G, &ctx->S->attrlist);
 		deletelist(ctx->G, &ctx->S->edgelist);
+		deletelist(ctx->G, &ctx->S->body_nodelist);
+		deletelist(ctx->G, &ctx->S->pending_subg_nodelist);
 		ctx->S = pop(ctx->S);
 	}
 }
@@ -652,4 +679,3 @@ Agraph_t *agconcat(Agraph_t *g, const char *filename, void *chan,
 Agraph_t *agread(void *fp, Agdisc_t *disc) {
   return agconcat(NULL, NULL, fp, disc);
 }
-

@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Anonymous subgraphs on the right-hand side of edge statements now preserve
+  the input node order when creating the edges. #2505
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
