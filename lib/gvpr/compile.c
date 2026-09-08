@@ -1251,9 +1251,9 @@ static Extype_t getval(Expr_t *pgm, Exnode_t *node, Exid_t *sym, Exref_t *ref,
         v.integer = 0;
       } else {
         Agsym_t *gsym = agattrsym(objp, name);
-        if (sym->index == F_hasattr)
-          v.integer = (gsym != NULL);
-        else {
+        if (sym->index == F_hasattr) {
+          v.integer = (gsym != NULL && agxget(objp, gsym) != gsym->defval);
+        } else {
           if (!gsym) {
             gsym = agattr_text(agroot(agraphof(objp)), AGTYPE(objp), name, "");
             agxbuf tmp = {0};

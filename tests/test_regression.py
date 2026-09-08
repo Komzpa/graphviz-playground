@@ -2131,9 +2131,6 @@ def test_1913():
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1925"
-)
 def test_1925():
     """
     GVPR `hasAttr` should work accurately

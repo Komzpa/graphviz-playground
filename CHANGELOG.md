@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- GVPR `hasAttr` now returns true only for objects whose attribute value is set
+  away from the default, instead of reporting an attribute as present on every
+  object of the same kind. #1925
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
