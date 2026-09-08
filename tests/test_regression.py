@@ -6110,13 +6110,9 @@ def test_2716():
 
 
 @pytest.mark.skipif(which("fdp") is None, reason="fdp is not available")
-@pytest.mark.xfail(
-    strict=not is_ndebug_defined(),
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2717",
-)
 def test_2717():
     """
-    processing the given graph with fdp should not crash
+    fdp should handle cluster=true endpoints like cluster-prefixed endpoints
     https://gitlab.com/graphviz/graphviz/-/issues/2717
     """
 
@@ -6126,7 +6122,19 @@ def test_2717():
 
     # run it through fdp
     fdp = which("fdp")
-    run(fdp, "-o", os.devnull, input)
+    output = run(fdp, "-Tsvg", input)
+
+    # Both cluster endpoint forms should create a visible edge. The first uses
+    # `cluster=true`; the second uses the traditional `cluster` name prefix.
+    root = ET.fromstring(output)
+    ns = {"svg": "http://www.w3.org/2000/svg"}
+    titles = {
+        title.text
+        for title in root.findall(".//svg:title", ns)
+        if title.text is not None
+    }
+    assert "__0:cluster_big_cats->__0:domestic_cats" in titles
+    assert "__0:cluster_big_cats->__0:cluster_domestic_cats" in titles
 
 
 @pytest.mark.skipif(which("osage") is None, reason="osage is not available")
