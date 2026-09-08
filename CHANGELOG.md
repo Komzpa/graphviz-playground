@@ -13,6 +13,11 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The fdp layout engine now keeps a fully fixed cluster anchored to its pinned
+  descendants when collapsing that cluster into a derived node. Previously the
+  derived cluster node could move and pull those pinned descendants onto a
+  different y-band. #2701
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
