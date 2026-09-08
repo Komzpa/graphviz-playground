@@ -104,10 +104,10 @@ static void map_output_shape(GVJ_t *job, map_shape_t map_shape, pointf *AF, size
 	    gvputs_xml(job, tooltip);
 	    gvputs(job, "\"");
 	}
-        // FIXME:
-        //  - https://gitlab.com/graphviz/graphviz/-/issues/265
-        //  - https://gitlab.com/graphviz/graphviz/-/issues/2220
-        gvputs(job, " alt=\"\"");
+        gvputs(job, " alt=\"");
+        if (tooltip && tooltip[0])
+            gvputs_xml(job, tooltip);
+        gvputs(job, "\"");
 
         gvputs(job, " coords=\"");
         switch (map_shape) {
