@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Edges between bottom-corner ports on same-rank nodes now route below the rank
+  instead of above it. #2724
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

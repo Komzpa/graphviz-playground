@@ -6189,6 +6189,38 @@ def test_2723():
     dot("png", input)
 
 
+def test_2724():
+    """
+    flat edges using bottom-corner ports should route below peer nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/2724
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2724.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process this
+    plain = dot("plain", input).decode("utf-8")
+
+    out2_bottom_y = None
+    edge_max_y = None
+    for line in plain.splitlines():
+        fields = line.split()
+        if len(fields) >= 6 and fields[0] == "node" and fields[1] == "out2":
+            _, _, _, y, _, height = fields[:6]
+            out2_bottom_y = float(y) - float(height) / 2
+        elif len(fields) >= 6 and fields[:3] == ["edge", "out1", "out3"]:
+            point_count = int(fields[3])
+            points = fields[4 : 4 + point_count * 2]
+            edge_max_y = max(
+                float(points[i + 1]) for i in range(0, len(points), 2)
+            )
+
+    assert out2_bottom_y is not None, "missing out2 node from plain output"
+    assert edge_max_y is not None, "missing out1 -> out3 edge from plain output"
+    assert edge_max_y <= out2_bottom_y + 0.01
+
+
 def test_2727():
     """
     the label “<>” should be accepted

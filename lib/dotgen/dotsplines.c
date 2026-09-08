@@ -1546,7 +1546,8 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
 
   const int tside = ED_tail_port(e).side;
   const int hside = ED_head_port(e).side;
-  if ((tside == BOTTOM && hside != TOP) || (hside == BOTTOM && tside != TOP)) {
+  if (((tside & BOTTOM) && !(hside & TOP)) ||
+      ((hside & BOTTOM) && !(tside & TOP))) {
     make_flat_bottom_edges(g, sp, P, edges, cnt, e, et == EDGETYPE_SPLINE);
     return 0;
   }
