@@ -1,0 +1,18 @@
+digraph G {
+  graph [layout=neato, splines=true, overlap=false];
+  node [shape=box, style="rounded,filled", pin=true, fontname="Helvetica", fontsize=12];
+
+  PG1 [label="Patch\nGrabber", pos="260,120!"];
+  SM1 [label="Sensor\nModule", pos="580,120!"];
+
+  PG1 -> SM1 [
+    pos="s,260,102 300,90 340,80 400,78 460,80 520,90 e,580,102",
+    dir=forward,
+    arrowhead=normal,
+    arrowsize=0.7,
+    headclip=false,
+    tailclip=false,
+    tailport=s,
+    headport=s
+  ];
+}

@@ -295,7 +295,7 @@ static int user_spline(attrsym_t * E_pos, edge_t * e)
 	if (npts < 4 || npts % 3 != 1) {
 	    gv_free_splines(e);
 	    if (!atomic_flag_test_and_set(&warned)) {
-		agwarningf("pos attribute for edge (%s,%s) doesn't have 3n+1 points\n", agnameof(agtail(e)), agnameof(aghead(e)));
+		agerrorf("pos attribute for edge (%s,%s) does not have 3n+1 points\n", agnameof(agtail(e)), agnameof(aghead(e)));
 	    }
 	    return 0;
 	}
@@ -304,7 +304,7 @@ static int user_spline(attrsym_t * E_pos, edge_t * e)
 	for (size_t n = npts; n > 0; --n) {
 	    if (sscanf(pos, "%lf,%lf%n", &x, &y, &nc) < 2) {
 		if (!atomic_flag_test_and_set(&warned)) {
-		    agwarningf("syntax error in pos attribute for edge (%s,%s)\n", agnameof(agtail(e)), agnameof(aghead(e)));
+		    agerrorf("syntax error in pos attribute for edge (%s,%s)\n", agnameof(agtail(e)), agnameof(aghead(e)));
 		}
 		free(ps);
 		gv_free_splines(e);

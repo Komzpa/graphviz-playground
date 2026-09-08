@@ -6481,6 +6481,26 @@ def test_2801():
     assert "is not a known color" not in warnings, "`colorscheme` not working"
 
 
+def test_2811():
+    """
+    malformed edge `pos` splines should be rejected in -n2 mode
+    https://gitlab.com/graphviz/graphviz/-/issues/2811
+    """
+
+    input = Path(__file__).parent / "2811.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    proc = subprocess.run(
+        ["dot", "-n2", "-Tsvg", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert proc.returncode != 0
+    assert b"does not have 3n+1 points" in proc.stderr
+
+
 def test_2825():
     """
     Graphviz should not crash when `rebuild_vlists` returns -1
