@@ -31,10 +31,12 @@
 
 static int nedges; ///< total no. of edges used in routing
 static size_t nboxes; ///< total no. of boxes used in routing
+/* Boxes below this size are numerically unusable as routing subdivisions. */
+static const double BOX_DIMENSION_TOLERANCE = .01;
 
 static int routeinit;
 
-static int checkpath(size_t, boxf *, path *);
+static bool checkpath(size_t *, boxf *, path *);
 static void printpath(path * pp);
 #ifdef DEBUG
 static void printboxes(size_t boxn, boxf *boxes) {
@@ -315,10 +317,9 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
     }
 
     boxes = pp->boxes;
-    const size_t boxn = pp->nbox;
-
-    if (checkpath(boxn, boxes, pp))
+    if (checkpath(&pp->nbox, boxes, pp))
 	return NULL;
+    const size_t boxn = pp->nbox;
 
 #ifdef DEBUG
     if (debugleveln(realedge, 1))
@@ -630,23 +631,33 @@ static double overlap(double i0, double i1, double j0, double j1) {
  * fixing all the bugs, at least try to engineer around them!
  * in postmodern CS, we could call this "self-healing code."
  *
- * Return 1 on failure; 0 on success.
+ * Return true on failure; false on success.
  */
-static int checkpath(size_t boxn, boxf *boxes, path *thepath) {
+static bool is_degenerate_box(const boxf *boxp) {
+  return fabs(boxp->LL.y - boxp->UR.y) < BOX_DIMENSION_TOLERANCE ||
+         fabs(boxp->LL.x - boxp->UR.x) < BOX_DIMENSION_TOLERANCE;
+}
+
+static size_t remove_degenerate_boxes(size_t boxn, boxf *boxes) {
+    size_t count = 0;
+    for (size_t bi = 0; bi < boxn; bi++) {
+	if (is_degenerate_box(&boxes[bi]))
+	    continue;
+	boxes[count++] = boxes[bi];
+    }
+    return count;
+}
+
+static bool checkpath(size_t *boxnp, boxf *boxes, path *thepath) {
     boxf *ba, *bb;
     int errs, l, r, d, u;
 
     /* remove degenerate boxes. */
-    size_t i = 0;
-    for (size_t bi = 0; bi < boxn; bi++) {
-	if (fabs(boxes[bi].LL.y - boxes[bi].UR.y) < .01)
-	    continue;
-	if (fabs(boxes[bi].LL.x - boxes[bi].UR.x) < .01)
-	    continue;
-	boxes[i] = boxes[bi];
-	i++;
+    size_t boxn = remove_degenerate_boxes(*boxnp, boxes);
+    if (boxn == 0) {
+	agerrorf("in checkpath, all boxes are degenerate\n");
+	return 1;
     }
-    boxn = i;
 
     ba = &boxes[0];
     if (ba->LL.x > ba->UR.x || ba->LL.y > ba->UR.y) {
@@ -733,6 +744,14 @@ static int checkpath(size_t boxn, boxf *boxes, path *thepath) {
 	    }
 	}
     }
+
+    /* The overlap repairs above can themselves collapse a box. */
+    const size_t repaired_boxn = remove_degenerate_boxes(boxn, boxes);
+    if (repaired_boxn < boxn) {
+	*boxnp = repaired_boxn;
+	return checkpath(boxnp, boxes, thepath);
+    }
+    *boxnp = boxn;
 
     if (thepath->start.p.x < boxes[0].LL.x
 	|| thepath->start.p.x > boxes[0].UR.x

@@ -5,6 +5,7 @@ The test cases in this file relate to previously observed bugs. A failure of one
 of these indicates that a past bug has been reintroduced.
 """
 
+from collections import Counter
 import dataclasses
 import hashlib
 import io
@@ -3915,11 +3916,38 @@ def test_2355():
     dot("svg", source=graph.getvalue())
 
 
-@pytest.mark.parametrize("testcase", ("2368.dot", "2368_1.dot"))
-@pytest.mark.xfail(strict=True)  # FIXME
-def test_2368(testcase: str):
+@pytest.mark.parametrize(
+    ("testcase", "expected_labels"),
+    (
+        (
+            "2368.dot",
+            Counter(
+                {
+                    "from1": 2,
+                    "to1": 2,
+                    "ignore": 2,
+                    "from2": 2,
+                    "to2": 2,
+                    "as": 1,
+                }
+            ),
+        ),
+        (
+            "2368_1.dot",
+            Counter(
+                {
+                    "to1": 2,
+                    "to2": 1,
+                }
+            ),
+        ),
+    ),
+)
+def test_2368(testcase: str, expected_labels: Counter[str]):
     """
-    routesplines should not corrupt its `prev` and `next` indices
+    An overlap repair can collapse a routing box. Pruning it must keep the
+    box count and later `prev`/`next` indices consistent without dropping
+    routed edges.
     https://gitlab.com/graphviz/graphviz/-/issues/2368
     """
 
@@ -3929,6 +3957,59 @@ def test_2368(testcase: str):
 
     # run it through Graphviz
     dot("svg", input)
+    laid_out = json.loads(dot("json", input))
+
+    labels = Counter(edge["label"] for edge in laid_out["edges"] if edge["label"] != "")
+    assert labels == expected_labels, "routed edges were lost or duplicated"
+
+
+@pytest.mark.parametrize(
+    "testcase",
+    (
+        "2747.dot",
+        "2770.dot",
+        "2773.dot",
+        "2774.dot",
+        "2775.dot",
+        "2776.dot",
+        "2778.dot",
+        "2779.dot",
+        "2780.dot",
+    ),
+)
+def test_2747(testcase: str):
+    """
+    All-degenerate routing boxes should produce a controlled error, not a crash.
+    https://gitlab.com/graphviz/graphviz/-/work_items/2747
+    https://gitlab.com/graphviz/graphviz/-/work_items/2770
+    https://gitlab.com/graphviz/graphviz/-/work_items/2773
+    https://gitlab.com/graphviz/graphviz/-/work_items/2774
+    https://gitlab.com/graphviz/graphviz/-/work_items/2775
+    https://gitlab.com/graphviz/graphviz/-/work_items/2776
+    https://gitlab.com/graphviz/graphviz/-/work_items/2778
+    https://gitlab.com/graphviz/graphviz/-/work_items/2779
+    https://gitlab.com/graphviz/graphviz/-/work_items/2780
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / testcase
+    assert input.exists(), "unexpectedly missing test case"
+
+    dot_exe = which("dot")
+    assert dot_exe is not None
+
+    proc = subprocess.run(
+        [dot_exe, "-Tsvg", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=10,
+    )
+
+    assert proc.returncode not in (
+        -signal.SIGABRT,
+        -signal.SIGSEGV,
+    ), "malformed concentrated edges should return a controlled error code"
 
 
 @pytest.mark.skipif(shutil.which("tclsh") is None, reason="tclsh not available")

@@ -737,6 +737,20 @@ static pointf *pEllipse(double a, double b, size_t np) {
 }
 
 #define HW 2.0   /* maximum distance away from line, in points */
+#define BEZIER_BB_MAX_DEPTH 16
+
+static void expand_bb_to_control_points(boxf *bb, const pointf *cp) {
+    for (int i = 0; i < 4; i++) {
+        if (cp[i].x > bb->UR.x)
+            bb->UR.x = cp[i].x;
+        else if (cp[i].x < bb->LL.x)
+            bb->LL.x = cp[i].x;
+        if (cp[i].y > bb->UR.y)
+            bb->UR.y = cp[i].y;
+        else if (cp[i].y < bb->LL.y)
+            bb->LL.y = cp[i].y;
+    }
+}
 
 /* check_control_points function checks the size of quadrilateral
  * formed by four control points
@@ -751,7 +765,7 @@ static bool check_control_points(pointf *cp)
 }
 
 /* update bounding box to contain a Bézier segment */
-void update_bb_bz(boxf *bb, pointf *cp)
+static void update_bb_bz_rec(boxf *bb, pointf *cp, unsigned depth)
 {
 
     /* if any control point of the segment is outside the bounding box */
@@ -765,27 +779,21 @@ void update_bb_bz(boxf *bb, pointf *cp)
         cp[3].y > bb->UR.y || cp[3].y < bb->LL.y) {
 
         /* if the segment is sufficiently refined */
-        if (check_control_points(cp)) {        
-            int i;
+        if (check_control_points(cp) || depth >= BEZIER_BB_MAX_DEPTH) {
             /* expand the bounding box */
-            for (i = 0; i < 4; i++) {
-                if (cp[i].x > bb->UR.x)
-                    bb->UR.x = cp[i].x;
-                else if (cp[i].x < bb->LL.x)
-                    bb->LL.x = cp[i].x;
-                if (cp[i].y > bb->UR.y)
-                    bb->UR.y = cp[i].y;
-                else if (cp[i].y < bb->LL.y)
-                    bb->LL.y = cp[i].y;
-            }
+            expand_bb_to_control_points(bb, cp);
         }
         else { /* else refine the segment */
             pointf left[4], right[4];
             Bezier (cp, 0.5, left, right);
-            update_bb_bz(bb, left);
-            update_bb_bz(bb, right);
+            update_bb_bz_rec(bb, left, depth + 1);
+            update_bb_bz_rec(bb, right, depth + 1);
         }
     }
+}
+
+void update_bb_bz(boxf *bb, pointf *cp) {
+    update_bb_bz_rec(bb, cp, 0);
 }
 
 typedef LIST(pointf) points_t;
@@ -4364,4 +4372,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

@@ -13,6 +13,12 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` no longer fails to route some concentrated edges when repairing their
+  spline path collapses a routing box. #2368
+- Malformed graphs whose routes collapse to all-degenerate boxes now produce a
+  controlled error instead of an AddressSanitizer heap-buffer-overflow in
+  `routesplines`. #2747 #2770 #2773 #2774 #2775 #2776 #2778 #2779 #2780
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
