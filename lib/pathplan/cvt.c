@@ -19,7 +19,7 @@
 
 typedef Ppoint_t ilcoord_t;
 
-#ifdef DEBUG
+#if defined(DEBUG) && DEBUG > 1
 static void printVconfig(vconfig_t * cp);
 static void printVis(char *lbl, COORD * vis, int n);
 static void printDad(int *vis, int n);
@@ -124,7 +124,7 @@ void Pobspath(vconfig_t *config, Ppoint_t p0, int poly0, Ppoint_t p1, int poly1,
     ops[j] = p0;
     assert(j == 0);
 
-#ifdef DEBUG
+#if defined(DEBUG) && DEBUG > 1
     printVconfig(config);
     printVis("p", ptvis0, config->N + 1);
     printVis("q", ptvis1, config->N + 1);
@@ -139,7 +139,7 @@ void Pobspath(vconfig_t *config, Ppoint_t p0, int poly0, Ppoint_t p1, int poly1,
     free(dad);
 }
 
-#ifdef DEBUG
+#if defined(DEBUG) && DEBUG > 1
 static void printVconfig(vconfig_t * cp)
 {
     int i, j;

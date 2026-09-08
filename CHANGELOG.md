@@ -17,6 +17,8 @@ and this project adheres to
   prototypes or using a mismatched debug format string, and ordinary DEBUG=1
   graph rendering no longer emits Pango font-list or ortho-routing trace dumps
   to stderr. #2837
+- Ordinary DEBUG=1 graph rendering no longer emits HTML lexer token traces or
+  pathplan visibility dumps to stderr/stdout. #2837
 
 ## [16.1.0] – 2026-09-03
 
