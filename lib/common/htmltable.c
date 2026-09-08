@@ -406,7 +406,7 @@ initAnchor(GVJ_t * job, htmlenv_t * env, htmldata_t * data, boxf b,
     agxbfree(&xb);
 
     if (changed) {
-	if (obj->url || obj->explicit_tooltip) {
+	if (obj->url || obj->explicit_tooltip || obj->id) {
 	    emit_map_rect(job, b);
 	    gvrender_begin_anchor(job,
 				  obj->url, obj->tooltip, obj->target,
@@ -433,7 +433,7 @@ static void endAnchor(GVJ_t * job, htmlmap_data_t * save)
 {
     obj_state_t *obj = job->obj;
 
-    if (obj->url || obj->explicit_tooltip)
+    if (obj->url || obj->explicit_tooltip || obj->id)
 	gvrender_end_anchor(job);
     RESET(url);
     RESET(tooltip);
@@ -523,7 +523,8 @@ static void emit_html_tbl(GVJ_t * job, htmltbl_t * tbl, htmlenv_t * env)
     static textfont_t savef;
     htmlmap_data_t saved;
     int anchor;			/* if true, we need to undo anchor settings. */
-    const bool doAnchor = tbl->data.href || tbl->data.target || tbl->data.title;
+    const bool doAnchor =
+        tbl->data.href || tbl->data.target || tbl->data.title || tbl->data.id;
     pointf AF[4];
 
     if (tbl->font)
@@ -629,7 +630,8 @@ static void emit_html_cell(GVJ_t * job, htmlcell_t * cp, htmlenv_t * env)
     boxf pts = cp->data.box;
     pointf pos = env->pos;
     int inAnchor;
-    const bool doAnchor = cp->data.href || cp->data.target || cp->data.title;
+    const bool doAnchor =
+        cp->data.href || cp->data.target || cp->data.title || cp->data.id;
     pointf AF[4];
 
     pts.LL.x += pos.x;
