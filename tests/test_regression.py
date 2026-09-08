@@ -3027,6 +3027,39 @@ def test_2215():
     run("dot", "-v", input=input)
 
 
+def test_2309():
+    """
+    octagon nodes with margin=0 should not add excessive label padding
+    https://gitlab.com/graphviz/graphviz/-/issues/2309
+    """
+
+    source = r"""
+        digraph G {
+          box [shape=box, label="one\ntwo", margin="0.0,0.0"];
+          oct [shape=octagon, label="one\ntwo", margin="0.0,0.0"];
+          wide_box [shape=box, label="abcdefghijklmnopqrst\nabcdefghijklmnopqrs", margin="0.0,0.0"];
+          wide_oct [shape=octagon, label="abcdefghijklmnopqrst\nabcdefghijklmnopqrs", margin="0.0,0.0"];
+        }
+    """
+
+    def node_size(plain_output: str, name: str) -> tuple[float, float]:
+        for line in plain_output.splitlines():
+            fields = line.split()
+            if len(fields) >= 6 and fields[0] == "node" and fields[1] == name:
+                return float(fields[4]), float(fields[5])
+        pytest.fail(f"could not find node {name!r} in plain output")
+
+    plain = run("dot", "-Tplain", input=source)
+    box_width, box_height = node_size(plain, "box")
+    oct_width, oct_height = node_size(plain, "oct")
+    wide_box_width, _ = node_size(plain, "wide_box")
+    wide_oct_width, _ = node_size(plain, "wide_oct")
+
+    assert oct_width <= box_width * 1.05
+    assert oct_height <= box_height * 1.05
+    assert wide_oct_width < wide_box_width * 1.45
+
+
 @pytest.mark.xfail(
     is_rocky(),
     strict=True,

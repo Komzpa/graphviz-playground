@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Octagon nodes with `margin=0` now fit labels more tightly instead of adding
+  excessive padding from generic polygon sizing. #2309
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
