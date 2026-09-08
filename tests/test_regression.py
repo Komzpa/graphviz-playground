@@ -3163,6 +3163,40 @@ def test_2331(tmp_path: Path):
     subprocess.run([exe], env=env, check=True)
 
 
+def test_2337():
+    """
+    canon output should not run layout
+    https://gitlab.com/graphviz/graphviz/-/issues/2337
+    """
+
+    source = "digraph { a -> b }\n"
+    proc = subprocess.run(
+        ["dot", "-v", "-Tcanon"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+
+    assert "digraph" in proc.stdout
+    assert "Starting phase" not in proc.stderr
+    assert "dot_rank" not in proc.stderr
+    assert "dot_mincross" not in proc.stderr
+    assert "dot_position" not in proc.stderr
+
+    svg = subprocess.run(
+        ["dot", "-v", "-Tsvg"],
+        input=source,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+
+    assert "Starting phase" in svg.stderr
+
+
 def test_2342():
     """
     using an arrow with size 0 should not trigger an assertion failure

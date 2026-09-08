@@ -3586,6 +3586,19 @@ static void emit_end_graph(GVJ_t * job)
     pop_obj_state(job);
 }
 
+static void emit_unlaid_graph(GVJ_t *job, graph_t *g)
+{
+    obj_state_t *obj = push_obj_state(job);
+
+    obj->type = ROOTGRAPH_OBJTYPE;
+    obj->u.g = g;
+    obj->emit_state = EMIT_GDRAW;
+
+    gvrender_begin_graph(job);
+    gvrender_end_graph(job);
+    pop_obj_state(job);
+}
+
 static bool NotFirstPage(const GVJ_t *j) {
   return j->layerNum > 1 || j->pagesArrayElem.x > 0 || j->pagesArrayElem.y > 0;
 }
@@ -4199,23 +4212,46 @@ void gv_fixLocale (int set)
 #define FINISH()                                                               \
   GV_DEBUG("gvRenderJobs %s: %.2f secs.", agnameof(g), elapsed_sec())
 
+bool gvjobs_needs_layout(GVC_t *gvc)
+{
+    bool needs_layout = false;
+    const unsigned char verbose = Verbose;
+    const int common_verbose = gvc->common.verbose;
+
+    Verbose = false;
+    gvc->common.verbose = 0;
+
+    for (GVJ_t *job = gvjobs_first(gvc); job; job = gvjobs_next(gvc)) {
+	job->output_lang = gvrender_select(job, job->output_langname);
+	if (job->output_lang == NO_SUPPORT
+	    || !(job->flags & LAYOUT_NOT_REQUIRED)) {
+	    needs_layout = true;
+	    break;
+	}
+    }
+
+    Verbose = verbose;
+    gvc->common.verbose = common_verbose;
+    gvjobs_first(gvc);
+    return needs_layout;
+}
+
 int gvRenderJobs (GVC_t * gvc, graph_t * g)
 {
     static GVJ_t *prevjob;
     GVJ_t *job, *firstjob;
+    const bool layout_done = LAYOUT_DONE(g);
 
     if (Verbose)
 	start_timer();
-    
-    if (!LAYOUT_DONE(g)) {
-        agerrorf("Layout was not done.  Missing layout plugins? \n");
-	FINISH();
-        return -1;
-    }
 
-    init_bb(g);
-    init_gvc(gvc, g);
-    init_layering(gvc, g);
+    if (layout_done) {
+	init_bb(g);
+	init_gvc(gvc, g);
+	init_layering(gvc, g);
+    } else {
+	gvc->g = g;
+    }
 
     gv_fixLocale (1);
     for (job = gvjobs_first(gvc); job; job = gvjobs_next(gvc)) {
@@ -4231,7 +4267,7 @@ int gvRenderJobs (GVC_t * gvc, graph_t * g)
 	job->layout_type = gvc->layout.type;
 	job->keybindings = gvevent_key_binding;
 	job->numkeys = gvevent_key_binding_size;
-	if (!GD_drawing(g)) {
+	if (layout_done && !GD_drawing(g)) {
 	    agerrorf("layout was not done\n");
 	    gv_fixLocale (0);
 	    FINISH();
@@ -4245,6 +4281,12 @@ int gvRenderJobs (GVC_t * gvc, graph_t * g)
 	    FINISH();
             return -1;
         }
+	if (!layout_done && !(job->flags & LAYOUT_NOT_REQUIRED)) {
+	    agerrorf("Layout was not done.  Missing layout plugins? \n");
+	    gv_fixLocale(0);
+	    FINISH();
+	    return -1;
+	}
 
         switch (job->output_lang) {
         case VTX:
@@ -4287,11 +4329,13 @@ int gvRenderJobs (GVC_t * gvc, graph_t * g)
 	job->next_active = NULL;      /* terminate active list */
 	job->callbacks = &gvdevice_callbacks;
 
-	init_job_pad(job);
-	init_job_margin(job);
-	init_job_dpi(job, g);
-	init_job_viewport(job, g);
-	init_job_pagination(job, g);
+	if (layout_done) {
+	    init_job_pad(job);
+	    init_job_margin(job);
+	    init_job_dpi(job, g);
+	    init_job_viewport(job, g);
+	    init_job_pagination(job, g);
+	}
 
 	if (! (job->flags & GVDEVICE_EVENTS)) {
 	    if (debug) {
@@ -4309,7 +4353,10 @@ int gvRenderJobs (GVC_t * gvc, graph_t * g)
 #pragma GCC diagnostic pop
 #endif
 	    }
-	    emit_graph(job, g);
+	    if (layout_done)
+		emit_graph(job, g);
+	    else
+		emit_unlaid_graph(job, g);
 	}
 
         /* the last job, after all input graphs are processed,
@@ -4364,4 +4411,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
