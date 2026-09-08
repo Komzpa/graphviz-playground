@@ -7040,6 +7040,40 @@ def test_duplicate_hard_coded_metrics_warnings():
     ), "multiple identical “no hard-coded metrics” warnings printed"
 
 
+@pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
+def test_2415(tmp_path: Path):
+    """
+    gvpack should preserve labels from input root graphs
+    https://gitlab.com/graphviz/graphviz/-/issues/2415
+    """
+
+    graph_a = tmp_path / "a.dot"
+    graph_b = tmp_path / "b.dot"
+    graph_a.write_text(
+        dot(
+            "dot",
+            source=(
+                'digraph A { label="Graph A"; '
+                'subgraph cluster_inner { label="Inner"; a -> b } }'
+            ),
+        ),
+        encoding="utf-8",
+    )
+    graph_b.write_text(
+        dot("dot", source='digraph B { label="Graph B"; c -> d }'),
+        encoding="utf-8",
+    )
+
+    gvpack = which("gvpack")
+    packed = run(gvpack, graph_a, graph_b)
+
+    svg = run("dot", "-Kneato", "-n2", "-Tsvg", input=packed)
+
+    assert "Graph A" in svg, "first input graph label was not rendered"
+    assert "Graph B" in svg, "second input graph label was not rendered"
+    assert "Inner" in svg, "nested cluster label was not rendered"
+
+
 @pytest.mark.parametrize("branch", (0, 1, 2, 3))
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr not available")
 def test_gvpr_switches(branch: int):
