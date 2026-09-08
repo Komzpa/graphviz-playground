@@ -1,0 +1,150 @@
+digraph g
+{
+        rankdir=LR;
+        node [shape=box];
+
+        "PCM"->"GuidoBellido1"->"MirthaVasquez2"->"HectorValer3"->"AnibalTorres4";
+        #"Cancilleria"->"HectorBejar1"->"OscarMaurtua1"->"OscarMaurtua2"->"CesarLanda3"->"CesarLanda4";
+
+        # "Cancilleria"->"HectorBejar1"->"OscarMaurtua1"->"OscarMaurtua2"->"CesarLanda3"->"CesarLanda4";
+
+        "Cancilleria"->"HectorBejar1";
+        # Uncomment next line to generate the bug
+        #"HectorBejar1"->"OscarMaurtua1";
+        "OscarMaurtua1"->"OscarMaurtua2"->"CesarLanda3"->"CesarLanda4";
+
+
+        "Defensa"->"WalterAyala1"->"WalterAyala2"->"JuanCarrasco2"->"JoseLuisGavidiaArrascue3"->"JoseLuisGavidiaArrascue4";
+        "Economia"->"PedroFrancke1"->"PedroFrancke2"->"OscarGraham3"->"OscarGraham4";
+        "Interior"->"JuanCarrasco1"->"LuisBarranzuela2"->"AvelinoGuillen2"->"AlfonsoChavarry3"->"AlfonsoChavarry4"->"DimitriSenmache4";
+        "Justicia"->"AnibalTorres1"->"AnibalTorres2"->"AnibalTorres3"->"AngelYldefonso4"->"FelixChero4";
+        "Educacion"->"JuanCadillo1"->"CarlosGallardo2"->"RosendoSerna2"->"RosendoSerna3"->"RosendoSerna4";
+        "Salud"->"HernandoCevallos1"->"HernandoCevallos2"->"HernandoCevallos3"->"HernanCondori4"->"JorgeLopezPena4";
+        "Agricultura"->"VictorMaita1"->"VictorMaita2"->"AlbertoRamos3"->"OscarZea4"->"FernandoArce4";
+        "Trabajo"->"IberMaravi1"->"BetssyChavez2"->"BetssyChavez3"->"BetssyChavez4"->"JuanRamonLira4";
+        "Produccion"->"YvanQuispe1"->"RoggerIncio2"->"JorgePrado2"->"JorgePrado3"->"JorgePrado4";
+        "Mincetur"->"RobertoSanchez1"->"RobertoSanchez2"->"RobertoSanchez3"->"RobertoSanchez4";
+        "Minem"->"IvanMerino1"->"EduardoGonzalez2"->"AlessandraHerrera3"->"CarlosPalacios4"->"AlessandraHerrera4";
+        "MTC"->"JuanSilva1"->"JuanSilva2"->"JuanSilva3"->"JuanSilva4"->"LuisBarranzuela4";
+        "Vivienda"->"GeinerAlvarado1"->"GeinerAlvarado2"->"GeinerAlvarado3"->"GeinerAlvarado4";
+        "Mujer"->"AnahiDurand1"->"AnahiDurand2"->"KatyUgarte3"->"DianaMiloslavich4";
+        "Ambiente"->"RubenRamirez1"->"RubenRamirez2"->"WilberSupo3"->"WilberSupo4";
+        "Cultura"->"CiroGalvez1"->"GiselaOrtiz2"->"AlejandroSalas3"->"AlejandroSalas4";
+        "Midis"->"DinaBoluarte1"->"DinaBoluarte2"->"DinaBoluarte3"->"DinaBoluarte4";
+
+        subgraph cluster1
+        {       node [];
+                label = "Gabinete #1";
+                color=blue;
+
+                "GuidoBellido1" [label="Guido Bellido", style=filled, color=lawngreen];
+                "HectorBejar1" [label="Hector Bejar", style=filled, color=yellow];
+                "OscarMaurtua1" [label="Oscar Maurtua", style=filled, color=yellow];
+                "WalterAyala1" [label="Walter Ayala", style=filled, color=steelblue];
+                "PedroFrancke1" [label="Pedro Francke", style=filled, color=rosybrown];
+                "JuanCarrasco1" [label="Juan Carrasco", style=filled, color=mediumvioletred];
+                "AnibalTorres1" [label="Anibal Torres", style=filled, color=chocolate];
+                "JuanCadillo1" [label="Juan Cadillo", style=filled, color=mediumturquoise];
+                "HernandoCevallos1" [label="Hernando Cevallos", style=filled, color=lightsalmon];
+                "VictorMaita1" [label="Victor Maita", style=filled, color=springgreen];
+                "IberMaravi1" [label="Iber Maravi", style=filled, color=lightslategrey];
+                "YvanQuispe1" [label="Yvan Quispe", style=filled, color=turquoise];
+                "RobertoSanchez1" [label="Roberto Sanchez", style=filled, color=sandybrown];
+                "IvanMerino1" [label="Ivan Merino", style=filled, color=lightsteelblue];
+                "JuanSilva1" [label="Juan Silva", style=filled, color=navajowhite];
+                "GeinerAlvarado1" [label="Geiner Alvarado", style=filled, color=indianred];
+                "AnahiDurand1" [label="Anahi Durand", style=filled, color=blueviolet];
+                "RubenRamirez1" [label="Ruben Ramirez", style=filled, color=slateblue];
+                "CiroGalvez1" [label="Ciro Galvez", style=filled, color=darkslateblue];
+                "DinaBoluarte1" [label="Dina Boluarte", style=filled, color=dodgerblue];
+        }
+
+        subgraph cluster2
+        {       node [];
+                label = "Gabinete #2";
+                color=black;
+
+                "MirthaVasquez2" [label="Mirtha Vasquez", style=filled, color=palegreen];
+                "OscarMaurtua2" [label="Oscar Maurtua", style=filled, color=pink];
+                "WalterAyala2" [label="Walter Ayala", style=filled, color=steelblue];
+                "JuanCarrasco2" [label="Juan Carrasco", style=filled, color=mediumvioletred];
+                "PedroFrancke2" [label="Pedro Francke", style=filled, color=rosybrown];
+                "LuisBarranzuela2" [label="Luis Barranzuela", style=filled, color=orange];
+                "AvelinoGuillen2" [label="Avelino Guillen", style=filled, color=crimson];
+                "AnibalTorres2" [label="Anibal Torres", style=filled, color=chocolate];
+                "CarlosGallardo2" [label="Carlos Gallardo", style=filled, color=darkgray];
+                "RosendoSerna2" [label="Rosendo Serna", style=filled, color=skyblue];
+                "HernandoCevallos2" [label="Hernando Cevallos", style=filled, color=lightsalmon];
+                "VictorMaita2" [label="Victor Maita", style=filled, color=springgreen];
+                "BetssyChavez2" [label="Betssy Chavez", style=filled, color=cyan];
+                "RoggerIncio2" [label="Rogger Incio", style=filled, color=seagreen];
+                "JorgePrado2" [label="Jorge Prado", style=filled, color=magenta];
+                "RobertoSanchez2" [label="Roberto Sanchez", style=filled, color=sandybrown];
+                "EduardoGonzalez2" [label="Eduardo Gonzalez", style=filled, color=firebrick];
+                "JuanSilva2" [label="Juan Silva", style=filled, color=navajowhite];
+                "GeinerAlvarado2" [label="Geiner Alvarado", style=filled, color=indianred];
+                "AnahiDurand2" [label="Anahi Durand", style=filled, color=blueviolet];
+                "RubenRamirez2" [label="Ruben Ramirez", style=filled, color=slateblue];
+                "GiselaOrtiz2" [label="Gisela Ortiz", style=filled, color=lavenderblush];
+                "DinaBoluarte2" [label="Dina Boluarte", style=filled, color=dodgerblue];
+        }
+
+        subgraph cluster3
+        {       node [];
+                label = "Gabinete #3";
+                color=blue;
+
+                "HectorValer3" [label="Hector Valer", style=filled, color=lightgoldenrodyellow];
+                "CesarLanda3" [label="Cesar Landa", style=filled, color=darkseagreen];
+                "JoseLuisGavidiaArrascue3" [label="Jose Luis Gavidia Arrascue", style=filled, color=mediumorchid];
+                "OscarGraham3" [label="Oscar Graham", style=filled, color=peru];
+                "AlfonsoChavarry3" [label="Alfonso Chavarry", style=filled, color=blue];
+                "AnibalTorres3" [label="Anibal Torres", style=filled, color=chocolate];
+                "RosendoSerna3" [label="Rosendo Serna", style=filled, color=skyblue];
+                "HernandoCevallos3" [label="Hernando Cevallos", style=filled, color=lightsalmon];
+                "AlbertoRamos3" [label="Alberto Ramos", style=filled, color=aliceblue];
+                "BetssyChavez3" [label="Betssy Chavez", style=filled, color=cyan];
+                "JorgePrado3" [label="Jorge Prado", style=filled, color=magenta];
+                "RobertoSanchez3" [label="Roberto Sanchez", style=filled, color=sandybrown];
+                "AlessandraHerrera3" [label="Alessandra Herrera", style=filled, color=beige];
+                "JuanSilva3" [label="Juan Silva", style=filled, color=navajowhite];
+                "GeinerAlvarado3" [label="Geiner Alvarado", style=filled, color=indianred];
+                "KatyUgarte3" [label="Katy Ugarte", style=filled, color=olivedrab];
+                "WilberSupo3" [label="Wilber Supo", style=filled, color=tomato];
+                "AlejandroSalas3" [label="Alejandro Salas", style=filled, color=azure];
+                "DinaBoluarte3" [label="Dina Boluarte", style=filled, color=dodgerblue];
+        }
+
+        subgraph cluster4
+        { #node [];
+                label = "Gabinete #4";
+                color=black;
+
+                "AnibalTorres4" [label="Anibal Torres", style=filled, color=chocolate];
+                "CesarLanda4" [label="Cesar Landa", style=filled, color=darkseagreen];
+                "JoseLuisGavidiaArrascue4" [label="Jose Luis Gavidia Arrascue", style=filled, color=mediumorchid];
+                "OscarGraham4" [label="Oscar Graham", style=filled, color=peru];
+                "AlfonsoChavarry4" [label="Alfonso Chavarry", style=filled, color=blue];
+                "DimitriSenmache4" [label="Dimitri Senmache", style=filled, color=deeppink];
+                "AngelYldefonso4" [label="Angel Yldefonso", style=filled, color=chartreuse];
+                "FelixChero4" [label="Felix Chero", style=filled, color=gainsboro];
+                "RosendoSerna4" [label="Rosendo Serna", style=filled, color=skyblue];
+                "HernanCondori4" [label="Hernan Condori", style=filled, color=lightpink];
+                "JorgeLopezPena4" [label="Jorge Lopez Peña", style=filled, color=linen];
+                "OscarZea4" [label="Oscar Zea", style=filled, color=red];
+                "FernandoArce4" [label="Fernando Arce", style=filled, color=ghostwhite];
+                "BetssyChavez4" [label="Betssy Chavez", style=filled, color=cyan];
+                "JuanRamonLira4" [label="Juan Ramon Lira", style=filled, color=moccasin];
+                "JorgePrado4" [label="Jorge Prado", style=filled, color=magenta];
+                "RobertoSanchez4" [label="Roberto Sanchez", style=filled, color=sandybrown];
+                "CarlosPalacios4" [label="Carlos Palacios", style=filled, color=darkorange];
+                "AlessandraHerrera4" [label="Alessandra Herrera", style=filled, color=beige];
+                "JuanSilva4" [label="Juan Silva", style=filled, color=navajowhite];
+                "LuisBarranzuela4" [label="Luis Barranzuela", style=filled, color=orange];
+                "GeinerAlvarado4" [label="Geiner Alvarado", style=filled, color=indianred];
+                "DianaMiloslavich4" [label="Diana Miloslavich", style=filled, color=darkviolet];
+                "WilberSupo4" [label="Wilber Supo", style=filled, color=tomato];
+                "AlejandroSalas4" [label="Alejandro Salas", style=filled, color=azure];
+                "DinaBoluarte4" [label="Dina Boluarte", style=filled, color=dodgerblue];
+        }
+}

@@ -3106,6 +3106,40 @@ def test_2242():
         assert ref == png, "repeated rendering changed output"
 
 
+@pytest.mark.xfail(strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2247")
+def test_2247():
+    """
+    adding one edge inside the first cluster should not distort the whole graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2247
+    """
+
+    # find our collocated test case
+    input = Path(__file__).parent / "2247.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    def graph_height(source: str) -> float:
+        plain = dot("plain", source=source)
+        if isinstance(plain, bytes):
+            plain = plain.decode("utf-8")
+
+        graph_line = plain.splitlines()[0].split()
+        assert graph_line[:2] == ["graph", "1"], "unexpected plain output"
+        return float(graph_line[3])
+
+    original = input.read_text(encoding="utf-8")
+    changed = original.replace(
+        '#"HectorBejar1"->"OscarMaurtua1";',
+        '"HectorBejar1"->"OscarMaurtua1";',
+        1,
+    )
+    assert changed != original, "test input no longer contains the reported edge"
+
+    original_height = graph_height(original)
+    changed_height = graph_height(changed)
+
+    assert changed_height <= original_height * 1.25
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
