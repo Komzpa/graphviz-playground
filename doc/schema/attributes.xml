@@ -1409,6 +1409,10 @@
 					minimization. These correspond to the 
 					number of tries without improvement before quitting and the
 					maximum number of iterations in each pass.
+					If this attribute is omitted, dot may apply a smaller internal
+					default for pathologically expanded graphs to keep the layout
+					renderable. Set <html:a rel="attr">mclimit</html:a> explicitly to
+					force a specific crossing minimization budget.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
@@ -1537,7 +1541,10 @@
 					network simplex applications, used in
 					computing node x coordinates.
 					If defined, # iterations =  <html:a rel="attr">nslimit</html:a> * # nodes;
-					otherwise,  # iterations = MAXINT.
+					otherwise,  # iterations = MAXINT. For pathologically expanded dot
+					graphs, an omitted value may receive a smaller internal default to
+					keep the layout renderable. Set <html:a rel="attr">nslimit</html:a>
+					explicitly to force a specific x-coordinate simplex budget.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>

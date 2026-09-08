@@ -5614,6 +5614,38 @@ def test_2621():
     run_raw("dot", "-Gmclimit=.05", "-Gphase=2", "-Tsvg", "-o", os.devnull, input)
 
 
+def test_2621_default_full_layout():
+    """
+    this graph should produce a real layout without explicit budget attributes
+    https://gitlab.com/graphviz/graphviz/-/issues/2621
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2621.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    svg = run("dot", "-Tsvg", input, timeout=60 * 5)
+    root = ET.fromstring(svg)
+
+    namespace = {"svg": "http://www.w3.org/2000/svg"}
+    graphs = root.findall(".//svg:g[@class='graph']", namespace)
+    nodes = root.findall(".//svg:g[@class='node']", namespace)
+    edges = root.findall(".//svg:g[@class='edge']", namespace)
+    assert len(graphs) == 1, "SVG does not contain exactly one graph"
+    assert len(nodes) > 1000, "SVG does not contain the full #2621 node set"
+    assert len(edges) > 1000, "SVG does not contain the full #2621 edge set"
+    assert all(
+        len(edge.findall("./svg:path", namespace)) == 1 for edge in edges
+    ), "not every #2621 edge has a routed SVG path"
+
+    viewbox = root.attrib["viewBox"].split()
+    assert len(viewbox) == 4, "SVG viewBox in unexpected format"
+    width = float(viewbox[2])
+    height = float(viewbox[3])
+    assert width > 1000, "layout is too narrow to be the full #2621 graph"
+    assert height > 1000, "layout is too short to be the full #2621 graph"
+
+
 def test_2636_1():
     """
     `viewBox` in an SVG image should not override `width` and `height`

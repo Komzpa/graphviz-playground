@@ -22,13 +22,18 @@
 #include <common/geomprocs.h>
 #include <dotgen/dot.h>
 #include <dotgen/aspect.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <util/alloc.h>
 #include <util/gv_math.h>
 
 static int nsiter2(graph_t * g);
+static size_t expanded_node_count(graph_t *g);
+static bool use_expanded_graph_budget(graph_t *g, size_t *input_nodes,
+                                      size_t *expanded_nodes);
 static void create_aux_edges(graph_t * g);
 static void remove_aux_edges(graph_t * g);
 static void set_xcoords(graph_t * g);
@@ -160,7 +165,45 @@ static int nsiter2(graph_t * g)
 
     if ((s = agget(g, "nslimit")))
 	maxiter = scale_clamp(agnnodes(g), atof(s));
+    else {
+	size_t input_nodes = 0;
+	size_t expanded_nodes = 0;
+	if (use_expanded_graph_budget(g, &input_nodes, &expanded_nodes)) {
+	    maxiter = scale_clamp(agnnodes(g), 2.0);
+	    if (Verbose) {
+		fprintf(stderr,
+			"network simplex: adaptive nslimit=2 for expanded graph "
+			"(input nodes=%" PRISIZE_T ", expanded nodes=%" PRISIZE_T
+			")\n",
+			input_nodes, expanded_nodes);
+	    }
+	}
+    }
     return maxiter;
+}
+
+static size_t expanded_node_count(graph_t *g) {
+    size_t nodes = 0;
+
+    for (node_t *n = GD_nlist(g); n; n = ND_next(n)) {
+	nodes++;
+    }
+
+    return nodes;
+}
+
+static bool use_expanded_graph_budget(graph_t *g, size_t *input_nodes,
+                                      size_t *expanded_nodes) {
+    enum { MIN_INPUT_NODES = 1000 };
+    enum { MIN_EXPANDED_NODES = 100000 };
+    enum { MIN_EXPANSION_RATIO = 64 };
+
+    *input_nodes = (size_t)agnnodes(dot_root(g));
+    *expanded_nodes = expanded_node_count(g);
+
+    return *input_nodes >= MIN_INPUT_NODES &&
+           *expanded_nodes >= MIN_EXPANDED_NODES &&
+           *expanded_nodes / MIN_EXPANSION_RATIO >= *input_nodes;
 }
 
 static bool go(node_t *u, node_t *v) {

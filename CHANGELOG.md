@@ -7,6 +7,12 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- `dot` now uses bounded internal `mclimit` and `nslimit` defaults for
+  pathologically expanded graphs when these attributes are omitted. Explicit
+  user-provided limits continue to take precedence. #2621
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
