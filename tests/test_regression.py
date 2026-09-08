@@ -1040,6 +1040,45 @@ def test_1453():
     dot("svg", input)
 
 
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+def test_1485():
+    """
+    curved splines with edge labels and a self-loop should not cause node
+    geometry to extend outside the graph bounding box
+    https://gitlab.com/graphviz/graphviz/-/issues/1485
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1485.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # use dot_builtins to avoid depending on an installed plugin configuration
+    dot_builtins = which("dot_builtins")
+    output = run(
+        dot_builtins,
+        "-Tjson",
+        input,
+        stderr=subprocess.DEVNULL,
+    )
+    graph = json.loads(output)
+
+    # get the graph bounding box
+    llx, lly, urx, ury = [float(x) for x in graph["bb"].split(",")]
+
+    # inspect the rounded box emitted for the foo node
+    foo = next(obj for obj in graph["objects"] if obj["name"] == "fooId")
+    points = [
+        point
+        for op in foo["_draw_"]
+        for point in op.get("points", [])
+    ]
+
+    assert points, "foo node did not emit draw points"
+    for x, y in points:
+        assert llx <= x <= urx, "foo node extends outside graph bounding box"
+        assert lly <= y <= ury, "foo node extends outside graph bounding box"
+
+
 def test_1472():
     """
     processing a malformed graph found by Google Autofuzz should not crash

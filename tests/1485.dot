@@ -1,0 +1,30 @@
+digraph {
+	graph [
+		landscape=false
+		sep=0.5
+		outputorder=edgesfirst
+		ranksep=2.5
+		splines=curved
+	];
+
+	node [
+		color=lightgray
+		shape=box
+		style=rounded
+	];
+
+	fooId [label=foo];
+	fooId -> fooId [
+		color=red
+		label="endo relation on foo"
+	];
+	barId [label=bar];
+	barId -> fooId [
+		color=black
+		label="bar to foo"
+	];
+	fooId -> barId [
+		color=black
+		label="foo to bar"
+	];
+}
