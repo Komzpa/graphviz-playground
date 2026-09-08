@@ -75,6 +75,23 @@ MR, if possible avoid pulling in new unrelated changes that have landed in the
 main branch. When rebasing interactively, you can achieve this with
 `git rebase --interactive $(git merge-base origin/main HEAD)`.
 
+### Regression test tuning
+
+When adding or refreshing regression tests, prefer the smallest input graph that
+still exercises the behavior being tested. If the test only needs to prove that
+layout completes, writes diagnostics, or avoids a crash, prefer a compact output
+format such as `dot` and send the output to the platform’s null device instead
+of writing large image artifacts. Tests that assert node, edge, or label
+positions should prefer parseable vector formats such as `dot`, `plain`, `svg`,
+or `xdot` and check the relevant coordinates directly.
+
+For `dot`-specific crash or performance regressions, consider whether the
+undocumented `phase` graph attribute can stop after the phase under test. For
+example, a ranking or mincross regression may not need to run later spline
+routing or rendering phases. Output-driver tests should reuse positioned input
+where possible, for example by running `neato -n2`, so they do not repeat an
+unrelated layout from scratch.
+
 ### C and C++ style
 
 Graphviz is written predominantly in C and C++. C code is compiled under
