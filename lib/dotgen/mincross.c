@@ -868,18 +868,6 @@ static void cleanup2(graph_t *g, int64_t nc, bool has_vlists) {
             agnameof(g), nc, elapsed_sec());
 }
 
-static node_t *neighbor(node_t *v, int dir) {
-  node_t *rv = NULL;
-  assert(v);
-  if (dir < 0) {
-    if (ND_order(v) > 0)
-      rv = GD_rank(Root)[ND_rank(v)].v[ND_order(v) - 1];
-  } else
-    rv = GD_rank(Root)[ND_rank(v)].v[ND_order(v) + 1];
-  assert(rv == 0 || (ND_order(rv) - ND_order(v)) * dir > 0);
-  return rv;
-}
-
 static bool is_a_normal_node_of(graph_t *g, node_t *v) {
   return ND_node_type(v) == NORMAL && agcontains(g, v);
 }
@@ -897,17 +885,6 @@ static bool is_a_vnode_of_an_edge_of(graph_t *g, node_t *v) {
 
 static bool inside_cluster(graph_t *g, node_t *v) {
   return is_a_normal_node_of(g, v) || is_a_vnode_of_an_edge_of(g, v);
-}
-
-static node_t *furthestnode(graph_t *g, node_t *v, int dir) {
-  node_t *rv = v;
-  for (node_t *u = v; (u = neighbor(u, dir));) {
-    if (is_a_normal_node_of(g, u))
-      rv = u;
-    else if (is_a_vnode_of_an_edge_of(g, u))
-      rv = u;
-  }
-  return rv;
 }
 
 void save_vlist(graph_t *g) {
@@ -934,15 +911,27 @@ void rec_reset_vlists(graph_t *g) {
 
   if (GD_rankleader(g))
     for (int r = GD_minrank(g); r <= GD_maxrank(g); r++) {
-      node_t *const v = GD_rankleader(g)[r];
-      if (v == NULL) {
+      node_t *u = NULL;
+      node_t *w = NULL;
+      // Rankleaders may have been removed; rebuild the bounds from live nodes.
+      for (int i = 0; i < GD_rank(dot_root(g))[r].n; i++) {
+        node_t *const v = GD_rank(dot_root(g))[r].v[i];
+        if (!inside_cluster(g, v)) {
+          continue;
+        }
+        if (u == NULL) {
+          u = v;
+        }
+        w = v;
+      }
+      if (u == NULL) {
+        // Cluster ranks should not go empty here; if they do, drop the stale
+        // pre-removal slice instead of preserving it.
+        GD_rankleader(g)[r] = NULL;
+        GD_rank(g)[r].v = GD_rank(dot_root(g))[r].v + GD_rank(dot_root(g))[r].n;
+        GD_rank(g)[r].n = 0;
         continue;
       }
-#ifdef DEBUG
-      node_in_root_vlist(v);
-#endif
-      node_t *const u = furthestnode(g, v, -1);
-      node_t *const w = furthestnode(g, v, 1);
       GD_rankleader(g)[r] = u;
 #ifdef DEBUG
       assert(GD_rank(dot_root(g))[r].v[ND_order(u)] == u);
