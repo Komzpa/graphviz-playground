@@ -2918,6 +2918,33 @@ static bool multicolor(const char *f) {
   return strchr(f, ':') != NULL;
 }
 
+static char *periphery_pencolor(const char *colors, size_t periphery) {
+    if (colors == NULL || strchr(colors, ':') == NULL)
+	return NULL;
+
+    const char *start = colors;
+    const char *stop = NULL;
+    for (size_t i = 0;; i++) {
+	stop = strchr(start, ':');
+	if (i == periphery || stop == NULL)
+	    break;
+	start = stop + 1;
+    }
+
+    const char *end = stop == NULL ? start + strlen(start) : stop;
+    const char *fraction = memchr(start, ';', (size_t)(end - start));
+    if (fraction != NULL)
+	end = fraction;
+
+    const size_t len = (size_t)(end - start);
+    if (len == 0)
+	return NULL;
+
+    char *color = gv_calloc(len + 1, sizeof(char));
+    memcpy(color, start, len);
+    return color;
+}
+
 /* generic polygon gencode routine */
 static void poly_gencode(GVJ_t * job, node_t * n)
 {
@@ -3018,6 +3045,9 @@ static void poly_gencode(GVJ_t * job, node_t * n)
     /* draw peripheries first */
     size_t j;
     for (j = 0; j < peripheries; j++) {
+	char *periphery_color = periphery_pencolor(pencolor, j);
+	if (periphery_color != NULL)
+	    gvrender_set_pencolor(job, periphery_color);
 	for (size_t i = 0; i < sides; i++) {
 	    P = vertices[i + j * sides];
 	    AF[i].x = P.x * xsize + ND_coord(n).x;
@@ -3044,7 +3074,7 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 	} else if (style.underline) {
 	    gvrender_set_pencolor(job, "transparent");
 	    gvrender_polygon(job, AF, sides, filled);
-	    gvrender_set_pencolor(job, pencolor);
+	    gvrender_set_pencolor(job, periphery_color ? periphery_color : pencolor);
 	    gvrender_polyline(job, AF+2, 2);
 	} else if (SPECIAL_CORNERS(style)) {
 	    round_corners(job, AF, sides, style, filled);
@@ -3053,6 +3083,7 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 	}
 	/* fill innermost periphery only */
 	filled = 0;
+	free(periphery_color);
     }
 
     usershape_p = false;

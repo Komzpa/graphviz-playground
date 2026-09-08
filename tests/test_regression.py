@@ -523,6 +523,26 @@ def test_517():
     ), "regular label missing"
 
 
+def test_740():
+    """
+    multiple node peripheries should be able to use different colors
+    https://gitlab.com/graphviz/graphviz/-/issues/740
+    """
+
+    src = 'digraph { n [shape=box peripheries=3 color="red:green:blue" label=""]; }'
+    svg = dot("svg", source=src)
+
+    root = ET.fromstring(svg)
+    ns = "{http://www.w3.org/2000/svg}"
+    strokes = [
+        polygon.get("stroke")
+        for polygon in root.findall(f".//{ns}polygon")
+        if polygon.get("stroke") not in (None, "none")
+    ]
+
+    assert strokes == ["red", "green", "blue"]
+
+
 def test_793():
     """
     Graphviz should not crash when using VRML output with a non-writable current
