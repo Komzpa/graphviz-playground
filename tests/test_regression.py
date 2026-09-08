@@ -4576,6 +4576,41 @@ def test_2502():
     dot("dot", input)
 
 
+def test_2511():
+    """
+    top-level HTML-like table `ALIGN` should align the table in a fixed node
+    https://gitlab.com/graphviz/graphviz/-/issues/2511
+    """
+
+    template = """
+    digraph {
+      a [
+        shape="box"
+        fixedsize=true
+        width="3"
+        height="1"
+        label=<
+          <table border="0" align="%s">
+            <tr><td>HELLO</td><td>There</td></tr>
+          </table>
+        >
+      ]
+    }
+    """
+
+    def first_text_x(align: str) -> float:
+        xdot = run("dot", "-Txdot", input=template % align)
+        match = re.search(r" T ([0-9.]+) [0-9.]+ -1 [0-9.]+ 5 -HELLO", xdot)
+        assert match is not None, "missing HELLO text operation"
+        return float(match.group(1))
+
+    left = first_text_x("left")
+    center = first_text_x("center")
+    right = first_text_x("right")
+
+    assert left < center < right
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2516"
 )
