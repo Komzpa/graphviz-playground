@@ -91,6 +91,19 @@ def _edge_label_ops(edge: dict) -> list[dict]:
     return [op for op in edge.get("_ldraw_", []) if op["op"] == "T"]
 
 
+def _visible_edge_label_count(layout: dict) -> int:
+    return sum(
+        len(_edge_label_ops(edge))
+        for edge in _drawn_edges(layout)
+        if edge.get("_concentrate_junction_internal") != "true"
+    )
+
+
+def _graph_width(layout: dict) -> float:
+    left, _bottom, right, _top = (float(value) for value in layout["bb"].split(","))
+    return right - left
+
+
 def _route_bbox(edge: dict) -> tuple[float, float, float, float]:
     points = [point for piece in _bezier_pieces(edge) for point in piece]
     xs = [point[0] for point in points]
@@ -112,6 +125,70 @@ def _route_distance(left: dict, right: dict) -> float:
         math.dist(a, b)
         for a, b in zip(left_points, right_points)
     )
+
+
+def _sample_cubic(p0, p1, p2, p3, t: float) -> tuple[float, float]:
+    u = 1.0 - t
+    return (
+        u * u * u * p0[0]
+        + 3 * u * u * t * p1[0]
+        + 3 * u * t * t * p2[0]
+        + t * t * t * p3[0],
+        u * u * u * p0[1]
+        + 3 * u * u * t * p1[1]
+        + 3 * u * t * t * p2[1]
+        + t * t * t * p3[1],
+    )
+
+
+def _sampled_drawn_turns(layout: dict) -> tuple[int, float]:
+    turns = 0
+    worst = 0.0
+    for edge in _drawn_edges(layout):
+        polyline = []
+        for piece in _bezier_pieces(edge):
+            for index in range(0, len(piece) - 3, 3):
+                segment = [
+                    _sample_cubic(
+                        piece[index],
+                        piece[index + 1],
+                        piece[index + 2],
+                        piece[index + 3],
+                        step / 24,
+                    )
+                    for step in range(25)
+                ]
+                if polyline:
+                    segment = segment[1:]
+                polyline.extend(segment)
+        for index in range(1, len(polyline) - 1):
+            incoming = (
+                polyline[index][0] - polyline[index - 1][0],
+                polyline[index][1] - polyline[index - 1][1],
+            )
+            outgoing = (
+                polyline[index + 1][0] - polyline[index][0],
+                polyline[index + 1][1] - polyline[index][1],
+            )
+            incoming_len = math.hypot(*incoming)
+            outgoing_len = math.hypot(*outgoing)
+            if incoming_len < 1e-6 or outgoing_len < 1e-6:
+                continue
+            cosine = max(
+                -1.0,
+                min(
+                    1.0,
+                    (
+                        incoming[0] * outgoing[0]
+                        + incoming[1] * outgoing[1]
+                    )
+                    / (incoming_len * outgoing_len),
+                ),
+            )
+            angle = math.degrees(math.acos(cosine))
+            worst = max(worst, angle)
+            turns += angle > 35.0
+    return turns, worst
 
 
 def test_distinct_parallel_colors_stay_distinct():
@@ -225,6 +302,16 @@ def test_record_port_concentrate_crash_repro_renders():
     assert "pos=" in proc.stdout
 
 
+def test_concentrated_trunk_corner_fixture_is_smooth():
+    """A concentrated trunk route has no sampled drawn turn above 35 degrees."""
+
+    layout = _render_xdot_json(_fixture("trunk-corner-anonymous-state.dot"))
+    turns, worst = _sampled_drawn_turns(layout)
+
+    assert turns == 0
+    assert worst < 35.0
+
+
 def test_rollback_probe_exercises_successful_shared_transaction_path():
     """Opt-in rollback probing validates a successful concentration candidate."""
 
@@ -243,9 +330,21 @@ def test_cluster_rank_fallback_renders():
     proc = _run_xdot(_fixture("cluster-rank-fallback-renders-2825.dot"))
 
     assert proc.returncode == 0
-    assert "rebuild_vlists: lead is null" in proc.stderr
-    assert "fell back to an unconcentrated layout" in proc.stderr
+    assert "SEGV" not in proc.stderr
+    assert "AddressSanitizer" not in proc.stderr
+    assert "degenerate concentrated rank" in proc.stderr
     assert "pos=" in proc.stdout
+
+
+def test_labelled_cyclic_fans_keep_label_space():
+    """Cyclic labelled fans do not collapse into one narrow junction stack."""
+
+    fixture = _fixture("labelled-cyclic-fans-keep-label-space.dot")
+    off = _render_json_with_args(fixture, ["-Gconcentrate=false"])
+    on = _render_json_with_args(fixture, ["-Gconcentrate=true"])
+
+    assert _visible_edge_label_count(on) >= _visible_edge_label_count(off)
+    assert _graph_width(on) >= 0.9 * _graph_width(off)
 
 
 def test_self_loop_label_sits_beside_loop():

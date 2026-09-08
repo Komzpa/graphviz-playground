@@ -7,6 +7,13 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Dot no longer has a separate `edgejunction` graph attribute. The existing
+  `concentrate=true` knob now also inserts junction nodes for eligible incoming
+  and outgoing edge fans, so existing drawings that use `concentrate=true` will
+  differ when the junction transform applies.
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

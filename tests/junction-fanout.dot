@@ -1,0 +1,7 @@
+digraph {
+  edge [label=shared minlen=2]
+  source -> alpha
+  source -> beta
+  source -> gamma
+  source -> delta
+}

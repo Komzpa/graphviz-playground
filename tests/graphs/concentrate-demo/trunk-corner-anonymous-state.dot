@@ -1,0 +1,43 @@
+digraph trunk_corner_demo {
+  graph [concentrate=true];
+
+  center = true;
+  size = "7,11";
+  {node [shape = circle] "s0"};
+  {node [shape = plaintext, style=invis, label = ""] "start"};
+  {node [shape = doublecircle] "s1"};
+  {node [shape = circle] "s1"};
+  {node [shape = circle] "s2"};
+  {node [shape = circle] "s3"};
+  {node [shape = circle] "s4"};
+  "start" -> "s1";
+  "s0" [label = "ooooo"];
+  "s0" -> "s0" [ label = "oooooooooooooooooo" ];
+  "s0" -> "s1" [ label = "oooooooooooooooooooooooooooooo" ];
+  "s0" -> "s2" [ label = "oooooooooooooooooooo" ];
+  "s0" -> "s3" [ label = "oooooooooooooooooo" ];
+  "s0" -> "s4" [ label = "oooooooooooooo" ];
+  "s1" [label = "oooooo\nooooooooooooooooooooooooo", color = green3];
+  "s1" -> "s0" [ label = "oooooooooooooooooo" ];
+  "s1" -> "s1" [ label = "oooooooooooooooo\noooooooooooooooooooooooooooooo" ];
+  "s1" -> "s2" [ label = "oooooooooooooooooooo" ];
+  "s1" -> "s3" [ label = "oooooooooooooooooo" ];
+  "s1" -> "s4" [ label = "oooooooooooooooooooooooooooooooo" ];
+  "s2" [label = "ooooooooo\nooooooooooooooooooooooooo"];
+  "s2" -> "s0" [ label = "oooooooooooooooooo" ];
+  "s2" -> "s2" [ label = "oooooooooooooooooooooooooooooo\noooooooooooooooooooo\noooooooooooooooo" ];
+  "s2" -> "s3" [ label = "oooooooooooooooooooooooooo\noooooooooooooooooo" ];
+  "s2" -> "s4" [ label = "oooooooooooooo" ];
+  "s3" [label = "oooooooooo"];
+  "s3" -> "s1" [ label = "oooooooooooooooo\noooooooooooooooooooooooooooooo" ];
+  "s3" -> "s2" [ label = "oooooooooooooooooooo" ];
+  "s3" -> "s3" [ label = "oooooooooooooooooo\noooooooooooooooooo" ];
+  "s3" -> "s4" [ label = "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo" ];
+  "s4" [label = "oooooooooooo"];
+  "s4" -> "s1" [ label = "oooooooooooooooooooooooooooooo" ];
+  "s4" -> "s4" [ label = "oooooooooooooooooooooooooo\noooooooooooooooo\noooooooooooooooooo\noooooooooooooo" ];
+  { rank = min ;
+    "start";
+    "s1";
+  }
+}

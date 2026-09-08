@@ -610,7 +610,10 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline,
       route_spline_metadata_free(metadata);
       free(route_corridor);
       free(polypoints);
-      agerrorf("in routesplines, Pshortestpath failed\n");
+      if (mapbool(agget(agroot(realedge), "_concentrate_junction_clustered_fallback")))
+        agwarningf("in routesplines, Pshortestpath failed\n");
+      else
+        agerrorf("in routesplines, Pshortestpath failed\n");
       return NULL;
     }
     if (metadata != NULL) {

@@ -24,6 +24,7 @@
 #include <dotgen/concentrate_splines.h>
 #include <dotgen/dot.h>
 #include <dotgen/flat_edge_splines.h>
+#include <dotgen/polygon_arrow_spread.h>
 #include <dotgen/spline_tuning.h>
 #include <float.h>
 #include <math.h>
@@ -105,13 +106,6 @@ static boxf node_box(const node_t *node) {
       .UR = {.x = coord.x + ND_rw(node), .y = coord.y + ND_ht(node) / 2.0}};
 }
 
-static bool label_boxes_overlap_or_touch(boxf a, boxf b) {
-  return MAX(a.LL.x - ENDPOINT_LABEL_GAP, b.LL.x - ENDPOINT_LABEL_GAP) <=
-             MIN(a.UR.x + ENDPOINT_LABEL_GAP, b.UR.x + ENDPOINT_LABEL_GAP) &&
-         MAX(a.LL.y - ENDPOINT_LABEL_GAP, b.LL.y - ENDPOINT_LABEL_GAP) <=
-             MIN(a.UR.y + ENDPOINT_LABEL_GAP, b.UR.y + ENDPOINT_LABEL_GAP);
-}
-
 static bool boxes_overlap(boxf a, boxf b) {
   return MAX(a.LL.x, b.LL.x) <= MIN(a.UR.x, b.UR.x) &&
          MAX(a.LL.y, b.LL.y) <= MIN(a.UR.y, b.UR.y);
@@ -143,20 +137,52 @@ static bool edge_spline_bounds(const edge_t *edge, boxf *bounds) {
   return found;
 }
 
+static bool endpoint_label_clearance_direction(edge_t *edge, bool head_p,
+                                               pointf *direction) {
+  const textlabel_t *const label =
+      head_p ? ED_head_label(edge) : ED_tail_label(edge);
+  const splines *const edge_splines = getsplinepoints(edge);
+  if (label == NULL || edge_splines == NULL || edge_splines->size == 0) {
+    return false;
+  }
+
+  pointf endpoint;
+  if (head_p) {
+    const bezier *const curve = &edge_splines->list[edge_splines->size - 1];
+    endpoint = curve->eflag ? curve->ep : curve->list[curve->size - 1];
+  } else {
+    const bezier *const curve = &edge_splines->list[0];
+    endpoint = curve->sflag ? curve->sp : curve->list[0];
+  }
+
+  *direction =
+      (pointf){.x = label->pos.x - endpoint.x, .y = label->pos.y - endpoint.y};
+  const double length = hypot(direction->x, direction->y);
+  if (length <= 0.0) {
+    return false;
+  }
+  direction->x /= length;
+  direction->y /= length;
+  return true;
+}
+
 static void place_grouped_endpoint_label_outside_node(graph_t *graph,
                                                       edge_t *edge,
                                                       bool head_p) {
   node_t *const endpoint = head_p ? aghead(edge) : agtail(edge);
   node_t *const opposite = head_p ? agtail(edge) : aghead(edge);
   textlabel_t *const label = head_p ? ED_head_label(edge) : ED_tail_label(edge);
-  pointf direction = {.x = ND_coord(endpoint).x - ND_coord(opposite).x,
-                      .y = ND_coord(endpoint).y - ND_coord(opposite).y};
-  const double length = hypot(direction.x, direction.y);
-  if (length <= 0.0) {
-    return;
+  pointf direction;
+  if (!endpoint_label_clearance_direction(edge, head_p, &direction)) {
+    direction = (pointf){.x = ND_coord(endpoint).x - ND_coord(opposite).x,
+                         .y = ND_coord(endpoint).y - ND_coord(opposite).y};
+    const double length = hypot(direction.x, direction.y);
+    if (length <= 0.0) {
+      return;
+    }
+    direction.x /= length;
+    direction.y /= length;
   }
-  direction.x /= length;
-  direction.y /= length;
 
   pointf dimen = label->dimen;
   if (GD_flip(graph)) {
@@ -176,7 +202,78 @@ static void place_grouped_endpoint_label_outside_node(graph_t *graph,
     label->pos.x += copysign(2.0 * ENDPOINT_LABEL_GAP, direction.x);
   }
 }
-
+static double label_axis_extent(const graph_t *graph, const textlabel_t *label,
+                                pointf axis) {
+  pointf dimen = label->dimen;
+  if (GD_flip(graph))
+    SWAP(&dimen.x, &dimen.y);
+  return (fabs(axis.x) * dimen.x + fabs(axis.y) * dimen.y) / 2.0;
+}
+static bool same_label_owner(edge_t *a, edge_t *b) {
+  a = getmainedge(a);
+  b = getmainedge(b);
+  return agtail(a) == agtail(b) && aghead(a) == aghead(b);
+}
+static node_t *label_endpoint(endpoint_label_t label) {
+  return label.head_p ? aghead(label.edge) : agtail(label.edge);
+}
+static const char *label_endpoint_group(endpoint_label_t label) {
+  attrsym_t *const attr = label.head_p ? E_samehead : E_sametail;
+  if (attr == NULL)
+    return NULL;
+  const char *const group = agxget(label.edge, attr);
+  return group != NULL && group[0] != '\0' ? group : NULL;
+}
+static bool competing_endpoint_groups(endpoint_label_t a, endpoint_label_t b) {
+  const char *const agroup = label_endpoint_group(a);
+  const char *const bgroup = label_endpoint_group(b);
+  return a.head_p == b.head_p && agroup != NULL && bgroup != NULL &&
+         strcmp(agroup, bgroup) != 0;
+}
+static void separate_competing_endpoint_labels(graph_t *graph,
+                                               endpoint_label_t *labels,
+                                               size_t count) {
+  for (size_t i = 0; i < count; i++) {
+    pointf i_dir;
+    if (!endpoint_label_clearance_direction(labels[i].edge, labels[i].head_p,
+                                            &i_dir))
+      continue;
+    for (size_t j = i + 1; j < count; j++) {
+      if (label_endpoint(labels[i]) != label_endpoint(labels[j]) ||
+          same_label_owner(labels[i].edge, labels[j].edge) ||
+          !competing_endpoint_groups(labels[i], labels[j]))
+        continue;
+      boxf a = label_box(graph, labels[i].label);
+      boxf b = label_box(graph, labels[j].label);
+      if (!boxes_overlap(a, b))
+        continue;
+      pointf j_dir;
+      if (!endpoint_label_clearance_direction(labels[j].edge, labels[j].head_p,
+                                              &j_dir))
+        continue;
+      pointf rel = {.x = j_dir.x - i_dir.x, .y = j_dir.y - i_dir.y};
+      const double length = hypot(rel.x, rel.y);
+      if (length <= 1e-6)
+        continue;
+      rel.x /= length;
+      rel.y /= length;
+      const double center_gap =
+          fabs((labels[j].label->pos.x - labels[i].label->pos.x) * rel.x +
+               (labels[j].label->pos.y - labels[i].label->pos.y) * rel.y);
+      const double overlap = label_axis_extent(graph, labels[i].label, rel) +
+                             label_axis_extent(graph, labels[j].label, rel) -
+                             center_gap;
+      if (overlap <= 0.0)
+        continue;
+      const double max_slide = MIN(hypot(a.UR.x - a.LL.x, a.UR.y - a.LL.y),
+                                   hypot(b.UR.x - b.LL.x, b.UR.y - b.LL.y)) /
+                               2.0;
+      const double slide = MIN(max_slide, overlap);
+      labels[j].label->pos.x += j_dir.x * slide;
+      labels[j].label->pos.y += j_dir.y * slide;
+    }
+  }
+}
 static bool label_overlaps_any_node(graph_t *graph, const textlabel_t *label) {
   const boxf lbl_box = label_box(graph, label);
   for (node_t *node = agfstnode(graph); node != NULL;
@@ -189,12 +286,10 @@ static bool label_overlaps_any_node(graph_t *graph, const textlabel_t *label) {
   }
   return false;
 }
-
 static bool endpoint_label_uses_default_placement(edge_t *edge) {
   return (E_labelangle == NULL || agxget(edge, E_labelangle)[0] == '\0') &&
          (E_labeldistance == NULL || agxget(edge, E_labeldistance)[0] == '\0');
 }
-
 static double side_protrusion(int side, boxf loop_bounds, boxf n_box) {
   switch (side) {
   case RIGHT:
@@ -209,7 +304,6 @@ static double side_protrusion(int side, boxf loop_bounds, boxf n_box) {
     return 0.0;
   }
 }
-
 static int self_loop_label_side(const edge_t *edge, boxf loop_bounds,
                                 boxf n_box) {
   const int port_sides = ED_tail_port(edge).side | ED_head_port(edge).side;
@@ -240,7 +334,6 @@ static int self_loop_label_side(const edge_t *edge, boxf loop_bounds,
   }
   return side;
 }
-
 static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
                                                       edge_t *retained,
                                                       edge_t *duplicate) {
@@ -248,7 +341,6 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
       agtail(duplicate) != aghead(duplicate)) {
     return;
   }
-
   boxf retained_bounds, duplicate_bounds;
   if (!edge_spline_bounds(retained, &retained_bounds)) {
     return;
@@ -262,13 +354,11 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
     retained_bounds.UR.x = MAX(retained_bounds.UR.x, duplicate_bounds.UR.x);
     retained_bounds.UR.y = MAX(retained_bounds.UR.y, duplicate_bounds.UR.y);
   }
-
   textlabel_t *const label = ED_label(retained);
   pointf dimen = label->dimen;
   if (GD_flip(graph)) {
     SWAP(&dimen.x, &dimen.y);
   }
-
   const boxf n_box = node_box(agtail(retained));
   switch (self_loop_label_side(retained, retained_bounds, n_box)) {
   case LEFT:
@@ -291,106 +381,21 @@ static void place_deduped_self_edge_label_beside_loop(graph_t *graph,
   }
   updateBB(graph, label);
 }
-
 static void center_self_edge_label_on_loop_height(graph_t *graph,
                                                   edge_t *edge) {
   boxf bounds;
   if (!edge_spline_bounds(edge, &bounds)) {
     return;
   }
-
   ED_label(edge)->pos.y = (bounds.LL.y + bounds.UR.y) / 2.0;
   updateBB(graph, ED_label(edge));
 }
-
-static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
-                                     size_t label_count) {
-  if (label_count == 0) {
-    return;
-  }
-
-  for (size_t pass = 0; pass < label_count * 10; pass++) {
-    bool moved = false;
-    for (size_t i = 0; i < label_count; i++) {
-      for (size_t j = i + 1; j < label_count; j++) {
-        const boxf first_box = label_box(graph, labels[i].label);
-        const boxf second_box = label_box(graph, labels[j].label);
-        if (!label_boxes_overlap_or_touch(first_box, second_box)) {
-          continue;
-        }
-
-        const int x_direction =
-            labels[i].label->pos.x <= labels[j].label->pos.x ? -1 : 1;
-        const int y_direction =
-            labels[i].label->pos.y <= labels[j].label->pos.y ? -1 : 1;
-        const double x_push =
-            x_direction < 0
-                ? (first_box.UR.x + ENDPOINT_LABEL_GAP - second_box.LL.x) / 2.0
-                : (second_box.UR.x + ENDPOINT_LABEL_GAP - first_box.LL.x) / 2.0;
-        const double y_push =
-            y_direction < 0
-                ? (first_box.UR.y + ENDPOINT_LABEL_GAP - second_box.LL.y) / 2.0
-                : (second_box.UR.y + ENDPOINT_LABEL_GAP - first_box.LL.y) / 2.0;
-
-        if (x_push <= y_push) {
-          labels[i].label->pos.x += (double)x_direction * x_push;
-          labels[j].label->pos.x -= (double)x_direction * x_push;
-        } else {
-          labels[i].label->pos.y += (double)y_direction * y_push;
-          labels[j].label->pos.y -= (double)y_direction * y_push;
-        }
-        updateBB(graph, labels[i].label);
-        updateBB(graph, labels[j].label);
-        moved = true;
-      }
-    }
-
-    for (size_t i = 0; i < label_count; i++) {
-      if (!labels[i].needs_node_clearance)
-        continue;
-
-      for (node_t *node = agfstnode(graph); node != NULL;
-           node = agnxtnode(graph, node)) {
-        const boxf lbl_box = label_box(graph, labels[i].label);
-        const boxf n_box = node_box(node);
-        if (!label_boxes_overlap_or_touch(lbl_box, n_box))
-          continue;
-
-        const int x_direction =
-            labels[i].label->pos.x <= ND_coord(node).x ? -1 : 1;
-        const int y_direction =
-            labels[i].label->pos.y <= ND_coord(node).y ? -1 : 1;
-        const double anchor_gap = 2.0 * ENDPOINT_LABEL_GAP;
-        const double x_push = x_direction < 0
-                                  ? lbl_box.UR.x + anchor_gap - n_box.LL.x
-                                  : n_box.UR.x + anchor_gap - lbl_box.LL.x;
-        const double y_push = y_direction < 0
-                                  ? lbl_box.UR.y + anchor_gap - n_box.LL.y
-                                  : n_box.UR.y + anchor_gap - lbl_box.LL.y;
-
-        if (x_push <= y_push) {
-          labels[i].label->pos.x += (double)x_direction * x_push;
-        } else {
-          labels[i].label->pos.y += (double)y_direction * y_push;
-        }
-        updateBB(graph, labels[i].label);
-        moved = true;
-      }
-    }
-    if (!moved) {
-      break;
-    }
-  }
-}
-
 static bool concentrated_label_dedupe_match(edge_t *, edge_t *);
 static bool same_self_edge_node_pair(edge_t *, edge_t *);
-
 static void dedupe_concentrated_edge_labels(graph_t *graph) {
   if (!Concentrate) {
     return;
   }
-
   for (node_t *node = agfstnode(graph); node != NULL;
        node = agnxtnode(graph, node)) {
     for (edge_t *edge = agfstout(graph, node); edge != NULL;
@@ -418,7 +423,6 @@ static void dedupe_concentrated_edge_labels(graph_t *graph) {
     }
   }
 }
-
 static void adjustregularpath(path *, size_t, size_t);
 static Agedge_t *bot_bound(Agedge_t *, int);
 static bool pathscross(Agnode_t *, Agnode_t *, Agedge_t *, Agedge_t *);
@@ -440,6 +444,7 @@ static void place_vnlabel(Agnode_t *);
 static boxf rank_box(spline_info_t *sp, Agraph_t *, int);
 static void recover_slack(Agedge_t *, path *);
 static void regularize_straight_bridge(points_t *, size_t *);
+static void regularize_vertical_cubic_reversals(points_t *, bool);
 static void resize_vn(Agnode_t *, double, double, double);
 static void setflags(Agedge_t *, int, int, int);
 static int straight_len(Agnode_t *);
@@ -447,7 +452,6 @@ static Agedge_t *straight_path(Agedge_t *, int, points_t *, size_t *);
 static Agedge_t *top_bound(Agedge_t *, int);
 static void align_arrow_tangents(graph_t *, edge_t *);
 static void align_flat_arrow_tangents_in_graph(graph_t *);
-
 edge_t *getmainedge(edge_t *e) {
   edge_t *le = e;
   while (ED_to_virt(le))
@@ -456,27 +460,22 @@ edge_t *getmainedge(edge_t *e) {
     le = ED_to_orig(le);
   return le;
 }
-
 static bool edge_has_no_labels(edge_t *edge) {
   return ED_label(edge) == NULL && ED_xlabel(edge) == NULL;
 }
-
 static double edge_penwidth(edge_t *edge) {
   if (E_penwidth == NULL)
     return 1.0;
   return late_double(edge, E_penwidth, 1.0, 0.0);
 }
-
 static bool concentrated_routes_share_visible_trunk(edge_t *edge,
                                                     edge_t *prior_edge) {
   if (aghead(edge) != aghead(prior_edge))
     return false;
-
   const splines *const edge_spl = ED_spl(edge);
   const splines *const prior_spl = ED_spl(prior_edge);
   if (edge_spl == NULL || prior_spl == NULL)
     return false;
-
   const double threshold =
       3.0 * MAX(edge_penwidth(edge), edge_penwidth(prior_edge));
   const double min_shared_trunk = 30.0;
@@ -539,7 +538,6 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   if (!concentrated_routes_share_visible_trunk(edge, prior_edge)) {
     return false;
   }
-
   size_t matching_labels = 0;
   for (edge_t *candidate = agfstin(agraphof(edge), aghead(edge));
        candidate != NULL; candidate = agnxtin(agraphof(edge), candidate)) {
@@ -553,7 +551,6 @@ static bool concentrated_label_dedupe_match(edge_t *edge, edge_t *prior_edge) {
   }
   return matching_labels >= 3;
 }
-
 static bool
 same_direction_edges_are_concentrated_duplicates(edge_t *retained,
                                                  edge_t *candidate) {
@@ -1039,6 +1036,7 @@ static int dot_splines_(graph_t *g, int normalize) {
 finish:
 #endif
   align_flat_arrow_tangents_in_graph(g);
+  dot_spread_coincident_polygon_arrowheads(g);
   dedupe_concentrated_edge_labels(g);
 
   /* place port labels */
@@ -1120,7 +1118,11 @@ finish:
         updateBB(g, endpoint_labels[sibling_index].label);
       }
     }
-    separate_endpoint_labels(g, endpoint_labels, endpoint_label_count);
+    separate_competing_endpoint_labels(g, endpoint_labels,
+                                       endpoint_label_count);
+    for (size_t label_index = 0; label_index < endpoint_label_count;
+         label_index++)
+      updateBB(g, endpoint_labels[label_index].label);
     free(endpoint_labels);
   }
 
@@ -1757,7 +1759,7 @@ static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip &&
       ED_head_port(edge).defined && !ED_head_port(edge).clip && !grouped_tail &&
       !grouped_head) {
-    if (draws_both_arrows)
+    if (draws_both_arrows || !mapbool(agget(agraphof(edge), "concentrate")))
       flat_edge_straighten_port_line(spline);
     else
       straighten_flat_port_progression(spline);
@@ -3023,6 +3025,11 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
 
   if (cnt == 1) {
     LIST_SYNC(&pointfs);
+    graph_t *const root = dot_root(g);
+    regularize_vertical_cubic_reversals(
+        &pointfs,
+        Concentrate ||
+            mapbool(agget(root, "_concentrate_junction_active")));
     edge_t *const owner = route_spline_owner(fe);
     const size_t prior_spline_count =
         ED_spl(owner) == NULL ? 0 : ED_spl(owner)->size;
@@ -3247,6 +3254,26 @@ static void regularize_straight_bridge(points_t *points,
   assert(LIST_SIZE(points) % 3 == 1);
 }
 
+static void regularize_vertical_cubic_reversals(points_t *points,
+                                                bool require_off_corridor_dx) {
+  for (size_t i = 0; i + 3 < LIST_SIZE(points); i += 3) {
+    const pointf p0 = LIST_GET(points, i);
+    const pointf p1 = LIST_GET(points, i + 1);
+    const pointf p2 = LIST_GET(points, i + 2);
+    const pointf p3 = LIST_GET(points, i + 3);
+    const pointf delta = sub_pointf(p3, p0);
+    const double low = MIN(p0.y, p3.y) - 1.0;
+    const double high = MAX(p0.y, p3.y) + 1.0;
+    const double outside_dx = fabs(p2.x - p0.x);
+    if (fabs(p3.x - p0.x) <= 24.0 && fabs(p3.y - p0.y) >= 100.0 &&
+        p1.y >= low && p1.y <= high && (p2.y < low || p2.y > high) &&
+        (!require_off_corridor_dx ||
+         (outside_dx >= 60.0 && outside_dx <= 160.0))) {
+      LIST_SET(points, i + 1, add_pointf(p0, scale(1.0 / 3.0, delta)));
+      LIST_SET(points, i + 2, add_pointf(p0, scale(2.0 / 3.0, delta)));
+    }
+  }
+}
 static edge_t *straight_path(edge_t *e, int cnt, points_t *plist,
                              size_t *pending_straight_bridge) {
   edge_t *f = e;

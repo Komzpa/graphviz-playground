@@ -18,7 +18,9 @@
 #include "config.h"
 
 #include <common/geomprocs.h>
+#include <common/globals.h>
 #include <common/render.h>
+#include <common/utils.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -49,6 +51,12 @@ static void showPoints(pointf ps[], int pn) {
   LIST_APPEND(&Show_boxes, gv_strdup("grestore"));
 }
 #endif
+
+static double endpoint_route_clearance(edge_t *e) {
+  if (E_penwidth == NULL)
+    return 0.5;
+  return late_double(e, E_penwidth, 1.0, 0.0) / 2.0;
+}
 
 /* Clip arrow to node boundary.
  * The real work is done elsewhere. Here we get the real edge,
@@ -631,10 +639,12 @@ void endpath(path *P, edge_t *e, int et, pathend_t *endp, bool merge) {
       ++P->end.p.y;
     } else if (side & BOTTOM) {
       endp->sidemask = BOTTOM;
+      const double clearance =
+          shapeOf(n) == SH_RECORD ? endpoint_route_clearance(e) : 0.0;
       if (P->end.p.x < ND_coord(n).x) { /* go left */
         b0.LL.x = b.LL.x - 1;
         /* b0.UR.y = ND_coord(n).y - HT2(n); */
-        b0.UR.y = P->end.p.y;
+        b0.UR.y = P->end.p.y - clearance;
         b0.UR.x = b.UR.x;
         b0.LL.y = ND_coord(n).y - HT2(n) - GD_ranksep(agraphof(n)) / 2;
         b.UR.x = ND_coord(n).x - ND_lw(n) - (FUDGE - 2);
@@ -645,7 +655,7 @@ void endpath(path *P, edge_t *e, int et, pathend_t *endp, bool merge) {
         endp->boxes[1] = b;
       } else {
         b0.LL.x = b.LL.x;
-        b0.UR.y = P->end.p.y;
+        b0.UR.y = P->end.p.y - clearance;
         /* b0.UR.y = ND_coord(n).y - HT2(n); */
         b0.UR.x = b.UR.x + 1;
         b0.LL.y = ND_coord(n).y - HT2(n) - GD_ranksep(agraphof(n)) / 2;
@@ -1323,51 +1333,100 @@ pointf edgeMidpoint(graph_t *g, edge_t *e) {
  */
 void addEdgeLabels(edge_t *e) { makePortLabels(e); }
 
+static bool endpoint_label_tangent(edge_t *e, bool head_p, pointf *pe,
+                                   pointf *pf) {
+  splines *const spl = getsplinepoints(e);
+  if (spl == NULL || spl->size == 0)
+    return false;
+
+  if (!head_p) {
+    const bezier *const bez = &spl->list[0];
+    if (bez->sflag) {
+      *pe = bez->sp;
+      *pf = bez->list[0];
+    } else {
+      *pe = bez->list[0];
+      const pointf *const c = bez->list; // slice of the first 4 points
+      *pf = Bezier(c, 0.1, NULL, NULL);
+    }
+  } else {
+    const bezier *const bez = &spl->list[spl->size - 1];
+    if (bez->eflag) {
+      *pe = bez->ep;
+      *pf = bez->list[bez->size - 1];
+    } else {
+      *pe = bez->list[bez->size - 1];
+      // slice of the last 4 points
+      const pointf *const c = &bez->list[bez->size - 4];
+      *pf = Bezier(c, 0.9, NULL, NULL);
+    }
+  }
+  return true;
+}
+
+static bool endpoint_group(edge_t *e, bool head_p, attrsym_t **attr,
+                           const char **group) {
+  *attr = head_p ? E_samehead : E_sametail;
+  if (*attr == NULL)
+    return false;
+  *group = agxget(e, *attr);
+  return *group != NULL && (*group)[0] != '\0';
+}
+
+static size_t shared_endpoint_group_size(edge_t *e, bool head_p) {
+  attrsym_t *attr = NULL;
+  const char *group = NULL;
+  if (!endpoint_group(e, head_p, &attr, &group))
+    return 0;
+
+  size_t count = 0;
+  node_t *const endpoint = head_p ? aghead(e) : agtail(e);
+  for (edge_t *iter = head_p ? agfstin(agraphof(endpoint), endpoint)
+                             : agfstout(agraphof(endpoint), endpoint);
+       iter != NULL; iter = head_p ? agnxtin(agraphof(endpoint), iter)
+                                   : agnxtout(agraphof(endpoint), iter)) {
+    edge_t *const candidate = AGMKOUT(iter);
+    if (streq(agxget(candidate, attr), group))
+      count++;
+  }
+  return count;
+}
+
 /* place the {head,tail}label (depending on HEAD_P) of edge E
  * N.B. Assume edges are normalized, so tail is at spl->list[0].list[0]
  * and head is at spl->list[spl->size-l].list[bez->size-1]
  * Return 1 on success
  */
 int place_portlabel(edge_t *e, bool head_p) {
-  splines *spl;
   pointf pe, pf;
 
   if (ED_edge_type(e) == IGNORED)
     return 0;
   textlabel_t *const l = head_p ? ED_head_label(e) : ED_tail_label(e);
-  if ((spl = getsplinepoints(e)) == NULL)
+  if (!endpoint_label_tangent(e, head_p, &pe, &pf))
     return 0;
-  if (!head_p) {
-    const bezier *const bez = &spl->list[0];
-    if (bez->sflag) {
-      pe = bez->sp;
-      pf = bez->list[0];
-    } else {
-      pe = bez->list[0];
-      const pointf *const c = bez->list; // slice of the first 4 points
-      pf = Bezier(c, 0.1, NULL, NULL);
-    }
-  } else {
-    const bezier *const bez = &spl->list[spl->size - 1];
-    if (bez->eflag) {
-      pe = bez->ep;
-      pf = bez->list[bez->size - 1];
-    } else {
-      pe = bez->list[bez->size - 1];
-      // slice of the last 4 points
-      const pointf *const c = &bez->list[bez->size - 4];
-      pf = Bezier(c, 0.9, NULL, NULL);
-    }
-  }
+
+  const bool shared_endpoint = shared_endpoint_group_size(e, head_p) > 1;
   const double angle =
       atan2(pf.y - pe.y, pf.x - pe.x) +
       RADIANS(late_double(e, E_labelangle, PORT_LABEL_ANGLE, -180.0));
-  const double dist =
-      PORT_LABEL_DISTANCE * late_double(e, E_labeldistance, 1.0, 0.0);
+  const double dist = PORT_LABEL_DISTANCE *
+                      ((Concentrate || shared_endpoint) ? 0.65 : 1.0) *
+                      late_double(e, E_labeldistance, 1.0, 0.0);
   l->pos.x = pe.x + dist * cos(angle);
   l->pos.y = pe.y + dist * sin(angle);
   l->set = true;
   return 1;
+}
+
+static bool has_pending_concentrate_junction_spline(edge_t *e) {
+  for (edge_t *le = e; le != NULL; le = ED_to_orig(le)) {
+    if (ED_concentrate_junction(le) != NULL)
+      return true;
+    if (ED_edge_type(le) == NORMAL)
+      break;
+  }
+  return false;
 }
 
 splines *getsplinepoints(edge_t *e) {
@@ -1377,7 +1436,7 @@ splines *getsplinepoints(edge_t *e) {
   for (le = e; !(sp = ED_spl(le)) && ED_edge_type(le) != NORMAL;
        le = ED_to_orig(le))
     ;
-  if (sp == NULL)
+  if (sp == NULL && !has_pending_concentrate_junction_spline(e))
     agerrorf("getsplinepoints: no spline points available for edge (%s,%s)\n",
              agnameof(agtail(e)), agnameof(aghead(e)));
   return sp;

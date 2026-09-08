@@ -1,0 +1,13 @@
+// Shows concentrate aborting when a cluster rank has no lead node.
+digraph {
+  h[d=e]
+  concentrate=true
+  ""
+  subgraph cluster {
+    ""
+    M0_0E0IN -> {S}
+  } -> {
+    rank=same
+    M0_0E0IN
+  }
+}

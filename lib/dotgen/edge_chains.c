@@ -1022,6 +1022,10 @@ void build_edge_chains(graph_t *graph) {
         continue;
       }
 
+      if (ED_concentrate_junction(edge)) {
+        continue;
+      }
+
       /* Edges incident to a collapsed sub-cluster use its rank skeleton. */
       if (is_cluster_edge(edge)) {
         if (suppress_concentrated_cluster_edge_with_opposite(
