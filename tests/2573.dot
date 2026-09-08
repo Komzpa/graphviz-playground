@@ -1,0 +1,19 @@
+strict digraph {
+  subgraph cluster_key {
+    label="AAA"
+
+    key [label=<
+      <table>
+        <tr>
+          <td bgcolor="orange">BBB</td>
+        </tr>
+        <tr>
+          <td bgcolor="aqua">CCC</td>
+        </tr>
+        <tr>
+          <td bgcolor="#0f0">DDD</td>
+        </tr>
+      </table>
+    >]
+  }
+}
