@@ -32,7 +32,7 @@
 #include <util/streq.h>
 
 static char *usageFmt =
-    "Usage: %s [-Vv?] [-(GNEA)name=val] [-(KTlso)<val>] <dot files>\n";
+    "Usage: %s [-Vv?] [-Bfile] [-(GNEA)name=val] [-(KTlso)<val>] <dot files>\n";
 
 static char *genericItems = "\n\
  -V          - Print version and exit\n\
@@ -46,6 +46,7 @@ static char *genericItems = "\n\
  -lv         - Use external library 'v'\n\
  -ofile      - Write output to 'file'\n\
  -O          - Automatically generate an output filename based on the input filename with a .'format' appended. (Causes all -ofile options to be ignored.) \n\
+ -Bfile      - Process each line of 'file' as a separate dot invocation\n\
  -P          - Internally generate a graph of the current plugins. \n\
  -q[l]       - Set level of message suppression (=1)\n\
  -s[v]       - Scale input by 'v' (=72)\n\

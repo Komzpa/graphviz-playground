@@ -6523,6 +6523,48 @@ def test_2827(tmp_path: Path):
     assert svg1 == svg2, "state from one graph carried to another"
 
 
+def test_2831(tmp_path: Path):
+    """
+    dot should process a batch file of ordinary invocations in one process
+    https://gitlab.com/graphviz/graphviz/-/issues/2831
+    """
+
+    input_dir = tmp_path / "batch inputs"
+    input_dir.mkdir()
+    output_dir = tmp_path / "batch outputs"
+    output_dir.mkdir()
+
+    src1 = input_dir / "one graph.dot"
+    src1.write_text("digraph { alpha -> beta; }", encoding="utf-8")
+    src2 = input_dir / "two graph.dot"
+    src2.write_text("digraph { gamma -> delta; }", encoding="utf-8")
+    svg = output_dir / "one graph.svg"
+    plain = output_dir / "two graph.plain"
+    batch = tmp_path / "batch.txt"
+    batch.write_text(
+        textwrap.dedent(
+            f"""\
+            # comments and blank lines are ignored
+            "{src1}" -Tsvg -o "{svg}"
+
+            "{src2}" -Tplain -o "{plain}"
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    run_raw("dot", "-B", batch)
+
+    assert "<svg " in svg.read_text(encoding="utf-8")
+    plain_text = plain.read_text(encoding="utf-8")
+    assert "node gamma" in plain_text
+    assert "node delta" in plain_text
+
+    normal = run("dot", "-Tplain", src1)
+    assert normal is not None
+    assert "node alpha" in normal
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
 @pytest.mark.xfail(
     raises=AssertionError,
