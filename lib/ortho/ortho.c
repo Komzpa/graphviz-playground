@@ -23,16 +23,21 @@
 
 #define DEBUG
 #include <assert.h>
+#include <common/edgeattr.h>
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <ortho/maze.h>
 #include <ortho/fPQ.h>
 #include <ortho/ortho.h>
 #include <common/geomprocs.h>
 #include <common/globals.h>
 #include <common/render.h>
+#include <common/utils.h>
 #include <common/pointset.h>
 #include <util/alloc.h>
 #include <util/exit.h>
@@ -46,6 +51,132 @@ typedef struct {
     Agedge_t* e;
 } epair_t;
 
+typedef struct {
+  PointSet *endpoint_pairs;
+  PointMap *group_heads;
+  size_t *next_in_group;
+  size_t edge_capacity;
+} ortho_concentrate_state_t;
+
+static bool ortho_edges_run_in_opposite_directions(Agedge_t *first_edge,
+                                                   Agedge_t *second_edge) {
+  return agtail(first_edge) != agtail(second_edge) &&
+         agtail(first_edge) == aghead(second_edge) &&
+         aghead(first_edge) == agtail(second_edge);
+}
+
+static bool ortho_edge_attributes_are_equal(Agedge_t *first_edge,
+                                            Agedge_t *second_edge) {
+  const bool compare_opposite_endpoints =
+      ortho_edges_run_in_opposite_directions(first_edge, second_edge);
+
+  if (compare_opposite_endpoints &&
+      !gv_opposite_edge_ports_are_equal(first_edge, second_edge)) {
+    return false;
+  }
+  if (!compare_opposite_endpoints &&
+      !gv_edge_ports_are_equal(first_edge, second_edge)) {
+    return false;
+  }
+
+  return compare_opposite_endpoints
+             ? gv_opposite_edge_attributes_are_equal(first_edge, second_edge)
+             : gv_edge_attributes_are_equal(first_edge, second_edge);
+}
+
+static Agedge_t *
+find_equivalent_edge_in_group(Agedge_t *edge, const epair_t *routed_edges,
+                              const ortho_concentrate_state_t *state,
+                              size_t first_edge_index) {
+  size_t edge_index = first_edge_index;
+
+  while (edge_index != state->edge_capacity) {
+    Agedge_t *const routed_edge = routed_edges[edge_index].e;
+    const bool opposite_direction =
+        routed_edge != NULL &&
+        ortho_edges_run_in_opposite_directions(routed_edge, edge);
+    if (routed_edge != NULL && ED_edge_type(routed_edge) != IGNORED &&
+        ortho_edge_attributes_are_equal(edge, routed_edge) &&
+        (opposite_direction
+             ? opposite_direction_edge_arrow_decorations_are_mergeable(
+                   routed_edge, edge)
+             : same_direction_edge_arrow_decorations_are_mergeable(routed_edge,
+                                                                   edge))) {
+      return routed_edge;
+    }
+    edge_index = state->next_in_group[edge_index];
+  }
+  return NULL;
+}
+
+static void ortho_concentrate_state_init(ortho_concentrate_state_t *state,
+                                         size_t edge_capacity) {
+  *state = (ortho_concentrate_state_t){
+      .endpoint_pairs = newPS(),
+      .group_heads = newPM(),
+      .next_in_group = gv_calloc(edge_capacity, sizeof(size_t)),
+      .edge_capacity = edge_capacity,
+  };
+
+  /* edge_capacity is outside the valid routed-edge index range. */
+  for (size_t edge_index = 0; edge_index < edge_capacity; edge_index++) {
+    state->next_in_group[edge_index] = edge_capacity;
+  }
+}
+
+static void ortho_concentrate_state_free(ortho_concentrate_state_t *state) {
+  freePS(state->endpoint_pairs);
+  freePM(state->group_heads);
+  free(state->next_in_group);
+}
+
+static bool suppress_or_register_ortho_edge(ortho_concentrate_state_t *state,
+                                            Agedge_t *edge,
+                                            const epair_t *routed_edges,
+                                            size_t routed_edge_count) {
+  /*
+   * AGSEQ(node) is Cgraph's stable node identity. Sorting the endpoint IDs
+   * intentionally puts both directions of the same node pair in one group.
+   * Edges in that group are suppressed only when their effective attributes
+   * are equal; non-equivalent edges remain linked as separate routed members.
+   */
+  const int tail_sequence = AGSEQ(agtail(edge));
+  const int head_sequence = AGSEQ(aghead(edge));
+  const int first_endpoint = MIN(tail_sequence, head_sequence);
+  const int second_endpoint = MAX(tail_sequence, head_sequence);
+
+  if (!isInPS(state->endpoint_pairs, first_endpoint, second_endpoint)) {
+    addPS(state->endpoint_pairs, first_endpoint, second_endpoint);
+    assert(routed_edge_count <= INT_MAX);
+    insertPM(state->group_heads, first_endpoint, second_endpoint,
+             (int)routed_edge_count);
+    return true;
+  }
+
+  const int stored_group_head =
+      insertPM(state->group_heads, first_endpoint, second_endpoint, 0);
+  assert(stored_group_head >= 0);
+  const size_t group_head = (size_t)stored_group_head;
+
+  Agedge_t *const representative_edge = find_equivalent_edge_in_group(
+      edge, routed_edges, state, group_head);
+  if (representative_edge != NULL) {
+    const bool opposite_direction =
+        ortho_edges_run_in_opposite_directions(representative_edge, edge);
+    fold_concentrated_edge_arrow_decorations(representative_edge, edge,
+                                             opposite_direction);
+    if (opposite_direction) {
+      ED_conc_opp_flag(representative_edge) = true;
+    }
+    ED_edge_type(edge) = IGNORED;
+    return false;
+  }
+
+  state->next_in_group[routed_edge_count] = state->next_in_group[group_head];
+  state->next_in_group[group_head] = routed_edge_count;
+  return true;
+}
+
 static UNUSED void emitSearchGraph(FILE *fp, sgraph *sg);
 static UNUSED void emitGraph(FILE *fp, maze *mp, size_t n_edges,
                              route *route_list, epair_t[]);
@@ -54,6 +185,7 @@ int odb_flags;
 #endif
 
 #define CELL(n) ((cell*)ND_alg(n))
+#define ORTHO_PORT_CLEARANCE 6.0
 
 static double MID(double a, double b) {
   return (a + b) / 2.0;
@@ -1066,9 +1198,44 @@ static double htrack(segment *seg, maze *m) {
   return round(lo + f * (hi - lo));
 }
 
+static bool axis_aligned_segment_intersects_box(pointf a, pointf b, boxf box) {
+    if (fabs(a.x - b.x) <= MILLIPOINT) {
+	const double x = a.x;
+	const double lo = fmin(a.y, b.y);
+	const double hi = fmax(a.y, b.y);
+	return x > box.LL.x + MILLIPOINT && x < box.UR.x - MILLIPOINT &&
+	       hi > box.LL.y + MILLIPOINT && lo < box.UR.y - MILLIPOINT;
+    }
+    if (fabs(a.y - b.y) <= MILLIPOINT) {
+	const double y = a.y;
+	const double lo = fmin(a.x, b.x);
+	const double hi = fmax(a.x, b.x);
+	return y > box.LL.y + MILLIPOINT && y < box.UR.y - MILLIPOINT &&
+	       hi > box.LL.x + MILLIPOINT && lo < box.UR.x - MILLIPOINT;
+    }
+    return false;
+}
+
+static bool detour_intersects_node_cell(const pointf *detour, size_t detour_size,
+					const maze *mp, const cell *tail_cell,
+					const cell *head_cell) {
+    for (size_t i = 0; i + 1 < detour_size; i++) {
+	for (size_t j = 0; j < mp->ngcells; j++) {
+	    const cell *const node_cell = mp->gcells + j;
+	    if (node_cell == tail_cell || node_cell == head_cell)
+		continue;
+	    if (axis_aligned_segment_intersects_box(detour[i], detour[i + 1],
+						    node_cell->bb))
+		return true;
+	}
+    }
+    return false;
+}
+
 static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
                              splineInfo *sinfo, epair_t es[]) {
     LIST(pointf) ispline = {0};
+    LIST(pointf) vertices = {0};
 
     for (size_t irte = 0; irte < n_edges; irte++) {
 	Agedge_t *const e = es[irte].e;
@@ -1076,49 +1243,95 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 	const pointf q1 = add_pointf(ND_coord(aghead(e)), ED_head_port(e).p);
 
 	route rte = route_list[irte];
-	size_t npts = 1 + 3*rte.n;
-	LIST_RESERVE(&ispline, npts);
-	    
 	segment *seg = rte.segs;
 	if (seg == NULL) {
 		continue;
 	}
-	pointf p;
-	if (seg->isVert) {
+	const double tail_dy = p1.y - ND_coord(agtail(e)).y;
+	const double head_dy = q1.y - ND_coord(aghead(e)).y;
+	const bool opposite_vertical_ports =
+	    ND_rank(agtail(e)) == ND_rank(aghead(e)) &&
+	    ED_tail_port(e).defined && ED_head_port(e).defined &&
+	    fabs(tail_dy) > MILLIPOINT && fabs(head_dy) > MILLIPOINT &&
+	    tail_dy * head_dy < 0;
+	if (opposite_vertical_ports) {
+	    const double outside_y_tail =
+		p1.y + copysign(ORTHO_PORT_CLEARANCE, tail_dy);
+	    const double outside_y_head =
+		q1.y + copysign(ORTHO_PORT_CLEARANCE, head_dy);
+	    const double outside_x = tail_dy > 0
+		? MAX(ND_coord(agtail(e)).x + ND_rw(agtail(e)),
+		      ND_coord(aghead(e)).x + ND_rw(aghead(e))) +
+		      ORTHO_PORT_CLEARANCE
+		: MIN(ND_coord(agtail(e)).x - ND_lw(agtail(e)),
+		      ND_coord(aghead(e)).x - ND_lw(aghead(e))) -
+		      ORTHO_PORT_CLEARANCE;
+		    const pointf detour[] = {
+			p1,
+			{.x = p1.x, .y = outside_y_tail},
+		{.x = outside_x, .y = outside_y_tail},
+		{.x = outside_x, .y = outside_y_head},
+			{.x = q1.x, .y = outside_y_head},
+			q1,
+		    };
+		    if (!detour_intersects_node_cell(detour,
+						     sizeof(detour) /
+							 sizeof(detour[0]),
+						     mp, CELL(agtail(e)),
+						     CELL(aghead(e)))) {
+			for (size_t i = 0; i < sizeof(detour) / sizeof(detour[0]); i++)
+			    LIST_APPEND(&vertices, detour[i]);
+			goto finish_edge;
+		    }
+		}
+		{
+		    LIST_APPEND(&vertices, p1);
+	    pointf p;
+	    if (seg->isVert)
 		p = (pointf){.x = vtrack(seg, mp), .y = p1.y};
-	}
-	else {
+	    else
 		p = (pointf){.x = p1.x, .y = htrack(seg, mp)};
-	}
-	LIST_APPEND(&ispline, p);
-	LIST_APPEND(&ispline, p);
+	    if (!APPROXEQPT(*LIST_BACK(&vertices), p, MILLIPOINT))
+		LIST_APPEND(&vertices, p);
 
-	for (size_t i = 1;i<rte.n;i++) {
-		seg = rte.segs+i;
+	    for (size_t i = 1; i < rte.n; i++) {
+		seg = rte.segs + i;
 		if (seg->isVert)
 		    p.x = vtrack(seg, mp);
 		else
 		    p.y = htrack(seg, mp);
-		LIST_APPEND(&ispline, p);
-		LIST_APPEND(&ispline, p);
-		LIST_APPEND(&ispline, p);
-	}
+		if (!APPROXEQPT(*LIST_BACK(&vertices), p, MILLIPOINT))
+		    LIST_APPEND(&vertices, p);
+	    }
 
-	if (seg->isVert) {
+	    if (seg->isVert)
 		p = (pointf){.x = vtrack(seg, mp), .y = q1.y};
-	}
-	else {
+	    else
 		p = (pointf){.x = q1.x, .y = htrack(seg, mp)};
+	    if (!APPROXEQPT(*LIST_BACK(&vertices), p, MILLIPOINT))
+		LIST_APPEND(&vertices, p);
+		    if (!APPROXEQPT(*LIST_BACK(&vertices), q1, MILLIPOINT))
+			LIST_APPEND(&vertices, q1);
+		}
+
+finish_edge:
+		LIST_APPEND(&ispline, LIST_FRONT(&vertices)[0]);
+	for (size_t i = 1; i < LIST_SIZE(&vertices); i++) {
+	    const pointf previous = LIST_GET(&vertices, i - 1);
+	    const pointf next = LIST_GET(&vertices, i);
+	    LIST_APPEND(&ispline, previous);
+	    LIST_APPEND(&ispline, next);
+	    LIST_APPEND(&ispline, next);
 	}
-	LIST_APPEND(&ispline, p);
-	LIST_APPEND(&ispline, p);
 	if (Verbose > 1)
 	    fprintf(stderr, "ortho %s %s\n", agnameof(agtail(e)),agnameof(aghead(e)));
 	clip_and_install(e, aghead(e), LIST_FRONT(&ispline), LIST_SIZE(&ispline),
 	                 sinfo);
 	LIST_CLEAR(&ispline);
+	LIST_CLEAR(&vertices);
     }
     LIST_FREE(&ispline);
+    LIST_FREE(&vertices);
 }
 
 static double edgeLen(Agedge_t *e) {
@@ -1160,10 +1373,12 @@ static bool swap_ends_p(edge_t * e)
  */
 int orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
-    PointSet* ps = NULL;
+    const size_t edge_capacity = agnedges(g);
+    ortho_concentrate_state_t concentrate_state = {0};
 
-    if (Concentrate) 
-	ps = newPS();
+    if (Concentrate) {
+	ortho_concentrate_state_init(&concentrate_state, edge_capacity);
+    }
 
 #ifdef DEBUG
     {
@@ -1202,7 +1417,7 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     maze *const mp = mkMaze(g);
     if (mp == NULL) {
 	if (Concentrate) {
-	    freePS(ps);
+	    ortho_concentrate_state_free(&concentrate_state);
 	}
 	free(es);
 	return -1;
@@ -1215,19 +1430,15 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     /* store edges to be routed in es, along with their lengths */
     size_t n_edges = 0;
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
-        for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
+	for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
+	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
-		int ti = AGSEQ(agtail(e));
-		int hi = AGSEQ(aghead(e));
-		if (ti <= hi) {
-		    if (isInPS (ps,ti,hi)) continue;
-		    addPS(ps,ti,hi);
-		}
-		else {
-		    if (isInPS (ps,hi,ti)) continue;
-		    addPS(ps,hi,ti);
-		}
+		const bool is_distinct =
+		    suppress_or_register_ortho_edge(&concentrate_state, e, es,
+		                                    n_edges);
+		if (!is_distinct)
+		    continue;
 	    }
 	    es[n_edges].e = e;
 	    es[n_edges].d = edgeLen (e);
@@ -1279,8 +1490,9 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     attachOrthoEdges(mp, n_edges, route_list, &sinfo, es);
 
 orthofinish:
-    if (Concentrate)
-	freePS (ps);
+    if (Concentrate) {
+	ortho_concentrate_state_free(&concentrate_state);
+    }
 
     for (size_t i=0; i < n_edges; i++)
 	free (route_list[i].segs);
