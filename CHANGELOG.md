@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The `clusterrank` documentation now explains that `global` is accepted for
+  compatibility, but currently behaves like `none`. #2654
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
