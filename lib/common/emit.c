@@ -2349,9 +2349,9 @@ static void draw_ortho_corner_markers(GVJ_t *job, const corners_t *corners,
 
 static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 {
-    int cnum, numsemi = 0;
+    int numsemi = 0;
     char *color, *pencolor, *fillcolor;
-    char *headcolor, *tailcolor, *lastcolor;
+    char *lastcolor;
     char *colors = NULL;
     bezier bz;
     splines offspl, tmpspl;
@@ -2478,10 +2478,9 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		tmplist[j].x = pf3.x - numc2 * offlist[j].x;
 		tmplist[j].y = pf3.y - numc2 * offlist[j].y;
 	    }
-	    lastcolor = headcolor = tailcolor = color;
+	    lastcolor = color;
 	    colors = gv_strdup(color);
-	    for (cnum = 0, color = strtok(colors, ":"); color;
-		cnum++, color = strtok(0, ":")) {
+	    for (color = strtok(colors, ":"); color; color = strtok(0, ":")) {
 		if (!color[0])
 		    color = DEFAULT_COLOR;
 		if (color != lastcolor) {
@@ -2491,11 +2490,8 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    }
 		    lastcolor = color;
 		}
-		if (cnum == 0)
-		    headcolor = tailcolor = color;
-		if (cnum == 1)
-		    tailcolor = color;
 		for (size_t i = 0; i < tmpspl.size; i++) {
+		    bz = ED_spl(e)->list[i];
 		    tmplist = tmpspl.list[i].list;
 		    offlist = offspl.list[i].list;
 		    for (size_t j = 0; j < tmpspl.list[i].size; j++) {
@@ -2503,29 +2499,32 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 			tmplist[j].y += offlist[j].y;
 		    }
 		    gvrender_beziercurve(job, tmplist, tmpspl.list[i].size, 0);
-		}
-	    }
-	    if (bz.sflag) {
-		if (color != tailcolor) {
-		    color = tailcolor;
-	            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
-		        gvrender_set_pencolor(job, color);
-		        gvrender_set_fillcolor(job, color);
+		    if (bz.sflag) {
+			pointf sp = bz.sp;
+			sp.x += tmplist[0].x - bz.list[0].x;
+			sp.y += tmplist[0].y - bz.list[0].y;
+			if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+			    gvrender_set_pencolor(job, color);
+			    gvrender_set_fillcolor(job, color);
+			}
+			arrow_gen(job, EMIT_TDRAW, sp, tmplist[0],
+				arrowsize, penwidth, bz.sflag);
 		    }
-		}
-		arrow_gen(job, EMIT_TDRAW, bz.sp, bz.list[0],
-			arrowsize, penwidth, bz.sflag);
-	    }
-	    if (bz.eflag) {
-		if (color != headcolor) {
-		    color = headcolor;
-	            if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
-		        gvrender_set_pencolor(job, color);
-		        gvrender_set_fillcolor(job, color);
+		    if (bz.eflag) {
+			const size_t last = tmpspl.list[i].size - 1;
+			pointf ep = bz.ep;
+			ep.x += tmplist[last].x - bz.list[last].x;
+			ep.y += tmplist[last].y - bz.list[last].y;
+			if (! (ED_gui_state(e) & (GUI_STATE_ACTIVE | GUI_STATE_SELECTED))) {
+			    gvrender_set_pencolor(job, color);
+			    gvrender_set_fillcolor(job, color);
+			}
+			arrow_gen(job, EMIT_HDRAW, ep, tmplist[last],
+				arrowsize, penwidth, bz.eflag);
 		    }
+		    if (ED_spl(e)->size > 1 && (bz.sflag || bz.eflag) && styles)
+			gvrender_set_style(job, styles);
 		}
-		arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1],
-			arrowsize, penwidth, bz.eflag);
 	    }
 	    free(colors);
 	    for (size_t i = 0; i < offspl.size; i++) {
@@ -4364,4 +4363,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

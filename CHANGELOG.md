@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Multicolored parallel edge splines now render arrowheads for each color lane.
+  #972
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

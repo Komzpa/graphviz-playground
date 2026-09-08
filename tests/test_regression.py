@@ -617,6 +617,38 @@ def test_925():
     assert "ААА ААА ААА" in svg, "incorrect spacing in UTF-8 label"
 
 
+def test_972():
+    """
+    multicolored parallel edges should render an arrowhead for each color lane
+    https://gitlab.com/graphviz/graphviz/-/issues/972
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "972.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process this with dot
+    svg = dot("svg", input)
+
+    # load this as XML
+    root = ET.fromstring(svg)
+
+    # Each colored spline lane should have a matching arrowhead polygon. The
+    # regression used to render only the red arrowhead.
+    polygons = root.findall(".//{http://www.w3.org/2000/svg}polygon")
+    red_arrowheads = [
+        p for p in polygons if p.get("fill") == "red" and p.get("stroke") == "red"
+    ]
+    green_arrowheads = [
+        p
+        for p in polygons
+        if p.get("fill") == "green" and p.get("stroke") == "green"
+    ]
+
+    assert len(red_arrowheads) == 1, "missing red arrowhead"
+    assert len(green_arrowheads) == 1, "missing green arrowhead"
+
+
 @pytest.mark.parametrize("testcase", ("1213-1.dot", "1213-2.dot"))
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1213"
