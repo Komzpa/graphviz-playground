@@ -2,7 +2,7 @@
 #
 
 examplesdir = $(pkgdatadir)/examples
-examples = 4elt.gv world.gv
+examples = 4elt.gv legend.gv world.gv
 
 if WITH_SMYRNA
 examples_DATA = $(examples)

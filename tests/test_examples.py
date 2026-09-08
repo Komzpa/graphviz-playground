@@ -44,6 +44,31 @@ def test_compile_example(src, tmp_path):
     _, _ = run_c(filepath, tmp_path, args, "graph {a -- b}", cflags=cflags, link=libs)
 
 
+def test_2231_legend_example():
+    """
+    the packaged legend example should render and keep its explanatory labels
+    https://gitlab.com/graphviz/graphviz/-/issues/2231
+    """
+
+    # construct an absolute path to the example
+    filepath = (
+        Path(__file__).parent.resolve() / ".." / "share" / "examples" / "legend.gv"
+    )
+
+    # render the example
+    svg = run("dot", "-Tsvg", filepath)
+
+    # the legend text should be present in the SVG output
+    for expected in (
+        "Legend",
+        "person or team",
+        "service",
+        "data store",
+        "important dependency",
+    ):
+        assert expected in svg, f"missing legend text {expected!r}"
+
+
 @pytest.mark.parametrize(
     "src",
     [
