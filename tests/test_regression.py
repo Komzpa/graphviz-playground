@@ -598,6 +598,41 @@ def test_827():
     dot("svg", b15gv)
 
 
+def test_885():
+    """
+    clusters with shape=diamond should render diamond-shaped boundaries
+    https://gitlab.com/graphviz/graphviz/-/issues/885
+    """
+
+    source = """
+        digraph L4 {
+          subgraph cluster_X {
+            graph [shape="diamond"];
+            Y;
+          }
+        }
+    """
+
+    svg = run("dot", "-Tsvg", input=source)
+
+    root = ET.fromstring(svg)
+    cluster_polygons = root.findall(
+        ".//{http://www.w3.org/2000/svg}title[.='cluster_X']/../{http://www.w3.org/2000/svg}polygon"
+    )
+    assert len(cluster_polygons) == 1, "could not find cluster boundary"
+
+    points = [
+        tuple(float(coord) for coord in point.split(","))
+        for point in cluster_polygons[0].get("points").split()
+    ]
+    assert points[0] == points[-1], "cluster polygon is not closed"
+    points = points[:-1]
+
+    assert len(points) == 4, "cluster boundary is not a quadrilateral"
+    assert len({x for x, _ in points}) == 3, "cluster boundary is not diamond-shaped"
+    assert len({y for _, y in points}) == 3, "cluster boundary is not diamond-shaped"
+
+
 def test_925():
     """
     spaces should be handled correctly in UTF-8-containing labels in record shapes
