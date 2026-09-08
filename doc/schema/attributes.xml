@@ -1983,7 +1983,8 @@
 					this will actually be the central node. In circo, the block containing
 					the node will be central in the drawing of its connected component.
 					If not defined,
-					twopi will pick a most central node, and circo will pick a random node.
+					twopi will pick a most central node, and circo will pick a highly
+					connected node.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>

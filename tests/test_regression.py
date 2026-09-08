@@ -7789,3 +7789,28 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+@pytest.mark.skipif(which("dot_builtins") is None, reason="dot_builtins not available")
+def test_2198():
+    """
+    circo should not choose a default root that produces unnecessarily long edges
+    and an oversized bounding box.
+    https://gitlab.com/graphviz/graphviz/-/issues/2198
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2198.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # use dot_builtins to avoid depending on an installed plugin configuration
+    dot_builtins = which("dot_builtins")
+    output = run(dot_builtins, "-Kcirco", "-Tdot", input)
+
+    # The bug's reported bounding box was about 44055 × 19299.
+    match = re.search(r'\bbb="0,0,([^,]+),([^"]+)"', output)
+    assert match is not None, "could not find graph bounding box"
+    width, height = (float(match.group(1)), float(match.group(2)))
+
+    assert width < 10000, "circo produced an oversized bounding box"
+    assert height < 10000, "circo produced an oversized bounding box"

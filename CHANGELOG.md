@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `circo` now picks a better default root block for graphs whose first node
+  would produce unnecessarily long edges and an oversized bounding box. #2198
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
