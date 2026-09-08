@@ -598,6 +598,92 @@ def test_827():
     dot("svg", b15gv)
 
 
+@pytest.mark.xfail(strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/900")
+def test_900():
+    """
+    long edge labels should not make splines loop outside the graph bounds
+    https://gitlab.com/graphviz/graphviz/-/issues/900
+    """
+
+    source = textwrap.dedent(
+        """\
+        digraph "mytest" {
+          suspendPerson [
+            URL="suspendPerson.html",
+            shape=record,
+            style=filled,
+            fillcolor=chocolate,
+            label="{AND|suspendPerson|EXTENSION|AND}"
+          ]
+          restorePerson [
+            URL="restorePerson.html",
+            shape=record,
+            style=filled,
+            fillcolor=chocolate,
+            label="{AND|restorePerson|EXTENSION|AND}"
+          ]
+          ENFORCEPOLICYFORPERSON [
+            URL="ENFORCEPOLICYFORPERSON.html",
+            shape=record,
+            style=filled,
+            fillcolor=chocolate,
+            label="{AND|ENFORCEPOLICYFORPERSON|EXTENSION|AND}"
+          ]
+          MODIFYPERSON [
+            URL="MODIFYPERSON.html",
+            shape=record,
+            style=filled,
+            fillcolor=chocolate,
+            label="{AND|MODIFYPERSON|EXTENSION|AND}"
+          ]
+          MODIFYPERSON:s -> suspendPerson:n [
+            URL="id7656587230802708112.html",
+            label="Script : suspendPerson.get() ...",
+            color=black
+          ]
+          MODIFYPERSON:s -> restorePerson:n [
+            URL="id7656577029731760268.html",
+            label="Script : suspendPerson.get() ...",
+            color=black
+          ]
+          MODIFYPERSON:s -> ENFORCEPOLICYFORPERSON:n [
+            URL="id7708716051755177936.html",
+            label="Script : ((suspendPerson.get(...",
+            color=black
+          ]
+          restorePerson:s -> ENFORCEPOLICYFORPERSON:n [label="true", color=green]
+          suspendPerson:s -> ENFORCEPOLICYFORPERSON:n [label="true", color=green]
+        }
+        """
+    )
+
+    # process this with dot
+    data = json.loads(dot("json", source=source))
+
+    # get the graph bounding box
+    x0, y0, x1, y1 = (float(x) for x in data["bb"].split(","))
+
+    # find the long-label edge that was reported to form a strange loop
+    edge = next(
+        e
+        for e in data["edges"]
+        if e.get("label") == "Script : ((suspendPerson.get(..."
+    )
+
+    # collect the spline points for that edge
+    points = [
+        point
+        for op in edge["_draw_"]
+        if op["op"] in ("b", "B")
+        for point in op["points"]
+    ]
+
+    assert points, "could not locate spline points"
+
+    for x, y in points:
+        assert x0 <= x <= x1 and y0 <= y <= y1, "spline loops outside graph bounds"
+
+
 def test_925():
     """
     spaces should be handled correctly in UTF-8-containing labels in record shapes
