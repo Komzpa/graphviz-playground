@@ -2286,6 +2286,189 @@ def test_1990():
     run_raw(circo, "-Tsvg", "-o", os.devnull, input)
 
 
+def test_1993_label_word_wrap():
+    """
+    labels should support automatic word wrapping within a requested width
+    https://gitlab.com/graphviz/graphviz/-/issues/1993
+    """
+
+    base = """
+        graph {
+          n [
+            shape=box,
+            fontname=Courier,
+            fontsize=10,
+            label="alpine birch cedar dogwood",
+            width=0,
+            labelwrapwidth=1.0
+          ];
+        }
+    """
+    source = textwrap.dedent(base)
+    svg = dot("svg", source=source)
+    xdot = dot("xdot", source=source)
+    plain = dot("plain", source=source).decode("utf-8")
+
+    svg_root = ET.fromstring(svg)
+    svg_lines = [
+        text.text
+        for text in svg_root.iter("{http://www.w3.org/2000/svg}text")
+        if text.text
+    ]
+    # The logical lines, rather than the renderer's number of text elements,
+    # prove that automatic wrapping grouped words using measured glyph widths.
+    assert len(svg_lines) == 3
+    assert all(1 <= len(line.split()) <= 2 for line in svg_lines)
+    assert " T " in xdot and xdot.count(" T ") == len(svg_lines)
+
+    node = next(line for line in plain.splitlines() if line.startswith("node "))
+    _, _, _, width, height, *_ = node.split()
+    assert float(width) <= 1.25
+    assert float(height) > 0.5
+
+    # A larger font changes the measured line layout, not a character-count
+    # threshold. Courier keeps this check independent of font discovery.
+    larger = dot("svg", source=source.replace("fontsize=10", "fontsize=20"))
+    larger_lines = [
+        text.text
+        for text in ET.fromstring(larger).iter("{http://www.w3.org/2000/svg}text")
+        if text.text
+    ]
+    assert len(larger_lines) > len(svg_lines)
+
+    # Explicit hard-line alignment is retained by every generated soft line.
+    aligned = dot(
+        "svg",
+        source='graph { n [shape=box, label="north west\\lcenter east\\nright south\\r", labelwrapwidth=0.8]; }',
+    )
+    anchors = [
+        text.attrib.get("text-anchor", "middle")
+        for text in ET.fromstring(aligned).iter("{http://www.w3.org/2000/svg}text")
+    ]
+    assert anchors.count("start") >= 1
+    assert anchors.count("end") >= 1
+    assert anchors.count("middle") >= 1
+
+    # An unbreakable word is preserved intact even if it exceeds the requested
+    # width; HTML labels and record labels remain byte-for-byte unaffected.
+    long_word = dot(
+        "svg", source='graph { n [label="electroencephalographically", labelwrapwidth=0.1]; }'
+    )
+    assert len(
+        [text for text in ET.fromstring(long_word).iter("{http://www.w3.org/2000/svg}text")]
+    ) == 1
+
+    def xdot_without_labelwrapwidth(output: str) -> str:
+        return re.sub(r"\n\s*labelwrapwidth=[^,\n]+,", "", output)
+
+    for label in ('<<TABLE><TR><TD>alpine birch cedar</TD></TR></TABLE>>', '"<a> alpine birch cedar"'):
+        plain_label = f"graph {{ n [shape={'record' if label.startswith(chr(34)) else 'box'}, label={label}]; }}"
+        wrapped_label = plain_label.replace("]; }", ", labelwrapwidth=0.1]; }")
+        for fmt in ("svg", "xdot", "plain"):
+            before = dot(fmt, source=plain_label)
+            after = dot(fmt, source=wrapped_label)
+            if fmt == "xdot":
+                after = xdot_without_labelwrapwidth(after)
+            assert before == after
+
+    # labelwrapwidth is deliberately stricter than late_double: the complete
+    # trimmed attribute must be one finite, positive decimal number in inches.
+    without_width = source.replace("labelwrapwidth=1.0", "")
+    baseline = dot("svg", source=without_width)
+    warning = (
+        "Warning: labelwrapwidth must be a positive finite decimal number in inches - ignored\n"
+    )
+    dot_path = which("dot")
+    assert dot_path is not None
+    for value in (
+        "1bogus",
+        "1in",
+        "0x1p0",
+        "NaN",
+        "Inf",
+        "junk",
+        ".",
+        "1e",
+        "1e+",
+        "0",
+        "-1",
+    ):
+        bad = f'labelwrapwidth="{value}"'
+        disabled = without_width.replace("width=0,", f"width=0, {bad},")
+        proc = subprocess.run(
+            [dot_path, "-Tsvg"], input=disabled, text=True, capture_output=True, check=True
+        )
+        assert proc.stdout == baseline
+        assert proc.stderr == warning
+        for fmt in ("xdot", "plain"):
+            before = dot(fmt, source=without_width)
+            after = dot(fmt, source=disabled)
+            if fmt == "xdot":
+                after = xdot_without_labelwrapwidth(after)
+            assert before == after
+
+    # Decimal notation accepts a fractional significand and a signed exponent,
+    # but no C hex-float syntax or unit suffixes.
+    for value in ("1", "1.", "1e0", "1.0e+0", " +1 "):
+        proc = subprocess.run(
+            [dot_path, "-Tsvg"],
+            input=source.replace("labelwrapwidth=1.0", f'labelwrapwidth="{value}"'),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        assert proc.stdout == svg
+        assert proc.stderr == ""
+
+    fractional = subprocess.run(
+        [dot_path, "-Tsvg"],
+        input=source.replace("labelwrapwidth=1.0", 'labelwrapwidth=".5"'),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert fractional.stdout == dot(
+        "svg", source=source.replace("labelwrapwidth=1.0", "labelwrapwidth=0.5")
+    )
+    assert fractional.stderr == ""
+
+    # Cgraph resolves inherited node defaults when each node is initialized, so
+    # an invalid default emits one warning per affected node rather than once
+    # for the graph-level declaration.
+    inherited = subprocess.run(
+        [dot_path, "-Tsvg"],
+        input='graph { node [label="alpha beta", labelwrapwidth="0x1p0"]; a; b; }',
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert inherited.stderr == warning * 2
+
+    # A soft wrap replaces one chosen ASCII whitespace byte. All other
+    # whitespace survives, including leading/trailing, repeated and tab text;
+    # SVG encodes repeated spaces as NBSP to preserve their rendering.
+    whitespace = dot(
+        "svg",
+        source='graph { n [fontname=Courier fontsize=10 shape=box width=0 label="  alpha  \t beta  " labelwrapwidth=0.5]; }',
+    )
+    whitespace_lines = [
+        text.text
+        for text in ET.fromstring(whitespace).iter("{http://www.w3.org/2000/svg}text")
+    ]
+    assert whitespace_lines == [" \u00a0alpha \u00a0\t", "beta \u00a0"]
+
+    # NBSP is not ASCII break whitespace, so Graphviz keeps it with the word.
+    nbsp = dot(
+        "svg",
+        source='graph { n [fontname=Courier fontsize=10 shape=box width=0 label="alpha&#160;beta gamma" labelwrapwidth=0.5]; }',
+    )
+    nbsp_lines = [
+        text.text
+        for text in ET.fromstring(nbsp).iter("{http://www.w3.org/2000/svg}text")
+    ]
+    assert nbsp_lines == ["alpha\u00a0beta", "gamma"]
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",

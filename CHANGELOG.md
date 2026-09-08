@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- Plain node labels can use `labelwrapwidth` to wrap at whitespace within a
+  positive width in inches. #1993
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

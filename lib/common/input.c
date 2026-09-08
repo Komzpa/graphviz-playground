@@ -729,6 +729,7 @@ void graph_init(graph_t * g, bool use_rankdir)
     N_label = agfindnodeattr(g, "label");
     if (!N_label)
 	N_label = agattr_text(g, AGNODE, "label", NODENAME_ESC);
+    N_labelwrapwidth = agfindnodeattr(g, "labelwrapwidth");
     N_xlabel = agfindnodeattr(g, "xlabel");
     N_showboxes = agfindnodeattr(g, "showboxes");
     N_penwidth = agfindnodeattr(g, "penwidth");

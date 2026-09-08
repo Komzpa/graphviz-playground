@@ -68,6 +68,90 @@ double late_double(void *obj, attrsym_t *attr, double defaultValue,
     return rv;
 }
 
+static bool is_ascii_digit(char c) { return c >= '0' && c <= '9'; }
+
+static bool is_ascii_space(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' ||
+           c == '\v';
+}
+
+/*
+ * `strtod` accepts implementation-specific extensions such as hexadecimal
+ * floating-point literals. labelwrapwidth deliberately accepts only a decimal
+ * significand, with an optional decimal exponent:
+ *
+ *   [+-]? ( [0-9]+ ( '.' [0-9]* )? | '.' [0-9]+ ) ( [eE] [+-]? [0-9]+ )?
+ *
+ * The caller strips ASCII whitespace before and after this grammar.
+ */
+static bool is_labelwrapwidth_number(const char *value) {
+    const char *p = value;
+
+    if (*p == '+' || *p == '-')
+        ++p;
+
+    bool has_digits = false;
+    while (is_ascii_digit(*p)) {
+        has_digits = true;
+        ++p;
+    }
+
+    if (*p == '.') {
+        ++p;
+        while (is_ascii_digit(*p)) {
+            has_digits = true;
+            ++p;
+        }
+    }
+    if (!has_digits)
+        return false;
+
+    if (*p == 'e' || *p == 'E') {
+        ++p;
+        if (*p == '+' || *p == '-')
+            ++p;
+        const char *exponent = p;
+        while (is_ascii_digit(*p))
+            ++p;
+        if (p == exponent)
+            return false;
+    }
+
+    while (is_ascii_space(*p))
+        ++p;
+    return *p == '\0';
+}
+
+static bool parse_labelwrapwidth(node_t *n, double *width) {
+    if (!N_labelwrapwidth)
+        return false;
+
+    char *value = agxget(n, N_labelwrapwidth);
+    if (!value || *value == '\0')
+        return false;
+
+    while (is_ascii_space(*value))
+        ++value;
+
+    if (!is_labelwrapwidth_number(value)) {
+        agwarningf("labelwrapwidth must be a positive finite decimal number in inches - ignored\n");
+        return false;
+    }
+
+    char *end;
+    const double parsed = strtod(value, &end);
+    while (is_ascii_space(*end))
+        ++end;
+
+    if (*end != '\0' || !isfinite(parsed) || parsed <= 0.0) {
+        agwarningf("labelwrapwidth must be a positive finite decimal number in inches - ignored\n");
+        return false;
+    }
+
+    *width = parsed;
+    return true;
+}
+
 /** Return value for PSinputscale. If this is > 0, it has been set on the
  * command line and this value is used.
  * Otherwise, we check the graph's inputscale attribute. If this is not set
@@ -440,6 +524,12 @@ void common_init_node(node_t * n)
     fi.fontcolor = late_nnstring(n, N_fontcolor, DEFAULT_COLOR);
     ND_label(n) = make_label(n, str, aghtmlstr(str), shapeOf(n) == SH_RECORD,
 		fi.fontsize, fi.fontname, fi.fontcolor);
+    double labelwrapwidth;
+    if (!ND_label(n)->html && shapeOf(n) != SH_RECORD &&
+        parse_labelwrapwidth(n, &labelwrapwidth)) {
+      wrap_label(GD_gvc(agraphof(n)), ND_label(n),
+                 labelwrapwidth * POINTS_PER_INCH);
+    }
     if (N_xlabel && (str = agxget(n, N_xlabel)) && str[0]) {
 	ND_xlabel(n) = make_label(n, str, aghtmlstr(str), false,
 				fi.fontsize, fi.fontname, fi.fontcolor);

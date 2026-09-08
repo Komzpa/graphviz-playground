@@ -145,6 +145,7 @@ RENDER_API textlabel_t *make_label(void *obj, char *str, bool is_html,
     RENDER_API shape_kind shapeOf(node_t *);
     RENDER_API void shape_clip(node_t * n, pointf curve[4]);
     RENDER_API void make_simple_label (GVC_t * gvc, textlabel_t* rv);
+    RENDER_API void wrap_label(GVC_t *gvc, textlabel_t *lp, double width);
     RENDER_API int stripedBox(GVJ_t *job, pointf *AF, const char *clrs,
                               int rotate);
     RENDER_API stroke_t taper (bezier*, double (*radfunc_t)(double,double,double), double initwid);

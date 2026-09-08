@@ -14,6 +14,7 @@
 
 #include <common/render.h>
 #include <common/htmltable.h>
+#include <ctype.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -102,6 +103,85 @@ void make_simple_label(GVC_t * gvc, textlabel_t * lp)
 
     agxbfree(&line);
     lp->space = lp->dimen;
+}
+
+static bool text_fits(GVC_t *gvc, textlabel_t *lp, const char *text,
+                      double width) {
+  textspan_t span = {.str = (char *)text};
+  textfont_t tf = {.name = lp->fontname, .size = lp->fontsize};
+  span.font = dtinsert(gvc->textfont_dt, &tf);
+  const pointf size = textspan_size(gvc, &span);
+  if (span.layout && span.free_layout)
+    span.free_layout(span.layout);
+  return size.x <= width;
+}
+
+static void wrap_line(GVC_t *gvc, textlabel_t *lp, const char *line,
+                      char terminator, double width) {
+  agxbuf current = {0};
+  const char *p = line;
+  bool current_has_text = false;
+
+  while (*p) {
+    const char *space = p;
+    while (*p && isspace((unsigned char)*p))
+      ++p;
+    const char *word = p;
+    while (*p && !isspace((unsigned char)*p))
+      ++p;
+
+    agxbput_n(&current, space, (size_t)(word - space));
+    if (word == p)
+      break;
+
+    const size_t word_start = agxblen(&current);
+    agxbput_n(&current, word, (size_t)(p - word));
+    if (current_has_text && word_start > 0 && word != space &&
+        !text_fits(gvc, lp, agxbstart(&current), width)) {
+      /* Replace exactly the final whitespace byte before this word. This
+       * keeps all leading, trailing, repeated and tab whitespace intact.
+       */
+      char *text = agxbdisown(&current);
+      char *suffix = gv_strdup(text + word_start);
+      text[word_start - 1] = '\0';
+      storeline(gvc, lp, text, terminator);
+      agxbput(&current, suffix);
+      free(suffix);
+    }
+    current_has_text = true;
+  }
+
+  if (agxblen(&current) == 0)
+    storeline(gvc, lp, gv_strdup(line), terminator);
+  else
+    storeline(gvc, lp, agxbdisown(&current), terminator);
+  agxbfree(&current);
+}
+
+/* Split only plain-label logical lines. Explicit \n, \l and \r lines retain
+ * their alignment because every generated line inherits its source terminator.
+ */
+void wrap_label(GVC_t *gvc, textlabel_t *lp, double width) {
+  if (lp->html || lp->u.txt.nspans == 0 || width <= 0.0)
+    return;
+
+  textlabel_t wrapped = *lp;
+  wrapped.u.txt.span = NULL;
+  wrapped.u.txt.nspans = 0;
+  wrapped.dimen.x = wrapped.dimen.y = 0.0;
+
+  for (size_t i = 0; i < lp->u.txt.nspans; ++i) {
+    const textspan_t *span = &lp->u.txt.span[i];
+    if (text_fits(gvc, lp, span->str, width))
+      storeline(gvc, &wrapped, gv_strdup(span->str), span->just);
+    else
+      wrap_line(gvc, &wrapped, span->str, span->just, width);
+  }
+
+  free_textspan(lp->u.txt.span, lp->u.txt.nspans);
+  lp->u.txt = wrapped.u.txt;
+  lp->dimen = wrapped.dimen;
+  lp->space = wrapped.dimen;
 }
 
 /* Assume str is freshly allocated for this instance, so it
