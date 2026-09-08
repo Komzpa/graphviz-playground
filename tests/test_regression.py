@@ -380,6 +380,52 @@ def test_218():
     assert warnings.strip() != "", "no warning issued for a font name containing space"
 
 
+def assert_arrowhead_near_head(layout: dict, tail: str, head: str) -> None:
+    """Check that an edge's arrowhead remains closest to its DOT head node."""
+
+    objects_by_name = {obj["name"]: obj for obj in layout["objects"]}
+    names_by_id = {obj["_gvid"]: obj["name"] for obj in layout["objects"]}
+    edge = next(
+        edge
+        for edge in layout["edges"]
+        if (names_by_id[edge["tail"]], names_by_id[edge["head"]]) == (tail, head)
+    )
+    arrowhead = next(op for op in edge["_hdraw_"] if op["op"] == "P")
+    arrow_tip = tuple(arrowhead["points"][0])
+    head_pos = tuple(float(coord) for coord in objects_by_name[head]["pos"].split(",")[:2])
+    tail_pos = tuple(float(coord) for coord in objects_by_name[tail]["pos"].split(",")[:2])
+    # Compare along the dominant endpoint axis. Concentrated splines can loop
+    # near the tail, so a full 2D distance check is too strict here.
+    axis = 1 if abs(head_pos[1] - tail_pos[1]) >= abs(head_pos[0] - tail_pos[0]) else 0
+
+    assert abs(arrow_tip[axis] - head_pos[axis]) < abs(
+        arrow_tip[axis] - tail_pos[axis]
+    ), f"{tail}->{head} arrowhead is closer to {tail} than to {head}"
+
+
+@pytest.mark.parametrize("concentrate", (False, True))
+def test_222(concentrate: bool):
+    """
+    concentrated backward edges should keep their arrow at the real head node
+    https://gitlab.com/graphviz/graphviz/-/issues/222
+    """
+
+    input = Path(__file__).parent / "222.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    source = input.read_text(encoding="utf-8").replace(
+        "concentrate=true",
+        f"concentrate={'true' if concentrate else 'false'}",
+        1,
+    )
+    layout = json.loads(dot("json", source=source))
+
+    # h->a exercises the backward concentrated path that swaps endpoints.
+    assert_arrowhead_near_head(layout, "h", "a")
+    # a->b is an ordinary forward control in the same graph.
+    assert_arrowhead_near_head(layout, "a", "b")
+
+
 @pytest.mark.parametrize("test_case", ("241_0.dot", "241_1.dot"))
 def test_241(test_case: str):
     """

@@ -1,0 +1,10 @@
+digraph X {
+  concentrate=true;
+  a->b->c->d;
+  b->f->c;
+  b->g->h->d;
+  g->c;
+  h->c;
+  d->a;
+  h->a;
+}
