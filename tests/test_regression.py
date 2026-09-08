@@ -2286,6 +2286,36 @@ def test_1990():
     run_raw(circo, "-Tsvg", "-o", os.devnull, input)
 
 
+def test_2055():
+    """
+    house-shaped nodes should not be much wider than rectangular nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/2055
+    """
+
+    source = """
+        digraph {
+          rect [shape=rect label="the quick brown fox ?"]
+          house [shape=house label="the quick brown fox ?"]
+          invhouse [shape=invhouse label="the quick brown fox ?" width=2.3
+                    height=.65 fixedsize=true]
+        }
+    """
+
+    plain = dot("plain", source=source).decode("utf-8")
+
+    widths = {}
+    heights = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if fields and fields[0] == "node":
+            widths[fields[1]] = float(fields[4])
+            heights[fields[1]] = float(fields[5])
+
+    assert widths["house"] <= widths["rect"] * 1.1
+    assert widths["invhouse"] == pytest.approx(2.3)
+    assert heights["invhouse"] == pytest.approx(0.65)
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",

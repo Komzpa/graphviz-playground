@@ -462,6 +462,11 @@ static graphviz_polygon_style_t style_or(graphviz_polygon_style_t a,
   };
 }
 
+static bool is_house_shape(const node_t *n) {
+    const polygon_t *poly = ND_shape(n)->polygon;
+    return poly == &p_house || poly == &p_invhouse;
+}
+
 static char **checkStyle(node_t *n, graphviz_polygon_style_t *flagp) {
     char *style;
     char **pstyle = 0;
@@ -1932,6 +1937,8 @@ bool isPolygon(node_t * n)
 
 static void poly_init(node_t * n)
 {
+    static const double HOUSE_XSCALE = 0.9647590362033308;
+    static const double HOUSE_YSCALE = 0.9045084971874737;
     pointf dimen, min_bb;
     pointf outline_bb;
     point imagesize;
@@ -2073,6 +2080,19 @@ static void poly_init(node_t * n)
                     && is_exactly_zero(distortion) && is_exactly_zero(skew);
     if (isBox) {
 	/* for regular boxes the fit should be exact */
+    } else if (is_house_shape(n) && ND_label(n)->valign == 'c') {
+	/* house and invhouse have an almost full-width vertical middle band,
+	 * where centered labels are placed. The generic non-box path below
+	 * fits labels as if they had to be contained in an ellipse before being
+	 * wrapped in a polygon, which makes these shapes much wider than needed.
+	 *
+	 * The generated distorted pentagon occupies HOUSE_XSCALE and
+	 * HOUSE_YSCALE of the seed dimensions. Use those bbox scale factors so
+	 * the final polygon still contains the label plus margins without the
+	 * generic ellipse/cosine over-padding.
+	 */
+	bb.x /= HOUSE_XSCALE;
+	bb.y /= HOUSE_YSCALE;
     } else if (ND_shape(n)->polygon->vertices) {
 	poly_desc_t* pd = (poly_desc_t*)ND_shape(n)->polygon->vertices;
 	bb = pd->size_gen(bb);

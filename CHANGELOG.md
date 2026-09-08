@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- House and invhouse nodes with labels are no longer much wider than comparable
+  rectangular nodes. #2055
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
