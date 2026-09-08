@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <common/geomprocs.h>
+#include <common/render.h>
 #include <dotgen/dot.h>
 #include <dotgen/aspect.h>
 #include <math.h>
@@ -298,13 +299,18 @@ make_LR_constraints(graph_t * g)
 		}
 
 		width = ND_rw(t0) + ND_lw(h0);
+		uint32_t tail_arrow, head_arrow;
+		arrow_flags(e, &tail_arrow, &head_arrow);
+		const int arrow_gap =
+		    ROUND(arrow_length(e, tail_arrow) + arrow_length(e, head_arrow));
 		m0 = ED_minlen(e) * GD_nodesep(g) + width;
 
 		if ((e0 = find_fast_edge(t0, h0))) {
 		    /* flat edge between adjacent neighbors 
                      * ED_dist contains the largest label width.
                      */
-		    m0 = MAX(m0, width + GD_nodesep(g) + ROUND(ED_dist(e)));
+		    m0 = MAX(m0, width + MAX(GD_nodesep(g), arrow_gap) +
+				      ROUND(ED_dist(e)));
 		    ED_minlen(e0) = MAX(ED_minlen(e0), m0);
 		    ED_weight(e0) = MAX(ED_weight(e0), ED_weight(e));
 		}

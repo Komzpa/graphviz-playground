@@ -1,0 +1,3 @@
+digraph G {
+  rank=same { a -> b [dir=both, arrowsize=2] }
+}
