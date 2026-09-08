@@ -3177,6 +3177,44 @@ def test_2342():
     dot("svg", input)
 
 
+def test_2330():
+    """
+    fallback routing should keep ortho edges connected to triangle nodes
+    https://gitlab.com/graphviz/graphviz/-/issues/2330
+    """
+
+    # find our collocated test case
+    input = Path(__file__).parent / "2330.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    dot_builtins = which("dot_builtins")
+    assert dot_builtins is not None, "dot_builtins not available"
+
+    proc = subprocess.run(
+        [dot_builtins, "-Kneato", "-Tplain", input],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert proc.returncode == 0, "neato failed to lay out the graph"
+    assert (
+        "falling back to straight line edges" in proc.stderr
+    ), "expected straight-line fallback was not reported"
+
+    edges = [
+        line.split()
+        for line in proc.stdout.splitlines()
+        if line.startswith("edge ")
+    ]
+    assert len(edges) == 2, "not all issue edges were emitted"
+    assert {tuple(edge[1:3]) for edge in edges} == {
+        ("0", "1"),
+        ("0", "2"),
+    }, "unexpected edges were emitted"
+    assert all(int(edge[3]) >= 4 for edge in edges), "an edge has no geometry"
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",

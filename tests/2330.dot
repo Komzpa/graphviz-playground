@@ -1,0 +1,12 @@
+graph {
+    layout=neato
+    splines=ortho
+
+    0 [pos="0,0!"]
+    node [shape=triangle]
+    1 [pos="1,0.5!"]
+    2 [pos="2,0.4!"]
+
+    0 -- 1 [color=green4]
+    0 -- 2 [color=red]
+}
