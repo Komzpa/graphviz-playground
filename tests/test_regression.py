@@ -7789,3 +7789,44 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+def test_2187():
+    """
+    `cluster=true` should make a non-prefixed subgraph a cluster.
+    https://gitlab.com/graphviz/graphviz/-/issues/2187
+    """
+
+    source = """
+            digraph G {
+              subgraph group {
+                cluster=true;
+                label="Group";
+                color=red;
+                a; b;
+              }
+              a -> b;
+            }
+            """
+
+    output = dot("svg", source=source)
+
+    assert 'class="cluster"' in output
+    assert ">Group</text>" in output
+    assert 'stroke="red"' in output
+
+    no_cluster = """
+                 digraph G {
+                   subgraph group {
+                     label="Group";
+                     color=red;
+                     a; b;
+                   }
+                   a -> b;
+                 }
+                 """
+
+    output = dot("svg", source=no_cluster)
+
+    assert 'class="cluster"' not in output
+    assert ">Group</text>" not in output

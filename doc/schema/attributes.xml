@@ -505,7 +505,9 @@
 			<xsd:documentation>
 				<html:p>
 					Mode used for handling clusters. If <html:a rel="attr">clusterrank</html:a> is <html:span class="val">local</html:span>, a
-					subgraph whose name begins with "cluster" is given special treatment.
+					subgraph whose name begins with "cluster" or whose
+					<html:a rel="attr">cluster</html:a> attribute is
+					<html:span class="val">true</html:span> is given special treatment.
 					The subgraph is laid out separately, and then integrated as a unit into
 					its parent graph, with a bounding rectangle drawn about it. 
 					If the cluster has a <html:a rel="attr">label</html:a> parameter, this label
@@ -513,6 +515,18 @@
 					Note also that there can be clusters within clusters.
 					At present, the modes <html:span class="val">global</html:span> and <html:span class="val">none</html:span>
 					appear to be identical, both turning off the special cluster processing.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
+	<xsd:attribute name="cluster" type="xsd:boolean" default="false" gv:layouts="dot">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					If <html:span class="val">true</html:span> on a subgraph,
+					the subgraph is treated as a cluster even when its name does not
+					begin with <html:code>cluster</html:code>.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
@@ -2628,6 +2642,7 @@
 	</xsd:complexType>
 
 	<xsd:complexType name="subgraph">
+		<xsd:attribute ref="cluster" default="false" />
 		<xsd:attribute ref="rank" />
 	</xsd:complexType>
 
