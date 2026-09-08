@@ -119,18 +119,18 @@ Agedge_t *agnxtedge(Agraph_t * g, Agedge_t * e, Agnode_t * n)
 static Agedge_t *agfindedge_by_key(Agraph_t * g, Agnode_t * t, Agnode_t * h,
 			    Agtag_t key)
 {
-    Agedge_t *e, template;
+    Agedge_t *e;
     Agsubnode_t *sn;
 
     if (t == NULL || h == NULL)
 	return NULL;
-    template.base.tag = key;
-    template.node = t;		/* guess that fan-in < fan-out */
+    // guess that fan-in < fan-out, and thus searching `h`’s edges for `t` is
+    // cheaper than searching `t`’s edges for `h`
     sn = agsubrep(g, h);
     if (!sn) e = 0;
     else {
 	    dtrestore(g->e_id, sn->in_id);
-	    e = dtsearch(g->e_id, &template);
+	    e = dtsearch(g->e_id, &((Agedge_t){.base = {.tag = key}, .node = t}));
 	    sn->in_id = dtextract(g->e_id);
     }
     return e;
@@ -221,12 +221,9 @@ static Agedge_t *newedge(Agraph_t * g, Agnode_t * t, Agnode_t * h,
 
 /* edge creation predicate */
 static bool ok_to_make_edge(Agraph_t *g, Agnode_t *t, Agnode_t *h) {
-    Agtag_t key = {0};
-
     /* protect against self, multi-edges in strict graphs */
     if (agisstrict(g)) {
-	key.objtype = 0;	/* wild card */
-	if (agfindedge_by_key(g, t, h, key))
+	if (agfindedge_by_key(g, t, h, (Agtag_t){0} /* wild card */))
 	    return false;
     }
     if (g->desc.no_loop && (t == h)) /* simple graphs */
@@ -265,8 +262,6 @@ Agedge_t *agedge(Agraph_t * g, Agnode_t * t, Agnode_t * h, char *name,
 	if (have_id) {
 	    key.id = my_id;
 	    key.objtype = AGEDGE;
-	} else {
-	    key.id = key.objtype = 0;
 	}
 
 	/* might already exist locally */

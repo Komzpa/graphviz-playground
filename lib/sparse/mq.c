@@ -163,7 +163,6 @@ static Multilevel_MQ_Clustering Multilevel_MQ_Clustering_init(SparseMatrix A, in
   assert(A->type == MATRIX_TYPE_REAL);
   assert(SparseMatrix_is_symmetric(A, false));
 
-  if (!A) return NULL;
   assert(A->m == (size_t)n);
   grid = gv_alloc(sizeof(struct Multilevel_MQ_Clustering_struct));
   grid->level = level;

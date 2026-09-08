@@ -16,6 +16,7 @@
 #include "config.h"
 
 #include <assert.h>
+#include <cgraph/cgraph.h>
 #include <common/geomprocs.h>
 #include <common/pointset.h>
 #include <common/render.h>
@@ -297,7 +298,7 @@ static int genPoly(Agraph_t *root, Agraph_t *g, ginfo *info, int ssize,
     int i;
 
     /* backup the alg data */
-    void **alg = gv_calloc(agnnodes(g), sizeof(void *));
+    void **alg = gv_calloc(agnnodes_z(g), sizeof(void *));
     for (i = 0, n = agfstnode(g); n; n = agnxtnode(g, n)) {
       alg[i++] = ND_alg(n);
       ND_alg(n) = 0;

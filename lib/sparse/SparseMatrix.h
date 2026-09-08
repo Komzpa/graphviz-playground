@@ -108,8 +108,6 @@ int *SparseMatrix_weakly_connected_components(SparseMatrix A0, size_t *ncomp,
 void SparseMatrix_decompose_to_supervariables(SparseMatrix A, int *ncluster, int **cluster, int **clusterp);
 SparseMatrix SparseMatrix_get_submatrix(SparseMatrix A, int nrow, int ncol, int *rindices, int *cindices);
 
-SparseMatrix SparseMatrix_get_augmented(SparseMatrix A);
-
 /* bipartite_options:
    BIPARTITE_RECT -- turn rectangular matrix into square), 
    BIPARTITE_PATTERN_UNSYM -- pattern unsummetric as bipartite

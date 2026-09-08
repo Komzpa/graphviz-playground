@@ -64,7 +64,7 @@ static void sfdp_init_graph(Agraph_t * g)
 static double *getPos(Agraph_t * g)
 {
     Agnode_t *n;
-    double *pos = gv_calloc(Ndim * agnnodes(g), sizeof(double));
+    double *pos = gv_calloc(Ndim * agnnodes_z(g), sizeof(double));
     int ix, i;
 
     if (agfindnodeattr(g, "pos") == NULL)

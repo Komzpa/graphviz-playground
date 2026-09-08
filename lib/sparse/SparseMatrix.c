@@ -1370,7 +1370,7 @@ void SparseMatrix_decompose_to_supervariables(SparseMatrix A, int *ncluster, int
   free(super);
 }
 
-SparseMatrix SparseMatrix_get_augmented(SparseMatrix A){
+static SparseMatrix SparseMatrix_get_augmented(SparseMatrix A) {
   /* convert matrix A to an augmente dmatrix {{0,A},{A^T,0}} */
   int *irn = NULL, *jcn = NULL;
   void *val = NULL;
@@ -1379,7 +1379,6 @@ SparseMatrix SparseMatrix_get_augmented(SparseMatrix A){
   int n = A->n, j;
   const size_t m = A->m;
   SparseMatrix B = NULL;
-  if (!A) return NULL;
   if (nz > 0){
     irn = gv_calloc(nz * 2, sizeof(int));
     jcn = gv_calloc(nz * 2, sizeof(int));
@@ -1394,15 +1393,15 @@ SparseMatrix SparseMatrix_get_augmented(SparseMatrix A){
 
   nz = 0;
   for (size_t i = 0; i < m; i++){
-    for (j = (A->ia)[i]; j <  (A->ia)[i+1]; j++){
+    for (j = A->ia[i]; j <  A->ia[i + 1]; j++) {
       irn[nz] = (int)i;
-      jcn[nz++] = (A->ja)[j] + (int)m;
+      jcn[nz++] = A->ja[j] + (int)m;
     }
   }
   for (size_t i = 0; i < m; i++){
-    for (j = (A->ia)[i]; j <  (A->ia)[i+1]; j++){
+    for (j = A->ia[i]; j < A->ia[ i + 1]; j++) {
       jcn[nz] = (int)i;
-      irn[nz++] = (A->ja)[j] + (int)m;
+      irn[nz++] = A->ja[j] + (int)m;
     }
   }
 
