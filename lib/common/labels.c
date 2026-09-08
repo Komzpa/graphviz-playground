@@ -264,7 +264,9 @@ void emit_label(GVJ_t * job, emit_state_t emit_state, textlabel_t * lp)
 	    p.x = lp->pos.x;
 	    break;
 	}
-	gvrender_textspan(job, p, &lp->u.txt.span[i]);
+	textspan_t span = lp->u.txt.span[i];
+	span.angle = lp->angle;
+	gvrender_textspan(job, p, &span);
 
 	/* UL position for next span */
 	p.y -= lp->u.txt.span[i].size.y;

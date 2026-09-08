@@ -580,6 +580,13 @@ static boxf addLabelBB(boxf bb, textlabel_t * lp, bool flipxy)
 	width = lp->dimen.x;
 	height = lp->dimen.y;
     }
+    if (lp->angle != 0.0) {
+	const double radians = lp->angle * M_PI / 180.0;
+	const double rotated_width = fabs(cos(radians)) * width + fabs(sin(radians)) * height;
+	const double rotated_height = fabs(sin(radians)) * width + fabs(cos(radians)) * height;
+	width = rotated_width;
+	height = rotated_height;
+    }
     min = p.x - width / 2.;
     max = p.x + width / 2.;
     if (min < bb.LL.x)

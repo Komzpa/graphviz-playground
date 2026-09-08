@@ -391,6 +391,10 @@ to be the same as the outline color.
 \fBxlabel=\fI"text"\fR specifies a label that will be place near, but outside,
 of a node. The normal \fBlabel\fP string is placed within the node shape.
 .PP
+\fBxlabelangle=auto\fR rotates a node or edge \fBxlabel\fR to follow its final
+eight-way external-label placement while keeping the text readable. Omitting
+this attribute, or setting it to 0, keeps the \fBxlabel\fR horizontal.
+.PP
 \fBtarget=\fI"target"\fR is a target string for client\(hyside imagemaps
 and SVG, effective when nodes have a URL.
 The target string is used to determine which window of the browser is used

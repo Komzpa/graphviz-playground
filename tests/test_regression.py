@@ -58,6 +58,203 @@ from gvtest import (  # pylint: disable=wrong-import-position
 )
 
 
+@pytest.mark.parametrize("rankdir", ("TB", "BT", "LR", "RL"))
+def test_68_xlabels_can_be_oriented_for_dense_maps(rankdir: str):
+    """
+    xlabels should be able to rotate according to their placement.
+    https://gitlab.com/graphviz/graphviz/-/issues/68
+    """
+
+    source = f"""
+        digraph {{
+          graph [rankdir={rankdir}];
+          node [shape=point, width=0.05, label=""];
+          a [xlabel="Node", xlabelangle=auto];
+          b [xlabel="Other"];
+          a -> b [xlabel="Edge", xlabelangle=auto,
+                  headlabel="Head", taillabel="Tail", labelangle=75];
+        }}
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+
+    xlabels = [
+        text
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+        if "".join(text.itertext()) in {"Node", "Edge", "Head", "Tail"}
+    ]
+    assert xlabels, "node xlabels were not emitted"
+
+    rotations = {
+        "".join(label.itertext()): label.get("transform", "") for label in xlabels
+    }
+    for xlabel in ("Node", "Edge"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", rotations[xlabel]
+        ), f"{xlabel} xlabel was emitted horizontally for rankdir={rankdir}"
+    for port_label in ("Head", "Tail"):
+        assert (
+            "rotate(" not in rotations[port_label]
+        ), "xlabelangle must not overload edge labelangle/headlabel/taillabel"
+
+    xdot = dot("xdot", source=textwrap.dedent(source))
+    assert "xdotversion=1.8" in xdot
+    assert len(re.findall(r"\bR\s+-?(?:45|90)\b", xdot)) >= 2
+
+
+def test_68_xlabelangle_zero_preserves_horizontal_rendering():
+    """Omitted and explicit zero xlabelangle do not change renderer geometry."""
+
+    base = 'digraph { a [xlabel="Node"]; b; a -> b [xlabel="Edge"]; }'
+    zero = (
+        'digraph { a [xlabel="Node", xlabelangle=0]; b; '
+        'a -> b [xlabel="Edge", xlabelangle=0]; }'
+    )
+
+    assert dot("svg", source=base) == dot("svg", source=zero)
+    xdot = dot("xdot", source=zero)
+    assert "\tR " not in xdot
+    assert "xdotversion=1.7" in xdot
+
+
+@pytest.mark.parametrize(
+    ("format", "version"), (("xdot1.2", "1.2"), ("xdot1.4", "1.4"))
+)
+def test_68_xlabelangle_respects_explicit_xdot_version(format: str, version: str):
+    """Legacy xdot versions keep their requested grammar and horizontal text."""
+
+    source = '''
+        digraph {
+          node [shape=point, width=0.05, label=""];
+          a [xlabel="Node", xlabelangle=auto];
+          a -> b [xlabel="Edge", xlabelangle=auto];
+        }
+    '''
+
+    xdot = dot(format, source=textwrap.dedent(source))
+    assert f"xdotversion={version}" in xdot
+    assert re.search(r"\bR(?:\s|$)", xdot) is None
+
+
+def test_68_xlabelangle_downgrades_to_horizontal_on_pic():
+    """Renderers without text-rotation capability receive a horizontal span."""
+
+    source = '''
+        digraph {
+          node [shape=point, width=0.05, label=""];
+          a [xlabel="Node", xlabelangle=auto];
+          a -> b [xlabel="Edge", xlabelangle=auto];
+        }
+    '''
+
+    pic = dot("pic", source=textwrap.dedent(source))
+    assert re.search(r'"(?:Node|Edge)" at \(', pic)
+    assert "rotate" not in pic
+
+
+def test_68_html_node_xlabel_rotates_each_text_span():
+    """HTML node xlabels preserve auto rotation down to their text spans."""
+
+    source = """
+        digraph {
+          graph [rankdir=LR];
+          node [shape=point, width=0.05, label=""];
+          a [xlabel=<<TABLE BORDER="0"><TR><TD>Node</TD><TD><B>HTML</B></TD></TR></TABLE>>,
+             xlabelangle=auto];
+          a -> b;
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+    transforms = {
+        "".join(text.itertext()): text.get("transform", "")
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+    }
+    for text in ("Node", "HTML"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", transforms[text]
+        ), f"HTML node xlabel text span {text!r} was emitted horizontally"
+
+    xdot = dot("xdot", source=textwrap.dedent(source))
+    assert re.search(r"\bR\s+-?(?:45|90)\b", xdot)
+    for format in ("xdot1.2", "xdot1.4"):
+        assert (
+            re.search(r"\bR(?:\s|$)", dot(format, source=textwrap.dedent(source)))
+            is None
+        )
+
+
+def test_68_html_edge_xlabel_rotates_each_text_span():
+    """HTML edge xlabels preserve auto rotation down to their text spans."""
+
+    source = """
+        digraph {
+          graph [rankdir=LR];
+          node [shape=point, width=0.05, label=""];
+          a -> b [xlabel=<<TABLE BORDER="0"><TR><TD>Edge</TD><TD><I>HTML</I></TD></TR></TABLE>>,
+                  xlabelangle=auto];
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+    transforms = {
+        "".join(text.itertext()): text.get("transform", "")
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+    }
+    for text in ("Edge", "HTML"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", transforms[text]
+        ), f"HTML edge xlabel text span {text!r} was emitted horizontally"
+
+    xdot = dot("xdot", source=textwrap.dedent(source))
+    assert re.search(r"\bR\s+-?(?:45|90)\b", xdot)
+    for format in ("xdot1.2", "xdot1.4"):
+        assert (
+            re.search(r"\bR(?:\s|$)", dot(format, source=textwrap.dedent(source)))
+            is None
+        )
+
+
+def test_68_html_xlabel_rotates_nested_table_spans_only():
+    """Nested HTML xlabels rotate every leaf span without rotating regular labels."""
+
+    source = """
+        digraph {
+          graph [rankdir=LR];
+          a [label=<<TABLE BORDER="0"><TR><TD>Regular</TD><TD>HTML</TD></TR></TABLE>>];
+          b [xlabel=<<TABLE BORDER="0"><TR><TD>Outer</TD><TD><TABLE BORDER="0"><TR><TD>Inner</TD><TD><B>Span</B></TD></TR></TABLE></TD></TR></TABLE>>,
+             xlabelangle=auto];
+          c [xlabel=<<TABLE BORDER="0"><TR><TD>Default</TD></TR></TABLE>>];
+          d [xlabel=<<TABLE BORDER="0"><TR><TD>Zero</TD></TR></TABLE>>, xlabelangle=0];
+          a -> b -> c -> d;
+        }
+    """
+
+    svg = dot("svg", source=textwrap.dedent(source))
+    root = ET.fromstring(svg)
+    transforms = {
+        "".join(text.itertext()): text.get("transform", "")
+        for text in root.iter("{http://www.w3.org/2000/svg}text")
+    }
+    for text in ("Outer", "Inner", "Span"):
+        assert re.search(
+            r"\brotate\((?!0(?:[ .,\)]|$))", transforms[text]
+        ), f"nested HTML xlabel text span {text!r} was emitted horizontally"
+    for text in ("Regular", "HTML", "Default", "Zero"):
+        assert "rotate(" not in transforms[text]
+
+
+def test_xdot_stats_legacy_abi_canary(tmp_path: Path):
+    """An old xdot_stats caller must not be overwritten by statXDot."""
+
+    c_src = Path(__file__).parent / "xdot-stats-abi.c"
+    assert c_src.exists(), "missing legacy ABI canary"
+    run_c(c_src, tmp_path, link=["xdot"])
+
+
 def is_ndebug_defined() -> bool:
     """
     are assertions disabled in the Graphviz build under test?
@@ -3379,7 +3576,10 @@ def test_xdot_json(tmp_path: Path):
     c_src = Path(__file__).parent / "xdot2json.c"
 
     # some valid xdot commands to process
-    input = "c 9 -#fffffe00 C 7 -#ffffff P 4 0 0 0 36 54 36 54 0"
+    input = (
+        "c 9 -#fffffe00 C 7 -#ffffff P 4 0 0 0 36 54 36 54 0 "
+        "R -45 T 1 2 0 10 4 -text"
+    )
 
     # ask our C helper to process this
     output, err = run_c(c_src, tmp_path, input=input, link=["xdot"])
@@ -3391,6 +3591,8 @@ def test_xdot_json(tmp_path: Path):
         {"c": "#fffffe00"},
         {"C": "#ffffff"},
         {"P": [0.0, 0.0, 0.0, 36.0, 54.0, 36.0, 54.0, 0.0]},
+        {"R": -45.0},
+        {"T": [1.0, 2.0, 0, 10.0, "text"]},
     ]
 
 

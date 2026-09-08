@@ -25,6 +25,8 @@ typedef struct {
     pointf pos;			/* Position of lower-left corner of label (output) */
     textlabel_t *lbl; ///< pointer to label in the graph
     bool set;         ///< true if the position has been set (input/output)
+    bool auto_angle;  ///< rotate to follow the selected exterior sector
+    double angle;     ///< selected counter-clockwise angle in degrees
 } xlabel_t;
 
 typedef struct {
@@ -39,6 +41,8 @@ typedef struct {
 } label_params_t;
 
 int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params);
+
+double xlabel_auto_angle(const object_t *obj, const xlabel_t *label);
 
 #ifdef XLABEL_INT
 #include <label/index.h>

@@ -61,6 +61,21 @@ static XLabels_t *xlnew(object_t *objs, size_t n_objs) {
   return xlp;
 }
 
+double xlabel_auto_angle(const object_t *obj, const xlabel_t *label) {
+  const double object_x = obj->pos.x + obj->sz.x / 2.0;
+  const double object_y = obj->pos.y + obj->sz.y / 2.0;
+  const double label_x = label->pos.x + label->sz.x / 2.0;
+  const double label_y = label->pos.y + label->sz.y / 2.0;
+  double angle = atan2(label_y - object_y, label_x - object_x) * 180.0 / M_PI;
+
+  angle = round(angle / 45.0) * 45.0;
+  if (angle > 90.0)
+    angle -= 180.0;
+  if (angle <= -90.0)
+    angle += 180.0;
+  return angle;
+}
+
 static void xlfree(XLabels_t *xlp) {
   RTreeClose(xlp->spdx);
   free(xlp);
@@ -567,12 +582,18 @@ int placeLabels(object_t *objs, size_t n_objs, const label_params_t *params) {
       continue;
     const BestPos_t bp = xladjust(xlp, &objs[i]);
     if (bp.n == 0) {
+      if (objs[i].lbl->auto_angle)
+        objs[i].lbl->angle = xlabel_auto_angle(&objs[i], objs[i].lbl);
       objs[i].lbl->set = true;
     } else if (bp.area == 0) {
       objs[i].lbl->pos = bp.pos;
+      if (objs[i].lbl->auto_angle)
+        objs[i].lbl->angle = xlabel_auto_angle(&objs[i], objs[i].lbl);
       objs[i].lbl->set = true;
     } else if (params->force) {
       objs[i].lbl->pos = bp.pos;
+      if (objs[i].lbl->auto_angle)
+        objs[i].lbl->angle = xlabel_auto_angle(&objs[i], objs[i].lbl);
       objs[i].lbl->set = true;
     } else {
       r = 1;

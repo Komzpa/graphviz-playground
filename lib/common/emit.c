@@ -1365,6 +1365,7 @@ static void emit_xdot (GVJ_t * job, xdot* xd)
     int angle;
     char** styles = NULL;
     int filled = FILL;
+    double text_rotation = 0.0;
 
     exdot_op *op = (exdot_op*)xd->ops;
     for (size_t i = 0; i < xd->cnt; i++) {
@@ -1409,8 +1410,12 @@ static void emit_xdot (GVJ_t * job, xdot* xd)
 	case xd_text :
     	    if (boxf_overlap(op->bb, job->clip)) {
 		pointf pt = {.x = op->op.u.text.x, .y = op->op.u.text.y};
+		op->span->angle = text_rotation;
 		gvrender_textspan(job, pt, op->span);
 	    }
+	    break;
+	case xd_text_rotation :
+	    text_rotation = op->op.u.text_rotation;
 	    break;
 	case xd_fill_color :
             gvrender_set_fillcolor(job, op->op.u.color);
@@ -3132,6 +3137,19 @@ textBB (double x, double y, textspan_t* span)
     }
     bb.UR.y = y + span->yoffset_layout;
     bb.LL.y = bb.UR.y - sz.y;
+    if (span->angle != 0.0) {
+	const double radians = span->angle * M_PI / 180.0;
+	const double width = bb.UR.x - bb.LL.x;
+	const double height = bb.UR.y - bb.LL.y;
+	const double center_x = (bb.LL.x + bb.UR.x) / 2.0;
+	const double center_y = (bb.LL.y + bb.UR.y) / 2.0;
+	const double rotated_width = fabs(cos(radians)) * width + fabs(sin(radians)) * height;
+	const double rotated_height = fabs(sin(radians)) * width + fabs(cos(radians)) * height;
+	bb.LL.x = center_x - rotated_width / 2.0;
+	bb.UR.x = center_x + rotated_width / 2.0;
+	bb.LL.y = center_y - rotated_height / 2.0;
+	bb.UR.y = center_y + rotated_height / 2.0;
+    }
     return bb;
 }
 
@@ -3153,6 +3171,7 @@ boxf xdotBB (Agraph_t* g)
     xdot* xd = GD_drawing(g)->xdots;
     textfont_t tf, null_tf = {0};
     unsigned fontflags = 0;
+    double text_rotation = 0.0;
 
     if (!xd) return bb;
 
@@ -3196,12 +3215,16 @@ boxf xdotBB (Agraph_t* g)
 	    tf.flags = fontflags;
             op->span->font = dtinsert(gvc->textfont_dt, &tf);
 	    textspan_size (gvc, op->span);
+	    op->span->angle = text_rotation;
 	    bb0 = textBB (op->op.u.text.x, op->op.u.text.y, op->span);
 	    op->bb = bb0;
 	    expandBB (&bb, bb0.LL);
 	    expandBB (&bb, bb0.UR);
 	    if (!xd->freefunc)
 		xd->freefunc = freePara;
+	    break;
+	case xd_text_rotation :
+	    text_rotation = op->op.u.text_rotation;
 	    break;
 	case xd_font :
 	    fontsize = op->op.u.font.size;
@@ -4364,4 +4387,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

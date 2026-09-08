@@ -313,7 +313,17 @@ static void gdgen_textspan(GVJ_t * job, pointf p, textspan_t * span)
     }
     epf.x = spf.x + spanwidth;
 
-    if (job->rotation) {
+    if (span->angle != 0.0 && !job->rotation) {
+	const double angle = -span->angle * M_PI / 180.0;
+	const double baseline = p.y - span->yoffset_centerline * job->zoom *
+	                        job->dpi.x / POINTS_PER_INCH;
+	const double start = spf.x;
+	spf.x = p.x + start * cos(angle);
+	spf.y = baseline + start * sin(angle);
+	epf.x = p.x + (start + spanwidth) * cos(angle);
+	epf.y = baseline + (start + spanwidth) * sin(angle);
+    }
+    else if (job->rotation) {
 	spf.y = -spf.x + p.y;
 	epf.y = epf.x + p.y;
 	epf.x = spf.x = p.x;
@@ -338,7 +348,7 @@ static void gdgen_textspan(GVJ_t * job, pointf p, textspan_t * span)
 	    job->obj->pencolor.u.index,
 	    span->font->size * job->zoom,
 	    d2i(job->dpi.x),
-	    job->rotation ? M_PI / 2 : 0,
+	    job->rotation ? M_PI / 2 : -span->angle * M_PI / 180.0,
 	    fontname,
 	    span->str);
     if (fontname_needs_free) {
@@ -552,7 +562,8 @@ static gvrender_engine_t gdgen_engine = {
 };
 
 static gvrender_features_t render_features_gd = {
-    GVRENDER_Y_GOES_DOWN,	/* flags */
+    GVRENDER_Y_GOES_DOWN
+	| GVRENDER_DOES_TEXT_ROTATION,	/* flags */
     4.,                         /* default pad - graph units */
     NULL,			/* knowncolors */
     0,				/* sizeof knowncolors */

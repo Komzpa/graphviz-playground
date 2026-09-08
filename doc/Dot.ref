@@ -329,6 +329,11 @@ label
 labelangle
      Angle, in degrees, that the headlabel(taillabel) is rotated from the
      angle the edge makes incident with the head(tail) node, respectively.
+xlabelangle
+     If set to "auto" on a node or edge, rotates its xlabel to follow the
+     final eight-way external-label placement while keeping the text readable.
+     Omit it, or set it to 0, to keep the xlabel horizontal. This does not
+     affect labelangle, headlabel, or taillabel.
 labeldistance
      Multiplicative scaling factor adjusting the distance that the
      headlabel(taillabel) is the from head(tail) node.

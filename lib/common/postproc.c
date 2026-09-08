@@ -15,8 +15,10 @@
 #include <common/render.h>
 #include <float.h>
 #include <label/xlabels.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <util/agxbuf.h>
 #include <util/alloc.h>
 #include <util/list.h>
@@ -300,7 +302,8 @@ adjustBB (object_t* objp, boxf bb)
  * If initObj is set, initialize the object.
  */
 static void
-addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj, pointf pos)
+addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj,
+           pointf pos, bool auto_angle)
 {
     if (initObj) {
 	*objp = (object_t){.pos = pos};
@@ -313,9 +316,20 @@ addXLabel (textlabel_t* lp, object_t* objp, xlabel_t* xlp, int initObj, pointf p
     else {
 	xlp->sz = lp->dimen;
     }
+    if (auto_angle) {
+	const double envelope = MAX(MAX(xlp->sz.x, xlp->sz.y),
+	                            (xlp->sz.x + xlp->sz.y) * sqrt(0.5));
+	xlp->sz = (pointf){.x = envelope, .y = envelope};
+    }
     xlp->lbl = lp;
     xlp->set = false;
+    xlp->auto_angle = auto_angle;
     objp->lbl = xlp;
+}
+
+static bool xlabel_auto(void *obj, Agsym_t *attr)
+{
+    return attr && strcmp(agxget(obj, attr), "auto") == 0;
 }
 
 /* addLabelObj:
@@ -484,7 +498,7 @@ static void addXLabels(Agraph_t * gp)
 	    }
 	    else {
 		pointf ignored = { 0.0, 0.0 };
-		addXLabel (lp, objp, xlp, 0, ignored);
+		addXLabel (lp, objp, xlp, 0, ignored, xlabel_auto(np, N_xlabelangle));
 		xlp++;
 	    }
 	}
@@ -495,7 +509,7 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep), false);
 		    xlp++;
 		}
 		else {
@@ -510,7 +524,7 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeTailpoint(ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeTailpoint(ep), false);
 		    xlp++;
 		}
 		else {
@@ -525,7 +539,7 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeHeadpoint(ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeHeadpoint(ep), false);
 		    xlp++;
 		}
 		else {
@@ -540,7 +554,8 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep)); 
+		    addXLabel (lp, objp, xlp, 1, edgeMidpoint(gp, ep),
+		               xlabel_auto(ep, E_xlabelangle));
 		    xlp++;
 		}
 		else {
@@ -574,6 +589,7 @@ static void addXLabels(Agraph_t * gp)
 	    cnt++;
 	    lp = xlp->lbl;
 	    lp->set = 1;
+	    lp->angle = xlp->angle;
 	    lp->pos = centerPt(xlp);
 	    updateBB (gp, lp);
 	}
