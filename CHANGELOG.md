@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- SVG output now supports an `xslStylesheet` graph attribute for referencing an
+  XSL stylesheet processing instruction. #496
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

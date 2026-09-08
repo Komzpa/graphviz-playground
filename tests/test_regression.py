@@ -84,6 +84,21 @@ def test_14():
     dot("svg", input)
 
 
+def test_496():
+    """
+    SVG output should support an XSL stylesheet processing instruction
+    https://gitlab.com/graphviz/graphviz/-/issues/496
+    """
+
+    svg = dot(
+        "svg",
+        source='digraph { graph [stylesheet="style.css" xslStylesheet="style.xsl"] a }',
+    )
+
+    assert '<?xml-stylesheet href="style.css" type="text/css"?>' in svg
+    assert '<?xml-stylesheet href="style.xsl" type="application/xml"?>' in svg
+
+
 @pytest.mark.skipif(which("neato") is None, reason="neato not available")
 def test_42():
     """
