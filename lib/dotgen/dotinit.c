@@ -121,14 +121,10 @@ static void free_virtual_edge_list(node_t * n)
     for (size_t i = ND_in(n).size - 1; i != SIZE_MAX; i--) {
 	e = ND_in(n).list[i];
 	delete_fast_edge(e);
-	free(e->base.data);
-	free(e);
     }
     for (size_t i = ND_out(n).size - 1; i != SIZE_MAX; i--) {
 	e = ND_out(n).list[i];
 	delete_fast_edge(e);
-	free(e->base.data);
-	free(e);
     }
 }
 
@@ -184,6 +180,7 @@ void dot_cleanup(graph_t * g)
     edge_t *e;
 
     free_virtual_node_list(GD_nlist(g));
+    dot_free_virtual_edge_arena(g);
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
 	    gv_cleanup_edge(e);

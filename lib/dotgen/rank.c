@@ -30,51 +30,17 @@
 #include	<limits.h>
 #include	<stdbool.h>
 #include	<stdlib.h>
-#include	<stdint.h>
 #include	<util/alloc.h>
-#include	<util/list.h>
 #include	<util/gv_math.h>
 
 static void dot1_rank(graph_t *g);
 static void dot2_rank(graph_t *g);
 
-typedef LIST(edge_t *) edge_set_t;
-
-/// @param track An optional collection in which to record non-null entries we
-///   removed
-static void renewlist(elist *L, edge_set_t *track) {
+static void renewlist(elist *L) {
     for (size_t i = L->size; i != SIZE_MAX; i--) {
-	if (track != NULL && L->list[i] != NULL) {
-            LIST_APPEND(track, L->list[i]);
-	}
 	L->list[i] = NULL;
     }
     L->size = 0;
-}
-
-/// compare two edge pointers
-///
-/// This function assumes the two edge pointers may have differing provenance,
-/// and thus cannot be directly compared. It also assumes the caller is
-/// primarily comparing in order to put equal elements next to each other in a
-/// sorting operation. Relying on, e.g. an earlier allocated edge pointer to
-/// compare as less than a later allocated edge pointer is not a good idea.
-///
-/// @param a One edge
-/// @param b Another edge
-/// @return A comparator value suitable for sorting algorithms
-static int edge_ptr_cmp(const void *x, const void *y) {
-  const edge_t *const *a = x;
-  const edge_t *const *b = y;
-  const uintptr_t addr_a = (uintptr_t)*a;
-  const uintptr_t addr_b = (uintptr_t)*b;
-  if (addr_a < addr_b) {
-    return -1;
-  }
-  if (addr_a > addr_b) {
-    return 1;
-  }
-  return 0;
 }
 
 static void 
@@ -82,15 +48,12 @@ cleanup1(graph_t * g)
 {
     edge_t *e, *f;
 
-    edge_set_t to_free = {0};
-
     for (size_t c = 0; c < GD_comp(g).size; c++) {
 	    GD_nlist(g) = GD_comp(g).list[c];
 	    for (node_t *n = GD_nlist(g), *next, *prev = NULL; n; n = next) {
 	        next = ND_next(n);
-	        // out edges are owning, so only track their removal
-	        renewlist(&ND_in(n), NULL);
-	        renewlist(&ND_out(n), &to_free);
+	        renewlist(&ND_in(n));
+	        renewlist(&ND_out(n));
 	        ND_mark(n) = false;
 	        // If this is a slack node, it exists _only_ in the component lists
 	        // that we are about to drop. Remove and deallocate slack nodes now to
@@ -130,33 +93,10 @@ cleanup1(graph_t * g)
         for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
             f = ED_to_virt(e);
             if (f && ED_to_orig(f) == e) {
-                LIST_APPEND(&to_free, f);
                 ED_to_virt(e) = NULL;
             }
 	    }
     }
-
-    // free all the edges we removed
-    // XXX: Accruing all the pointers, including duplicates, and then sorting to
-    // avoid duplicate frees is suboptimal. If this turns out to be a
-    // performance problem, replace `edge_set_t` with a proper set.
-    LIST_SORT(&to_free, edge_ptr_cmp);
-    edge_t *previous = NULL;
-    for (size_t i = 0; i < LIST_SIZE(&to_free); ++i) {
-        edge_t *const current = LIST_GET(&to_free, i);
-        if (current != previous) {
-            if (previous != NULL) {
-                free(previous->base.data);
-            }
-            free(previous);
-            previous = current;
-        }
-    }
-    if (previous != NULL) {
-        free(previous->base.data);
-    }
-    free(previous);
-    LIST_FREE(&to_free);
 
     free(GD_comp(g).list);
     GD_comp(g).list = NULL;

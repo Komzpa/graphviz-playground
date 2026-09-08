@@ -182,10 +182,12 @@ static bool canreach(node_t *u, node_t *v) {
 
 edge_t *make_aux_edge(node_t * u, node_t * v, double len, int wt)
 {
-    Agedgepair_t* e2 = gv_alloc(sizeof(Agedgepair_t));
+    arena_t *const arena = dot_virtual_edge_arena(agraphof(u));
+    Agedgepair_t *e2 = ARENA_NEW(arena, Agedgepair_t);
     AGTYPE(&e2->in) = AGINEDGE;
     AGTYPE(&e2->out) = AGOUTEDGE;
-    e2->out.base.data = gv_alloc(sizeof(Agedgeinfo_t));
+    Agedgeinfo_t *const info = ARENA_NEW(arena, Agedgeinfo_t);
+    e2->out.base.data = &info->hdr;
     edge_t *const e = &e2->out;
 
     agtail(e) = u;
@@ -533,15 +535,9 @@ static void create_aux_edges(graph_t * g)
 
 static void remove_aux_edges(graph_t * g)
 {
-    int i;
     node_t *n, *nnext, *nprev;
-    edge_t *e;
 
     for (n = GD_nlist(g); n; n = ND_next(n)) {
-	for (i = 0; (e = ND_out(n).list[i]); i++) {
-	    free(e->base.data);
-	    free(e);
-	}
 	free_list(ND_out(n));
 	free_list(ND_in(n));
 	ND_out(n) = ND_save_out(n);
