@@ -397,16 +397,43 @@ static int dot_splines_(graph_t *g, int normalize) {
       n = agtail(e0);
       const int r = ND_rank(n);
       if (r == GD_maxrank(g)) {
-        if (r > 0)
-          sizey = ND_coord(GD_rank(g)[r - 1].v[0]).y - ND_coord(n).y;
+        int adj = r - 1;
+        while (adj >= GD_minrank(g) &&
+               (GD_rank(g)[adj].n == 0 || GD_rank(g)[adj].v[0] == NULL))
+          adj--;
+        if (adj >= GD_minrank(g))
+          sizey = ND_coord(GD_rank(g)[adj].v[0]).y - ND_coord(n).y;
         else
           sizey = ND_ht(n);
       } else if (r == GD_minrank(g)) {
-        sizey = ND_coord(n).y - ND_coord(GD_rank(g)[r + 1].v[0]).y;
+        int adj = r + 1;
+        while (adj <= GD_maxrank(g) &&
+               (GD_rank(g)[adj].n == 0 || GD_rank(g)[adj].v[0] == NULL))
+          adj++;
+        if (adj <= GD_maxrank(g))
+          sizey = ND_coord(n).y - ND_coord(GD_rank(g)[adj].v[0]).y;
+        else
+          sizey = ND_ht(n);
       } else {
-        double upy = ND_coord(GD_rank(g)[r - 1].v[0]).y - ND_coord(n).y;
-        double dwny = ND_coord(n).y - ND_coord(GD_rank(g)[r + 1].v[0]).y;
-        sizey = fmin(upy, dwny);
+        int up = r - 1;
+        while (up >= GD_minrank(g) &&
+               (GD_rank(g)[up].n == 0 || GD_rank(g)[up].v[0] == NULL))
+          up--;
+        int down = r + 1;
+        while (down <= GD_maxrank(g) &&
+               (GD_rank(g)[down].n == 0 || GD_rank(g)[down].v[0] == NULL))
+          down++;
+        if (up >= GD_minrank(g) && down <= GD_maxrank(g)) {
+          double upy = ND_coord(GD_rank(g)[up].v[0]).y - ND_coord(n).y;
+          double dwny = ND_coord(n).y - ND_coord(GD_rank(g)[down].v[0]).y;
+          sizey = fmin(upy, dwny);
+        } else if (up >= GD_minrank(g)) {
+          sizey = ND_coord(GD_rank(g)[up].v[0]).y - ND_coord(n).y;
+        } else if (down <= GD_maxrank(g)) {
+          sizey = ND_coord(n).y - ND_coord(GD_rank(g)[down].v[0]).y;
+        } else {
+          sizey = ND_ht(n);
+        }
       }
       makeSelfEdge(LIST_AT(&edges, ind), cnt, sd.Multisep, sizey / 2, &sinfo);
       for (unsigned b = 0; b < cnt; b++) {
