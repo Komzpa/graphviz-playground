@@ -1382,6 +1382,21 @@ static void set_cell_heights(htmltbl_t *table) {
 
 static void pos_html_tbl(htmltbl_t *, boxf, unsigned char);
 
+static void distribute_extra_table_size(double *sizes, size_t count,
+					double extra)
+{
+    if (extra <= 0 || count == 0)
+	return;
+
+    assert(count <= DBL_MAX);
+    const double portion = extra / (double)count;
+    const int plus = ROUND(extra - portion * (double)count);
+    for (size_t i = 0; i < count; ++i) {
+	sizes[i] +=
+	    portion + ((i <= INT_MAX && (int)i < plus) ? 1 : 0);
+    }
+}
+
 /* Place image in cell
  * storing allowed space handed by parent cell.
  * How this space is used is handled in emit_html_img.
@@ -1677,14 +1692,27 @@ size_html_tbl(graph_t * g, htmltbl_t * tbl, htmlcell_t * parent,
     for (size_t i = 0; i < tbl->row_count; i++)
 	ht += tbl->heights[i];
 
+    const double min_wd = wd;
+    const double min_ht = ht;
+    if (tbl->data.width > wd) {
+	distribute_extra_table_size(tbl->widths, tbl->column_count,
+				    tbl->data.width - wd);
+	wd = tbl->data.width;
+    }
+    if (tbl->data.height > ht) {
+	distribute_extra_table_size(tbl->heights, tbl->row_count,
+				    tbl->data.height - ht);
+	ht = tbl->data.height;
+    }
+
     if (tbl->data.flags & FIXED_FLAG) {
 	if (tbl->data.width && tbl->data.height) {
-	    if (tbl->data.width < wd || tbl->data.height < ht) {
+	    if (tbl->data.width < min_wd || tbl->data.height < min_ht) {
 		agwarningf("table size too small for content\n");
 		rv = 1;
 	    }
-	    wd = 0;
-	    ht = 0;
+	    wd = tbl->data.width;
+	    ht = tbl->data.height;
 	} else {
 	    agwarningf(
 		  "fixed table size with unspecified width or height\n");

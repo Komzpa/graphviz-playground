@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Explicit `WIDTH` and `HEIGHT` attributes on HTML-like tables are now
+  distributed to rows and columns instead of adding all spare space to the
+  right or bottom of the table. #1393
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
