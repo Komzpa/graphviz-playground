@@ -633,10 +633,36 @@ static node_t *union_all(graph_t * g)
     return leader;
 }
 
+static void record_rankrep(graph_t * g, node_t * leader, int kind)
+{
+    node_t *rep;
+
+    switch (kind) {
+    case SOURCERANK:
+    case MINRANK:
+	GD_minrep(g) = union_one(leader, GD_minrep(g));
+	rep = GD_minrep(g);
+	if (kind == SOURCERANK || ND_ranktype(rep) != SOURCERANK)
+	    ND_ranktype(rep) = kind;
+	break;
+    case SINKRANK:
+    case MAXRANK:
+	GD_maxrep(g) = union_one(leader, GD_maxrep(g));
+	rep = GD_maxrep(g);
+	if (kind == SINKRANK || ND_ranktype(rep) != SINKRANK)
+	    ND_ranktype(rep) = kind;
+	break;
+    default:
+	break;
+    }
+}
+
 static void compile_samerank(graph_t * ug, graph_t * parent_clust)
 {
     graph_t *s;			/* subgraph being scanned */
     graph_t *clust;		/* cluster that contains the rankset */
+    graph_t *rank_scope;
+    int kind;
     node_t *n, *leader;
 
     if (is_empty(ug))
@@ -669,20 +695,18 @@ static void compile_samerank(graph_t * ug, graph_t * parent_clust)
     }
 
     /* process this subgraph as a rankset */
-    switch (rankset_kind(ug)) {
+    rank_scope = clust != NULL ? clust : dot_root(ug);
+    kind = rankset_kind(ug);
+    switch (kind) {
     case SOURCERANK: // fall through
     case MINRANK:
 	leader = union_all(ug);
-	if (clust != NULL) {
-	    GD_minrep(clust) = union_one(leader, GD_minrep(clust));
-	}
+	record_rankrep(rank_scope, leader, kind);
 	break;
     case SINKRANK: // fall through
     case MAXRANK:
 	leader = union_all(ug);
-	if (clust != NULL) {
-	    GD_maxrep(clust) = union_one(leader, GD_maxrep(clust));
-	}
+	record_rankrep(rank_scope, leader, kind);
 	break;
     case SAMERANK:
 	leader = union_all(ug);
@@ -873,6 +897,42 @@ static void compile_clusters(graph_t* g, graph_t* Xg, node_t* top, node_t* bot)
     }
     for (sub = agfstsubg(g); sub; sub = agnxtsubg(sub))
 	compile_clusters(sub, Xg, top, bot);
+}
+
+static void add_extreme_rank_edge(graph_t *Xg, node_t *tail, node_t *head,
+				  int minlen)
+{
+    edge_t *e;
+
+    if (tail == head)
+	return;
+    e = agedge(Xg, tail, head, 0, 1);
+    if (e)
+	merge(e, minlen, 0);
+    else
+	agerrorf("ranking: failure to create rank-set constraint edge between "
+		 "nodes %s and %s\n", agnameof(tail), agnameof(head));
+}
+
+static void compile_extreme_ranksets(graph_t *g, graph_t *Xg)
+{
+    node_t *maxrep = GD_maxrep(g) ? ND_rep(find(GD_maxrep(g))) : NULL;
+    node_t *minrep = GD_minrep(g) ? ND_rep(find(GD_minrep(g))) : NULL;
+    int max_minlen = GD_maxrep(g) && ND_ranktype(GD_maxrep(g)) == SINKRANK;
+    int min_minlen = GD_minrep(g) && ND_ranktype(GD_minrep(g)) == SOURCERANK;
+
+    if (minrep) {
+	for (node_t *n = agfstnode(Xg); n; n = agnxtnode(Xg, n)) {
+	    if (n != minrep && agfstin(Xg, n) == NULL)
+		add_extreme_rank_edge(Xg, minrep, n, min_minlen);
+	}
+    }
+    if (maxrep) {
+	for (node_t *n = agfstnode(Xg); n; n = agnxtnode(Xg, n)) {
+	    if (n != maxrep && agfstout(Xg, n) == NULL)
+		add_extreme_rank_edge(Xg, n, maxrep, max_minlen);
+	}
+    }
 }
 
 static void reverse_edge2(graph_t * g, edge_t * e)
@@ -1096,6 +1156,7 @@ void dot2_rank(graph_t *g) {
     compile_nodes(g, Xg);
     compile_edges(g, Xg);
     compile_clusters(g, Xg, 0, 0);
+    compile_extreme_ranksets(g, Xg);
     break_cycles(Xg);
     ncc = connect_components(Xg);
     add_fast_edges (Xg);
