@@ -2929,9 +2929,13 @@ static void poly_gencode(GVJ_t * job, node_t * n)
     bool usershape_p;
     bool pfilled;		/* true if fill not handled by user shape */
     char *color, *name;
-    int doMap = (obj->url || obj->explicit_tooltip);
     char* fillcolor=NULL;
     char* pencolor=NULL;
+
+    const graphviz_polygon_style_t style = stylenode(job, n);
+    int doMap = (obj->url || obj->explicit_tooltip) &&
+        !(style.wedged && (job->flags & GVRENDER_DOES_WEDGE_METADATA) &&
+          wedgedNodeHasAnchorMetadata(n, findFill(n)));
 
     if (doMap && !(job->flags & EMIT_CLUSTERS_LAST))
 	gvrender_begin_anchor(job,
@@ -2949,8 +2953,6 @@ static void poly_gencode(GVJ_t * job, node_t * n)
 
     xsize = (ND_lw(n) + ND_rw(n)) / INCH2PS(ND_width(n));
     ysize = ND_ht(n) / INCH2PS(ND_height(n));
-
-    const graphviz_polygon_style_t style = stylenode(job, n);
 
     char *clrs[2] = {0};
     if (ND_gui_state(n) & GUI_STATE_ACTIVE) {

@@ -106,6 +106,7 @@ extern "C" {
 #define GVRENDER_NO_WHITE_BG (1<<25)
 #define LAYOUT_NOT_REQUIRED (1<<26)
 #define OUTPUT_NOT_REQUIRED (1<<27)
+#define GVRENDER_DOES_WEDGE_METADATA (1<<28)
 
     typedef struct {
 	int flags;
@@ -251,6 +252,12 @@ extern "C" {
 
 	int headendurl_map_n;           /* head end intersection with node */
 	pointf *headendurl_map_p;
+
+	/* Metadata for one renderer primitive. Append-only to preserve the
+	 * offsets of the existing public plugin ABI fields above. These pointers
+	 * are borrowed while the primitive is emitted. */
+	const char *primitive_id;
+	const char *primitive_class;
     };
 
 /* Note on units:

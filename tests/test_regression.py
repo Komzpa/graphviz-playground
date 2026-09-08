@@ -6,6 +6,7 @@ of these indicates that a past bug has been reintroduced.
 """
 
 import dataclasses
+import gzip
 import hashlib
 import io
 import json
@@ -199,6 +200,232 @@ def test_144(testcase: str):
     angular_head_point = angular_edge["_hdraw_"][3]["points"][0]
     angular_tail_point = angular_edge["_tdraw_"][3]["points"][0]
     assert angular_head_point[0] > angular_tail_point[0], "A->C head/tail confusion"
+
+
+def test_1312_wedged_node_per_wedge_svg_metadata():
+    """
+    wedged nodes should allow SVG metadata on each generated wedge path.
+
+    `wedgeN*` attributes use a zero-based index in emitted wedge order. They
+    are SVG-only metadata; `wedgeNURL` is an alias for `wedgeNhref`.
+    https://gitlab.com/graphviz/graphviz/-/issues/1312
+    """
+
+    source = """
+        graph {
+          node [
+            shape=circle,
+            style=wedged,
+            fixedsize=true,
+            width=1,
+            height=1,
+            label=""
+          ];
+
+          n [
+            color="red:green:blue",
+            tooltip="whole pie",
+            href="https://node.example/whole",
+            wedge0tooltip="Response & <.0030>",
+            wedge0href="https://example.test/response?a=1&b=2",
+            wedge0target="_blank",
+            wedge0id="response",
+            wedge0class="metric&response",
+            wedge1URL="https://example.test/usercpu",
+            wedge1id="usercpu",
+            wedge1class="metric usercpu",
+            wedge2tooltip="Suspend .0026",
+            wedge2id="suspend",
+            wedge9tooltip="out of range",
+            wedge9id="never-emitted"
+          ];
+        }
+    """
+
+    root = ET.fromstring(dot("svg", source=textwrap.dedent(source)))
+    namespace = "{http://www.w3.org/2000/svg}"
+    xlink_href = "{http://www.w3.org/1999/xlink}href"
+    xlink_title = "{http://www.w3.org/1999/xlink}title"
+
+    wedges = {}
+    for anchor in root.iter(f"{namespace}a"):
+        for path in anchor.findall(f"{namespace}path"):
+            color = path.get("fill")
+            if color in {"red", "green", "blue"}:
+                assert color not in wedges, f"duplicate {color} wedge path"
+                wedges[color] = (path, anchor)
+
+    assert set(wedges) == {"red", "green", "blue"}
+
+    expected = {
+        "red": {
+            "id": "response",
+            "class": "metric&response",
+            "href": "https://example.test/response?a=1&b=2",
+            "target": "_blank",
+            "tooltip": "Response & <.0030>",
+        },
+        "green": {
+            "id": "usercpu",
+            "class": "metric usercpu",
+            "href": "https://example.test/usercpu",
+            "target": None,
+            "tooltip": "whole pie",
+        },
+        "blue": {
+            "id": "suspend",
+            "class": None,
+            "href": "https://node.example/whole",
+            "target": None,
+            "tooltip": "Suspend .0026",
+        },
+    }
+    for color, metadata in expected.items():
+        path, anchor = wedges[color]
+        assert path.get("id") == metadata["id"]
+        assert path.get("class") == metadata["class"]
+        assert anchor.get(xlink_href) == metadata["href"]
+        assert anchor.get("target") == metadata["target"]
+        assert anchor.get(xlink_title) == metadata["tooltip"]
+
+    all_ids = [element.get("id") for element in root.iter() if element.get("id")]
+    assert len(all_ids) == len(set(all_ids)), "SVG ids must stay unique"
+    assert "never-emitted" not in all_ids
+    assert "out of range" not in ET.tostring(root, encoding="unicode")
+
+    cmapx = dot("cmapx", source=textwrap.dedent(source))
+    assert "response" not in cmapx
+    assert "out of range" not in cmapx
+
+    inline = dot("svg_inline", source=textwrap.dedent(source))
+    assert inline.count("<a ") == 3
+    assert len(re.findall(r"<a\b[^>]*>\s*<path\b", inline)) == 3
+
+
+def test_1312_wedged_node_metadata_defaults_and_negative_controls():
+    """Per-wedge metadata must not alter unrelated or unindexed output."""
+
+    plain_wedge = """
+        graph {
+          n [shape=circle, style=wedged, fixedsize=true, width=1, height=1,
+             label="", color="red:green:blue", tooltip="whole pie",
+             href="https://node.example/whole"];
+        }
+    """
+    plain_root = ET.fromstring(dot("svg", source=textwrap.dedent(plain_wedge)))
+    namespace = "{http://www.w3.org/2000/svg}"
+    plain_anchors = list(plain_root.iter(f"{namespace}a"))
+    assert len(plain_anchors) == 1
+    assert len(plain_anchors[0].findall(f"{namespace}path")) == 3
+
+    # Metadata beyond the number of positive emitted wedges is inert. In
+    # particular it must not replace the one ordinary node anchor with a set
+    # of per-wedge anchors.
+    out_of_range = plain_wedge.replace(
+        'href="https://node.example/whole"];',
+        'href="https://node.example/whole", wedge9href="https://ignored", '
+        'wedge9tooltip="ignored", wedge9target="_blank", '
+        'wedge00tooltip="noncanonical", '
+        'wedge999999999999999999999999999999href="https://overflow"];',
+    )
+    assert dot("svg", source=textwrap.dedent(out_of_range)) == dot(
+        "svg", source=textwrap.dedent(plain_wedge)
+    )
+
+    non_wedge = """
+        graph {
+          n [shape=circle, style=filled, label="", color=red,
+             wedge0id="ignored", wedge0tooltip="ignored"];
+        }
+    """
+    non_wedge_svg = dot("svg", source=textwrap.dedent(non_wedge))
+    assert 'id="ignored"' not in non_wedge_svg
+    assert "ignored" not in non_wedge_svg
+
+    svgz = subprocess.run(
+        [which("dot"), "-Tsvgz"],
+        check=True,
+        input=textwrap.dedent(plain_wedge).encode(),
+        stdout=subprocess.PIPE,
+    ).stdout
+    ET.fromstring(gzip.decompress(svgz))
+
+
+def test_1312_wedged_node_target_only_metadata_splits_node_anchor():
+    """A wedge target override must not be hidden by the node anchor."""
+
+    source = """
+        graph {
+          n [shape=circle, style=wedged, fixedsize=true, width=1, height=1,
+             label="", color="red;0:green;.5:blue;.5",
+             href="https://node.example/whole", target="_parent",
+             wedge0target="_blank"];
+        }
+    """
+    root = ET.fromstring(dot("svg", source=textwrap.dedent(source)))
+    namespace = "{http://www.w3.org/2000/svg}"
+    xlink_href = "{http://www.w3.org/1999/xlink}href"
+
+    wedge_anchors = {}
+    for anchor in root.iter(f"{namespace}a"):
+        paths = anchor.findall(f"{namespace}path")
+        assert not anchor.findall(f"{namespace}a"), "anchors must not be nested"
+        for path in paths:
+            color = path.get("fill")
+            if color in {"red", "green", "blue"}:
+                assert color not in wedge_anchors
+                wedge_anchors[color] = anchor
+
+    assert set(wedge_anchors) == {"green", "blue"}
+    assert all(
+        anchor.get(xlink_href) == "https://node.example/whole"
+        for anchor in wedge_anchors.values()
+    )
+    assert wedge_anchors["green"].get("target") == "_blank"
+    assert wedge_anchors["blue"].get("target") == "_parent"
+
+
+def test_1312_wedged_node_rejects_local_id_collisions():
+    """Wedge metadata must not create duplicate IDs inside a node group."""
+
+    source = """
+        graph {
+          n [id="same", shape=circle, style=wedged, label="",
+             color="red:green:blue", wedge0id="same",
+             wedge1id="duplicate", wedge2id="duplicate"];
+        }
+    """
+    root = ET.fromstring(dot("svg", source=textwrap.dedent(source)))
+    namespace = "{http://www.w3.org/2000/svg}"
+    ids = [element.get("id") for element in root.iter() if element.get("id")]
+    assert len(ids) == len(set(ids))
+
+    wedge_ids = {
+        path.get("fill"): path.get("id")
+        for path in root.iter(f"{namespace}path")
+        if path.get("fill") in {"red", "green", "blue"}
+    }
+    assert wedge_ids == {"red": None, "green": "duplicate", "blue": None}
+
+
+def test_1312_wedged_node_one_shot_warning_has_no_orphan_context():
+    """A suppressed repeated color warning must not emit standalone context."""
+
+    source = """
+        graph {
+          node [shape=circle, style=wedged, label="", fillcolor="red;2:blue"];
+          a [href="https://example.test/a"];
+          b [href="https://example.test/b"];
+        }
+    """
+    proc = subprocess.run(
+        [which("dot"), "-Tsvg"],
+        input=textwrap.dedent(source),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert proc.stderr == 'Warning: Total size > 1 in "red;2:blue" color spec in node a\n'
 
 
 def test_146():
