@@ -24,6 +24,7 @@
 #include <stdio.h>		/* need sprintf() */
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 #include <cgraph/agstrcanon.h>
 #include <cgraph/cghdr.h>
 #include <inttypes.h>
@@ -207,9 +208,41 @@ static char *_agstrcanon(char *arg, char *buf)
 /**
  * Canonicalize html strings. 
  */
+static bool is_structural_html_tag(const char *s)
+{
+    static const char *const tags[] = {"TABLE", "TR", "TD", "FONT", NULL};
+
+    if (s[0] != '<')
+	return false;
+    s++;
+    if (*s == '/')
+	return false;
+
+    for (const char *const *tag = tags; *tag != NULL; tag++) {
+	const size_t len = strlen(*tag);
+	if (strncasecmp(s, *tag, len))
+	    continue;
+	if (s[len] == '>' || s[len] == '/' ||
+	    isspace((unsigned char)s[len]))
+	    return true;
+    }
+
+    return false;
+}
+
 static char *agcanonhtmlstr(const char *arg, char *buf)
 {
-    sprintf(buf, "<%s>", arg);
+    char *p = buf;
+
+    *p++ = '<';
+    for (const char *s = arg; *s != '\0'; s++) {
+	if (s != arg && is_structural_html_tag(s))
+	    *p++ = '\n';
+	*p++ = *s;
+    }
+    *p++ = '>';
+    *p = '\0';
+
     return buf;
 }
 

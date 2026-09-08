@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- `nop` now writes structural line breaks in HTML-like labels, making long
+  table labels easier to read after canonicalization. #2517
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

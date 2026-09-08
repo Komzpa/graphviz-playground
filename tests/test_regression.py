@@ -2410,6 +2410,33 @@ def test_2089(html_like_first: bool):
     assert "label=<foo>" in canonical, "HTML-like label not found"
 
 
+@pytest.mark.skipif(which("nop") is None, reason="nop not available")
+def test_2517():
+    """
+    nop should pretty-print HTML-like table labels
+    https://gitlab.com/graphviz/graphviz/-/issues/2517
+    """
+
+    graph = """digraph {
+  n [label=<<TABLE BORDER="0" CELLPADDING="1" ALIGN="LEFT"><TR><TD>one</TD><TD>two</TD></TR><TR><TD>three</TD><TD>four</TD></TR></TABLE>>]
+}"""
+
+    nop = which("nop")
+    assert nop is not None
+    nopped = run(nop, input=graph)
+
+    assert "\n<TR>" in nopped
+    assert "\n<TD>one</TD>" in nopped
+    assert "\n<TD>four</TD>" in nopped
+    assert max(map(len, nopped.splitlines())) < len(
+        graph.splitlines()[1]
+    ), "HTML label remained a single long line"
+
+    reparsed = run(nop, input=nopped)
+    assert "<TABLE" in reparsed
+    assert "four</TD>" in reparsed
+
+
 def test_2089_2(tmp_path: Path):
     """
     HTML-like and non-HTML-like strings should peacefully coexist
