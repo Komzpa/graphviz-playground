@@ -1569,6 +1569,18 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
+
+	<xsd:attribute name="rankorder" type="xsd:string">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					If set to "input" on a graph, subgraph, or cluster, its nodes keep
+					their input order within each rank. This can increase the number of
+					edge crossings.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
 	
 	<!--
 	<xsd:attribute name="orientation" type="xsd:decimal">
@@ -2598,6 +2610,7 @@
 		<xsd:attribute ref="nslimit" />
 		<xsd:attribute ref="nslimit1" />
 		<xsd:attribute ref="ordering" />
+		<xsd:attribute ref="rankorder" />
 		<!-- <xsd:attribute ref="orientation" /> -->
 		<xsd:attribute ref="outputorder" default="breadthfirst" />
 		<xsd:attribute ref="overlap" default="true" />
@@ -2629,6 +2642,7 @@
 
 	<xsd:complexType name="subgraph">
 		<xsd:attribute ref="rank" />
+		<xsd:attribute ref="rankorder" />
 	</xsd:complexType>
 
 	<xsd:complexType name="cluster">
@@ -2648,6 +2662,7 @@
 		<xsd:attribute ref="lp" />
 		<xsd:attribute ref="nojustify" default="false" />
 		<xsd:attribute ref="pencolor" default="black" />
+		<xsd:attribute ref="rankorder" />
 		<xsd:attribute ref="style" />
 		<xsd:attribute ref="target" />
 		<xsd:attribute ref="tooltip" />

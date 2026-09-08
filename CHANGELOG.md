@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Add the graph and subgraph attribute `rankorder=input` to preserve input node
+  order within each rank.
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

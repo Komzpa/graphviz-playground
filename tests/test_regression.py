@@ -1246,6 +1246,245 @@ def test_1585():
     assert c < d, "clustering altered nodes’ horizontal ordering"
 
 
+def test_1569():
+    """
+    nodes in a same-rank family row should keep their input order
+    https://gitlab.com/graphviz/graphviz/-/issues/1569
+    """
+
+    source = """
+        graph KingsReduced {
+          splines=true;
+          node [shape=point];
+          Eight -- Nine -- Ten -- Eleven -- Twelve -- Thirteen -- Fourteen;
+          node [style=filled, fontname=arial, fontsize=14];
+
+          subgraph { rank=same; Eight;
+            fHumfrey [shape=box, label="unnamed\\nman"];
+            Sorority [shape=box, label="Sorority sisters"];
+            Calliope [shape=box]; Euterpe [shape=box]; Melpomene [shape=box];
+            Terpsichore [shape=box]; Erato [shape=box]; Polyhymnia [shape=box];
+            Urania [shape=box]; Thalia [shape=box];
+          }
+          subgraph { rank=same; Nine;
+            cHum [label="Humboldt's and Humfrey's father"];
+            cMaid [label="Taiwan and China"];
+            cMuse [label="Child of Muse"];
+          }
+          subgraph { rank=same; rankorder=input; Ten;
+            Dara [shape=box];
+            mDaHu [shape=point, label="Marriage of Dara and Humfrey"];
+            Humboldt [shape=box];
+            uHsis [shape=box, label="unnamed\\nwoman"];
+            mTaHu [shape=point, label="Marriage of Taiwan and Humfrey"];
+            Taiwan [shape=box, label="Maiden Taiwan"];
+            China [shape=box, label="Maiden China"];
+            Japan [shape=box, label="Maiden Japan"];
+            Mexico [shape=box, label="Maiden Mexico"];
+            uuMuse [shape=box, label="unnamed child\\nby unnamed Muse"];
+          }
+          subgraph { rank=same; Eleven;
+            Rose [shape=box]; mRoHu [shape=point]; Humfrey [shape=hexagon];
+            mSoHu2 [shape=point];
+          }
+          subgraph { rank=same; Thirteen;
+            cDaHu [label="Children of Dara and Humfrey"];
+            cJapa [label="Children of Maiden Japan"];
+          }
+          subgraph { rank=same; Fourteen;
+            Dafrey [shape=box]; Matt [shape=box]; Yukay [shape=box];
+          }
+
+          Dara -- mDaHu -- Humfrey;
+          Humfrey -- mTaHu -- Taiwan;
+          Rose -- mRoHu -- Humfrey;
+          Sorority -- { cMaid Japan Mexico };
+          fHumfrey -- cHum -- { Humboldt Humfrey uHsis };
+          cMaid -- { Taiwan China };
+          { Calliope Euterpe Melpomene Terpsichore Erato Polyhymnia Urania
+            Thalia } -- cMuse -- uuMuse [style=dotted];
+          mDaHu -- cDaHu -- { Dafrey Matt };
+          Japan -- cJapa -- Yukay;
+        }
+    """
+
+    plain = dot("plain", source=source).decode("utf-8")
+    node_x = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if fields[:1] == ["node"]:
+            node_x[fields[1]] = float(fields[2])
+
+    row = [
+        "Dara",
+        "mDaHu",
+        "Humboldt",
+        "uHsis",
+        "mTaHu",
+        "Taiwan",
+        "China",
+        "Japan",
+        "Mexico",
+        "uuMuse",
+    ]
+    assert all(node_x[a] <= node_x[b] for a, b in zip(row, row[1:]))
+
+
+def test_rankorder_input_is_opt_in():
+    """
+    rankorder=input should preserve the requested row even when it creates a
+    crossing; without it, dot should remain free to choose the crossing-free row
+    """
+
+    def x_positions(rankorder: str = "") -> dict[str, float]:
+        source = f"""
+            digraph {{
+              subgraph {{ rank=same; left; right; }}
+              subgraph {{ rank=same; {rankorder} a; b; }}
+              left -> b;
+              right -> a;
+            }}
+        """
+        plain = dot("plain", source=source).decode("utf-8")
+        return {
+            fields[1]: float(fields[2])
+            for fields in (line.split() for line in plain.splitlines())
+            if fields[:1] == ["node"]
+        }
+
+    unconstrained = x_positions()
+    assert unconstrained["b"] < unconstrained["a"], "dot stopped minimizing crossings"
+
+    constrained = x_positions("rankorder=input;")
+    assert constrained["a"] < constrained["b"], "rankorder=input was not honored"
+
+
+def test_rankorder_input_overrides_opposite_flat_edge():
+    """rankorder=input takes precedence over a conflicting same-rank edge"""
+
+    plain = dot(
+        "plain",
+        source="""
+            digraph {
+              subgraph { rank=same; rankorder=input; a; b; }
+              b -> a;
+            }
+        """,
+    ).decode("utf-8")
+    node_x = {
+        fields[1]: float(fields[2])
+        for fields in (line.split() for line in plain.splitlines())
+        if fields[:1] == ["node"]
+    }
+    assert node_x["a"] < node_x["b"], "opposite flat edge overrode rankorder=input"
+
+
+def _cluster_crossing_positions(
+    root_rankorder: str = "", cluster_rankorder: str = "", remincross: str = ""
+) -> dict[str, float]:
+    plain = dot(
+        "plain",
+        source=f"""
+            digraph {{
+              {root_rankorder}
+              {remincross}
+              subgraph cluster_nodes {{
+                {cluster_rankorder}
+                subgraph {{ rank=same; l; r; }}
+                subgraph {{ rank=same; a; b; }}
+                l -> b;
+                r -> a;
+              }}
+            }}
+        """,
+    ).decode("utf-8")
+    return {
+        fields[1]: float(fields[2])
+        for fields in (line.split() for line in plain.splitlines())
+        if fields[:1] == ["node"]
+    }
+
+
+def test_rankorder_input_applies_to_clusters():
+    """cluster-local rankorder=input survives the root ReMincross pass"""
+
+    unconstrained = _cluster_crossing_positions()
+    assert unconstrained["b"] < unconstrained["a"], "dot stopped minimizing crossings"
+
+    constrained = _cluster_crossing_positions(cluster_rankorder="rankorder=input;")
+    assert (
+        constrained["a"] < constrained["b"]
+    ), "cluster rankorder=input was not honored"
+
+
+def test_rankorder_input_is_inherited_by_clusters():
+    """root rankorder=input also constrains the contents of clusters"""
+
+    constrained = _cluster_crossing_positions(root_rankorder="rankorder=input;")
+    assert (
+        constrained["a"] < constrained["b"]
+    ), "root rankorder=input did not reach cluster contents"
+
+
+def test_rankorder_input_is_inherited_without_remincross():
+    """cluster mincross preserves local and inherited constraints on its own"""
+
+    unconstrained = _cluster_crossing_positions(remincross="remincross=false;")
+    assert unconstrained["b"] < unconstrained["a"], "dot stopped minimizing crossings"
+
+    cluster_local = _cluster_crossing_positions(
+        cluster_rankorder="rankorder=input;", remincross="remincross=false;"
+    )
+    assert cluster_local["a"] < cluster_local["b"], "cluster lost its rankorder=input"
+
+    constrained = _cluster_crossing_positions(
+        root_rankorder="rankorder=input;", remincross="remincross=false;"
+    )
+    assert (
+        constrained["a"] < constrained["b"]
+    ), "cluster mincross lost root rankorder=input"
+
+
+def test_rankorder_input_respects_rankdir():
+    """rankorder=input preserves the row order after rankdir rotates the graph"""
+
+    def y_positions(rankorder: str = "") -> dict[str, float]:
+        plain = dot(
+            "plain",
+            source=f"""
+                digraph {{
+                  rankdir=LR;
+                  subgraph {{ rank=same; left; right; }}
+                  subgraph {{ rank=same; {rankorder} a; b; }}
+                  left -> a;
+                  right -> b;
+                }}
+            """,
+        ).decode("utf-8")
+        return {
+            fields[1]: float(fields[3])
+            for fields in (line.split() for line in plain.splitlines())
+            if fields[:1] == ["node"]
+        }
+
+    assert y_positions()["a"] < y_positions()["b"], "dot stopped minimizing crossings"
+    constrained = y_positions("rankorder=input;")
+    assert constrained["a"] > constrained["b"], "rankorder=input ignored rankdir"
+
+
+def test_rankorder_rejects_unknown_value():
+    """rankorder should diagnose unsupported values instead of silently ignoring them"""
+
+    proc = subprocess.run(
+        ["dot", "-Tplain"],
+        input="graph { rankorder=unexpected; a -- b; }",
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert "rankorder 'unexpected' not recognized" in proc.stderr
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_1594():
     """

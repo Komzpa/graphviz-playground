@@ -114,16 +114,20 @@ static void matrix_set(adjmatrix_t *me, size_t row, size_t col) {
 #define saveorder(v) (ND_coord(v)).x
 #define flatindex(v) ((size_t)ND_low(v))
 
+static char rankorder_marker;
+
 /* forward declarations */
 static bool medians(graph_t *g, int r0, int r1);
 static int nodeposcmpf(const void *, const void *);
 static int edgeidcmpf(const void *, const void *);
 static void flat_breakcycles(graph_t *g);
 static void flat_reorder(graph_t *g);
+static void clear_flat_matrices(graph_t *g);
 static void flat_search(graph_t *g, node_t *v);
 static void init_mincross(graph_t *g);
 static void merge2(graph_t *g);
 static void init_mccomp(graph_t *g, size_t c);
+static bool uses_rankorder_input(graph_t *g);
 
 /// @param have_vlists Are there vlists that need resetting?
 static void cleanup2(graph_t *g, int64_t nc, bool have_vlists);
@@ -385,6 +389,14 @@ int dot_mincross(graph_t *g) {
 
   if (GD_n_cluster(g) > 0 && (!(s = agget(g, "remincross")) || mapbool(s))) {
     mark_lowclusters(g);
+    /* Cluster mincross adds FLATORDER constraints after the root pass built
+     * its matrices. Rebuild and apply them before ReMincross, otherwise that
+     * final root pass can undo the order established within a cluster. */
+    if (uses_rankorder_input(g)) {
+      clear_flat_matrices(g);
+      flat_breakcycles(g);
+      flat_reorder(g);
+    }
     ReMincross = true;
     const int64_t mc = mincross(g, 2);
     if (mc < 0) {
@@ -416,6 +428,13 @@ static void free_matrix(adjmatrix_t *p) {
   if (p) {
     free(p->data);
     free(p);
+  }
+}
+
+static void clear_flat_matrices(graph_t *g) {
+  for (int r = GD_minrank(g); r <= GD_maxrank(g); r++) {
+    free_matrix(GD_rank(g)[r].flat);
+    GD_rank(g)[r].flat = NULL;
   }
 }
 
@@ -503,6 +522,99 @@ static void do_ordering_for_nodes(graph_t *g) {
   }
 }
 
+/* Preserve the input order of the nodes in a graph or subgraph, rank by rank.
+ * The generated edges use the same temporary FLATORDER machinery as ordering,
+ * so they constrain mincross rather than adjusting positions after layout.
+ */
+static void install_rankorder(graph_t *g) {
+  /* A rank=same subgraph does not own rank storage; its members use Root's
+   * rank numbers. */
+  const int minrank = GD_minrank(Root);
+  const int rank_count = GD_maxrank(Root) - minrank + 1;
+  node_t **const previous = gv_calloc((size_t)rank_count, sizeof(*previous));
+
+  /* agfstnode() walks the subgraph's node sequence in input (AGSEQ) order. */
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    const int rank = ND_rank(n);
+    if (rank < minrank || rank >= minrank + rank_count)
+      continue;
+    node_t **const prior = &previous[rank - minrank];
+    edge_t *const existing = *prior ? find_flat_edge(*prior, n) : NULL;
+    if (*prior) {
+      if (!existing || ED_weight(existing) == 0) {
+        edge_t *const e = new_virtual_edge(*prior, n, NULL);
+        ED_edge_type(e) = FLATORDER;
+        ED_alg(e) = &rankorder_marker;
+        flat_edge(g, e);
+      } else {
+        /* An inherited edge is already in the shared node lists, but the
+         * cluster must still run flat_reorder() over it. */
+        GD_has_flat_edges(g) = true;
+      }
+    }
+    *prior = n;
+  }
+
+  free(previous);
+}
+
+static void do_rankorder(graph_t *g) {
+  const char *const rankorder = agget(g, "rankorder");
+  if (rankorder == NULL || rankorder[0] == '\0')
+    return;
+  if (!streq(rankorder, "input")) {
+    agerrorf("rankorder '%s' not recognized.\n", rankorder);
+    return;
+  }
+
+  install_rankorder(g);
+}
+
+/* Clusters run mincross separately, after their ancestors' temporary
+ * constraints have already established the root ordering. Reapply an
+ * ancestor's opt-in within the cluster so this separate pass cannot discard
+ * it, including when the final ReMincross pass is disabled. */
+static bool inherits_rankorder_input(graph_t *g) {
+  const char *const root_rankorder = agget(Root, "rankorder");
+  if (root_rankorder != NULL && streq(root_rankorder, "input"))
+    return true;
+
+  for (graph_t *ancestor = agparent(g); ancestor != NULL;) {
+    if (ancestor == Root)
+      break;
+    const char *const rankorder = agget(ancestor, "rankorder");
+    if (rankorder != NULL && streq(rankorder, "input"))
+      return true;
+
+    graph_t *const parent = agparent(ancestor);
+    if (parent == ancestor)
+      break;
+    ancestor = parent;
+  }
+  return false;
+}
+
+static bool uses_rankorder_input(graph_t *g) {
+  const char *const rankorder = agget(g, "rankorder");
+  if (rankorder != NULL && streq(rankorder, "input"))
+    return true;
+
+  for (graph_t *subg = agfstsubg(g); subg; subg = agnxtsubg(subg)) {
+    if (uses_rankorder_input(subg))
+      return true;
+  }
+  return false;
+}
+
+static void do_rankorder_for_subgraphs(graph_t *g) {
+  do_rankorder(g);
+  for (graph_t *subg = agfstsubg(g); subg; subg = agnxtsubg(subg)) {
+    /* clusters are processed by their own mincross invocation */
+    if (!is_a_cluster(subg))
+      do_rankorder_for_subgraphs(subg);
+  }
+}
+
 /* handle case where graph specifies edge ordering
  * If the graph does not have an ordering attribute, we then
  * check for nodes having the attribute.
@@ -537,9 +649,13 @@ static void ordered_edges(graph_t *g) {
 static int64_t mincross_clust(graph_t *g) {
   int c;
 
+  const bool inherited_rankorder_input = inherits_rankorder_input(g);
   if (expand_cluster(g) != 0) {
     return -1;
   }
+  if (inherited_rankorder_input)
+    install_rankorder(g);
+  do_rankorder_for_subgraphs(g);
   ordered_edges(g);
   flat_breakcycles(g);
   flat_reorder(g);
@@ -1023,6 +1139,7 @@ static void init_mincross(graph_t *g) {
   if (GD_flags(g) & NEW_RANK)
     fillRanks(g);
   class2(g);
+  do_rankorder_for_subgraphs(g);
   decompose(g, 1);
   allocate_ranks(g);
   ordered_edges(g);
@@ -1056,6 +1173,10 @@ static void flat_rev(Agraph_t *g, Agedge_t *e) {
   }
 }
 
+static bool is_rankorder_edge(edge_t *e) {
+  return ED_edge_type(e) == FLATORDER && ED_alg(e) == &rankorder_marker;
+}
+
 static void flat_search(graph_t *g, node_t *v) {
   int i;
   bool hascl;
@@ -1074,6 +1195,14 @@ static void flat_search(graph_t *g, node_t *v) {
       if (ND_onstack(aghead(e))) {
         matrix_set(M, (size_t)flatindex(aghead(e)),
                    (size_t)flatindex(agtail(e)));
+        if (is_rankorder_edge(e)) {
+          edge_t *const rev = find_flat_edge(aghead(e), agtail(e));
+          if (rev && !is_rankorder_edge(rev)) {
+            delete_flat_edge(rev);
+            flat_rev(g, rev);
+            continue;
+          }
+        }
         delete_flat_edge(e);
         i--;
         if (ED_edge_type(e) == FLATORDER)
