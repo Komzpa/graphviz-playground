@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- CMake `AUTO`/`ON`/`OFF` build options now accept normal CMake truthy and
+  falsy values. #2715
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

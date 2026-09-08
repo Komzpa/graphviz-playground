@@ -5238,6 +5238,40 @@ def test_2598_1(tmp_path: Path):
     run_raw("cmake", "--build", tmp_path)
 
 
+@pytest.mark.skipif(shutil.which("cmake") is None, reason="cmake not available")
+def test_2715(tmp_path: Path):
+    """
+    CMake AUTO/ON/OFF cache options should accept normal CMake false constants
+    and case-insensitive AUTO values.
+    https://gitlab.com/graphviz/graphviz/-/issues/2715
+    """
+
+    root = Path(__file__).resolve().parents[1]
+    run_raw(
+        "cmake",
+        "-S",
+        root,
+        "-B",
+        tmp_path,
+        "-DENABLE_LTDL=0",
+        "-DENABLE_TCL=false",
+        "-DENABLE_SWIG=No",
+        "-DWITH_GDK=off",
+        "-DWITH_GHOSTSCRIPT=n",
+        "-DWITH_X=auto",
+        "-DWITH_ZLIB=yes",
+    )
+
+    cache = (tmp_path / "CMakeCache.txt").read_text(encoding="utf-8")
+    assert "ENABLE_LTDL:STRING=OFF" in cache
+    assert "ENABLE_TCL:STRING=OFF" in cache
+    assert "ENABLE_SWIG:STRING=OFF" in cache
+    assert "WITH_GDK:STRING=OFF" in cache
+    assert "WITH_GHOSTSCRIPT:STRING=OFF" in cache
+    assert "WITH_X:STRING=AUTO" in cache
+    assert "WITH_ZLIB:STRING=ON" in cache
+
+
 @pytest.mark.skipif(which("gvgen") is None, reason="gvgen not available")
 @pytest.mark.skipif(which("mingle") is None, reason="mingle not available")
 def test_2599():
