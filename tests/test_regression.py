@@ -4352,10 +4352,6 @@ def test_2460():
     ), "back slashes in labels handled incorrectly"
 
 
-@pytest.mark.xfail(
-    strict=platform.system() != "Windows",
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2470",
-)
 def test_2470():
     """
     another “trouble in init_rank variant”
@@ -4368,6 +4364,25 @@ def test_2470():
 
     # run it through Graphviz
     dot("ps", input)
+
+
+def test_2814():
+    """
+    routing around edge labels should not emit triangulation errors or lose edges
+    https://gitlab.com/graphviz/graphviz/-/issues/2814
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2814.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    output = run("dot", "-Tdot", input, stderr=subprocess.STDOUT)
+
+    assert "triangulation failed" not in output, "triangulation warnings were produced"
+    assert "Pshortestpath failed" not in output, "pathplan error was produced"
+    assert "Error: lost" not in output, "edges were lost"
+    assert '"n.2" -> "n.19"' in output
+    assert '"n.2" -> "n.20"' in output
 
 
 @pytest.mark.xfail(

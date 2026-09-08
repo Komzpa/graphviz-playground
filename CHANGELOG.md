@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Path planning now falls back to a straight route if triangulated routing
+  cannot produce a path. #2470 #2814
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
