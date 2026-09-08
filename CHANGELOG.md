@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The library guide’s renderer documentation now refers to the current
+  `textspan` callback and documents renderer gradient state. #124
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

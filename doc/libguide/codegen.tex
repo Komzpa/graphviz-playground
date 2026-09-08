@@ -38,7 +38,7 @@ output stream, if any, or the device size and resolution.
 Section~\ref{sec:gvjfields} describes this data structure.
 
 Most of the functions handle the nested graph structure.
-All graphics output is handled by the {\tt textpara}, {\tt ellipse},
+All graphics output is handled by the {\tt textspan}, {\tt ellipse},
 {\tt polygon}, {\tt beziercurve}, and {\tt polyline} functions.
 The relevant drawing information such as color and pen style
 is available through the {\tt obj} field of the
@@ -73,7 +73,7 @@ void (*begin\_edge) (GVJ\_t*, char*, bool, char*, long); \\
 void (*end\_edge) (GVJ\_t*); \\
 void (*begin\_anchor) (GVJ\_t*, char*, char*, char*); \\
 void (*end\_anchor) (GVJ\_t*); \\
-void (*textpara) (GVJ\_t*, pointf, textpara\_t*); \\
+void (*textspan) (GVJ\_t*, pointf, textspan\_t*); \\
 void (*resolve\_color) (GVJ\_t*, gvcolor\_t*); \\
 void (*ellipse) (GVJ\_t*, pointf*, int); \\
 void (*polygon) (GVJ\_t*, pointf*, int, int); \\
@@ -168,14 +168,15 @@ the {\tt begin\_anchor} and {\tt end\_anchor} calls
 enclose the rendering of that part of the label plus any subparts.
 \item[{\tt end\_anchor(job)}]
 Called at the end of the current anchor context.
-\item[{\tt textpara(job, p, txt)}]
+\item[{\tt textspan(job, p, txt)}]
 Draw text at point {\tt p} using the specified font and fontsize and color. 
 The {\tt txt} argument provides the text string {\tt txt->str},
 stored in UTF-8,
-a calculated width of the string {\tt txt->width} and 
+a calculated size of the string {\tt txt->size} and
 the horizontal alignment {\tt txt->just} of the string in relation to {\tt p}.
-The values {\tt txt->fontname} and {\tt txt->fontname} give the desired
-font name and font size, the latter in points.
+Font information is grouped in the {\tt txt->font} field. In particular,
+{\tt txt->font->name} and {\tt txt->font->size} give the desired
+font name and font size, the latter in points, when a font is specified.
 
 The base line of the text is given by {\tt p.y}. The interpretation
 of {\tt p.x} depends upon the value of {\tt txt->just}. Basically,
@@ -190,7 +191,7 @@ of {\tt p.x} depends upon the value of {\tt txt->just}. Basically,
 \end{center}
 The leftmost x coordinate of the text, the parameter most graphics
 systems use for text placement, is given by 
-{\tt p.x + {\em j} * txt->width}, where {\em j} is 0.0 (-0.5,-1.0)
+{\tt p.x + {\em j} * txt->size.x}, where {\em j} is 0.0 (-0.5,-1.0)
 if {\tt txt->just} is {\tt 'l'}({\tt 'n'},{\tt 'r'}), respectively.
 This representation allows the renderer to accurately compute
 the point for text placement that is appropriate for its format, as
@@ -312,6 +313,9 @@ union \{ \\
 \} u; \\
 gvcolor\_t pencolor; \\
 gvcolor\_t fillcolor; \\
+gvcolor\_t stopcolor; \\
+int gradient\_angle; \\
+double gradient\_frac; \\
 pen\_type pen;   \\
 double penwidth; \\
 char *url; \\
@@ -354,9 +358,16 @@ width supported by the output format.
 \item[{\tt fillcolor}]
 The {\tt gvcolor\_t} value indicating the color used to fill
 closed regions.
+\item[{\tt stopcolor}, {\tt gradient\_angle}, and {\tt gradient\_frac}]
+When the current object is filled with a gradient rather than a single
+solid color, {\tt fillcolor} and {\tt stopcolor} hold the gradient's
+endpoint colors. The {\tt gradient\_angle} field is the angle, in degrees,
+used for linear gradients. The {\tt gradient\_frac} field records the
+optional color-stop fraction from a {\tt colorList}; a value of 0 means
+that no explicit fraction was supplied.
 \end{description}
 Note that font information is delivered as part of the 
-{\tt textpara\_t} value passed to the {\tt textpara} function.
+{\tt textspan\_t} value passed to the {\tt textspan} function.
 
 As for the url, tooltip and target fields, these will point to
 the associated attribute value of the current graph object,
@@ -412,4 +423,3 @@ It is this last representation which will be passed to the renderer's
 drawing routines.
 The renderer's known colors and preferred color format are
 described in Section~\ref{sec:plugin} below.
-
