@@ -7789,3 +7789,20 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+
+
+def test_2746_pathplan_route_sub():
+    """`route.c` should not read OOB for short shortestpaths (issue 2746)."""
+
+    graph = (
+        'graph{graph[rankdir="LR"]0[shape="point"]'
+        '1[height="83000000000"shape="point"]00--1[fontsize=300800000000000000000000000label="e0000"]}'
+    )
+    dot_bin = which("dot")
+    if dot_bin is None:
+        pytest.skip("dot not available")
+    dot_builtins = dot_bin.parent / "dot_builtins"
+    if not dot_builtins.is_file():
+        pytest.skip("dot_builtins not adjacent to dot build")
+
+    run(dot_builtins, "-Tdot", input=graph)
