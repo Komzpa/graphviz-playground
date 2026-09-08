@@ -347,6 +347,7 @@ static int widthfn(htmldata_t *p, const char *v) {
   if (doInt(v, "WIDTH", 0, USHRT_MAX, &u))
     return 1;
   p->width = (unsigned short)u;
+  p->flags |= WIDTH_SET;
   return 0;
 }
 
@@ -515,6 +516,11 @@ static const br_item_t br_items[] = {
     {"align", alignfn},
 };
 
+static const html_item_t rule_items[] = {
+    {"color", pencolorfn},
+    {"width", widthfn},
+};
+
 /// convert `elem` to its appropriate type and invoke `elem->action(tp, val)`
 ///
 /// This is essentially a constrained C11 version of
@@ -556,6 +562,16 @@ static void mkBR(htmllexstate_t *ctx, const char **atts) {
   ctx->htmllval->i = UNSET_ALIGN;
   doAttrs(ctx, &ctx->htmllval->i, br_items,
           sizeof(br_items) / sizeof(br_items[0]), atts, "<BR>");
+}
+
+static htmldata_t *mkRule(htmllexstate_t *ctx, const char **atts,
+                          const char *element) {
+  htmldata_t *rule = gv_alloc(sizeof(htmldata_t));
+
+  doAttrs(ctx, rule, rule_items, sizeof(rule_items) / sizeof(rule_items[0]),
+          atts, element);
+
+  return rule;
 }
 
 static htmlimg_t *mkImg(htmllexstate_t *ctx, const char **atts) {
@@ -647,8 +663,10 @@ static void startElement(void *user, const char *name, const char **atts) {
     mkBR(ctx, atts);
     ctx->tok = T_br;
   } else if (strcasecmp(name, "HR") == 0) {
+    ctx->htmllval->data = mkRule(ctx, atts, "<HR>");
     ctx->tok = T_hr;
   } else if (strcasecmp(name, "VR") == 0) {
+    ctx->htmllval->data = mkRule(ctx, atts, "<VR>");
     ctx->tok = T_vr;
   } else if (strcasecmp(name, "IMG") == 0) {
     ctx->htmllval->img = mkImg(ctx, atts);

@@ -9,6 +9,8 @@ and this project adheres to
 
 ### Fixed
 
+- Horizontal and vertical rules in HTML-like table labels now honor per-rule
+  `COLOR` and `WIDTH` attributes. #392
 - `nop` no longer reorders edges. #2855
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
