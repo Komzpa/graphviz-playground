@@ -1410,6 +1410,23 @@ def test_1648(fmt: str, layerselect: int):
     run("dot", f"-Glayerselect={layerselect}", f"-T{fmt}", "-o", os.devnull, input)
 
 
+def test_1649():
+    """
+    the graph `dpi` attribute should control raster output dimensions
+    https://gitlab.com/graphviz/graphviz/-/issues/1649
+    """
+
+    source = 'digraph { graph [dpi=%d]; a [label="hello", shape=box]; }'
+
+    image_72dpi = Image.open(io.BytesIO(dot("png", source=source % 72)))
+    image_144dpi = Image.open(io.BytesIO(dot("png", source=source % 144)))
+
+    assert image_144dpi.size == (
+        image_72dpi.width * 2,
+        image_72dpi.height * 2,
+    ), "PNG dimensions did not scale with the graph dpi attribute"
+
+
 @pytest.mark.parametrize(
     "fmt",
     (
