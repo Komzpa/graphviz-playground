@@ -4842,6 +4842,34 @@ def test_2568():
         proc.sendline(f"{tag} {cmd}")
 
 
+def test_2516():
+    """
+    HTML-like label syntax errors should report the DOT source line.
+    https://gitlab.com/graphviz/graphviz/-/issues/2516
+    """
+
+    source = """\
+digraph G {
+
+
+  aneggtable [shape=egg, label=<yada yada <table><tr><td>item</td></tr></table>>];
+}
+"""
+    proc = subprocess.run(
+        ["dot", "-Tsvg"],
+        input=source,
+        encoding="UTF-8",
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    stderr = remove_asan_summary(remove_xtype_warnings(proc.stderr))
+
+    assert proc.returncode != 0
+    assert "Syntax error: non-space string used before <TABLE> in line 4" in stderr
+    assert "in line 1" not in stderr
+
+
 @pytest.mark.skipif(which("sfdp") is None, reason="sfdp not available")
 def test_2572():
     """

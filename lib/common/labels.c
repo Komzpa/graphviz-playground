@@ -136,6 +136,7 @@ textlabel_t *make_label(void *obj, char *str, bool is_html, bool is_record,
     rv->fontcolor = fontcolor;
     rv->fontsize = fontsize;
     rv->charset = GD_charset(g);
+    rv->html_line = is_html ? aghtmlstr_line(str) : 0;
     if (is_record) {
 	rv->text = gv_strdup(str);
         if (is_html) {

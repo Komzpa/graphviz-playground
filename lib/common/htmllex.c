@@ -756,8 +756,10 @@ int initHTMLlexer(htmlscan_t *scanner, char *src, agxbuf *xb, htmlenv_t *env) {
   ctx->inCell = 1;
   ctx->parser = XML_ParserCreate(charsetToStr(GD_charset(env->g)));
   ctx->gvc = GD_gvc(env->g);
+  ctx->line_offset = env->line_offset;
   XML_SetUserData(ctx->parser, ctx);
-  XML_SetElementHandler(ctx->parser, startElement, endElement);
+  XML_SetElementHandler(ctx->parser, (XML_StartElementHandler)startElement,
+                        endElement);
   XML_SetCharacterDataHandler(ctx->parser, characterData);
   return 0;
 #else
@@ -906,7 +908,7 @@ unsigned long htmllineno(htmlscan_t *scanner) {
 
 static unsigned long htmllineno_ctx(htmllexstate_t *ctx) {
 #ifdef HAVE_EXPAT
-  return XML_GetCurrentLineNumber(ctx->parser);
+  return ctx->line_offset + XML_GetCurrentLineNumber(ctx->parser);
 #else
   (void)ctx;
 
