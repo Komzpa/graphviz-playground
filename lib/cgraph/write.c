@@ -316,6 +316,43 @@ static int write_dicts(Agraph_t *g, iochan_t *ofile, bool top,
     return 0;
 }
 
+static int write_class_rules(Agraph_t *g, iochan_t *ofile,
+                             write_info_t *wr_info) {
+  Agclassrules_t *rules = agclassattrrules(g, false);
+  for (Agclassrule_t *rule = rules ? rules->first : NULL; rule;
+       rule = rule->next) {
+    char *kind = rule->kind == AGRAPH   ? "graph"
+                 : rule->kind == AGNODE ? "node"
+                                        : "edge";
+    CHKRV(indent(g, ofile, *wr_info));
+    CHKRV(ioput(g, ofile, kind));
+    for (const char *p = rule->selector; *p;) {
+      const char *start = p;
+      while (*p && *p != ' ')
+        ++p;
+      char *token = gv_alloc((size_t)(p - start) + 1);
+      memcpy(token, start, (size_t)(p - start));
+      token[p - start] = '\0';
+      CHKRV(ioput(g, ofile, "."));
+      CHKRV(write_canonstr(g, ofile, token, false));
+      free(token);
+      if (*p)
+        ++p;
+    }
+    CHKRV(ioput(g, ofile, " ["));
+    int count = 0;
+    for (Agclassattr_t *attr = rule->attrs; attr; attr = attr->next) {
+      if (count++)
+        CHKRV(ioput(g, ofile, ", "));
+      CHKRV(write_canonstr(g, ofile, attr->name, true));
+      CHKRV(ioput(g, ofile, "="));
+      CHKRV(write_canonstr(g, ofile, attr->value, true));
+    }
+    CHKRV(ioput(g, ofile, "];\n"));
+  }
+  return 0;
+}
+
 static int write_hdr(Agraph_t *g, iochan_t *ofile, bool top,
                      write_info_t *wr_info) {
     char *name, *sep, *kind, *strict;
@@ -356,6 +393,7 @@ static int write_hdr(Agraph_t *g, iochan_t *ofile, bool top,
     CHKRV(ioput(g, ofile, "{\n"));
     wr_info->level++;
     CHKRV(write_dicts(g, ofile, top, wr_info));
+    CHKRV(write_class_rules(g, ofile, wr_info));
     AGATTRWF(g) = true;
     return 0;
 }
@@ -405,10 +443,12 @@ static bool irrelevant_subgraph(Agraph_t * g)
 		return false;
     }
     dd = agdatadict(g, false);
-    if (!dd)
-	return true;
-    if (dtsize(dd->dict.n) > 0 || dtsize(dd->dict.e) > 0)
-	return false;
+	if (!dd) {
+	    return true;
+	}
+	if (dtsize(dd->dict.n) > 0 || dtsize(dd->dict.e) > 0 ||
+	    agclassattr_has_rules(g))
+	    return false;
     return true;
 }
 
@@ -492,7 +532,7 @@ static int write_nondefault_attrs(void *obj, iochan_t * ofile,
 		if (Headport && sym->id == Headport->id)
 		    continue;
 	    }
-	    if (data->str[sym->id] != sym->defval) {
+	    if (data->str[sym->id] != sym->defval && !agclassattr_applied(obj, sym)) {
 		if (cnt++ == 0) {
 		    CHKRV(ioput(g, ofile, "\t["));
 		    wr_info->level++;

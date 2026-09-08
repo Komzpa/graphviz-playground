@@ -88,6 +88,40 @@ int agdtclose(Dict_t * dict);
 CGHDR_API Agdatadict_t *agdatadict(Agraph_t *g, bool cflag);
 CGHDR_API Agattr_t *agattrrec(void *obj);
 
+typedef struct Agclassattr_s Agclassattr_t;
+typedef struct Agclassrule_s Agclassrule_t;
+typedef struct Agclassrules_s Agclassrules_t;
+struct Agclassattr_s {
+  Agclassattr_t *next;
+  char *name;
+  char *value;
+  bool is_html;
+};
+struct Agclassrule_s {
+  Agclassrule_t *next;
+  int kind;
+  size_t specificity;
+  uint64_t order;
+  char *selector;
+  Agclassattr_t *attrs;
+};
+struct Agclassrules_s {
+  Agrec_t h;
+  Agclassrule_t *first;
+  Agclassrule_t *last;
+  uint64_t next_order;
+};
+Agclassrules_t *agclassattrrules(Agraph_t *g, bool create);
+Agclassrule_t *agclassattr_begin(Agraph_t *g, int kind, char *selector);
+void agclassattr_add(Agclassrule_t *rule, Agraph_t *g, char *name, char *value);
+void agclassattr_apply(Agraph_t *scope, void *obj, int kind);
+void agclassattr_explicit(void *obj, Agsym_t *sym);
+void agclassattr_unmark(void *obj, Agsym_t *sym);
+bool agclassattr_applied(void *obj, Agsym_t *sym);
+bool agclassattr_has_rules(Agraph_t *g);
+void agclassattr_delete(Agraph_t *g);
+void agclassattr_object_delete(void *obj);
+
 void agraphattr_init(Agraph_t * g);
 int agraphattr_delete(Agraph_t * g);
 void agnodeattr_init(Agraph_t *g, Agnode_t * n);

@@ -7775,6 +7775,90 @@ def test_mm2gv_cmplx():
     assert proc.returncode in (0, 1), "mm2gv crashed"
 
 
+def test_694_class_defaults(tmp_path: Path):
+    """
+    class default blocks should be parsed and applied by libcgraph.
+    https://gitlab.com/graphviz/graphviz/-/issues/694
+    """
+
+    source = textwrap.dedent(
+        """
+        digraph classes {
+          graph.page [bgcolor=lightgrey]; graph [class=page];
+          node [shape=circle, color=black];
+          node.foo [shape=box, color=red];
+          node.bar [shape=diamond, color=green];
+          node.foo.bar [shape=ellipse];
+          edge.foo [color=blue, penwidth=3];
+          R [class=foo]; D [class=bar]; E [class="bar foo"];
+          X [class=foo, shape=hexagon]; R -> D [class=foo];
+        }
+        """
+    )
+    rendered = dot("svg", source=source)
+    assert 'fill="lightgrey"' in rendered
+    assert '<polygon fill="none" stroke="red"' in rendered
+    assert '<polygon fill="none" stroke="green"' in rendered
+    assert '<ellipse fill="none" stroke="green"' in rendered
+    assert 'stroke="blue" stroke-width="3"' in rendered
+    assert re.search(r"<!-- X -->.*?stroke=\"red\"", rendered, re.S)
+
+    compact = dot("dot", source=source)
+    assert "node.foo [shape=box, color=red];" in compact
+    assert "edge.foo [color=blue, penwidth=3];" in compact
+    assert not re.search(r"R\s+\[[^]]*shape=box", compact, re.S)
+    assert re.search(r"X\s+\[[^]]*shape=hexagon", compact, re.S)
+    assert '<ellipse' in dot("svg", source=compact)
+    assert "c 7 -#ff0000" in dot("xdot", source=source)
+
+    scoped = dot(
+        "svg",
+        source="digraph { subgraph { node.foo [shape=box]; a [class=foo]; } b [class=foo]; }",
+    )
+    assert re.search(r"<!-- a -->.*?<polygon", scoped, re.S)
+    assert re.search(r"<!-- b -->.*?<ellipse", scoped, re.S)
+
+    # Explicit values survive later matching rules whose attribute symbols are
+    # local to a subgraph. This applies to both nodes and strict-graph edges.
+    cross_scope_source = textwrap.dedent(
+        """
+        strict digraph {
+          node.foo [shape=box];
+          a [class=foo, shape=ellipse];
+          edge.foo [color=red]; a -> b [class=foo, color=green];
+          subgraph s {
+            node [shape=diamond]; node.foo [shape=hexagon];
+            edge [color=black]; edge.foo [color=blue];
+            a; a -> b;
+          }
+        }
+        """
+    )
+    cross_scope = dot("dot", source=cross_scope_source)
+    assert re.search(r"a\s+\[[^]]*shape=ellipse", cross_scope, re.S)
+    assert re.search(r"a\s+->\s+b\s+\[[^]]*color=green", cross_scope, re.S)
+
+    for invalid_selector in (
+        "node..foo",
+        'node.""',
+        'node."foo bar"',
+    ):
+        malformed = subprocess.run(
+            [which("dot"), "-Tdot"],
+            input=f"digraph {{ {invalid_selector} [shape=box]; }}",
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        assert malformed.returncode != 0
+
+    c_src = Path(__file__).parent / "694.c"
+    stdout, stderr = run_c(c_src, tmp_path, link=["cgraph"])
+    assert stdout == ""
+    assert stderr == ""
+
+
 def test_negative_dpi():
     """can Graphviz deal with an illegal negative `dpi` value?"""
 
