@@ -523,6 +523,42 @@ def test_517():
     ), "regular label missing"
 
 
+@pytest.mark.parametrize(
+    ("rankdir", "axis", "sign"),
+    (
+        ("TB", "y", 1),
+        ("BT", "y", -1),
+        ("LR", "x", -1),
+        ("RL", "x", 1),
+    ),
+)
+def test_631(rankdir: str, axis: str, sign: int):
+    """
+    twopi should use rankdir to choose the first child’s start direction
+    https://gitlab.com/graphviz/graphviz/-/issues/631
+    """
+
+    source = f"""
+    digraph G {{
+      root=00
+      rankdir={rankdir}
+      00 -> {{11 22}}
+    }}
+    """
+
+    plain = run("dot", "-Ktwopi", "-Tplain", input=source)
+    coords = {}
+    for line in plain.splitlines():
+        fields = line.split()
+        if fields and fields[0] == "node":
+            coords[fields[1]] = (float(fields[2]), float(fields[3]))
+
+    root_x, root_y = coords["00"]
+    child_x, child_y = coords["11"]
+    delta = child_x - root_x if axis == "x" else child_y - root_y
+    assert delta * sign > 0
+
+
 def test_793():
     """
     Graphviz should not crash when using VRML output with a non-writable current
