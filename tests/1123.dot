@@ -1,0 +1,10 @@
+digraph G {
+  subgraph H2 {
+    rank=same;
+    a;
+    c;
+  }
+  subgraph cluster3 {
+    a -> d;
+  }
+}

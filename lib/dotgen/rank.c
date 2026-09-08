@@ -259,6 +259,9 @@ node_induce(graph_t * par, graph_t * g)
     for (n = agfstnode(g); n; n = nn) {
 	nn = agnxtnode(g, n);
 	if (ND_ranktype(n)) {
+	    agwarningf(
+		"%s was already in a rankset, deleted from cluster %s\n",
+		agnameof(n), agnameof(par));
 	    agdelete(g, n);
 	    continue;
 	}

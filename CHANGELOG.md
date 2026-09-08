@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` now warns about rankset/cluster conflicts regardless of whether the
+  rankset or the cluster appears first in the input. #1123
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
