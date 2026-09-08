@@ -3106,6 +3106,36 @@ def test_2242():
         assert ref == png, "repeated rendering changed output"
 
 
+@pytest.mark.skipif(shutil.which("pdfinfo") is None, reason="pdfinfo is not available")
+def test_2245(tmp_path: Path):
+    """
+    PDF output should split large graphs into multiple pages when `page` is set
+    https://gitlab.com/graphviz/graphviz/-/issues/2245
+    """
+
+    edges = "\n".join(f"  n{i} -> n{i + 1};" for i in range(41))
+    src = f"""
+    digraph {{
+      rankdir=LR;
+      node [shape=box,width=1,height=.5];
+    {edges}
+    }}
+    """
+
+    ps = run_raw("dot", "-Gpage=2,2", "-Tps2", input=src.encode("utf-8"))
+    ps_page_count = len(re.findall(rb"^%%Page:", ps, re.MULTILINE))
+    assert ps_page_count > 1, "test graph did not trigger pagination"
+
+    pdf = run_raw("dot", "-Gpage=2,2", "-Tpdf", input=src.encode("utf-8"))
+    pdf_path = tmp_path / "out.pdf"
+    pdf_path.write_bytes(pdf)
+
+    info = run("pdfinfo", pdf_path)
+    match = re.search(r"^Pages:\s+(\d+)$", info, re.MULTILINE)
+    assert match is not None, "pdfinfo did not report a page count"
+    assert int(match.group(1)) == ps_page_count
+
+
 @pytest.mark.skipif(
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
