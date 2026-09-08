@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Malformed flat edges whose auxiliary route cannot produce splines no longer
+  crash `dot`. #2758
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
