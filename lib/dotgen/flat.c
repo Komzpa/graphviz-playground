@@ -129,6 +129,8 @@ static int flat_limits(graph_t * g, edge_t * e)
     return pos;
 }
 
+static void abomination(graph_t *g);
+
 /* Create virtual node representing edge label between
  * actual ends of edge e. 
  * This node is characterized by being virtual and having a non-NULL
@@ -148,6 +150,8 @@ flat_node(edge_t * e)
 	return;
     g = dot_root(agtail(e));
     r = ND_rank(agtail(e));
+    if (r == 0 && GD_minrank(g) == 0)
+	abomination(g);
 
     place = flat_limits(g, e);
     /* grab ypos = LL.y of label box before make_vn_slot() */

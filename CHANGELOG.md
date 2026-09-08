@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Labeled flat edges on the first rank no longer crash Graphviz when they need
+  a virtual label rank. #2723
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
