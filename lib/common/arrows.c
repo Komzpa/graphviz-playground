@@ -250,6 +250,37 @@ void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
     }
 }
 
+void midarrow_flags(Agedge_t *e, uint32_t *mhead, uint32_t *mtail) {
+    char *attr;
+    uint32_t sflag = ARR_TYPE_NONE;
+    uint32_t eflag = agisdirected(agraphof(e)) ? ARR_TYPE_NORM : ARR_TYPE_NONE;
+
+    *mhead = ARR_TYPE_NONE;
+    *mtail = ARR_TYPE_NONE;
+    if (E_dir && ((attr = agxget(e, E_dir)))[0]) {
+	for (const arrowdir_t *arrowdir = Arrowdirs; arrowdir->dir; arrowdir++) {
+	    if (streq(attr, arrowdir->dir)) {
+		sflag = arrowdir->sflag;
+		eflag = arrowdir->eflag;
+		break;
+	    }
+	}
+    }
+
+    if (eflag == ARR_TYPE_NONE || E_midarrowhead == NULL)
+	goto tail;
+    attr = agxget(e, E_midarrowhead);
+    if (attr[0])
+	arrow_match_name(attr, mhead);
+
+tail:
+    if (sflag == ARR_TYPE_NONE || E_midarrowtail == NULL)
+	return;
+    attr = agxget(e, E_midarrowtail);
+    if (attr[0])
+	arrow_match_name(attr, mtail);
+}
+
 static double arrow_length(edge_t * e, uint32_t flag) {
     double length = 0.0;
     int i;

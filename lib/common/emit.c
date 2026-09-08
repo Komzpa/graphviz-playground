@@ -1967,6 +1967,157 @@ static void splitBSpline(bezier *bz, double t, bezier *left, bezier *right) {
     free (lens);
 }
 
+static pointf cubic_point(const pointf *p, double t) {
+    const double u = 1.0 - t;
+    const double uu = u * u;
+    const double tt = t * t;
+
+    return (pointf){
+        .x = uu * u * p[0].x + 3.0 * uu * t * p[1].x +
+             3.0 * u * tt * p[2].x + tt * t * p[3].x,
+        .y = uu * u * p[0].y + 3.0 * uu * t * p[1].y +
+             3.0 * u * tt * p[2].y + tt * t * p[3].y,
+    };
+}
+
+static pointf cubic_tangent(const pointf *p, double t) {
+    const double u = 1.0 - t;
+
+    return (pointf){
+        .x = 3.0 * (u * u * (p[1].x - p[0].x) +
+                     2.0 * u * t * (p[2].x - p[1].x) +
+                     t * t * (p[3].x - p[2].x)),
+        .y = 3.0 * (u * u * (p[1].y - p[0].y) +
+                     2.0 * u * t * (p[2].y - p[1].y) +
+                     t * t * (p[3].y - p[2].y)),
+    };
+}
+
+static double cubic_speed(const pointf *p, double t) {
+    const pointf tangent = cubic_tangent(p, t);
+    return hypot(tangent.x, tangent.y);
+}
+
+static double simpson(double a, double b, double fa, double fm, double fb) {
+    return (b - a) * (fa + 4.0 * fm + fb) / 6.0;
+}
+
+static double cubic_arclength_adaptive(const pointf *p, double a, double b,
+                                       double fa, double fm, double fb,
+                                       double whole, double tolerance,
+                                       unsigned depth) {
+    const double middle = (a + b) / 2.0;
+    const double left_middle = (a + middle) / 2.0;
+    const double right_middle = (middle + b) / 2.0;
+    const double flm = cubic_speed(p, left_middle);
+    const double frm = cubic_speed(p, right_middle);
+    const double left = simpson(a, middle, fa, flm, fm);
+    const double right = simpson(middle, b, fm, frm, fb);
+    const double delta = left + right - whole;
+
+    if (depth == 0 || fabs(delta) <= 15.0 * tolerance)
+        return left + right + delta / 15.0;
+    return cubic_arclength_adaptive(p, a, middle, fa, flm, fm, left,
+                                    tolerance / 2.0, depth - 1) +
+           cubic_arclength_adaptive(p, middle, b, fm, frm, fb, right,
+                                    tolerance / 2.0, depth - 1);
+}
+
+static double cubic_arclength(const pointf *p, double a, double b) {
+    const double middle = (a + b) / 2.0;
+    const double fa = cubic_speed(p, a);
+    const double fm = cubic_speed(p, middle);
+    const double fb = cubic_speed(p, b);
+    const double whole = simpson(a, b, fa, fm, fb);
+
+    return cubic_arclength_adaptive(p, a, b, fa, fm, fb, whole, 1e-4, 16);
+}
+
+static double midarrowpos(edge_t *e) {
+    char *value;
+    char *end;
+    double position;
+
+    if (E_midarrowpos == NULL || (value = agxget(e, E_midarrowpos))[0] == '\0')
+        return 0.5;
+    position = strtod(value, &end);
+    if (end == value || *end != '\0' || !isfinite(position) || position < 0.0 ||
+        position > 1.0) {
+        agwarningf("midarrowpos=\"%s\" is not in [0,1]; using 0.5\n", value);
+        return 0.5;
+    }
+    return position;
+}
+
+static bool midarrow_location(const splines *spl, double position,
+                              pointf *location, pointf *tangent) {
+    double total = 0.0;
+
+    for (size_t i = 0; i < spl->size; ++i) {
+        const bezier *bz = &spl->list[i];
+        for (size_t j = 0; j + 3 < bz->size; j += 3)
+            total += cubic_arclength(bz->list + j, 0.0, 1.0);
+    }
+    if (total <= EPSILON)
+        return false;
+
+    double remaining = position * total;
+    for (size_t i = 0; i < spl->size; ++i) {
+        const bezier *bz = &spl->list[i];
+        for (size_t j = 0; j + 3 < bz->size; j += 3) {
+            const pointf *segment = bz->list + j;
+            const double length = cubic_arclength(segment, 0.0, 1.0);
+            if (remaining > length &&
+                !(i + 1 == spl->size && j + 3 == bz->size)) {
+                remaining -= length;
+                continue;
+            }
+
+            double lo = 0.0;
+            double hi = 1.0;
+            for (unsigned iteration = 0; iteration < 32; ++iteration) {
+                const double middle = (lo + hi) / 2.0;
+                if (cubic_arclength(segment, 0.0, middle) < remaining)
+                    lo = middle;
+                else
+                    hi = middle;
+            }
+            const double t = (lo + hi) / 2.0;
+            *location = cubic_point(segment, t);
+            *tangent = cubic_tangent(segment, t);
+            if (hypot(tangent->x, tangent->y) <= EPSILON) {
+                tangent->x = segment[3].x - segment[0].x;
+                tangent->y = segment[3].y - segment[0].y;
+            }
+            return hypot(tangent->x, tangent->y) > EPSILON;
+        }
+    }
+    return false;
+}
+
+/* Emit at most one middle arrow per direction after the complete edge path. */
+static void emit_midarrows(GVJ_t *job, edge_t *e, double arrowsize,
+                           double penwidth) {
+    uint32_t mhead, mtail;
+    pointf location, tangent;
+
+    midarrow_flags(e, &mhead, &mtail);
+    if ((mhead == 0 && mtail == 0) || ED_spl(e) == NULL ||
+        !midarrow_location(ED_spl(e), midarrowpos(e), &location, &tangent))
+        return;
+
+    if (mhead != 0) {
+        const pointf behind = {.x = location.x - tangent.x,
+                               .y = location.y - tangent.y};
+        arrow_gen(job, EMIT_MDRAW, location, behind, arrowsize, penwidth, mhead);
+    }
+    if (mtail != 0) {
+        const pointf behind = {.x = location.x + tangent.x,
+                               .y = location.y + tangent.y};
+        arrow_gen(job, EMIT_MDRAW, location, behind, arrowsize, penwidth, mtail);
+    }
+}
+
 /* Draw an edge as a sequence of colors.
  * Not sure how to handle multiple B-splines, so do a naive
  * implementation.
@@ -2043,6 +2194,8 @@ static int multicolor(GVJ_t *job, edge_t *e, char **styles, const char *colors,
     	    gvrender_set_fillcolor(job, endcolor);
 	    arrow_gen(job, EMIT_HDRAW, bz.ep, bz.list[bz.size - 1], arrowsize, penwidth, bz.eflag);
 	}
+	if (i + 1 == ED_spl(e)->size)
+	    emit_midarrows(job, e, arrowsize, penwidth);
 	if (ED_spl(e)->size > 1 && (bz.sflag || bz.eflag) && styles)
 	    gvrender_set_style(job, styles);
     }
@@ -2677,6 +2830,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    gvrender_set_style(job, styles);
 		}
 	}
+	emit_midarrows(job, e, arrowsize, penwidth);
     }
 
 done:
@@ -4364,4 +4518,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-

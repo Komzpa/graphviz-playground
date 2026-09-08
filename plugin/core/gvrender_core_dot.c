@@ -52,14 +52,15 @@ typedef enum {
  */
 static agxbuf xbuf[NUMXBUFS];
 static agxbuf* xbufs[] = {
-    xbuf+EMIT_GDRAW, xbuf+EMIT_CDRAW, xbuf+EMIT_TDRAW, xbuf+EMIT_HDRAW, 
+    xbuf+EMIT_GDRAW, xbuf+EMIT_CDRAW, xbuf+EMIT_TDRAW, xbuf+EMIT_HDRAW,
+    xbuf+EMIT_MDRAW,
     xbuf+EMIT_GLABEL, xbuf+EMIT_CLABEL, xbuf+EMIT_TLABEL, xbuf+EMIT_HLABEL, 
     xbuf+EMIT_CDRAW, xbuf+EMIT_CDRAW, xbuf+EMIT_CLABEL, xbuf+EMIT_CLABEL, 
 };
 static double penwidth [] = {
     1, 1, 1, 1,
     1, 1, 1, 1,
-    1, 1, 1, 1,
+    1, 1, 1, 1, 1,
 };
 static unsigned int textflags[EMIT_ELABEL+1];
 
@@ -71,6 +72,7 @@ typedef struct {
     attrsym_t *e_draw;
     attrsym_t *h_draw;
     attrsym_t *t_draw;
+    attrsym_t *m_draw;
     attrsym_t *e_l_draw;
     attrsym_t *hl_draw;
     attrsym_t *tl_draw;
@@ -257,6 +259,8 @@ static void xdot_end_edge(GVJ_t* job)
 	agxset(e, xd->t_draw, agxbuse(xbufs[EMIT_TDRAW]));
     if (agxblen(xbufs[EMIT_HDRAW]))
 	agxset(e, xd->h_draw, agxbuse(xbufs[EMIT_HDRAW]));
+    if (agxblen(xbufs[EMIT_MDRAW]))
+	agxset(e, xd->m_draw, agxbuse(xbufs[EMIT_MDRAW]));
     if (agxblen(xbufs[EMIT_ELABEL]))
 	put_escaping_backslashes(&e->base, xd->e_l_draw, agxbuse(xbufs[EMIT_ELABEL]));
     if (agxblen(xbufs[EMIT_TLABEL]))
@@ -267,12 +271,14 @@ static void xdot_end_edge(GVJ_t* job)
     penwidth[EMIT_ELABEL] = 1;
     penwidth[EMIT_TDRAW] = 1;
     penwidth[EMIT_HDRAW] = 1;
+    penwidth[EMIT_MDRAW] = 1;
     penwidth[EMIT_TLABEL] = 1;
     penwidth[EMIT_HLABEL] = 1;
     textflags[EMIT_EDRAW] = 0;
     textflags[EMIT_ELABEL] = 0;
     textflags[EMIT_TDRAW] = 0;
     textflags[EMIT_HDRAW] = 0;
+    textflags[EMIT_MDRAW] = 0;
     textflags[EMIT_TLABEL] = 0;
     textflags[EMIT_HLABEL] = 0;
 }
@@ -376,6 +382,11 @@ static void xdot_begin_graph(graph_t *g, bool s_arrows, bool e_arrows,
 	xd->t_draw = safe_dcl(g, AGEDGE, "_tdraw_", "");
     else
 	xd->t_draw = NULL;
+    if (agfindedgeattr(g, "midarrowhead") != NULL ||
+	agfindedgeattr(g, "midarrowtail") != NULL)
+	xd->m_draw = safe_dcl(g, AGEDGE, "_mdraw_", "");
+    else
+	xd->m_draw = NULL;
     if (GD_has_labels(g) & (EDGE_LABEL|EDGE_XLABEL))
 	xd->e_l_draw = safe_dcl(g, AGEDGE, "_ldraw_", "");
     else

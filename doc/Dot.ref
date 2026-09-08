@@ -89,6 +89,9 @@ Attributes
  arrowhead       E       arrowType   normal
  arrowsize       E       double      1.0               0.0
  arrowtail       E       arrowType   normal
+ midarrowhead    E       arrowType
+ midarrowpos     E       double      0.5               0.0
+ midarrowtail    E       arrowType
  bb              G       rect                                    write-only
  bgcolor         G       color
  bottomlabel     N       string      ""
@@ -238,6 +241,12 @@ arrowsize
      Multiplicative scale factor for arrowheads.
 arrowtail
      Style of arrowhead on tail of edge.
+midarrowhead
+     Style of optional middle arrowhead, pointing from tail to head.
+midarrowpos
+     Fraction of rendered spline arc length for optional middle arrows, in [0,1].
+midarrowtail
+     Style of optional middle arrowtail, pointing from head to tail.
 bb
      Bounding box of drawing in integer points.
 bgcolor

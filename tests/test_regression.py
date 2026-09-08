@@ -4234,6 +4234,204 @@ def test_2437():
     assert len(polygons) == 3, "wrong number of polygons in output"
 
 
+def test_2005_middle_arrowheads():
+    """
+    edges should be able to render arrowheads in the middle of the spline
+    https://gitlab.com/graphviz/graphviz/-/issues/2005
+    """
+
+    source = """
+        digraph {
+          rankdir=LR;
+          a -> b [arrowhead=none, midarrowhead=normal];
+        }
+    """
+
+    # translate this to SVG
+    svg = dot("svg", source=textwrap.dedent(source))
+
+    # load this as XML
+    root = ET.fromstring(svg)
+
+    edge_group = root.find(".//{http://www.w3.org/2000/svg}g[@class='edge']")
+    assert edge_group is not None, "missing edge output"
+
+    # With no terminal arrowhead, the edge has exactly one middle arrow polygon.
+    polygons = edge_group.findall(".//{http://www.w3.org/2000/svg}polygon")
+    assert len(polygons) == 1, "missing or duplicate middle arrowhead polygon"
+
+    data = json.loads(dot("json", source=textwrap.dedent(source)))
+    edge = data["edges"][0]
+    assert "_hdraw_" not in edge, "middle arrow contaminated head draw state"
+    assert [op["op"] for op in edge["_mdraw_"]].count("P") == 1
+
+
+def test_2005_middle_arrow_follows_spline_arclength_and_tangent():
+    """
+    middle arrows use the half-way point of a multi-segment rendered spline
+    https://gitlab.com/graphviz/graphviz/-/issues/2005
+    """
+
+    data = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  node [shape=circle];
+                  a -> a [arrowhead=none, midarrowhead=normal];
+                }
+            """,
+        )
+    )
+    edge = data["edges"][0]
+    curve = next(op["points"] for op in edge["_draw_"] if op["op"] == "b")
+    assert len(curve) > 4, "expected a multi-segment spline"
+
+    def cubic(control: list[list[float]], t: float) -> tuple[float, float]:
+        u = 1.0 - t
+        return (
+            u**3 * control[0][0]
+            + 3.0 * u**2 * t * control[1][0]
+            + 3.0 * u * t**2 * control[2][0]
+            + t**3 * control[3][0],
+            u**3 * control[0][1]
+            + 3.0 * u**2 * t * control[1][1]
+            + 3.0 * u * t**2 * control[2][1]
+            + t**3 * control[3][1],
+        )
+
+    samples = []
+    for start in range(0, len(curve) - 1, 3):
+        control = curve[start : start + 4]
+        previous = cubic(control, 0.0)
+        for step in range(1, 129):
+            current = cubic(control, step / 128.0)
+            samples.append((previous, current, math.dist(previous, current)))
+            previous = current
+
+    target = sum(length for _, _, length in samples) / 2.0
+    for start, end, length in samples:
+        if target <= length:
+            fraction = target / length
+            midpoint = (
+                start[0] + fraction * (end[0] - start[0]),
+                start[1] + fraction * (end[1] - start[1]),
+            )
+            tangent = (end[0] - start[0], end[1] - start[1])
+            break
+        target -= length
+    else:
+        raise AssertionError("could not locate spline midpoint")
+
+    polygon = next(op["points"] for op in edge["_mdraw_"] if op["op"] == "P")
+    tip = polygon[1]
+    base = (
+        (polygon[0][0] + polygon[2][0]) / 2.0,
+        (polygon[0][1] + polygon[2][1]) / 2.0,
+    )
+    direction = (tip[0] - base[0], tip[1] - base[1])
+    assert math.dist(tip, midpoint) < 2.0, "middle arrow is not at arclength midpoint"
+    assert (
+        direction[0] * tangent[0] + direction[1] * tangent[1] > 0.0
+    ), "middle arrow does not follow spline tangent"
+
+
+def test_2005_middle_arrowtail_orientation_and_dir_gating():
+    """
+    middle head/tail arrows are oppositely orientated and follow dir
+    https://gitlab.com/graphviz/graphviz/-/issues/2005
+    """
+
+    source = """
+        digraph {
+          rankdir=LR;
+          a -> b [arrowhead=none, arrowtail=none,
+                  midarrowhead=normal, midarrowtail=normal, dir=%s];
+        }
+    """
+
+    expected_count = {"forward": 1, "back": 1, "both": 2, "none": 0}
+    for direction, expected in expected_count.items():
+        data = json.loads(dot("json", source=textwrap.dedent(source % direction)))
+        polygons = [
+            op["points"]
+            for op in data["edges"][0].get("_mdraw_", [])
+            if op["op"] == "P"
+        ]
+        assert len(polygons) == expected, f"dir={direction} middle arrow count"
+
+    data = json.loads(dot("json", source=textwrap.dedent(source % "both")))
+    polygons = [op["points"] for op in data["edges"][0]["_mdraw_"] if op["op"] == "P"]
+    head_direction = polygons[0][1][0] - (polygons[0][0][0] + polygons[0][2][0]) / 2.0
+    tail_direction = polygons[1][1][0] - (polygons[1][0][0] + polygons[1][2][0]) / 2.0
+    assert head_direction > 0.0, "middle arrowhead is not tail-to-head"
+    assert tail_direction < 0.0, "middle arrowtail is not head-to-tail"
+
+
+def test_2005_middle_arrow_inherits_rendering_attributes():
+    """middle arrows keep the edge arrow size, colors, fill, and pen width"""
+
+    data = json.loads(
+        dot(
+            "json",
+            source="""
+                digraph {
+                  rankdir=LR;
+                  a -> b [arrowhead=none, midarrowhead=diamond,
+                          arrowsize=2, penwidth=5, color=red, fillcolor=blue,
+                          style=dashed];
+                }
+            """,
+        )
+    )
+    ops = data["edges"][0]["_mdraw_"]
+    assert {op.get("color") for op in ops} >= {"#ff0000", "#0000ff"}
+    assert {op.get("style") for op in ops} >= {"setlinewidth(5)", "solid"}
+    polygon = next(op["points"] for op in ops if op["op"] == "P")
+    assert len(polygon) == 4, "middle arrow did not use the requested shape/size"
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        "digraph { a -> b [style=tapered, arrowhead=none, midarrowhead=normal]; }",
+        'digraph { a -> b [color="red:blue", arrowhead=none, midarrowhead=normal]; }',
+        "digraph { graph [splines=ortho]; a -> b [arrowhead=none, midarrowhead=normal]; }",
+    ),
+)
+def test_2005_middle_arrow_uses_all_edge_emitters(source: str):
+    """middle arrows are emitted once for tapered, multicolor, and ortho edges"""
+
+    data = json.loads(dot("json", source=source))
+    polygons = [
+        op for op in data["edges"][0]["_mdraw_"] if op["op"] in {"P", "p", "E", "e"}
+    ]
+    assert len(polygons) == 1, "middle arrow was omitted or emitted more than once"
+
+
+def test_2005_middle_arrows_are_opt_in_and_validate_position():
+    """unconfigured edges stay unchanged and invalid positions fall back to 0.5"""
+
+    normal = json.loads(dot("json", source="digraph { a -> b; }"))["edges"][0]
+    assert "_mdraw_" not in normal
+
+    default = json.loads(
+        dot(
+            "json",
+            source="digraph { a -> b [arrowhead=none, midarrowhead=normal]; }",
+        )
+    )["edges"][0]
+    invalid = json.loads(
+        dot(
+            "json",
+            source="digraph { a -> b [arrowhead=none, midarrowhead=normal, midarrowpos=1.5]; }",
+        )
+    )["edges"][0]
+    default_tip = next(op["points"][1] for op in default["_mdraw_"] if op["op"] == "P")
+    invalid_tip = next(op["points"][1] for op in invalid["_mdraw_"] if op["op"] == "P")
+    assert invalid_tip == default_tip
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2416"
 )
@@ -7400,6 +7598,7 @@ def test_changelog():
 
             # an exception for an old heading
             if line == "## [2.42.3] and earlier\n":
+
                 ignore_h2 = True
 
             # an exception for unreleased versions

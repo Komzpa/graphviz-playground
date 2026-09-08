@@ -499,6 +499,11 @@ Specifies the shape of the glyph occurring where the edge touches the head
 or tail node, respectively. Note that this only specifies the shape. The \fBdir\fP
 attribute determines whether or not the glyph is drawn.
 .PP
+\fBmidarrowhead,midarrowtail\fP use the same arrow grammar to draw optional
+middle arrows. The head points tail-to-head and the tail points head-to-tail;
+\fBdir\fP gates them like endpoint arrows. \fBmidarrowpos=\fIval\fP places them
+at a fraction in [0,1] of the rendered spline arc length (default 0.5).
+.PP
 \fBarrowsize=\fIval\fR specifies a multiplicative scale factor for the size of the arrowhead.
 inv_length=6,inv_width=7,dot_radius=2) 
 .PP

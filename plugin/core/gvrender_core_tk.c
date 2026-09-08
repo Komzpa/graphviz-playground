@@ -66,6 +66,7 @@ static void tkgen_print_tags(GVJ_t *job)
     case EMIT_EDRAW:
     case EMIT_TDRAW:
     case EMIT_HDRAW:
+    case EMIT_MDRAW:
 	ObjType = "edge";
 	ObjFlag = 1;
         ObjId = &AGTAG(obj->u.e);
