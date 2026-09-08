@@ -192,6 +192,17 @@ static void resetRW(graph_t *g) {
   }
 }
 
+static bool edge_labels_positioned(graph_t *g) {
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+      if (ED_label(e) && !ED_label(e)->set) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 /* Set edge label position information for regular and non-adjacent flat edges.
  * Dot has allocated space and position for these labels. This info will be
  * used when routing orthogonal edges.
@@ -475,7 +486,8 @@ finish:
   LIST_FREE(&edges);
   free(P.boxes);
   State = GVSPLINES;
-  EdgeLabelsDone = 1;
+  EdgeLabelsDone =
+      et == EDGETYPE_CURVED || edge_labels_positioned(g);
   return 0;
 }
 

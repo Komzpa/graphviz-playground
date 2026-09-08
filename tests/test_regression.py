@@ -4352,6 +4352,33 @@ def test_2460():
     ), "back slashes in labels handled incorrectly"
 
 
+def test_2346():
+    """
+    rank=sink should not make edge labels disappear
+    https://gitlab.com/graphviz/graphviz/-/issues/2346
+    """
+
+    source = """
+        digraph unix {
+          {rank=sink;footer;}
+          subgraph cluster1 {
+            node1;
+            node2;
+          }
+          footer->node2;
+          node1->footer[label="should be printed"];
+        }
+    """
+
+    svg = dot("svg", source=source)
+    assert "should be printed" in svg, "missing edge label"
+
+    layout = json.loads(dot("json", source=source))
+    edge = next(e for e in layout["edges"] if e.get("label") == "should be printed")
+    assert edge.get("lp") != "0,0"
+    assert edge.get("_ldraw_")
+
+
 @pytest.mark.xfail(
     strict=platform.system() != "Windows",
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2470",

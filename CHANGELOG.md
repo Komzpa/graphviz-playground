@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` no longer drops edge labels on adjacent regular edges whose ranks were
+  collapsed by constraints such as `rank=sink`. #2346
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
