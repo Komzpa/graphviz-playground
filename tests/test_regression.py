@@ -4668,6 +4668,30 @@ def test_2538():
     dot("dot", input)
 
 
+def test_2806():
+    """
+    A cluster containing nodes through an inner rank subgraph is not empty
+    https://gitlab.com/graphviz/graphviz/-/issues/2806
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2806.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process it with Graphviz
+    proc = subprocess.run(
+        ["dot", "-Gpack=true", "-Tdot", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        check=True,
+    )
+
+    stderr = remove_asan_summary(remove_xtype_warnings(proc.stderr))
+    assert "Warning: removing empty cluster" not in stderr
+    assert "subgraph cluster1" in proc.stdout
+
+
 @pytest.mark.skipif(which("sfdp") is None, reason="sfdp not available")
 def test_2556():
     """

@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` no longer warns that a cluster is empty when the cluster contains nodes
+  through a nested rank subgraph. #2806
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

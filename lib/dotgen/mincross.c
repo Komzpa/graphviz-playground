@@ -342,7 +342,9 @@ int dot_mincross(graph_t *g) {
     size_t i;
     for (i = 1; i <= (size_t)GD_n_cluster(g);) {
       if (agfstnode(GD_clust(g)[i]) == NULL) {
-        agwarningf("removing empty cluster\n");
+        if (agfstsubg(GD_clust(g)[i]) == NULL) {
+          agwarningf("removing empty cluster\n");
+        }
         memmove(&GD_clust(g)[i], &GD_clust(g)[i + 1],
                 ((size_t)GD_n_cluster(g) - i) * sizeof(GD_clust(g)[0]));
         --GD_n_cluster(g);
