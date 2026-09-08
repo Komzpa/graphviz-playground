@@ -87,6 +87,9 @@ int agdtclose(Dict_t * dict);
 	/* name-value pair operations */
 CGHDR_API Agdatadict_t *agdatadict(Agraph_t *g, bool cflag);
 CGHDR_API Agattr_t *agattrrec(void *obj);
+CGHDR_API bool agattr_default_graph_exists(void);
+CGHDR_API unsigned long agattr_default_graph_generation(void);
+CGHDR_API int agattr_close_default_graph(void);
 
 void agraphattr_init(Agraph_t * g);
 int agraphattr_delete(Agraph_t * g);

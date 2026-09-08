@@ -45,6 +45,7 @@ static void init_all_attrs(Agraph_t * g);
 static Agdesc_t ProtoDesc = {.directed = true, .no_loop = true,
                              .no_write = true};
 static Agraph_t *ProtoGraph;
+static unsigned long ProtoGraphGeneration;
 
 Agdatadict_t *agdatadict(Agraph_t *g, bool cflag) {
     Agdatadict_t *rv = (Agdatadict_t *) aggetrec(g, DataDictName, 0);
@@ -317,16 +318,20 @@ static Agsym_t *setattr(Agraph_t * g, int kind, char *name, const char *value,
 static Agsym_t *agattr_(Agraph_t *g, int kind, char *name, const char *value,
                  bool is_html) {
     Agsym_t *rv;
+    bool default_graph = false;
 
     if (g == NULL) {
 	if (ProtoGraph == NULL)
 	    ProtoGraph = agopen(NULL, ProtoDesc, NULL);
 	g = ProtoGraph;
+	default_graph = true;
     }
     if (value)
 	rv = setattr(g, kind, name, value, is_html);
     else
 	rv = getattr(g, kind, name);
+    if (default_graph && value && rv)
+	++ProtoGraphGeneration;
     return rv;
 }
 
@@ -339,6 +344,7 @@ Agsym_t *agattr_html(Agraph_t *g, int kind, char *name, const char *value) {
 }
 
 Agsym_t *agattr(Agraph_t *g, int kind, char *name, const char *value) {
+  const bool default_graph = g == NULL;
   if (g == NULL) {
     if (ProtoGraph == NULL) {
       ProtoGraph = agopen(NULL, ProtoDesc, NULL);
@@ -352,11 +358,35 @@ Agsym_t *agattr(Agraph_t *g, int kind, char *name, const char *value) {
   if (value != NULL) {
     const char *const alias = agstrbind_html(g, value);
     if (alias == value && aghtmlstr(alias)) {
-      return agattr_html(g, kind, name, value);
+      Agsym_t *const attr = agattr_html(g, kind, name, value);
+      if (default_graph && attr != NULL)
+        ++ProtoGraphGeneration;
+      return attr;
     }
   }
 
-  return agattr_text(g, kind, name, value);
+  Agsym_t *const attr = agattr_text(g, kind, name, value);
+  if (default_graph && value != NULL && attr != NULL)
+    ++ProtoGraphGeneration;
+  return attr;
+}
+
+bool agattr_default_graph_exists(void) {
+    return ProtoGraph != NULL;
+}
+
+unsigned long agattr_default_graph_generation(void) {
+    return ProtoGraphGeneration;
+}
+
+int agattr_close_default_graph(void) {
+    if (ProtoGraph == NULL)
+	return SUCCESS;
+
+    Agraph_t *const g = ProtoGraph;
+    ProtoGraph = NULL;
+    ++ProtoGraphGeneration;
+    return agclose(g);
 }
 
 Agsym_t *agnxtattr(Agraph_t * g, int kind, Agsym_t * attr)

@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Freeing a Graphviz context now releases the cgraph default-attribute graph
+  created by that context, avoiding still-reachable memory from `gvContext()`
+  followed by `gvFreeContext()`. #2316
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
