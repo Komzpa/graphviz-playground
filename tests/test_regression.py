@@ -3269,6 +3269,37 @@ def test_2396(arg: str):
         assert '"/save.png"' in proc.stdout, "incorrect relative path in output"
 
 
+def test_2821():
+    """
+    whitespace around IMG elements in HTML labels should not be a syntax error
+    https://gitlab.com/graphviz/graphviz/-/issues/2821
+    """
+
+    # use an arbitrary image we have in the tree
+    image = Path(__file__).parent / "../cmd/gvedit/images/save.png"
+    assert image.exists(), "missing test data"
+
+    source = r"""digraph G {
+      A -> B [shape=plain label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"> <TR>  <TD><IMG SRC="save.png"/></TD>   </TR>   </TABLE>>];
+      B -> C [shape=plain label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"> <TR><TD><IMG SRC="save.png"/> </TD></TR></TABLE>>];
+      Q [shape=plain label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"> <TR><TD> <IMG SRC="save.png"/> </TD></TR></TABLE>>];
+    }"""
+
+    proc = subprocess.run(
+        ["dot", "-Tsvg", f"-Gimagepath={image.parent}"],
+        capture_output=True,
+        input=source,
+        cwd=Path(__file__).parent,
+        text=True,
+        check=True,
+    )
+
+    stderr = remove_asan_summary(remove_xtype_warnings(proc.stderr).strip())
+
+    assert stderr == "", "HTML IMG whitespace produced warnings"
+    assert "save.png" in proc.stdout, "HTML IMG did not render into SVG output"
+
+
 def test_2481():
     """
     `dot` should not exit with a syntax error if keywords are mixed-case
