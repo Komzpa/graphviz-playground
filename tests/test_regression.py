@@ -1880,6 +1880,37 @@ def test_1902():
     dot("svg", input)
 
 
+def test_1904():
+    """
+    no-arrow edges to record ports should reach the port boundary
+    https://gitlab.com/graphviz/graphviz/-/issues/1904
+    """
+
+    source = """
+        digraph "graph" {
+            edge [arrowhead=none];
+            subgraph "cluster_C" {
+                "record" [label="{<port> A| B}", shape=record];
+            }
+            "node" -> "record":"port";
+        }
+    """
+
+    layout = json.loads(dot("json", source=source))
+    record = next(obj for obj in layout["objects"] if obj["name"] == "record")
+    edge = layout["edges"][0]
+
+    port_cell = record["rects"].split()[0]
+    _, _, _, port_top = (float(n) for n in port_cell.split(","))
+
+    *_, endpoint = edge["pos"].split()
+    if endpoint.startswith(("e,", "s,")):
+        endpoint = endpoint[2:]
+    _, endpoint_y = (float(n) for n in endpoint.split(","))
+
+    assert math.isclose(endpoint_y, port_top)
+
+
 # root directory of this checkout
 ROOT = Path(__file__).parent.parent.resolve()
 

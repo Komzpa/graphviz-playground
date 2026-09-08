@@ -225,6 +225,25 @@ bezier *new_spline(edge_t *e, size_t sz) {
     return rv;
 }
 
+static pointf port_boundary_point(node_t *n, const port *prt, const boxf *port_box)
+{
+    pointf p = add_pointf(ND_coord(n), prt->p);
+
+    if (port_box == NULL)
+	return p;
+    if (prt->side & TOP) {
+	p.y = ND_coord(n).y + port_box->UR.y;
+    } else if (prt->side & BOTTOM) {
+	p.y = ND_coord(n).y + port_box->LL.y;
+    } else if (prt->side & LEFT) {
+	p.x = ND_coord(n).x + port_box->LL.x;
+    } else if (prt->side & RIGHT) {
+	p.x = ND_coord(n).x + port_box->UR.x;
+    }
+
+    return p;
+}
+
 /* Given a raw spline (pn control points in ps), representing
  * a path from edge agtail(fe) ending in node hn, clip the ends to
  * the node boundaries and attach the resulting spline to the
@@ -238,6 +257,7 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
     size_t start, end;
     edge_t *orig;
     boxf *tbox, *hbox;
+    port *tport, *hport;
 
     node_t *tn = agtail(fe);
     graph_t *const g = agraphof(tn);
@@ -255,12 +275,16 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
 	clipHead = ED_head_port(orig).clip;
 	tbox = ED_tail_port(orig).bp;
 	hbox = ED_head_port(orig).bp;
+	tport = &ED_tail_port(orig);
+	hport = &ED_head_port(orig);
     }
     else { /* fe and orig are reversed */
 	clipTail = ED_head_port(orig).clip;
 	clipHead = ED_tail_port(orig).clip;
 	hbox = ED_tail_port(orig).bp;
 	tbox = ED_head_port(orig).bp;
+	tport = &ED_head_port(orig);
+	hport = &ED_tail_port(orig);
     }
 
     /* spline may be interior to node */
@@ -293,6 +317,12 @@ clip_and_install(edge_t *fe, node_t *hn, pointf *ps, size_t pn,
 	if (! APPROXEQPT(ps[end], ps[end + 3], MILLIPOINT))
 	    break;
     arrow_clip(fe, hn, ps, &start, &end, newspl, info);
+    if (tport->defined && tport->side && !newspl->sflag) {
+	ps[start] = port_boundary_point(tn, tport, tbox);
+    }
+    if (hport->defined && hport->side && !newspl->eflag) {
+	ps[end + 3] = port_boundary_point(hn, hport, hbox);
+    }
     for (size_t i = start; i < end + 4; ) {
 	pointf cp[4];
 	newspl->list[i - start] = ps[i];
@@ -1370,4 +1400,3 @@ splines *getsplinepoints(edge_t * e)
 	    agnameof(agtail(e)), agnameof(aghead(e)));
     return sp;
 }
-
