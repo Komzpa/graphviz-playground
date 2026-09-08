@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Self-loops between south-east and south-west ports now route below the node
+  instead of around the whole node. #739
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
