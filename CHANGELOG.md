@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- On Windows, text rendered through Pango/Cairo is no longer clipped at the
+  top. #2685
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

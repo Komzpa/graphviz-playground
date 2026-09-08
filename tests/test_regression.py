@@ -6020,6 +6020,48 @@ def test_2683():
     dot("dot", input)
 
 
+@pytest.mark.skipif(platform.system() != "Windows", reason="only relevant on Windows")
+def test_2685():
+    """
+    text in PNG output should not be clipped at the top
+    https://gitlab.com/graphviz/graphviz/-/issues/2685
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2685.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render the issue reproducer to PNG
+    png = dot("png", input)
+
+    # interpret this with Pillow
+    data = io.BytesIO(png)
+    image = Image.open(data).convert("RGBA")
+    width, height = image.size
+
+    def is_dark(x: int, y: int) -> bool:
+        red, green, blue, alpha = image.getpixel((x, y))
+        return alpha > 0 and red < 80 and green < 80 and blue < 80
+
+    # Isolate the `B 20` label in the lower-left node. The unbroken glyphs have
+    # a wide row of ink across their top; the reported Pango/Win32 rendering
+    # clipped that row completely.
+    left = int(width * 0.14)
+    right = int(width * 0.40)
+    top = int(height * 0.70)
+    bottom = int(height * 0.80)
+    ink_by_row = [
+        sum(1 for x in range(left, right) if is_dark(x, y))
+        for y in range(top, bottom)
+    ]
+    ink_by_row = [ink for ink in ink_by_row if ink != 0]
+
+    assert len(ink_by_row) >= 2, "could not locate the B 20 label"
+    assert ink_by_row[0] - ink_by_row[1] >= 4, (
+        f"the upper part of the B 20 label was clipped: {ink_by_row[:2]}"
+    )
+
+
 @pytest.mark.skipif(shutil.which("ps2pdf") is None, reason="ps2pdf not available")
 def test_2699():
     """
