@@ -7,6 +7,13 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Polygon nodes with `regular=true` now preserve equal side lengths instead of
+  stretching the generated polygon back to a square bounding box. #2203
+- Odd-sided symmetric polygon nodes now report dimensions that match the
+  rendered polygon bounds instead of including empty circumcenter padding. #525
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

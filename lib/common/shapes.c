@@ -2219,6 +2219,8 @@ static void poly_init(node_t * n)
 	    ymax = bb.y/2;
 	} else {
 	    double angle, sectorangle, sidelength, skewdist, gdistortion, gskew;
+	    double xmin = DBL_MAX, xmax_seen = -DBL_MAX;
+	    double ymin = DBL_MAX, ymax_seen = -DBL_MAX;
 	    sectorangle = 2. * M_PI / (double)sides;
 	    sidelength = sin(sectorangle / 2.);
 	    skewdist = hypot(fabs(distortion) + fabs(skew), 1.);
@@ -2259,6 +2261,10 @@ static void poly_init(node_t * n)
 	    /*find max for bounding box */
 		xmax = fmax(fabs(P.x), xmax);
 		ymax = fmax(fabs(P.y), ymax);
+		xmin = fmin(P.x, xmin);
+		xmax_seen = fmax(P.x, xmax_seen);
+		ymin = fmin(P.y, ymin);
+		ymax_seen = fmax(P.y, ymax_seen);
 
 	    /* store result in array of points */
 		vertices[i] = P;
@@ -2269,12 +2275,35 @@ static void poly_init(node_t * n)
 		    break;
 		}
 	    }
+	    if (sides % 2 == 1 && is_exactly_zero(distortion) &&
+	        is_exactly_zero(skew)) {
+		/* Odd-sided symmetric polygons do not have their visible
+		 * bounding box centered on the circumcenter.  Center the
+		 * visible polygon instead, so the reported node width and
+		 * height describe the rendered shape rather than empty space
+		 * around the circumcenter.
+		 */
+		const double xcenter = (xmin + xmax_seen) / 2.0;
+		const double ycenter = (ymin + ymax_seen) / 2.0;
+		xmax = ymax = 0.0;
+		for (size_t j = 0; j < sides; ++j) {
+		    vertices[j].x -= xcenter;
+		    vertices[j].y -= ycenter;
+		    xmax = fmax(fabs(vertices[j].x), xmax);
+		    ymax = fmax(fabs(vertices[j].y), ymax);
+		}
+	    }
 	}
 
 	/* apply minimum dimensions */
 	xmax *= 2.;
 	ymax *= 2.;
-	bb = (pointf){.x = fmax(width, xmax), .y = fmax(height, ymax)};
+	if (regular && !isBox) {
+	    const double scale = fmax(width / xmax, height / ymax);
+	    bb = (pointf){.x = xmax * scale, .y = ymax * scale};
+	} else {
+	    bb = (pointf){.x = fmax(width, xmax), .y = fmax(height, ymax)};
+	}
 	outline_bb = bb;
 
 	scalex = bb.x / xmax;

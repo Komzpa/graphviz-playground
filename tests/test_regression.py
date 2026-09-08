@@ -2990,6 +2990,105 @@ def test_2193():
     assert canonical == new, "canonical translation is not stable"
 
 
+def test_2203():
+    """
+    `regular=true` should keep polygon side lengths equal
+    https://gitlab.com/graphviz/graphviz/-/issues/2203
+    """
+
+    source = """
+        digraph {
+            layout=neato
+            hexa [shape=hexagon, label="", regular=true, pos="0,0!"]
+        }
+    """
+
+    root = ET.fromstring(dot("svg", source=source))
+    ns = {"svg": "http://www.w3.org/2000/svg"}
+    for group in root.findall(".//svg:g", ns):
+        title = group.find("svg:title", ns)
+        if title is not None and title.text == "hexa":
+            polygon = group.find("svg:polygon", ns)
+            break
+    else:
+        pytest.fail("could not find hexagon node in SVG output")
+
+    assert polygon is not None, "hexagon node has no polygon outline"
+    points = [
+        tuple(map(float, point.split(",")))
+        for point in polygon.attrib["points"].split()
+    ]
+    if points[-1] == points[0]:
+        points.pop()
+
+    side_lengths = [
+        math.hypot(
+            points[(i + 1) % len(points)][0] - points[i][0],
+            points[(i + 1) % len(points)][1] - points[i][1],
+        )
+        for i in range(len(points))
+    ]
+
+    assert len(points) == 6
+    assert max(side_lengths) == pytest.approx(min(side_lengths), abs=0.01)
+
+
+def test_525():
+    """
+    triangle node dimensions should match rendered polygon bounds
+    https://gitlab.com/graphviz/graphviz/-/issues/525
+    """
+
+    source = """
+        digraph temp {
+            graph [rankdir=TB]
+            node1 [
+                label=" "
+                shape=triangle
+                style=filled
+                fillcolor="0.75 0.8 1.0"
+                color="0.0 0.0 0.0"
+            ]
+        }
+    """
+
+    dot_output = dot("dot", source=source)
+    match = re.search(
+        r"node1\s+\[.*?\bheight=([0-9.]+).*?\bwidth=([0-9.]+)",
+        dot_output,
+        re.DOTALL,
+    )
+    assert match is not None, "could not find node dimensions in DOT output"
+    node_height = float(match.group(1)) * 72
+    node_width = float(match.group(2)) * 72
+
+    root = ET.fromstring(dot("svg", source=source))
+    ns = {"svg": "http://www.w3.org/2000/svg"}
+    for group in root.findall(".//svg:g", ns):
+        title = group.find("svg:title", ns)
+        if title is not None and title.text == "node1":
+            polygon = group.find("svg:polygon", ns)
+            break
+    else:
+        pytest.fail("could not find triangle node in SVG output")
+
+    assert polygon is not None, "triangle node has no polygon outline"
+    points = [
+        tuple(map(float, point.split(",")))
+        for point in polygon.attrib["points"].split()
+    ]
+    if points[-1] == points[0]:
+        points.pop()
+
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    polygon_width = max(xs) - min(xs)
+    polygon_height = max(ys) - min(ys)
+
+    assert polygon_width == pytest.approx(node_width, abs=0.01)
+    assert polygon_height == pytest.approx(node_height, abs=0.01)
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_2211():
     """
