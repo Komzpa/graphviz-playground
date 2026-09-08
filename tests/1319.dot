@@ -1,0 +1,9 @@
+digraph G {
+  graph [
+    id="ID",
+    href="https://example.com/graph",
+    label="Graph label"
+  ];
+
+  a -> b;
+}

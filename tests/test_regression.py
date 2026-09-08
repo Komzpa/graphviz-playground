@@ -896,6 +896,38 @@ def test_1425_1():
     assert re.search(r"\btable tip\b", svg) is not None, "tooltip not propagated to SVG"
 
 
+def test_1319():
+    """
+    graph SVG fragment identifiers should target the linked geometry subtree
+    https://gitlab.com/graphviz/graphviz/-/issues/1319
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1319.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # translate this to SVG
+    svg = dot("svg", input)
+
+    # load this as XML
+    root = ET.fromstring(svg)
+    namespace = {"svg": "http://www.w3.org/2000/svg"}
+
+    anchors = root.findall(".//svg:a[@id='a_ID']", namespace)
+    assert len(anchors) == 1, "graph fragment ID was not attached to its link"
+
+    assert (
+        root.find(".//svg:g[@id='a_ID']", namespace) is None
+    ), "graph fragment ID was attached to a coordinate-free wrapper group"
+
+    assert (
+        anchors[0].find("./svg:polygon", namespace) is not None
+    ), "graph link does not contain the graph background geometry"
+    assert (
+        anchors[0].find("./svg:text", namespace) is not None
+    ), "graph link does not contain the graph label geometry"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1435"
 )

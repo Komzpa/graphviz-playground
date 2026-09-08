@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- SVG graph fragment identifiers now target the linked graph geometry subtree
+  instead of a coordinate-free wrapper group. #1319
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

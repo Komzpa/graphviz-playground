@@ -402,15 +402,14 @@ static void
 svg_begin_anchor(GVJ_t * job, char *href, char *tooltip, char *target,
 		 char *id)
 {
-    gvputs(job, "<g");
+    gvputs(job, "<g>"
+
+                "<a");
     if (id) {
 	gvputs(job, " id=\"a_");
         gvputs_xml(job, id);
         gvputc(job, '"');
     }
-    gvputs(job, ">"
-
-                "<a");
     if (href && href[0]) {
 	gvputs(job, " xlink:href=\"");
 	const xml_flags_t flags = {0};
