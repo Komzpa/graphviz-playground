@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Compound edge head and tail labels are now placed outside the referenced
+  cluster boundary. #468
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

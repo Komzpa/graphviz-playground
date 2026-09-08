@@ -15,6 +15,7 @@
 #include <common/render.h>
 #include <float.h>
 #include <label/xlabels.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <util/agxbuf.h>
@@ -28,6 +29,27 @@ static bool Flip;
 static pointf Offset;
 
 static void place_flip_graph_label(graph_t * g);
+
+static bool
+pointInBox(pointf p, boxf bb)
+{
+    return bb.LL.x <= p.x && p.x <= bb.UR.x && bb.LL.y <= p.y &&
+           p.y <= bb.UR.y;
+}
+
+static bool
+nearBoundary(double p, double boundary)
+{
+    const double epsilon = 0.01;
+
+    return fabs(p - boundary) <= epsilon;
+}
+
+static bool
+samePoint(pointf a, pointf b)
+{
+    return nearBoundary(a.x, b.x) && nearBoundary(a.y, b.y);
+}
 
 #define M1 \
 "/pathbox {\n\
@@ -277,6 +299,90 @@ edgeHeadpoint (Agedge_t* e)
     }
 }
 
+static bool
+edgePortLabelPos(Agedge_t *e, textlabel_t *lp, Dt_t *clustMap, bool head,
+                 pointf *pos)
+{
+    char *clusterName = agget(e, head ? "lhead" : "ltail");
+    if (clusterName == NULL || clusterName[0] == '\0')
+	return false;
+    graph_t *cluster = findCluster(clustMap, clusterName);
+    if (cluster == NULL)
+	return false;
+    boxf clusterBB = GD_bb(cluster);
+    if (!pointInBox(ND_coord(head ? aghead(e) : agtail(e)), clusterBB))
+	return false;
+
+    splines *spl = getsplinepoints(e);
+    if (spl == NULL)
+	return false;
+
+    pointf p;
+    pointf q = {0};
+    if (head) {
+	bezier *bez = &spl->list[spl->size - 1];
+	if (bez->size < 2)
+	    return false;
+	if (bez->eflag) {
+	    p = bez->ep;
+	    q = bez->list[bez->size - 1];
+	} else {
+	    p = bez->list[bez->size - 1];
+	}
+	for (size_t i = bez->size; i > 0; i--) {
+	    if (!samePoint(p, bez->list[i - 1])) {
+		q = bez->list[i - 1];
+		break;
+	    }
+	}
+    } else {
+	bezier *bez = &spl->list[0];
+	if (bez->size < 2)
+	    return false;
+	if (bez->sflag) {
+	    p = bez->sp;
+	    q = bez->list[0];
+	} else {
+	    p = bez->list[0];
+	}
+	for (size_t i = 0; i < bez->size; i++) {
+	    if (!samePoint(p, bez->list[i])) {
+		q = bez->list[i];
+		break;
+	    }
+	}
+    }
+
+    if (samePoint(p, q))
+	return false;
+    if (!pointInBox(p, clusterBB))
+	return false;
+    const double width = Flip ? lp->dimen.y : lp->dimen.x;
+    const double height = Flip ? lp->dimen.x : lp->dimen.y;
+
+    /* Place lhead/ltail labels just outside the compound cluster boundary.
+     * The generic xlabel placer does not treat cluster boxes as obstacles, so
+     * it can move these boundary labels back into the cluster body.
+     */
+    *pos = p;
+    bool adjusted = false;
+    if (q.x > p.x && nearBoundary(p.x, clusterBB.UR.x)) {
+	pos->x = clusterBB.UR.x + width / 2;
+	adjusted = true;
+    } else if (q.x < p.x && nearBoundary(p.x, clusterBB.LL.x)) {
+	pos->x = clusterBB.LL.x - width / 2;
+	adjusted = true;
+    }
+    if (q.y > p.y && nearBoundary(p.y, clusterBB.UR.y)) {
+	pos->y = clusterBB.UR.y + height / 2;
+	adjusted = true;
+    } else if (q.y < p.y && nearBoundary(p.y, clusterBB.LL.y)) {
+	pos->y = clusterBB.LL.y - height / 2;
+	adjusted = true;
+    }
+    return adjusted;
+}
+
 /* adjustBB:
  */
 static boxf
@@ -409,6 +515,7 @@ static void addXLabels(Agraph_t * gp)
     size_t n_nlbls = 0; // # of unset node xlabels
     size_t n_elbls = 0; // # of unset edge labels or xlabels
     size_t n_set_lbls = 0; // # of set xlabels and edge labels
+    size_t n_direct_lbls = 0; // # of unset labels positioned without xlabels
     size_t n_clbls = 0; // # of set cluster labels
     boxf bb;
     textlabel_t* lp;
@@ -424,6 +531,7 @@ static void addXLabels(Agraph_t * gp)
 	(!(GD_has_labels(gp) & EDGE_LABEL) || EdgeLabelsDone))
 	return;
 
+    Dt_t *clustMap = mkClustMap(gp);
     for (np = agfstnode(gp); np; np = agnxtnode(gp, np)) {
 	if (ND_xlabel(np)) {
 	    if (ND_xlabel(np)->set)
@@ -441,14 +549,32 @@ static void addXLabels(Agraph_t * gp)
 	    if (ED_head_label(ep)) {
 		if (ED_head_label(ep)->set)
 		    n_set_lbls++;
-		else if (HAVE_EDGE(ep))
-		    n_elbls++;
+		else if (HAVE_EDGE(ep)) {
+		    pointf ignored;
+		    if (agget(ep, "lhead") && agget(ep, "lhead")[0] &&
+		        edgePortLabelPos(ep, ED_head_label(ep), clustMap, true,
+		                         &ignored)) {
+			n_set_lbls++;
+			n_direct_lbls++;
+		    } else {
+			n_elbls++;
+		    }
+		}
 	    }
 	    if (ED_tail_label(ep)) {
 		if (ED_tail_label(ep)->set)
 		    n_set_lbls++;
-		else if (HAVE_EDGE(ep))
-		    n_elbls++;
+		else if (HAVE_EDGE(ep)) {
+		    pointf ignored;
+		    if (agget(ep, "ltail") && agget(ep, "ltail")[0] &&
+		        edgePortLabelPos(ep, ED_tail_label(ep), clustMap, false,
+		                         &ignored)) {
+			n_set_lbls++;
+			n_direct_lbls++;
+		    } else {
+			n_elbls++;
+		    }
+		}
 	    }
 	    if (ED_label(ep)) {
 		if (ED_label(ep)->set)
@@ -463,14 +589,17 @@ static void addXLabels(Agraph_t * gp)
 
     /* A label for each unpositioned external label */
     size_t n_lbls = n_nlbls + n_elbls;
-    if (n_lbls == 0) return;
+    if (n_lbls == 0 && n_direct_lbls == 0) {
+	dtclose(clustMap);
+	return;
+    }
 
     /* An object for each node, each positioned external label, any cluster label, 
      * and all unset edge labels and xlabels.
      */
     size_t n_objs = agnnodes_z(gp) + n_set_lbls + n_clbls + n_elbls;
     object_t* objp = objs = gv_calloc(n_objs, sizeof(object_t));
-    xlabel_t* xlp = lbls = gv_calloc(n_lbls, sizeof(xlabel_t));
+    xlabel_t* xlp = lbls = n_lbls ? gv_calloc(n_lbls, sizeof(xlabel_t)) : NULL;
     bb.LL = (pointf){DBL_MAX, DBL_MAX};
     bb.UR = (pointf){-DBL_MAX, -DBL_MAX};
 
@@ -510,8 +639,18 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeTailpoint(ep)); 
-		    xlp++;
+		    pointf p;
+		    if (agget(ep, "ltail") && agget(ep, "ltail")[0] &&
+		        edgePortLabelPos(ep, lp, clustMap, false, &p)) {
+			lp->pos = p;
+			lp->set = true;
+			bb = addLabelObj(lp, objp, bb);
+			updateBB(gp, lp);
+		    } else {
+			p = edgeTailpoint(ep);
+			addXLabel (lp, objp, xlp, 1, p);
+			xlp++;
+		    }
 		}
 		else {
 		    agwarningf("no position for edge with tail label %s\n",
@@ -525,8 +664,18 @@ static void addXLabels(Agraph_t * gp)
 		    bb = addLabelObj (lp, objp, bb);
 		}
 		else if (HAVE_EDGE(ep)) {
-		    addXLabel (lp, objp, xlp, 1, edgeHeadpoint(ep)); 
-		    xlp++;
+		    pointf p;
+		    if (agget(ep, "lhead") && agget(ep, "lhead")[0] &&
+		        edgePortLabelPos(ep, lp, clustMap, true, &p)) {
+			lp->pos = p;
+			lp->set = true;
+			bb = addLabelObj(lp, objp, bb);
+			updateBB(gp, lp);
+		    } else {
+			p = edgeHeadpoint(ep);
+			addXLabel (lp, objp, xlp, 1, p);
+			xlp++;
+		    }
 		}
 		else {
 		    agwarningf("no position for edge with head label %s\n",
@@ -563,8 +712,9 @@ static void addXLabels(Agraph_t * gp)
     force = agfindgraphattr(gp, "forcelabels");
 
     label_params_t params = {.bb = bb, .force = late_bool(gp, force, true)};
-    placeLabels(objs, n_objs, &params);
-    if (Verbose)
+    if (n_lbls > 0)
+	placeLabels(objs, n_objs, &params);
+    if (Verbose && n_lbls > 0)
 	printData(objs, n_objs, lbls, n_lbls, &params);
 
     xlp = lbls;
@@ -585,6 +735,7 @@ static void addXLabels(Agraph_t * gp)
     else if (cnt != n_lbls)
 	agwarningf("%" PRISIZE_T " out of %" PRISIZE_T " exterior labels positioned.\n",
 	      cnt, n_lbls);
+    dtclose(clustMap);
     free(objs);
     free(lbls);
 }
