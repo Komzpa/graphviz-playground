@@ -119,7 +119,8 @@ RENDER_API bool initMapData(GVJ_t *, char *, char *, char *, char *, char *,
 /// @param is_record Is this destined for use in a record shape?
 RENDER_API textlabel_t *make_label(void *obj, char *str, bool is_html,
                                    bool is_record, double fontsize,
-                                   char *fontname, char *fontcolor);
+                                   char *fontname, char *fontcolor,
+                                   char *fontweight);
 
     RENDER_API bezier *new_spline(edge_t *e, size_t sz);
     RENDER_API char **parse_style(char *s);

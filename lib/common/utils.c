@@ -422,6 +422,7 @@ struct fontinfo {
     double fontsize;
     char *fontname;
     char *fontcolor;
+    char *fontweight;
 };
 
 void common_init_node(node_t * n)
@@ -438,11 +439,13 @@ void common_init_node(node_t * n)
     fi.fontsize = late_double(n, N_fontsize, DEFAULT_FONTSIZE, MIN_FONTSIZE);
     fi.fontname = late_nnstring(n, N_fontname, DEFAULT_FONTNAME);
     fi.fontcolor = late_nnstring(n, N_fontcolor, DEFAULT_COLOR);
+    fi.fontweight = late_string(n, N_fontweight, NULL);
     ND_label(n) = make_label(n, str, aghtmlstr(str), shapeOf(n) == SH_RECORD,
-		fi.fontsize, fi.fontname, fi.fontcolor);
+		fi.fontsize, fi.fontname, fi.fontcolor, fi.fontweight);
     if (N_xlabel && (str = agxget(n, N_xlabel)) && str[0]) {
 	ND_xlabel(n) = make_label(n, str, aghtmlstr(str), false,
-				fi.fontsize, fi.fontname, fi.fontcolor);
+				fi.fontsize, fi.fontname, fi.fontcolor,
+				fi.fontweight);
 	GD_has_labels(agraphof(n)) |= NODE_XLABEL;
     }
 
@@ -458,6 +461,7 @@ static void initFontEdgeAttr(edge_t * e, struct fontinfo *fi)
     fi->fontsize = late_double(e, E_fontsize, DEFAULT_FONTSIZE, MIN_FONTSIZE);
     fi->fontname = late_nnstring(e, E_fontname, DEFAULT_FONTNAME);
     fi->fontcolor = late_nnstring(e, E_fontcolor, DEFAULT_COLOR);
+    fi->fontweight = late_string(e, E_fontweight, NULL);
 }
 
 static void
@@ -468,6 +472,7 @@ initFontLabelEdgeAttr(edge_t * e, struct fontinfo *fi,
     lfi->fontsize = late_double(e, E_labelfontsize, fi->fontsize, MIN_FONTSIZE);
     lfi->fontname = late_nnstring(e, E_labelfontname, fi->fontname);
     lfi->fontcolor = late_nnstring(e, E_labelfontcolor, fi->fontcolor);
+    lfi->fontweight = late_string(e, E_labelfontweight, fi->fontweight);
 }
 
 /// Return true if head/tail end of edge should not be clipped to node.
@@ -517,7 +522,8 @@ void common_init_edge(edge_t *e) {
     if (E_label && (str = agxget(e, E_label)) && str[0]) {
 	initFontEdgeAttr(e, &fi);
 	ED_label(e) = make_label(e, str, aghtmlstr(str), false,
-				fi.fontsize, fi.fontname, fi.fontcolor);
+				fi.fontsize, fi.fontname, fi.fontcolor,
+				fi.fontweight);
 	GD_has_labels(sg) |= EDGE_LABEL;
 	ED_label_ontop(e) = mapbool(late_string(e, E_label_float, "false"));
     }
@@ -526,21 +532,24 @@ void common_init_edge(edge_t *e) {
 	if (!fi.fontname)
 	    initFontEdgeAttr(e, &fi);
 	ED_xlabel(e) = make_label(e, str, aghtmlstr(str), false,
-				fi.fontsize, fi.fontname, fi.fontcolor);
+				fi.fontsize, fi.fontname, fi.fontcolor,
+				fi.fontweight);
 	GD_has_labels(sg) |= EDGE_XLABEL;
     }
 
     if (E_headlabel && (str = agxget(e, E_headlabel)) && str[0]) {
 	initFontLabelEdgeAttr(e, &fi, &lfi);
 	ED_head_label(e) = make_label(e, str, aghtmlstr(str), false,
-				lfi.fontsize, lfi.fontname, lfi.fontcolor);
+				lfi.fontsize, lfi.fontname, lfi.fontcolor,
+				lfi.fontweight);
 	GD_has_labels(sg) |= HEAD_LABEL;
     }
     if (E_taillabel && (str = agxget(e, E_taillabel)) && str[0]) {
 	if (!lfi.fontname)
 	    initFontLabelEdgeAttr(e, &fi, &lfi);
 	ED_tail_label(e) = make_label(e, str, aghtmlstr(str), false,
-				lfi.fontsize, lfi.fontname, lfi.fontcolor);
+				lfi.fontsize, lfi.fontname, lfi.fontcolor,
+				lfi.fontweight);
 	GD_has_labels(sg) |= TAIL_LABEL;
     }
 

@@ -16,6 +16,7 @@
 
 #include "config.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +37,17 @@ estimate_textspan_size(textspan_t * span, char **fontpath)
     int flags = span->font->flags;
     bool bold = (flags & HTML_BF) != 0;
     bool italic = (flags & HTML_IF) != 0;
+    if (span->font->weight) {
+        if (strcasecmp(span->font->weight, "bold") == 0 ||
+            strcasecmp(span->font->weight, "bolder") == 0) {
+            bold = true;
+        } else if (isdigit((unsigned char)span->font->weight[0])) {
+            char *end = NULL;
+            long numeric_weight = strtol(span->font->weight, &end, 10);
+            if (end && *end == '\0' && numeric_weight >= 600)
+                bold = true;
+        }
+    }
 
     fontsize = span->font->size;
 
@@ -111,6 +123,7 @@ static void *textfont_makef(void *obj, Dtdisc_t *disc) {
     /* key */
     if (f1->name) f2->name = gv_strdup(f1->name);
     if (f1->color) f2->color = gv_strdup(f1->color);
+    if (f1->weight) f2->weight = gv_strdup(f1->weight);
     f2->flags = f1->flags;
     f2->size = f1->size;
 
@@ -125,6 +138,7 @@ static void textfont_freef(void *obj) {
 
     free(f->name);
     free(f->color);
+    free(f->weight);
     free(f);
 }
 
@@ -142,6 +156,12 @@ static int textfont_comparf(void *key1, void *key2) {
         if (! f1->color) return -1;
         if (! f2->color) return 1;
         rc = strcmp(f1->color, f2->color);
+        if (rc) return rc;
+    }
+    if (f1->weight || f2->weight) {
+        if (! f1->weight) return -1;
+        if (! f2->weight) return 1;
+        rc = strcmp(f1->weight, f2->weight);
         if (rc) return rc;
     }
     if (f1->flags < f2->flags) return -1;

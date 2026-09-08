@@ -37,6 +37,7 @@ static void storeline(GVC_t *gvc, textlabel_t *lp, char *line,
     if (line && line[0]) {
 	textfont_t tf = {0};
 	tf.name = lp->fontname;
+	tf.weight = lp->fontweight;
 	tf.size = lp->fontsize;
 	span->font = dtinsert(gvc->textfont_dt, &tf);
         size = textspan_size(gvc, span);
@@ -108,7 +109,8 @@ void make_simple_label(GVC_t * gvc, textlabel_t * lp)
  * can be freed in free_label.
  */
 textlabel_t *make_label(void *obj, char *str, bool is_html, bool is_record,
-                        double fontsize, char *fontname, char *fontcolor) {
+                        double fontsize, char *fontname, char *fontcolor,
+                        char *fontweight) {
     textlabel_t *rv = gv_alloc(sizeof(textlabel_t));
     graph_t *g = NULL, *sg = NULL;
     node_t *n = NULL;
@@ -134,6 +136,7 @@ textlabel_t *make_label(void *obj, char *str, bool is_html, bool is_record,
     }
     rv->fontname = fontname;
     rv->fontcolor = fontcolor;
+    rv->fontweight = fontweight;
     rv->fontsize = fontsize;
     rv->charset = GD_charset(g);
     if (is_record) {

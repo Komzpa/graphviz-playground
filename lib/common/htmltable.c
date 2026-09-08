@@ -78,6 +78,7 @@ static void printCell(htmlcell_t * cp, int ind);
 static void
 pushFontInfo(htmlenv_t * env, textfont_t * fp, textfont_t * savp)
 {
+    savp->weight = NULL;
     if (env->finfo.name) {
 	if (fp->name) {
 	    savp->name = env->finfo.name;
@@ -91,6 +92,13 @@ pushFontInfo(htmlenv_t * env, textfont_t * fp, textfont_t * savp)
 	    env->finfo.color = fp->color;
 	} else
 	    savp->color = NULL;
+    }
+    if (env->finfo.weight) {
+	if (fp->weight) {
+	    savp->weight = env->finfo.weight;
+	    env->finfo.weight = fp->weight;
+	} else
+	    savp->weight = NULL;
     }
     if (env->finfo.size >= 0) {
 	if (fp->size >= 0) {
@@ -110,6 +118,8 @@ static void popFontInfo(htmlenv_t * env, textfont_t * savp)
 	env->finfo.name = savp->name;
     if (savp->color)
 	env->finfo.color = savp->color;
+    if (savp->weight)
+	env->finfo.weight = savp->weight;
     if (savp->size >= 0.0)
 	env->finfo.size = savp->size;
 }
@@ -164,6 +174,10 @@ emit_htextspans(GVJ_t *job, size_t nspans, htextspan_t *spans, pointf p,
 		tf.color = ti->font->color;
 	    else
 		tf.color = finfo.color;
+	    if (ti->font && ti->font->weight)
+		tf.weight = ti->font->weight;
+	    else
+		tf.weight = finfo.weight;
 	    if (ti->font && ti->font->flags)
 		tf.flags = ti->font->flags;
 	    else
@@ -766,6 +780,7 @@ void emit_html_label(GVJ_t * job, htmllabel_t * lp, textlabel_t * tp)
     env.pos = p;
     env.finfo.color = tp->fontcolor;
     env.finfo.name = tp->fontname;
+    env.finfo.weight = tp->fontweight;
     env.finfo.size = tp->fontsize;
     env.imgscale = agget(job->obj->u.n, "imagescale");
     env.objid = job->obj->id;
@@ -943,7 +958,7 @@ static int size_html_txt(GVC_t *gvc, htmltxt_t * ftxt, htmlenv_t * env)
     pointf sz;
     double width;
     textspan_t lp;
-    textfont_t tf = {NULL,NULL,NULL,0.0,0,0};
+    textfont_t tf = {0};
     double maxoffset, maxlayout, mxysize = 0.0;
     bool simple = true; // one item per span, same font size/face, no flags
     double prev_fsize = -1;
@@ -967,10 +982,15 @@ static int size_html_txt(GVC_t *gvc, htmltxt_t * ftxt, htmlenv_t * env)
 		tf.name = ftxt->spans[i].items[0].font->name;
 	    else
 		tf.name = env->finfo.name;
+	    if (ftxt->spans[i].items[0].font->weight)
+		tf.weight = ftxt->spans[i].items[0].font->weight;
+	    else
+		tf.weight = env->finfo.weight;
 	}
 	else {
 	    tf.size = env->finfo.size;
 	    tf.name = env->finfo.name;
+	    tf.weight = env->finfo.weight;
 	}
 	if (i == 0)
 	    prev_fsize = tf.size;
@@ -1013,10 +1033,15 @@ static int size_html_txt(GVC_t *gvc, htmltxt_t * ftxt, htmlenv_t * env)
 		    tf.color = ftxt->spans[i].items[j].font->color;
 		else
 		    tf.color = env->finfo.color;
+		if (ftxt->spans[i].items[j].font->weight)
+		    tf.weight = ftxt->spans[i].items[j].font->weight;
+		else
+		    tf.weight = env->finfo.weight;
 	    } else {
 		tf.size = env->finfo.size;
 		tf.name = env->finfo.name;
 		tf.color = env->finfo.color;
+		tf.weight = env->finfo.weight;
 		tf.flags = env->finfo.flags;
 	    }
 	    lp.font = dtinsert(gvc->textfont_dt, &tf);
@@ -1881,6 +1906,7 @@ int make_html_label(void *obj, textlabel_t * lp)
     env.finfo.size = lp->fontsize;
     env.finfo.name = lp->fontname;
     env.finfo.color = lp->fontcolor;
+    env.finfo.weight = lp->fontweight;
     env.finfo.flags = 0;
     lbl = parseHTML(lp->text, &rv, &env);
     if (!lbl) {

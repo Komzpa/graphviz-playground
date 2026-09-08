@@ -105,6 +105,7 @@ extern "C" {
 	char *text;
 	char *fontname;
 	char *fontcolor;
+	char *fontweight;
 	int charset;
 	double fontsize;
 	pointf dimen; /* the diagonal size of the label (estimated by layout) */

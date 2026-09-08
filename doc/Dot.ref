@@ -110,6 +110,7 @@ Attributes
  fixedsize       N       bool        false
  fontcolor       ENGC    color       black
  fontname        ENGC    string      "Times-Roman"
+ fontweight      ENGC    string      ""
  fontpath        G       string      ""
  fontsize        ENGC    double      14.0              1.0
  group           N       string      ""                          dot only
@@ -127,6 +128,7 @@ Attributes
  labelfontcolor  E       color       black
  labelfontname   E       string      "Times-Roman"
  labelfontsize   E       double      11.0              1.0
+ labelfontweight E       string      ""
  labeljust       C       string      ""                          dot only
 
  labelloc        GC      string      "t"(clusters)               dot only
@@ -296,6 +298,8 @@ fontcolor
      Color used for text.
 fontname
      Font used for text.
+fontweight
+     Font weight used for text.
 fontpath
      Directory list used by libgd to search for bitmap fonts. If fontpath is
      not set, the environment variable DOTFONTPATH is checked. If that is
@@ -341,6 +345,8 @@ labelfontname
      Font used for headlabel and taillabel.
 labelfontsize
      Font size, in points, used for headlabel and taillabel.
+labelfontweight
+     Font weight used for headlabel and taillabel.
 labeljust
      Justification for cluster labels. If "r", the label is right-justified
      within bounding rectangle; otherwise, left-justified.

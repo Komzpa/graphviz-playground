@@ -478,6 +478,8 @@ pushFont (htmlparserstate_t *html_state, textfont_t *fp)
 	    f.size = curfont->size;
 	if (!f.name && curfont->name)
 	    f.name = curfont->name;
+	if (!f.weight && curfont->weight)
+	    f.weight = curfont->weight;
 	if (curfont->flags)
 	    f.flags |= curfont->flags;
     }

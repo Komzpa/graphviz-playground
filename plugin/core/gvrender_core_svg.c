@@ -491,14 +491,17 @@ static void svg_textspan(GVJ_t * job, pointf p, textspan_t * span)
 	if (pA->svg_font_family && pA->svg_font_family != family)
 	    gvprintf(job, ",%s", pA->svg_font_family);
 	gvputc(job, '"');
-	if (weight)
-	    gvprintf(job, " font-weight=\"%s\"", weight);
-	if (stretch)
-	    gvprintf(job, " font-stretch=\"%s\"", stretch);
-	if (style)
-	    gvprintf(job, " font-style=\"%s\"", style);
-    } else
+    } else {
 	gvprintf(job, " font-family=\"%s\"", span->font->name);
+    }
+    if (span->font->weight)
+	weight = span->font->weight;
+    if (weight)
+	gvprintf(job, " font-weight=\"%s\"", weight);
+    if (stretch)
+	gvprintf(job, " font-stretch=\"%s\"", stretch);
+    if (style)
+	gvprintf(job, " font-style=\"%s\"", style);
     if ((flags = span->font->flags)) {
 	if ((flags & HTML_BF) && !weight)
 	    gvputs(job, " font-weight=\"bold\"");

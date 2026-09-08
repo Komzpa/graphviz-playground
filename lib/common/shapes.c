@@ -3442,7 +3442,8 @@ static field_t *parse_reclbl(node_t *n, bool LR, bool flag, char *text) {
 		    tsp--;
 		*tsp = '\000';
 		fp->lp = make_label(n, text, lbl->html, false,
-			       lbl->fontsize, lbl->fontname, lbl->fontcolor);
+			       lbl->fontsize, lbl->fontname, lbl->fontcolor,
+			       lbl->fontweight);
 		fp->LR = true;
 		hstsp = tsp = text;
 	    }
