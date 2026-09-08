@@ -15,6 +15,7 @@
 
 #include "config.h"
 
+#include <common/utils.h>
 #include	<dotgen/dot.h>
 #include	<stdbool.h>
 
@@ -25,18 +26,16 @@ static bool samedir(edge_t * e, edge_t * f)
 {
     edge_t *e0, *f0;
 
-    for (e0 = e; e0 != NULL && ED_edge_type(e0) != NORMAL; e0 = ED_to_orig(e0));
+    e0 = normal_edge(e);
     if (e0 == NULL)
 	return false;
-    for (f0 = f; f0 != NULL && ED_edge_type(f0) != NORMAL; f0 = ED_to_orig(f0));
+    f0 = normal_edge(f);
     if (f0 == NULL)
 	return false;
-    if (ED_conc_opp_flag(e0))
-	return false;
-    if (ED_conc_opp_flag(f0))
-	return false;
-    return ((ND_rank(agtail(f0)) - ND_rank(aghead(f0)))
-	    * (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) > 0);
+    return same_edge_attrs(e0, f0) &&
+           ((ND_rank(agtail(f0)) - ND_rank(aghead(f0))) *
+                (ND_rank(agtail(e0)) - ND_rank(aghead(e0))) >
+            0);
 }
 
 static bool downcandidate(node_t * v)
@@ -51,8 +50,8 @@ static bool bothdowncandidates(node_t * u, node_t * v)
     e = ND_in(u).list[0];
     f = ND_in(v).list[0];
     if (downcandidate(v) && agtail(e) == agtail(f)) {
-	return samedir(e, f)
-	    && portcmp(ED_tail_port(e), ED_tail_port(f)) == 0;
+	return samedir(e, f) &&
+	       concentratable_endpoint(e, false, f, false);
     }
     return false;
 }
@@ -69,8 +68,8 @@ static bool bothupcandidates(node_t * u, node_t * v)
     e = ND_out(u).list[0];
     f = ND_out(v).list[0];
     if (upcandidate(v) && aghead(e) == aghead(f)) {
-	return samedir(e, f)
-	    && portcmp(ED_head_port(e), ED_head_port(f)) == 0;
+	return samedir(e, f) &&
+	       concentratable_endpoint(e, true, f, true);
     }
     return false;
 }

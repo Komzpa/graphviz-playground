@@ -888,12 +888,30 @@ static node_t *cloneNode(graph_t *g, node_t *orign) {
   return n;
 }
 
-static edge_t *cloneEdge(graph_t *g, node_t *tn, node_t *hn, edge_t *orig) {
+static edge_t *cloneEdge(graph_t *g, node_t *tn, node_t *hn, edge_t *orig,
+                         bool reversed) {
   edge_t *e = agedge(g, tn, hn, NULL, 1);
   agbindrec(e, "Agedgeinfo_t", sizeof(Agedgeinfo_t), true);
   agcopyattr(orig, e);
+  if (!reversed) {
+    ED_tail_port(e) = ED_tail_port(orig);
+    ED_head_port(e) = ED_head_port(orig);
+  } else {
+    ED_tail_port(e) = ED_head_port(orig);
+    ED_head_port(e) = ED_tail_port(orig);
+  }
 
   return e;
+}
+
+static void copy_cloned_ports(edge_t *clone, edge_t *orig, bool reversed) {
+  if (!reversed) {
+    ED_tail_port(clone) = ED_tail_port(orig);
+    ED_head_port(clone) = ED_head_port(orig);
+  } else {
+    ED_tail_port(clone) = ED_head_port(orig);
+    ED_head_port(clone) = ED_tail_port(orig);
+  }
 }
 
 /// rotate, if necessary, then translate points
@@ -1189,9 +1207,9 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
     for (; ED_edge_type(e) != NORMAL; e = ED_to_orig(e))
       ;
     if (agtail(e) == tn)
-      auxe = cloneEdge(auxg, auxt, auxh, e);
+      auxe = cloneEdge(auxg, auxt, auxh, e, false);
     else
-      auxe = cloneEdge(auxg, auxh, auxt, e);
+      auxe = cloneEdge(auxg, auxh, auxt, e, true);
     ED_alg(e) = auxe;
     if (!hvye && !ED_tail_port(e).defined && !ED_head_port(e).defined) {
       hvye = auxe;
@@ -1206,6 +1224,16 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   GD_dotroot(auxg) = auxg;
   setEdgeType(auxg, et);
   dot_init_node_edge(auxg);
+  for (unsigned i = 0; i < cnt; i++) {
+    e = edges[i];
+    for (; ED_edge_type(e) != NORMAL; e = ED_to_orig(e))
+      ;
+    auxe = ED_alg(e);
+    if (auxe == NULL) {
+      continue;
+    }
+    copy_cloned_ports(auxe, e, agtail(e) != tn);
+  }
 
   dot_rank(auxg);
   const int r = dot_mincross(auxg);
@@ -1233,6 +1261,16 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       ND_coord(n).y = midx;
   }
   dot_sameports(auxg);
+  for (unsigned i = 0; i < cnt; i++) {
+    e = edges[i];
+    for (; ED_edge_type(e) != NORMAL; e = ED_to_orig(e))
+      ;
+    auxe = ED_alg(e);
+    if (auxe == NULL) {
+      continue;
+    }
+    copy_cloned_ports(auxe, e, agtail(e) != tn);
+  }
   const int rc = dot_splines_(auxg, 0);
   if (rc != 0) {
     return rc;
@@ -1250,6 +1288,7 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
   for (unsigned i = 0; i < cnt; i++) {
     bezier *auxbz;
     bezier *bz;
+    pointf tailp, headp;
 
     e = edges[i];
     for (; ED_edge_type(e) != NORMAL; e = ED_to_orig(e))
@@ -1276,6 +1315,12 @@ static int make_flat_adj_edges(graph_t *g, edge_t **edges, unsigned cnt,
       cp[3] = transformf(auxbz->list[j], del, GD_flip(g));
       update_bb_bz(&GD_bb(g), cp);
     }
+    tailp = add_pointf(ND_coord(agtail(e)), ED_tail_port(e).p);
+    headp = add_pointf(ND_coord(aghead(e)), ED_head_port(e).p);
+    bz->list[0] = tailp;
+    bz->list[bz->size - 1] = headp;
+    bz->sp = tailp;
+    bz->ep = headp;
     if (ED_label(e)) {
       ED_label(e)->pos = transformf(ED_label(auxe)->pos, del, GD_flip(g));
       ED_label(e)->set = true;

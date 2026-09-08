@@ -13,9 +13,11 @@
 
 #include "config.h"
 
+#include <common/utils.h>
 #include <dotgen/dot.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <util/alloc.h>
 #include <util/gv_math.h>
 
@@ -149,7 +151,9 @@ void merge_chain(graph_t *g, edge_t *e, edge_t *f, bool update_count) {
 
 bool mergeable(edge_t *e, edge_t *f) {
   return e && f && agtail(e) == agtail(f) && aghead(e) == aghead(f) &&
-         ED_label(e) == ED_label(f) && ports_eq(e, f);
+         ED_label(e) == ED_label(f) && same_edge_attrs(e, f) &&
+         concentratable_endpoint(e, false, f, false) &&
+         concentratable_endpoint(e, true, f, true);
 }
 
 void class2(graph_t * g)
@@ -210,7 +214,9 @@ void class2(graph_t * g)
 		    continue;
 		}
 		if (ED_label(e) == NULL && ED_label(prev) == NULL
-		    && ports_eq(e, prev)) {
+		    && same_edge_attrs(e, prev)
+		    && concentratable_endpoint(e, false, prev, false)
+		    && concentratable_endpoint(e, true, prev, true)) {
 		    if (Concentrate)
 			ED_edge_type(e) = IGNORED;
 		    else {
@@ -265,7 +271,9 @@ void class2(graph_t * g)
 		    if (ED_to_virt(opp) == NULL)
 			make_chain(g, agtail(opp), aghead(opp), opp);
 		    if (ED_label(e) == NULL && ED_label(opp) == NULL
-			&& ports_eq(e, opp)) {
+			&& same_edge_attrs(e, opp)
+			&& concentratable_endpoint(e, false, opp, true)
+			&& concentratable_endpoint(e, true, opp, false)) {
 			if (Concentrate) {
 			    ED_edge_type(e) = IGNORED;
 			    ED_conc_opp_flag(opp) = true;
@@ -291,4 +299,3 @@ void class2(graph_t * g)
 	GD_comp(g).list[0] = GD_nlist(g);
     }
 }
-

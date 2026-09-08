@@ -24,9 +24,11 @@
 #define DEBUG
 #include <assert.h>
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <ortho/maze.h>
 #include <ortho/fPQ.h>
 #include <ortho/ortho.h>
@@ -34,6 +36,7 @@
 #include <common/globals.h>
 #include <common/render.h>
 #include <common/pointset.h>
+#include <common/utils.h>
 #include <util/alloc.h>
 #include <util/exit.h>
 #include <util/gv_math.h>
@@ -1161,9 +1164,17 @@ static bool swap_ends_p(edge_t * e)
 int orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
     PointSet* ps = NULL;
+    PointMap *edge_groups = NULL;
+    const size_t edge_capacity = agnedges(g);
+    size_t *next_in_group = NULL;
 
-    if (Concentrate) 
+    if (Concentrate) {
 	ps = newPS();
+	edge_groups = newPM();
+	next_in_group = gv_calloc(edge_capacity, sizeof(size_t));
+	for (size_t i = 0; i < edge_capacity; i++)
+	    next_in_group[i] = edge_capacity;
+    }
 
 #ifdef DEBUG
     {
@@ -1217,16 +1228,49 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
         for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
+	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
 		int ti = AGSEQ(agtail(e));
 		int hi = AGSEQ(aghead(e));
-		if (ti <= hi) {
-		    if (isInPS (ps,ti,hi)) continue;
-		    addPS(ps,ti,hi);
+		int lo = MIN(ti, hi);
+		int high = MAX(ti, hi);
+		if (isInPS(ps, lo, high)) {
+		    bool equivalent = false;
+		    size_t group = insertPM(edge_groups, lo, high, 0);
+		    for (size_t i = group; i != edge_capacity;
+			 i = next_in_group[i]) {
+			Agedge_t *const routed = es[i].e;
+			edge_t *const e0 = normal_edge(e);
+			edge_t *const routed0 = normal_edge(routed);
+			if (e0 == NULL || routed0 == NULL) {
+			    continue;
+			}
+			const bool same_dir =
+			    agtail(e0) == agtail(routed0) &&
+			    aghead(e0) == aghead(routed0);
+			const bool opposite =
+			    agtail(e0) == aghead(routed0) &&
+			    aghead(e0) == agtail(routed0);
+			if (same_edge_attrs(e, routed) &&
+			    ((same_dir &&
+			      concentratable_endpoint(e, false, routed, false) &&
+			      concentratable_endpoint(e, true, routed, true)) ||
+			     (opposite &&
+			      concentratable_endpoint(e, false, routed, true) &&
+			      concentratable_endpoint(e, true, routed, false)))) {
+			    equivalent = true;
+			    break;
+			}
+		    }
+		    if (equivalent)
+			continue;
+		    next_in_group[n_edges] = next_in_group[group];
+		    next_in_group[group] = n_edges;
 		}
 		else {
-		    if (isInPS (ps,hi,ti)) continue;
-		    addPS(ps,hi,ti);
+		    addPS(ps, lo, high);
+		    assert(n_edges <= INT_MAX);
+		    insertPM(edge_groups, lo, high, (int)n_edges);
 		}
 	    }
 	    es[n_edges].e = e;
@@ -1279,8 +1323,11 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     attachOrthoEdges(mp, n_edges, route_list, &sinfo, es);
 
 orthofinish:
-    if (Concentrate)
+    if (Concentrate) {
 	freePS (ps);
+	freePM(edge_groups);
+	free(next_in_group);
+    }
 
     for (size_t i=0; i < n_edges; i++)
 	free (route_list[i].segs);
