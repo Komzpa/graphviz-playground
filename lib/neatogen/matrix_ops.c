@@ -45,9 +45,9 @@ bool power_iteration(double *const *square_mat, int n, int neigs, double **eigs)
 	/* orthogonalize against higher eigenvectors */
 	for (int j = 0; j < i; j++) {
 	    const double alpha = -vectors_inner_product(n, eigs[j], curr_vector);
-	    scadd(curr_vector, n - 1, alpha, eigs[j]);
+	    scadd(curr_vector, n, alpha, eigs[j]);
 	}
-	double len = norm(curr_vector, n - 1);
+	double len = norm(curr_vector, n);
 	if (len < 1e-10) {
 	    // we have chosen a vector colinear with previous ones
 	    goto choose;
@@ -65,9 +65,9 @@ bool power_iteration(double *const *square_mat, int n, int neigs, double **eigs)
 	    /* orthogonalize against higher eigenvectors */
 	    for (int j = 0; j < i; j++) {
 		const double alpha = -vectors_inner_product(n, eigs[j], curr_vector);
-		scadd(curr_vector, n - 1, alpha, eigs[j]);
+		scadd(curr_vector, n, alpha, eigs[j]);
 	    }
-	    len = norm(curr_vector, n - 1);
+	    len = norm(curr_vector, n);
 	    if (len < 1e-10 || iteration > Max_iterations) {
 		/* We have reached the null space (e.vec. associated with e.val. 0) */
 		goto exit;
@@ -92,9 +92,9 @@ bool power_iteration(double *const *square_mat, int n, int neigs, double **eigs)
 	/* orthogonalize against higher eigenvectors */
 	for (int j = 0; j < i; j++) {
 	    const double alpha = -vectors_inner_product(n, eigs[j], curr_vector);
-	    scadd(curr_vector, n - 1, alpha, eigs[j]);
+	    scadd(curr_vector, n, alpha, eigs[j]);
 	}
-	const double len = norm(curr_vector, n - 1);
+	const double len = norm(curr_vector, n);
 	vectors_scalar_mult(n, curr_vector, 1.0 / len, curr_vector);
 	evals[i] = 0;
 
@@ -212,18 +212,18 @@ mult_sparse_dense_mat_transpose(vtx_data * A, double **B, int dim1,
     }
 }
 
-/* Scaled add - fills double vec1 with vec1 + alpha*vec2 over range*/
-void scadd(double *vec1, int end, double fac, double *vec2) {
+/* Scaled add - fills double vec1 with vec1 + alpha*vec2. */
+void scadd(double *vec1, int n, double fac, double *vec2) {
     int i;
 
-    for (i = end + 1; i; i--) {
+    for (i = n; i; i--) {
 	(*vec1++) += fac * (*vec2++);
     }
 }
 
-/* Returns 2-norm of a double n-vector over range. */
-double norm(double *vec, int end) {
-  return sqrt(vectors_inner_product(end + 1, vec, vec));
+/* Returns 2-norm of a double n-vector. */
+double norm(double *vec, int n) {
+  return sqrt(vectors_inner_product(n, vec, vec));
 }
 
 void orthog1(int n, double *vec	/* vector to be orthogonalized against 1 */

@@ -222,8 +222,8 @@ rescale_layout_polar(double *x_coords, double *y_coords,
 	    copy_vector((int)n, y_coords, cp_y_coords);
 	    rescale_layout_polarFocus(graph, n, cp_x_coords, cp_y_coords,
 				      x_foci[i], y_foci[i], interval, distortion);
-	    scadd(final_x_coords, (int)n - 1, 1.0 / num_foci, cp_x_coords);
-	    scadd(final_y_coords, (int)n - 1, 1.0 / num_foci, cp_y_coords);
+	    scadd(final_x_coords, (int)n, 1.0 / num_foci, cp_x_coords);
+	    scadd(final_y_coords, (int)n, 1.0 / num_foci, cp_y_coords);
 	}
 	copy_vector((int)n, final_x_coords, x_coords);
 	copy_vector((int)n, final_y_coords, y_coords);

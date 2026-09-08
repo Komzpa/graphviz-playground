@@ -19,8 +19,8 @@ extern "C" {
 
 #include <neatogen/sparsegraph.h>
 
-PRIVATE void scadd(double *, int, double, double *);
-PRIVATE double norm(double *, int);
+PRIVATE void scadd(double *, int n, double, double *);
+PRIVATE double norm(double *, int n);
 
 PRIVATE void orthog1(int n, double *vec);
 PRIVATE void init_vec_orth1(int n, double *vec);

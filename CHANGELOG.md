@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- `neato` matrix helpers now consistently take vector lengths instead of mixing
+  vector lengths with last-index bounds. #2813
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
