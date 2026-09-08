@@ -4158,9 +4158,6 @@ def test_2429():
 
 
 @pytest.mark.skipif(which("nop") is None, reason="nop not available")
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2436"
-)
 def test_2436():
     """
     nop should preserve empty labels
@@ -4175,8 +4172,119 @@ def test_2436():
     nop = which("nop")
     output = run(nop, input)
 
-    # the empty label should be present
-    assert re.search(r'\blabel\s*=\s*""', output), "empty label was not preserved"
+    # the explicit empty label should remain attached to the original node
+    match = re.search(r"\bmyNodeImg\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+    assert match is not None, "labeled node was not preserved"
+    assert re.search(r'\blabel\s*=\s*""', match["attrs"]), (
+        "empty label was not preserved"
+    )
+
+    # graph defaults explicitly set to an empty label must also remain
+    source = textwrap.dedent(
+        """\
+        graph {
+          graph [label=""]
+          a
+        }
+        """
+    )
+    output = run(nop, input=source)
+    assert re.search(r"\bgraph\s+\[\s*label\s*=\s*\"\"\s*\]", output), (
+        "explicit graph default empty label was not preserved"
+    )
+
+    # The explicitness marker is generic: it must not be limited to node
+    # labels. Graph defaults follow the existing dictionary-printing path,
+    # while object assignments need the marker to retain default-equal values.
+    source = '''\
+    digraph G {
+      graph [rankdir=TB]
+      a [tooltip=""]
+      b
+      a -> b [label="", tooltip=""]
+    }
+    '''
+    output = run(nop, input=source)
+
+    assert re.search(r"\bgraph\s+\[\s*rankdir\s*=\s*TB\s*\]", output), (
+        "explicit graph default was not preserved"
+    )
+    match = re.search(r"\ba\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+    assert match is not None, "node with explicit non-label attribute was omitted"
+    assert re.search(r'\btooltip\s*=\s*""', match["attrs"]), (
+        "explicit default-equal node attribute was not preserved"
+    )
+    match = re.search(r"\ba\s+->\s+b\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+    assert match is not None, "edge with explicit default-equal attributes was omitted"
+    assert re.search(r'\blabel\s*=\s*""', match["attrs"]), (
+        "explicit default-equal edge label was not preserved"
+    )
+    assert re.search(r'\btooltip\s*=\s*""', match["attrs"]), (
+        "explicit default-equal edge non-label attribute was not preserved"
+    )
+
+
+@pytest.mark.skipif(which("unflatten") is None, reason="unflatten not available")
+def test_1337(tmp_path: Path):
+    """
+    unflatten should preserve explicit empty node labels
+    https://gitlab.com/graphviz/graphviz/-/issues/1337
+    """
+
+    # a graph with one explicit empty node label, one inherited label, and one
+    # non-empty label as a nearby negative control
+    source = textwrap.dedent(
+        """\
+        digraph example {
+          node [fixedsize=true]
+          a [height=0, label="", style=invis, width=0]
+          b [height=0, style=invis, width=0]
+          c [height=0, label="x", style=invis, width=0]
+        }
+        """
+    )
+
+    # write it to a temporary file so unflatten sees the same file-input path as
+    # the original issue report
+    input = tmp_path / "1337.dot"
+    input.write_text(source, encoding="utf-8")
+
+    # run it through unflatten
+    unflatten = which("unflatten")
+    output = run(unflatten, input)
+
+    def node_attrs(name: str) -> str:
+        match = re.search(rf"\b{name}\s+\[(?P<attrs>.*?)\];", output, re.DOTALL)
+        assert match is not None, f"node {name} was not preserved"
+        return match["attrs"]
+
+    # the explicit empty label should remain attached to node a
+    assert re.search(r'\blabel\s*=\s*""', node_attrs("a")), (
+        "explicit empty label was not preserved"
+    )
+
+    # the neighboring unlabeled node should remain unchanged
+    assert re.search(r'\blabel\s*=\s*""', node_attrs("b")) is None, (
+        "inherited label gained an explicit empty label"
+    )
+
+    assert 'node [label="\\N"]' not in output, (
+        "unrelated node labels changed while preserving the empty label"
+    )
+
+    # existing non-empty labels should continue to round-trip
+    assert re.search(r"\blabel\s*=\s*x\b", node_attrs("c")), (
+        "non-empty label was not preserved"
+    )
+
+    # multi-graph input should retain the existing first-graph-only behavior
+    multi = tmp_path / "1337-multi.dot"
+    multi.write_text(
+        'digraph first { a [label=""] } digraph second { b }', encoding="utf-8"
+    )
+    assert run(unflatten, multi) == (
+        'digraph first {\n\ta\t[label=""];\n}\n'
+    )
 
 
 @pytest.mark.skipif(

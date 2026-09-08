@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Cgraph-based DOT readers preserve explicit empty node labels instead of
+  dropping them while rewriting DOT source. #1337 #2436
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

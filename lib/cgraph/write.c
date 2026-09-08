@@ -425,7 +425,7 @@ static bool not_default_attrs(Agraph_t * g, Agnode_t * n)
     (void)g;
     if ((data = agattrrec(n))) {
 	for (sym = dtfirst(data->dict); sym; sym = dtnext(data->dict, sym)) {
-	    if (data->str[sym->id] != sym->defval)
+	    if (agattrexplicit(n, sym) || data->str[sym->id] != sym->defval)
 		return true;
 	}
     }
@@ -492,7 +492,7 @@ static int write_nondefault_attrs(void *obj, iochan_t * ofile,
 		if (Headport && sym->id == Headport->id)
 		    continue;
 	    }
-	    if (data->str[sym->id] != sym->defval) {
+	    if (agattrexplicit(obj, sym) || data->str[sym->id] != sym->defval) {
 		if (cnt++ == 0) {
 		    CHKRV(ioput(g, ofile, "\t["));
 		    wr_info->level++;

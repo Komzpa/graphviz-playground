@@ -46,6 +46,30 @@ static Agdesc_t ProtoDesc = {.directed = true, .no_loop = true,
                              .no_write = true};
 static Agraph_t *ProtoGraph;
 
+/*
+ * Attribute values do not reveal whether an assignment was explicit when it
+ * matches the default, as with label="". Preserve that parser information in
+ * internal per-object bit sets for the writer.
+ */
+enum { AttrsPerExplicitRecord = 64 };
+
+typedef struct {
+  Agrec_t h;
+  bool attrs[AttrsPerExplicitRecord];
+} explicit_attrs_t;
+
+static void explicit_attrs_name(const Agsym_t *sym, char *name, size_t size) {
+  assert(sym->id >= 0);
+  (void)snprintf(name, size, "_AG_explicit_attrs_%d",
+                 sym->id / AttrsPerExplicitRecord);
+}
+
+static explicit_attrs_t *explicit_attrs(void *obj, Agsym_t *sym, bool create) {
+  char name[32];
+  explicit_attrs_name(sym, name, sizeof(name));
+  return agbindrec(obj, name, create ? sizeof(explicit_attrs_t) : 0, false);
+}
+
 Agdatadict_t *agdatadict(Agraph_t *g, bool cflag) {
     Agdatadict_t *rv = (Agdatadict_t *) aggetrec(g, DataDictName, 0);
     if (rv || !cflag)
@@ -205,6 +229,16 @@ static void freesym(void *obj) {
 Agattr_t *agattrrec(void *obj)
 {
   return (Agattr_t *)aggetrec(obj, AgDataRecName, 0);
+}
+
+bool agattrexplicit(void *obj, Agsym_t *sym) {
+  explicit_attrs_t *const attrs = explicit_attrs(obj, sym, false);
+  return attrs != NULL && attrs->attrs[sym->id % AttrsPerExplicitRecord];
+}
+
+void agmarkattrexplicit(void *obj, Agsym_t *sym) {
+  explicit_attrs_t *const attrs = explicit_attrs(obj, sym, true);
+  attrs->attrs[sym->id % AttrsPerExplicitRecord] = true;
 }
 
 static void addattr(Agraph_t *g, Agobj_t *obj, void *symbol) {
