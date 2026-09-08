@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- An out-of-bounds read while routing certain flat labeled edges no longer
+  causes a crash. #2757
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
