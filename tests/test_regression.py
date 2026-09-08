@@ -380,6 +380,227 @@ def test_218():
     assert warnings.strip() != "", "no warning issued for a font name containing space"
 
 
+@pytest.mark.parametrize(
+    ("rankdir", "forward_port", "backward_port"),
+    (("LR", "e", "w"), ("RL", "w", "e")),
+)
+def test_226(rankdir: str, forward_port: str, backward_port: str):
+    """
+    dot should route workflow back edges through the empty side of the graph
+    https://gitlab.com/graphviz/graphviz/-/issues/226
+    """
+
+    source = f"""
+        digraph G {{
+            rankdir={rankdir};
+            1682 -> 1682 [style=invis];
+            1686:{forward_port} -> 6554:{backward_port};
+            6555:{forward_port} -> 1698:{backward_port};
+            1682:{forward_port} -> 1684:{backward_port};
+            1703:{forward_port} -> 6555:{backward_port};
+            1693:{forward_port} -> 6554:{backward_port};
+            1691:{forward_port} -> 1693:{backward_port};
+            1696:{forward_port} -> 6555:{backward_port};
+            1688:{forward_port} -> 1689:{backward_port};
+            1701:{forward_port} -> 1703:{backward_port};
+            1706:{forward_port} -> 1683:{backward_port};
+            1690:{forward_port} -> 1691:{backward_port};
+            1684:{forward_port} -> 1686:{backward_port};
+            6554:{forward_port} -> 1688:{backward_port};
+            1698:{forward_port} -> 1700:{backward_port};
+            1704:{forward_port} -> 1706:{backward_port};
+            1694:{forward_port} -> 1696:{backward_port};
+            1698:{forward_port} -> 1699:{backward_port};
+            1700:{forward_port} -> 1701:{backward_port};
+            1688:{forward_port} -> 1690:{backward_port};
+            1689:{forward_port} -> 1694:{backward_port};
+            1699:{forward_port} -> 1704:{backward_port};
+        }}
+    """
+
+    data = json.loads(dot("json", source=source))
+    objects_by_id = {obj["_gvid"]: obj for obj in data["objects"]}
+    objects_by_name = {obj["name"]: obj for obj in data["objects"]}
+
+    def edge_name(edge: dict) -> tuple[str, str]:
+        return (
+            objects_by_id[edge["tail"]]["name"],
+            objects_by_id[edge["head"]]["name"],
+        )
+
+    root_epsilon = 1e-9
+
+    def cubic_coefficients(
+        control_points: list[list[float]], axis: int
+    ) -> tuple[float, float, float, float]:
+        p0, p1, p2, p3 = (point[axis] for point in control_points)
+        return (
+            -p0 + 3 * p1 - 3 * p2 + p3,
+            3 * p0 - 6 * p1 + 3 * p2,
+            -3 * p0 + 3 * p1,
+            p0,
+        )
+
+    def cubic_value(coefficients: tuple[float, float, float, float], t: float) -> float:
+        a, b, c, d = coefficients
+        return ((a * t + b) * t + c) * t + d
+
+    def unit_interval_roots(
+        coefficients: tuple[float, float, float, float],
+    ) -> list[float]:
+        """Find all real roots of a cubic or lower-degree polynomial in [0, 1]."""
+        a, b, c, _ = coefficients
+
+        # Splitting at every derivative root leaves only monotonic intervals,
+        # so a sign-change bisection finds every simple root. Checking the
+        # split points themselves also retains repeated roots.
+        critical_points = []
+        if abs(a) > root_epsilon:
+            discriminant = b * b - 3 * a * c
+            if discriminant >= -root_epsilon:
+                root = math.sqrt(max(discriminant, 0))
+                critical_points.extend(((-b - root) / (3 * a), (-b + root) / (3 * a)))
+        elif abs(b) > root_epsilon:
+            critical_points.append(-c / (2 * b))
+
+        split_points = [0.0]
+        split_points.extend(point for point in critical_points if 0 < point < 1)
+        split_points.append(1.0)
+        split_points.sort()
+
+        roots = [
+            point
+            for point in split_points
+            if abs(cubic_value(coefficients, point)) <= root_epsilon
+        ]
+        for left, right in zip(split_points, split_points[1:]):
+            left_value = cubic_value(coefficients, left)
+            right_value = cubic_value(coefficients, right)
+            if left_value * right_value >= 0:
+                continue
+            for _ in range(64):
+                middle = (left + right) / 2
+                middle_value = cubic_value(coefficients, middle)
+                if abs(middle_value) <= root_epsilon:
+                    left = right = middle
+                    break
+                if left_value * middle_value < 0:
+                    right = middle
+                else:
+                    left = middle
+                    left_value = middle_value
+            roots.append((left + right) / 2)
+
+        roots.sort()
+        return [
+            point
+            for index, point in enumerate(roots)
+            if index == 0 or point - roots[index - 1] > root_epsilon
+        ]
+
+    def spline_cubics(edge: dict) -> list[list[list[float]]]:
+        draw = next(op for op in edge["_draw_"] if op["op"] == "b")
+        control_points = draw["points"]
+        assert (len(control_points) - 1) % 3 == 0
+        return [
+            control_points[offset : offset + 4]
+            for offset in range(0, len(control_points) - 1, 3)
+        ]
+
+    target = next(edge for edge in data["edges"] if edge_name(edge) == ("1703", "6555"))
+    assert target["tailport"] == forward_port
+    assert target["headport"] == backward_port
+
+    # The centered compass ports necessarily curl around the endpoints. The
+    # reported routing choice is the long body between the first and last
+    # forward-path nodes inside the back edge, 1698 and 1701.
+    body_bounds = sorted(
+        float(objects_by_name[name]["pos"].split(",")[0]) for name in ("1698", "1701")
+    )
+
+    def cubic_body_y_extrema(control_points: list[list[float]]) -> list[float]:
+        """Return every y extreme for the part of a cubic inside the body window."""
+        x_coefficients = cubic_coefficients(control_points, 0)
+        y_coefficients = cubic_coefficients(control_points, 1)
+        cut_points = [0.0, 1.0]
+        for bound in body_bounds:
+            cut_points.extend(
+                unit_interval_roots((*x_coefficients[:3], x_coefficients[3] - bound))
+            )
+        cut_points = sorted(set(cut_points))
+
+        y_candidates = []
+        for point in cut_points:
+            x = cubic_value(x_coefficients, point)
+            if body_bounds[0] - root_epsilon <= x <= body_bounds[1] + root_epsilon:
+                y_candidates.append(cubic_value(y_coefficients, point))
+
+        y_derivative = (
+            0.0,
+            3 * y_coefficients[0],
+            2 * y_coefficients[1],
+            y_coefficients[2],
+        )
+        for left, right in zip(cut_points, cut_points[1:]):
+            middle = (left + right) / 2
+            x = cubic_value(x_coefficients, middle)
+            if not body_bounds[0] <= x <= body_bounds[1]:
+                continue
+            y_candidates.extend(
+                cubic_value(y_coefficients, point)
+                for point in [left, right, *unit_interval_roots(y_derivative)]
+                if left - root_epsilon <= point <= right + root_epsilon
+            )
+
+        return y_candidates
+
+    def spline_body_y_bounds(edge: dict) -> tuple[float, float] | None:
+        y_candidates = [
+            y for cubic in spline_cubics(edge) for y in cubic_body_y_extrema(cubic)
+        ]
+        if not y_candidates:
+            return None
+        return min(y_candidates), max(y_candidates)
+
+    def spline_x_bounds(edge: dict) -> tuple[float, float]:
+        x_candidates = []
+        for cubic in spline_cubics(edge):
+            coefficients = cubic_coefficients(cubic, 0)
+            derivative = (
+                0.0,
+                3 * coefficients[0],
+                2 * coefficients[1],
+                coefficients[2],
+            )
+            x_candidates.extend(
+                cubic_value(coefficients, point)
+                for point in [0.0, 1.0, *unit_interval_roots(derivative)]
+            )
+        return min(x_candidates), max(x_candidates)
+
+    target_x_min, target_x_max = spline_x_bounds(target)
+    assert target_x_min <= body_bounds[0]
+    assert target_x_max >= body_bounds[1]
+
+    target_body = spline_body_y_bounds(target)
+    assert target_body is not None, "back-edge body is unexpectedly missing"
+
+    workflow_body = []
+    for edge in data["edges"]:
+        if edge is target or "_draw_" not in edge:
+            continue
+        bounds = spline_body_y_bounds(edge)
+        if bounds is not None:
+            workflow_body.append(bounds)
+    assert workflow_body, "workflow paths are unexpectedly missing"
+
+    # JSON coordinates increase upwards. Exact extrema, rather than finite
+    # samples, prove that the back-edge body stays in the lower empty corridor
+    # with visible clearance from every workflow path in that x-range.
+    workflow_body_min = min(bounds[0] for bounds in workflow_body)
+    assert workflow_body_min - target_body[1] >= 1.0
+
+
 @pytest.mark.parametrize("test_case", ("241_0.dot", "241_1.dot"))
 def test_241(test_case: str):
     """
