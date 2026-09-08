@@ -7040,6 +7040,33 @@ def test_duplicate_hard_coded_metrics_warnings():
     ), "multiple identical “no hard-coded metrics” warnings printed"
 
 
+@pytest.mark.skipif(which("gvpack") is None, reason="gvpack not available")
+def test_2417(tmp_path: Path):
+    """
+    gvpack should resolve escString labels before duplicate-name renaming
+    https://gitlab.com/graphviz/graphviz/-/issues/2417
+    """
+
+    source = (
+        'digraph same { label="\\G"; a [label="\\N"]; '
+        'a -> b [label="\\T->\\H \\E"] }'
+    )
+    graph_a = tmp_path / "a.dot"
+    graph_b = tmp_path / "b.dot"
+    graph_a.write_text(source, encoding="utf-8")
+    graph_b.write_text(source, encoding="utf-8")
+
+    gvpack = which("gvpack")
+    packed = run(gvpack, "-u", graph_a, graph_b)
+
+    assert "subgraph same_gv1" in packed, "negative control did not rename graph"
+    assert "a_gv1" in packed, "negative control did not rename node"
+    assert "graph [label=same];" in packed
+    assert "a_gv1\t[label=a];" in packed
+    assert "b_gv1\t[label=b];" in packed
+    assert 'a_gv1 -> b_gv1\t[label="a->b a->b"];' in packed
+
+
 @pytest.mark.parametrize("branch", (0, 1, 2, 3))
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr not available")
 def test_gvpr_switches(branch: int):
