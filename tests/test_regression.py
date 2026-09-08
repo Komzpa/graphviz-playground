@@ -7613,6 +7613,25 @@ def test_plugin_version_cmake():
     ), "Autotools and CMake build systems disagree on plugin revision"
 
 
+@pytest.mark.parametrize("subdir", ("cmd", "contrib/prune"))
+def test_1838_cmake_tools_install_rpath_includes_plugin_dir(subdir: str):
+    """
+    Installed CMake-built tools should find Graphviz plugins next to the install.
+
+    https://gitlab.com/graphviz/graphviz/-/issues/1838
+    """
+
+    cmakelists = Path(__file__).resolve().parents[1] / subdir / "CMakeLists.txt"
+    source = cmakelists.read_text(encoding="utf-8")
+
+    assert (
+        r"$ORIGIN/../${PLUGIN_INSTALL_DIR}" in source
+    ), f"{cmakelists} does not add the installed plugin directory to RPATH"
+    assert (
+        r"$ORIGIN/../${LIBRARY_INSTALL_DIR}" in source
+    ), f"{cmakelists} does not add the installed library directory to RPATH"
+
+
 def test_plugin_version_redhat():
     """confirm the plugin version defined in Red Hat spec files matches Autotools"""
     autotools_current, _, _ = plugin_version()
