@@ -1665,7 +1665,26 @@
 			</xsd:documentation>
 		</xsd:annotation>
 	</xsd:attribute>
-	
+
+	<xsd:attribute name="overlap_scaling" type="xsd:decimal" default="-4" gv:layouts="prism">
+		<xsd:annotation>
+			<xsd:documentation>
+				<html:p>
+					When <html:code>overlap=prism</html:code>, the layout is scaled by this factor, thereby
+					removing a fair amount of node overlap, and making node overlap removal
+					faster and better able to retain the graph's shape.
+				</html:p>
+				<html:p>
+					If <html:code>overlap_scaling</html:code> is negative, the layout is scaled by
+					<html:code>-1*overlap_scaling</html:code> times the average label size.
+					If <html:code>overlap_scaling</html:code> is positive, the layout is scaled by
+					<html:code>overlap_scaling</html:code>.
+					If <html:code>overlap_scaling</html:code> is zero, no scaling is done.
+				</html:p>
+			</xsd:documentation>
+		</xsd:annotation>
+	</xsd:attribute>
+
 	<xsd:attribute name="pack" type="xsd:string">
 		<xsd:annotation>
 			<xsd:documentation>
@@ -2601,6 +2620,7 @@
 		<!-- <xsd:attribute ref="orientation" /> -->
 		<xsd:attribute ref="outputorder" default="breadthfirst" />
 		<xsd:attribute ref="overlap" default="true" />
+		<xsd:attribute ref="overlap_scaling" default="-4" />
 		<xsd:attribute ref="pack" default="false" />
 		<xsd:attribute ref="packmode" default="node" />
 		<xsd:attribute ref="pad" />
