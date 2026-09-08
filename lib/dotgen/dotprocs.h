@@ -21,6 +21,11 @@ extern "C" {
 
 typedef LIST(Agnode_t *) node_queue_t;
 
+typedef enum {
+    SAMEPORT_ENDPOINT_TAIL,
+    SAMEPORT_ENDPOINT_HEAD,
+} sameport_endpoint_t;
+
     extern void acyclic(Agraph_t *);
     extern void allocate_ranks(Agraph_t *);
     /// @return 0 on success
@@ -82,6 +87,9 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern WUR int dot_position(Agraph_t *);
     extern void dot_rank(Agraph_t *);
     extern void dot_sameports(Agraph_t *);
+    extern bool sameport_anchor(edge_t *route_edge,
+                                sameport_endpoint_t route_endpoint,
+                                pointf *anchor);
     /// @return 0 on success
     extern int dot_splines(Agraph_t *);
 

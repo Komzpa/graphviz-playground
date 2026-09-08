@@ -17,7 +17,7 @@ endif
 BUILT_SOURCES = colortbl.h entities.h htmlparse.h
 
 pkginclude_HEADERS = arith.h geom.h color.h types.h textspan.h usershape.h
-noinst_HEADERS = boxes.h render.h utils.h \
+noinst_HEADERS = boxes.h concentrate_compat.h render.h utils.h \
 	geomprocs.h colorprocs.h globals.h \
 	const.h macros.h htmllex.h htmltable.h pointset.h \
 	textspan_lut.h ps_font_equiv.h
@@ -27,6 +27,7 @@ libcommon_C_la_SOURCES = arrows.c colxlate.c ellipse.c textspan.c textspan_lut.c
 	args.c globals.c htmllex.c htmlparse.y htmltable.c input.c \
 	pointset.c postproc.c routespl.c splines.c psusershape.c \
 	timing.c labels.c ns.c shapes.c utils.c geom.c taper.c \
+	concentrate_compat.c \
 	output.c emit.c \
 	color_names
 libcommon_C_la_CPPFLAGS = $(AM_CPPFLAGS) $(EXPAT_CFLAGS)

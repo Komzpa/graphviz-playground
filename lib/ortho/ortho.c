@@ -24,16 +24,19 @@
 #define DEBUG
 #include <assert.h>
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include <ortho/maze.h>
 #include <ortho/fPQ.h>
 #include <ortho/ortho.h>
+#include <common/concentrate_compat.h>
 #include <common/geomprocs.h>
 #include <common/globals.h>
 #include <common/render.h>
-#include <common/pointset.h>
 #include <util/alloc.h>
 #include <util/exit.h>
 #include <util/gv_math.h>
@@ -45,6 +48,23 @@ typedef struct {
     double d;
     Agedge_t* e;
 } epair_t;
+
+typedef struct {
+    int lo;
+    int high;
+    bool forward;
+    uint64_t fingerprint;
+    Agedge_t *edge;
+    size_t next;
+} concentrate_index_entry_t;
+
+typedef struct {
+    concentrate_index_entry_t *entries;
+    size_t *buckets;
+    size_t capacity;
+    size_t count;
+    size_t bucket_count;
+} concentrate_index_t;
 
 static UNUSED void emitSearchGraph(FILE *fp, sgraph *sg);
 static UNUSED void emitGraph(FILE *fp, maze *mp, size_t n_edges,
@@ -1151,6 +1171,76 @@ static bool swap_ends_p(edge_t * e)
     return false;
 }
 
+static size_t concentrate_index_bucket(const concentrate_index_t *index, int lo,
+                                       int high, bool forward,
+                                       uint64_t fingerprint) {
+  uint64_t hash = fingerprint;
+
+  hash ^= (uint32_t)lo;
+  hash *= UINT64_C(1099511628211);
+  hash ^= (uint32_t)high;
+  hash *= UINT64_C(1099511628211);
+  hash ^= forward;
+  return hash % index->bucket_count;
+}
+
+static void concentrate_index_init(concentrate_index_t *index,
+                                   size_t capacity) {
+  *index = (concentrate_index_t){0};
+  index->capacity = capacity;
+  index->bucket_count = capacity == 0 ? 1 : capacity;
+  index->entries = gv_calloc(capacity, sizeof(*index->entries));
+  index->buckets = gv_calloc(index->bucket_count, sizeof(*index->buckets));
+  for (size_t i = 0; i < index->bucket_count; i++)
+    index->buckets[i] = SIZE_MAX;
+}
+
+static void concentrate_index_free(concentrate_index_t *index) {
+  free(index->entries);
+  free(index->buckets);
+}
+
+static void concentrate_index_insert(concentrate_index_t *index, int lo,
+                                     int high, bool forward,
+                                     uint64_t fingerprint, Agedge_t *edge) {
+  assert(index->count < index->capacity);
+  const size_t bucket =
+      concentrate_index_bucket(index, lo, high, forward, fingerprint);
+  concentrate_index_entry_t *const entry = &index->entries[index->count];
+
+  *entry = (concentrate_index_entry_t){
+      .lo = lo,
+      .high = high,
+      .forward = forward,
+      .fingerprint = fingerprint,
+      .edge = edge,
+      .next = index->buckets[bucket],
+  };
+  index->buckets[bucket] = index->count;
+  index->count++;
+}
+
+static bool
+concentrate_index_has_compatible(const concentrate_index_t *index, int lo,
+                                 int high, bool forward, uint64_t fingerprint,
+                                 const concentrate_compat_state_t *attr_state,
+                                 Agedge_t *edge) {
+  const size_t bucket =
+      concentrate_index_bucket(index, lo, high, forward, fingerprint);
+
+  for (size_t i = index->buckets[bucket]; i != SIZE_MAX;
+       i = index->entries[i].next) {
+    const concentrate_index_entry_t *const entry = &index->entries[i];
+
+    if (entry->lo == lo && entry->high == high && entry->forward == forward &&
+        entry->fingerprint == fingerprint &&
+        concentrate_edges_mergeable(attr_state, edge, entry->edge)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* orthoEdges:
  * For edges without position information, construct an orthogonal routing.
  * If useLbls is true, use edge label info when available to guide routing, 
@@ -1160,10 +1250,24 @@ static bool swap_ends_p(edge_t * e)
  */
 int orthoEdges(Agraph_t *g, bool useLbls) {
     epair_t* es = gv_calloc(agnedges(g), sizeof(epair_t));
-    PointSet* ps = NULL;
+    const size_t edge_capacity = agnedges(g);
+    concentrate_compat_state_t attr_state;
+    concentrate_index_t parallel_index = {0};
+    concentrate_index_t opposite_exact_index = {0};
+    concentrate_index_t opposite_wildcard_index = {0};
+    concentrate_index_t opposite_any_index = {0};
 
-    if (Concentrate) 
-	ps = newPS();
+    concentrate_compat_state_init(agroot(g), &attr_state);
+
+    if (Concentrate) {
+	/* Fingerprints only narrow the candidates; full compatibility still
+	 * guards against hash collisions. A wildcard arrow can match any
+	 * otherwise-identical opposite edge, so it keeps one bounded probe. */
+	concentrate_index_init(&parallel_index, edge_capacity);
+	concentrate_index_init(&opposite_exact_index, edge_capacity);
+	concentrate_index_init(&opposite_wildcard_index, edge_capacity);
+	concentrate_index_init(&opposite_any_index, edge_capacity);
+    }
 
 #ifdef DEBUG
     {
@@ -1217,16 +1321,51 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
         for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
+	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
 		int ti = AGSEQ(agtail(e));
 		int hi = AGSEQ(aghead(e));
-		if (ti <= hi) {
-		    if (isInPS (ps,ti,hi)) continue;
-		    addPS(ps,ti,hi);
+		int lo = MIN(ti, hi);
+		int high = MAX(ti, hi);
+		const bool forward = ti <= hi;
+		concentrate_edge_fingerprint_t fingerprint;
+		bool equivalent;
+
+		concentrate_edge_fingerprint_init(&attr_state, e, &fingerprint);
+		equivalent = fingerprint.parallel_indexable &&
+		    concentrate_index_has_compatible(
+			&parallel_index, lo, high, forward, fingerprint.parallel,
+			&attr_state, e);
+		if (!equivalent && fingerprint.opposite_indexable) {
+		    if (fingerprint.opposite_has_wildcard_arrow) {
+			equivalent = concentrate_index_has_compatible(
+			    &opposite_any_index, lo, high, !forward,
+			    fingerprint.opposite_base, &attr_state, e);
+		    } else {
+			equivalent = concentrate_index_has_compatible(
+				&opposite_exact_index, lo, high, !forward,
+				fingerprint.opposite, &attr_state, e) ||
+			    concentrate_index_has_compatible(
+				&opposite_wildcard_index, lo, high, !forward,
+				fingerprint.opposite_base, &attr_state, e);
+		    }
 		}
-		else {
-		    if (isInPS (ps,hi,ti)) continue;
-		    addPS(ps,hi,ti);
+		if (equivalent)
+		    continue;
+		if (fingerprint.parallel_indexable) {
+		    concentrate_index_insert(&parallel_index, lo, high, forward,
+				     fingerprint.parallel, e);
+		}
+		if (fingerprint.opposite_indexable) {
+		    concentrate_index_insert(&opposite_any_index, lo, high, forward,
+				     fingerprint.opposite_base, e);
+		    if (fingerprint.opposite_has_wildcard_arrow) {
+			concentrate_index_insert(&opposite_wildcard_index, lo, high,
+					 forward, fingerprint.opposite_base, e);
+		    } else {
+			concentrate_index_insert(&opposite_exact_index, lo, high, forward,
+					 fingerprint.opposite, e);
+		    }
 		}
 	    }
 	    es[n_edges].e = e;
@@ -1279,8 +1418,12 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     attachOrthoEdges(mp, n_edges, route_list, &sinfo, es);
 
 orthofinish:
-    if (Concentrate)
-	freePS (ps);
+    if (Concentrate) {
+	concentrate_index_free(&parallel_index);
+	concentrate_index_free(&opposite_exact_index);
+	concentrate_index_free(&opposite_wildcard_index);
+	concentrate_index_free(&opposite_any_index);
+    }
 
     for (size_t i=0; i < n_edges; i++)
 	free (route_list[i].segs);

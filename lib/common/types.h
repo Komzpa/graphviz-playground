@@ -554,6 +554,7 @@ typedef enum {NATIVEFONTS,PSFONTS,SVGFONTS} fontname_kind;
 	char adjacent;          /* true for flat edge with adjacent nodes */
 	char label_ontop;
 	unsigned char gui_state; /* Edge state for GUI ops */
+	unsigned char sameport_state; /* Private dot sameport layout flags */
 	edge_t *to_orig;	/* for dot's shapes.c    */
 	void *alg;
 
@@ -584,6 +585,7 @@ typedef enum {NATIVEFONTS,PSFONTS,SVGFONTS} fontname_kind;
 #define ED_adjacent(e) (((Agedgeinfo_t*)AGDATA(e))->adjacent)
 #define ED_factor(e) (((Agedgeinfo_t*)AGDATA(e))->factor)
 #define ED_gui_state(e) (((Agedgeinfo_t*)AGDATA(e))->gui_state)
+#define ED_sameport_state(e) (((Agedgeinfo_t*)AGDATA(e))->sameport_state)
 #define ED_head_label(e) (((Agedgeinfo_t*)AGDATA(e))->head_label)
 #define ED_head_port(e) (((Agedgeinfo_t*)AGDATA(e))->head_port)
 #define ED_label(e) (((Agedgeinfo_t*)AGDATA(e))->label)

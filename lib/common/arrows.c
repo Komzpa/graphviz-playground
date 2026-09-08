@@ -215,12 +215,14 @@ static void arrow_match_name(char *name, uint32_t *flag) {
     }
 }
 
-void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
+void arrow_flags_with_attrs(Agedge_t *e, Agsym_t *dir_attr,
+                            Agsym_t *arrowhead_attr, Agsym_t *arrowtail_attr,
+                            uint32_t *sflag, uint32_t *eflag) {
     char *attr;
 
     *sflag = ARR_TYPE_NONE;
     *eflag = agisdirected(agraphof(e)) ? ARR_TYPE_NORM : ARR_TYPE_NONE;
-    if (E_dir && ((attr = agxget(e, E_dir)))[0]) {
+    if (dir_attr && ((attr = agxget(e, dir_attr)))[0]) {
 	for (const arrowdir_t *arrowdir = Arrowdirs; arrowdir->dir; arrowdir++) {
 	    if (streq(attr, arrowdir->dir)) {
 		*sflag = arrowdir->sflag;
@@ -230,13 +232,11 @@ void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
 	}
     }
     if (*eflag == ARR_TYPE_NORM) {
-	Agsym_t *arrowhead = agfindedgeattr(agraphof(e), "arrowhead");
-	if (arrowhead != NULL && ((attr = agxget(e, arrowhead)))[0])
+	if (arrowhead_attr != NULL && ((attr = agxget(e, arrowhead_attr)))[0])
 		arrow_match_name(attr, eflag);
     }
     if (*sflag == ARR_TYPE_NORM) {
-	Agsym_t *arrowtail = agfindedgeattr(agraphof(e), "arrowtail");
-	if (arrowtail != NULL && ((attr = agxget(e, arrowtail)))[0])
+	if (arrowtail_attr != NULL && ((attr = agxget(e, arrowtail_attr)))[0])
 		arrow_match_name(attr, sflag);
     }
     if (ED_conc_opp_flag(e)) {
@@ -244,10 +244,19 @@ void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
 	uint32_t s0, e0;
 	/* pick up arrowhead of opposing edge */
 	f = agfindedge(agraphof(aghead(e)), aghead(e), agtail(e));
-	arrow_flags(f, &s0, &e0);
+	arrow_flags_with_attrs(f, dir_attr, arrowhead_attr, arrowtail_attr, &s0,
+                               &e0);
 	*eflag |= s0;
 	*sflag |= e0;
     }
+}
+
+void arrow_flags(Agedge_t *e, uint32_t *sflag, uint32_t *eflag) {
+    Agsym_t *const arrowhead_attr = agfindedgeattr(agraphof(e), "arrowhead");
+    Agsym_t *const arrowtail_attr = agfindedgeattr(agraphof(e), "arrowtail");
+
+    arrow_flags_with_attrs(e, E_dir, arrowhead_attr, arrowtail_attr, sflag,
+                           eflag);
 }
 
 static double arrow_length(edge_t * e, uint32_t flag) {

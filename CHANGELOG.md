@@ -13,6 +13,11 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `concentrate=true` now concentrates equivalent reverse edges between nodes in
+  same-rank subgraphs. #150
+- `concentrate=true` no longer merges edges with different attributes, such as
+  differently colored parallel or opposite-direction edges.
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
