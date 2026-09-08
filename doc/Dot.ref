@@ -195,6 +195,9 @@ Attributes
  taillabel       E       string      ""
  tailport        E       portPos     center
  toplabel        N       string      ""
+ unflattenchainlimit G    int         0                 0         dot only
+ unflattenfanout G       bool        false                       dot only
+ unflattenminlen G       int         0                 0         dot only
  vertices        N       pointfList                              write-only
  voro_margin     G       double      0.05              0.0       neato only
  w               E       double      1.0                         neato only
@@ -561,6 +564,19 @@ tailport
      Indicates where on the tail node to attach the tail of the edge.
 toplabel
      Additional label near top of nodes of shape M*.
+unflattenchainlimit
+     For dot, this root graph attribute enables unflatten preprocessing of
+     disconnected nodes by placing them in invisible chains of at most this
+     many edges. The default is 0, which disables this behavior.
+unflattenfanout
+     For dot root graph unflatten preprocessing, include immediate fanout
+     chains when assigning edge minimum lengths. This is equivalent to
+     unflatten -f and requires a positive unflattenminlen value.
+unflattenminlen
+     For dot, this root graph attribute enables unflatten preprocessing for
+     tall or sparse directed graphs. Leaf-edge minimum lengths are cycled from
+     1 through this value, equivalent to unflatten -l. The default is 0,
+     which disables this behavior.
 vertices
      If the input graph defines this attribute, the node is polynomial, and
      output is plain* or attributed dot, this attribute provides the

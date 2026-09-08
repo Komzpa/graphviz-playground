@@ -7789,3 +7789,127 @@ def test_postaction():
     """the legacy `postaction` attribute should not be usable to crash Graphviz"""
     source = 'digraph G { graph [postaction="]"]; a -> b; }'
     dot("svg", source=source)
+def test_unflatten_graph_attributes():
+    """dot can apply unflatten preprocessing from root graph attributes."""
+
+    def canon(source: str, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["dot", *args, "-Tcanon"],
+            input=source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
+
+    leaves = "digraph { a [label=\"\"]; a -> hub; b -> hub; c -> hub; }"
+    control = canon(leaves).stdout
+    assert "minlen=" not in control
+    assert "style=invis" not in control
+
+    transformed = canon("digraph { graph [unflattenminlen=3]; " + leaves[10:]).stdout
+    assert sorted(map(int, re.findall(r"\bminlen=(\d+)\b", transformed))) == [1, 2, 3]
+
+    overridden = canon(leaves, "-Gunflattenminlen=3").stdout
+    assert sorted(map(int, re.findall(r"\bminlen=(\d+)\b", overridden))) == [1, 2, 3]
+
+    explicit = canon(
+        "digraph { graph [unflattenminlen=3]; a -> hub; b -> hub; "
+        "c -> hub; explicit -> hub [minlen=7]; }",
+    ).stdout
+    assert re.search(r"explicit -> hub\s+\[minlen=7\]", explicit) is not None
+
+    chains = canon("digraph { graph [unflattenchainlimit=2]; a; b; c; }").stdout
+    assert {("a", "b"), ("b", "c")} <= set(
+        re.findall(r"(\w+) -> (\w+)\s+\[style=invis\]", chains)
+    )
+
+    fan_source = """digraph {
+      graph [unflattenminlen=3];
+      hub -> a -> aa;
+      hub -> b -> bb;
+      hub -> c -> cc;
+    }"""
+    no_fanout = canon(fan_source).stdout
+    assert re.search(r"hub -> [abc]\s+\[minlen=", no_fanout) is None
+    fanout = canon(
+        fan_source.replace(
+            "unflattenminlen=3", "unflattenminlen=3, unflattenfanout=true"
+        ),
+    ).stdout
+    assert sorted(
+        map(
+            int,
+            re.findall(r"hub -> [abc]\s+\[minlen=(\d+)\]", fanout),
+        )
+    ) == [1, 2, 3]
+
+    warning = canon(
+        "digraph { graph [unflattenchainlimit=2, unflattenfanout=true]; a; b; c; }",
+    )
+    assert "unflattenfanout" in warning.stderr
+    assert "unflattenminlen" in warning.stderr
+
+    subgraph = canon(
+        "digraph { subgraph { graph [unflattenminlen=3]; a -> hub; b -> hub; c -> hub; } }",
+    ).stdout
+    assert re.search(r"\bminlen=", subgraph) is None
+
+    non_dot = canon(
+        "digraph { graph [unflattenminlen=3]; a -> hub; b -> hub; c -> hub; }",
+        "-Kneato",
+    ).stdout
+    assert re.search(r"\bminlen=", non_dot) is None
+
+
+@pytest.mark.skipif(which("unflatten") is None, reason="unflatten not available")
+def test_unflatten_graph_attributes_match_cli():
+    """dot graph attributes match the existing unflatten CLI transformations."""
+
+    def canon(source: str, *args: str) -> str:
+        return subprocess.run(
+            ["dot", *args, "-Tcanon"],
+            input=source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        ).stdout
+
+    def unflatten(source: str, *args: str) -> str:
+        return run("unflatten", *args, input=source)
+
+    def ignore_declarative_unflatten_attrs(output: str) -> str:
+        """remove root attributes that select dot's in-process unflatten step."""
+
+        return "\n".join(
+            line
+            for line in output.splitlines()
+            if not re.fullmatch(
+                r"\s*graph \[unflatten(?:chainlimit|minlen)=[^\]]+\];", line
+            )
+        )
+
+    leaf_source = "digraph { a -> hub; b -> hub; c -> hub; }"
+    assert ignore_declarative_unflatten_attrs(
+        canon(leaf_source, "-Gunflattenminlen=3")
+    ) == canon(unflatten(leaf_source, "-l", "3")).rstrip("\n")
+
+    chain_source = "digraph { a; b; c; d; }"
+    for limit in (1, 2, 3):
+        assert ignore_declarative_unflatten_attrs(
+            canon(chain_source, f"-Gunflattenchainlimit={limit}")
+        ) == canon(unflatten(chain_source, "-c", str(limit))).rstrip("\n")
+
+
+@pytest.mark.skipif(which("unflatten") is None, reason="unflatten not available")
+def test_unflatten_cli_smoke():
+    """the standalone unflatten tool retains its existing command-line behavior."""
+
+    output = run(
+        "unflatten",
+        "-l",
+        "3",
+        input="digraph { a -> hub; b -> hub; c -> hub; }",
+    )
+    assert sorted(map(int, re.findall(r"\bminlen=(\d+)\b", output))) == [1, 2, 3]
