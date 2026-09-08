@@ -13,6 +13,11 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot -Gphase=1`, `dot -Gphase=2`, and `dot -Gphase=3` no longer emit edge
+  label position warnings before edge positions are computed, and their
+  reported node ranks no longer expose the internal extra ranks used for edge
+  labels. #2569
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
