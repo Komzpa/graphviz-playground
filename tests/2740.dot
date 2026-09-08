@@ -1,0 +1,14 @@
+digraph {
+  graph [rankdir=TB]
+  node [label="", shape=circle, width=.2, height=.2]
+
+  { rank=same; a0; a1; a2; a3 }
+  { rank=same; b0; b1; b2; b3 }
+
+  a2 -> b0 [weight=1000]
+  a2 -> b3 [weight=1]
+  a1 -> b1 [weight=1]
+  a3 -> b2 [weight=1]
+  a0 -> b0 [weight=1000]
+  a0 -> b3 [weight=1000]
+}

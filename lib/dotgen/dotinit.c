@@ -65,9 +65,14 @@ dot_init_edge(edge_t * e)
     ED_weight(e) = late_int(e, E_weight, 1, 0);
     tailgroup = late_string(agtail(e), N_group, "");
     headgroup = late_string(aghead(e), N_group, "");
-    ED_count(e) = ED_xpenalty(e) = 1;
+    ED_count(e) = 1;
+    ED_xpenalty(e) = ED_weight(e);
     if (tailgroup[0] && (tailgroup == headgroup)) {
-	ED_xpenalty(e) = CL_CROSS;
+	if (ED_xpenalty(e) > INT_MAX / CL_CROSS) {
+	    agerrorf("overflow when calculating crossing penalty of edge\n");
+	    graphviz_exit(EXIT_FAILURE);
+	}
+	ED_xpenalty(e) *= CL_CROSS;
 	ED_weight(e) *= 100;
     }
     if (nonconstraint_edge(e)) {
