@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- `neato` now keeps top-level clusters separated from nodes outside those
+  clusters when no explicit `mode` or `overlap` setting is given. #2595
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
