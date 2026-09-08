@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `dot` no longer adds cluster auxiliary edges that create ranking cycles and
+  trigger `trouble in init_rank` errors. #1213 #1939 #2796
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
