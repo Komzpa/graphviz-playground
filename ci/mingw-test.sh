@@ -11,7 +11,8 @@ set -u
 set -x
 
 ci/mingw-install.sh
-python3 -m pip install --requirement requirements.txt
+python3 -m pip install uv
+python3 -m uv pip install --requirement requirements.txt
 
 export PATH=$PATH:/c/Git/cmd
 
