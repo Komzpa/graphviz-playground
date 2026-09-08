@@ -105,6 +105,13 @@ static edge_t *getmainedge(edge_t *e) {
   return le;
 }
 
+// Return the input edge without following a parallel-edge representative.
+static edge_t *getorigedge(edge_t *e) {
+  while (ED_to_orig(e))
+    e = ED_to_orig(e);
+  return e;
+}
+
 static bool spline_merge(node_t *n) {
   return ND_node_type(n) == VIRTUAL &&
          (ND_in(n).size > 1 || ND_out(n).size > 1);
@@ -387,7 +394,7 @@ static int dot_splines_(graph_t *g, int normalize) {
 
     if (et == EDGETYPE_CURVED) {
       edge_t **edgelist = gv_calloc(cnt, sizeof(edge_t *));
-      edgelist[0] = getmainedge(LIST_GET(&edges, ind));
+      edgelist[0] = getorigedge(LIST_GET(&edges, ind));
       for (unsigned ii = 1; ii < cnt; ii++)
         edgelist[ii] = LIST_GET(&edges, ind + ii);
       makeStraightEdges(g, edgelist, cnt, et, &sinfo);
