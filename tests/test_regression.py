@@ -4576,6 +4576,30 @@ def test_2502():
     dot("dot", input)
 
 
+@pytest.mark.skipif(shutil.which("pdftotext") is None, reason="pdftotext not available")
+def test_2508(tmp_path: Path):
+    """
+    unicode labels should survive PDF output
+    https://gitlab.com/graphviz/graphviz/-/issues/2508
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2508.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render the issue reproducer to PDF
+    pdf = dot("pdf", input)
+
+    # validate extracted text rather than just "some PDF bytes exist"
+    pdf_path = tmp_path / "2508.pdf"
+    pdf_path.write_bytes(pdf)
+    pdftotext = shutil.which("pdftotext")
+    assert pdftotext is not None, "pdftotext should be available after skip guard"
+    text = subprocess.check_output([pdftotext, pdf_path, "-"], text=True)
+
+    assert "✅" in text, "unicode label not recoverable from PDF output"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2516"
 )
