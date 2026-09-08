@@ -152,6 +152,43 @@ bool mergeable(edge_t *e, edge_t *f) {
          ED_label(e) == ED_label(f) && ports_eq(e, f);
 }
 
+static bool
+ordering_out_applies(graph_t *g, node_t *n)
+{
+    const char *ordering = NULL;
+
+    if (G_ordering)
+	ordering = late_string(g, G_ordering, NULL);
+    if (ordering && ordering[0])
+	return strcmp(ordering, "out") == 0;
+
+    if (N_ordering)
+	ordering = late_string(n, N_ordering, NULL);
+    return ordering && strcmp(ordering, "out") == 0;
+}
+
+static bool
+separated_by_ordered_out_edge(graph_t *g, edge_t *e, edge_t *f)
+{
+    node_t *const tail = agtail(e);
+    if (!ordering_out_applies(g, tail))
+	return false;
+
+    const unsigned int lo = MIN(AGSEQ(e), AGSEQ(f));
+    const unsigned int hi = MAX(AGSEQ(e), AGSEQ(f));
+    if (lo + 1 >= hi)
+	return false;
+
+    for (edge_t *mid = agfstout(g, tail); mid; mid = agnxtout(g, mid)) {
+	const unsigned int seq = AGSEQ(mid);
+	if (seq <= lo || seq >= hi)
+	    continue;
+	if (!mergeable(e, mid))
+	    return true;
+    }
+    return false;
+}
+
 void class2(graph_t * g)
 {
     int c;
@@ -203,7 +240,8 @@ void class2(graph_t * g)
 		continue;
 	    }
 	    /* merge multi-edges */
-	    if (prev && agtail(e) == agtail(prev) && aghead(e) == aghead(prev)) {
+	    if (prev && agtail(e) == agtail(prev) && aghead(e) == aghead(prev) &&
+		!separated_by_ordered_out_edge(g, prev, e)) {
 		if (ND_rank(agtail(e)) == ND_rank(aghead(e))) {
 		    merge_oneway(e, prev);
 		    other_edge(e);
@@ -291,4 +329,3 @@ void class2(graph_t * g)
 	GD_comp(g).list[0] = GD_nlist(g);
     }
 }
-

@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `ordering=out` now preserves input order when equivalent outgoing edges are
+  separated by another edge in the DOT source. #2076
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
