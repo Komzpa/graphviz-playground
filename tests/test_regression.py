@@ -444,6 +444,30 @@ def test_358():
         assert m is not None, f"font characteristic {1 << i} not enabled in xdot 1.7"
 
 
+@pytest.mark.xfail(strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/412")
+def test_412():
+    """
+    tapered edges should be emitted as Bezier curves instead of polygons in xdot
+    https://gitlab.com/graphviz/graphviz/-/issues/412
+    """
+
+    # suppress arrowhead drawing so any polygon in the edge body belongs to the
+    # tapered edge itself
+    source = "digraph { a -> b [style=tapered, arrowhead=none] }"
+
+    # process this with dot
+    xdot = dot("xdot", source=source)
+
+    # find the edge body drawing commands
+    m = re.search(r'\ba\s*->\s*b\s*\[[^\]]*_draw_="(?P<draw>[^"]*)"', xdot, re.S)
+    assert m is not None, "could not locate a -> b edge draw commands"
+
+    draw = m.group("draw")
+
+    assert not re.search(r"(^|\s)P\s+\d+", draw), "tapered edge body is a polygon"
+    assert re.search(r"(^|\s)B\s+\d+", draw), "tapered edge body is not a Bezier"
+
+
 @pytest.mark.parametrize("attribute", ("samehead", "sametail"))
 def test_452(attribute: str):
     """
