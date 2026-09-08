@@ -3209,6 +3209,23 @@ def test_2361():
     dot("png", input)
 
 
+def test_1991():
+    """
+    PostScript output should preserve URLs as PDF pdfmark links
+    https://gitlab.com/graphviz/graphviz/-/issues/1991
+    """
+
+    ps = dot(
+        "ps",
+        source='digraph { node [URL="https://example.com/node"]; a -> b }',
+    )
+
+    assert b"/Subtype /Link" in ps, "PostScript link annotation not emitted"
+    assert b"/Subtype /URI" in ps, "PostScript URI action not emitted"
+    assert b"/URI (https://example.com/node)" in ps, "URL not propagated to pdfmark"
+    assert b"/ANN pdfmark" in ps, "PostScript pdfmark annotation not emitted"
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2295"
 )
