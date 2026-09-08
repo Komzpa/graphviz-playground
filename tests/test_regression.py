@@ -4183,11 +4183,6 @@ def test_2436():
     is_static_build(),
     reason="dynamic libraries are unavailable to link against in static builds",
 )
-@pytest.mark.xfail(
-    raises=AssertionError,
-    strict=True,
-    reason="https://gitlab.com/graphviz/graphviz/-/issues/2434",
-)
 def test_2434(tmp_path: Path):
     """
     the order in which `agmemread` and `gvContext` calls are made should have no impact
@@ -4208,6 +4203,10 @@ def test_2434(tmp_path: Path):
 
     # resulting images should be identical
     assert before == after, "agmemread/gvContext ordering affected image output"
+
+    svg = dot("svg", source='digraph { node [label=""]; a }')
+
+    assert ">a</text>" not in svg, "explicit empty node label was not preserved"
 
 
 def test_2437():

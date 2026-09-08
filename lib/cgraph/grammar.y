@@ -313,8 +313,11 @@ static void bindattrs(aagextra_t *ctx, int kind)
 		assert(aptr->tag == T_atom);	/* signifies unbound attr */
 		name = aptr->u.name;
 		if (kind == AGEDGE && streq(name,Key)) continue;
-		if ((aptr->u.asym = agattr_text(ctx->S->g,kind,name,NULL)) == NULL)
-			aptr->u.asym = agattr_text(ctx->S->g,kind,name,"");
+		if ((aptr->u.asym = agattr_text(ctx->S->g,kind,name,NULL)) == NULL) {
+			const char *const defval =
+				kind == AGNODE && streq(name, "label") ? "\\N" : "";
+			aptr->u.asym = agattr_text(ctx->S->g,kind,name,defval);
+		}
 		aptr->tag = T_attr;				/* signifies bound attr */
 		agstrfree(ctx->G, name, false);
 	}
@@ -652,4 +655,3 @@ Agraph_t *agconcat(Agraph_t *g, const char *filename, void *chan,
 Agraph_t *agread(void *fp, Agdisc_t *disc) {
   return agconcat(NULL, NULL, fp, disc);
 }
-
