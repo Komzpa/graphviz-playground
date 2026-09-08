@@ -617,6 +617,28 @@ def test_925():
     assert "ААА ААА ААА" in svg, "incorrect spacing in UTF-8 label"
 
 
+def test_962():
+    """
+    filled PostScript nodes should not emit no-op fill style commands
+    https://gitlab.com/graphviz/graphviz/-/issues/962
+    """
+
+    source = """
+    digraph test {
+      node2a [shape=box, style=filled, fillcolor=blue, color=red];
+      node3a [shape=box, style=filled, color=red];
+      node4a [shape=box, style=filled, fillcolor=blue];
+    }
+    """
+
+    ps = dot("ps", source=source).decode("utf-8")
+
+    for node in ("node2a", "node3a", "node4a"):
+        node_block = re.search(rf"% {node}\n(.*?\ngrestore)", ps, re.S)
+        assert node_block is not None, f"missing PostScript block for {node}"
+        assert "\nfilled\n" not in node_block.group(1)
+
+
 @pytest.mark.parametrize("testcase", ("1213-1.dot", "1213-2.dot"))
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1213"

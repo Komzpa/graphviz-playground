@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Filled nodes in PostScript output no longer emit no-op `filled` style
+  commands while stroking the node outline. #962
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
