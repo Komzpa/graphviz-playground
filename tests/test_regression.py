@@ -4523,6 +4523,57 @@ def test_2490():
                 assert x == expected_second_crow_toe_x
 
 
+def test_2531():
+    """
+    dir=back shall place the arrow at the tail side when ports are used
+    https://gitlab.com/graphviz/graphviz/-/issues/2531
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2531.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # translate this to SVG
+    svg = dot("svg", input)
+
+    # load this as XML
+    root = ET.fromstring(svg)
+
+    ns = "{http://www.w3.org/2000/svg}"
+
+    def find_group(title: str) -> ET.Element:
+        matches = [
+            group
+            for group in root.findall(f".//{ns}g")
+            if (node := group.find(f"{ns}title")) is not None and node.text == title
+        ]
+        assert len(matches) == 1, f"could not find group {title!r}"
+        return matches[0]
+
+    b4 = find_group("B4").find(f"{ns}ellipse")
+    assert b4 is not None, "could not find B4 node"
+    b4_right = float(b4.get("cx")) + float(b4.get("rx"))
+
+    a4 = find_group("A4").find(f"{ns}ellipse")
+    assert a4 is not None, "could not find A4 node"
+    a4_left = float(a4.get("cx")) - float(a4.get("rx"))
+
+    edge = find_group("B4:e->A4:w")
+    polygon = edge.find(f"{ns}polygon")
+    assert polygon is not None, "could not find B4:e->A4:w arrow"
+
+    points = [
+        tuple(float(coordinate) for coordinate in point.split(","))
+        for point in polygon.get("points").split()
+    ]
+    arrow_min_x = min(x for x, _ in points)
+    arrow_max_x = max(x for x, _ in points)
+
+    assert arrow_min_x < (b4_right + a4_left) / 2, "arrow is at the wrong end"
+    assert abs(arrow_min_x - b4_right) < 5, "arrow is not attached to B4"
+    assert arrow_max_x < a4_left, "arrow extends to A4 instead of B4"
+
+
 @pytest.mark.skipif(which("gv2gml") is None, reason="gv2gml not available")
 def test_2493():
     """
