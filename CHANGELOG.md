@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The dot layout engine now respects user-provided `xlp` positions for
+  external labels. #299
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
