@@ -26,12 +26,12 @@ as countries, in xdot format.
 In the input graph, each node must have position, width and height information (pos, width and height attributes, 
 respectively) defined, and nodes must not overlap.
 .P
-By default, 
+By default,
 .B gvmap
 will generate the clusters from the data. If desired, the input graph can specify
-cluster information by giving every node a \fIcluster\fP attribute whose value is
-a small positive integer. (It is works best if \fIcluster\fP values are all integers
-in the interval [1,K] for some K. Nodes sharing the same \fIcluster\fP attribute value will 
+cluster information by giving every node a valid integer \fIcluster\fP attribute.
+It works best if \fIcluster\fP values are all integers in the interval [1,K] for
+some K and contiguous. Nodes sharing the same \fIcluster\fP attribute value will
 be put into the same cluster. \fBN.B.\fP For the \fIcluster\fP attribute to be used,
 all nodes must have a valid value.
 .P
@@ -110,7 +110,9 @@ Put output in <file>. Default output is stdout
 Use modularity quality for clustering rather than the default modularity clustering.
 .TP
 .BI \-r " k"
-The number of random points k (integer) used to define sea and lake boundaries. If 0, auto assigned. By default v = 0
+The number of random points k (integer) used to define sea and lake boundaries.
+If k = 0, auto assigned. If k < 0, the number of random points is set to
+\fB(-k * n)\fP, where n is the number of graph nodes. By default k = 0.
 .TP
 .BI \-s " v"
 The real number v specifies the depth of the sea and lake shores in points. If 0, auto assigned. By default v = 0.
