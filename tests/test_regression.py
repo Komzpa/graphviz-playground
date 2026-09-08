@@ -2643,6 +2643,41 @@ def test_2159():
         assert math.isclose(width, widths[0], abs_tol=5), "cells not evenly expanded"
 
 
+def test_2167():
+    """
+    SVG output for a rounded box should use a rect element with corner radii
+    https://gitlab.com/graphviz/graphviz/-/issues/2167
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2167.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # render a rounded box to SVG
+    output = dot("svg", input)
+
+    # the box should be emitted as a semantic SVG rectangle
+    root = ET.fromstring(output)
+    namespace = {"svg": "http://www.w3.org/2000/svg"}
+    rects = root.findall(".//svg:rect", namespace)
+    assert len(rects) == 1, "rounded box was not emitted as a single rect"
+    assert rects[0].attrib == {
+        "fill": "none",
+        "stroke": "black",
+        "x": "0",
+        "y": "-36",
+        "width": "54",
+        "height": "36",
+        "rx": "12",
+        "ry": "12",
+    }
+
+    # current main emitted this shape as an equivalent long Bézier path
+    assert not re.search(
+        r'<path\b[^>]*\bd="M42,-36C42,-36 12,-36 12,-36', output
+    ), "rounded box was emitted as a Bézier path"
+
+
 def test_2168():
     """
     using spline routing should not cause fdp/neato to infinite loop

@@ -668,6 +668,74 @@ static void svg_ellipse(GVJ_t * job, pointf * A, int filled)
     gvputs(job, "\"/>\n");
 }
 
+static bool pointf_isclose(pointf a, pointf b) {
+    const double epsilon = 0.001;
+    return fabs(a.x - b.x) < epsilon && fabs(a.y - b.y) < epsilon;
+}
+
+static bool svg_rounded_rect(pointf *A, size_t n, pointf *ll, pointf *ur,
+                             double *rx, double *ry) {
+    if (n != 25) {
+        return false;
+    }
+
+    double minx = A[0].x;
+    double maxx = A[0].x;
+    double miny = A[0].y;
+    double maxy = A[0].y;
+    for (size_t i = 1; i < n; ++i) {
+        minx = fmin(minx, A[i].x);
+        maxx = fmax(maxx, A[i].x);
+        miny = fmin(miny, A[i].y);
+        maxy = fmax(maxy, A[i].y);
+    }
+
+    const double xradius = A[3].x - minx;
+    const double yradius = maxy - A[6].y;
+    if (xradius <= 0 || yradius <= 0) {
+        return false;
+    }
+
+    const pointf expected[] = {
+        {maxx - xradius, maxy},
+        {maxx - xradius, maxy},
+        {minx + xradius, maxy},
+        {minx + xradius, maxy},
+        {minx + xradius / 2, maxy},
+        {minx, maxy - yradius / 2},
+        {minx, maxy - yradius},
+        {minx, maxy - yradius},
+        {minx, miny + yradius},
+        {minx, miny + yradius},
+        {minx, miny + yradius / 2},
+        {minx + xradius / 2, miny},
+        {minx + xradius, miny},
+        {minx + xradius, miny},
+        {maxx - xradius, miny},
+        {maxx - xradius, miny},
+        {maxx - xradius / 2, miny},
+        {maxx, miny + yradius / 2},
+        {maxx, miny + yradius},
+        {maxx, miny + yradius},
+        {maxx, maxy - yradius},
+        {maxx, maxy - yradius},
+        {maxx, maxy - yradius / 2},
+        {maxx - xradius / 2, maxy},
+        {maxx - xradius, maxy},
+    };
+    for (size_t i = 0; i < n; ++i) {
+        if (!pointf_isclose(A[i], expected[i])) {
+            return false;
+        }
+    }
+
+    *ll = (pointf){minx, miny};
+    *ur = (pointf){maxx, maxy};
+    *rx = xradius;
+    *ry = yradius;
+    return true;
+}
+
 static void svg_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
     int gid = 0;
     obj_state_t *obj = job->obj;
@@ -676,6 +744,28 @@ static void svg_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
 	gid = svg_gradstyle(job, A, n);
     } else if (filled == RGRADIENT) {
 	gid = svg_rgradstyle(job);
+    }
+    pointf ll = {0};
+    pointf ur = {0};
+    double rx = 0;
+    double ry = 0;
+    if (!obj->labeledgealigned && svg_rounded_rect(A, n, &ll, &ur, &rx, &ry)) {
+        gvputs(job, "<rect");
+        svg_grstyle(job, filled, gid);
+        gvputs(job, " x=\"");
+        gvprintdouble(job, ll.x);
+        gvputs(job, "\" y=\"");
+        gvprintdouble(job, -ur.y);
+        gvputs(job, "\" width=\"");
+        gvprintdouble(job, ur.x - ll.x);
+        gvputs(job, "\" height=\"");
+        gvprintdouble(job, ur.y - ll.y);
+        gvputs(job, "\" rx=\"");
+        gvprintdouble(job, rx);
+        gvputs(job, "\" ry=\"");
+        gvprintdouble(job, ry);
+        gvputs(job, "\"/>\n");
+        return;
     }
     gvputs(job, "<path");
     if (obj->labeledgealigned) {

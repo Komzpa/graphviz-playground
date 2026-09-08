@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- Rounded boxes in SVG output are now emitted as `<rect>` elements with corner
+  radii instead of Bézier paths. #2167
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

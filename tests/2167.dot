@@ -1,0 +1,3 @@
+digraph {
+  A [label="", style=rounded, shape=box]
+}
