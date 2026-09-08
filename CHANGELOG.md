@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- SVG output now groups cluster-internal nodes and edges inside their cluster
+  `<g>` element, while leaving edges that exit the cluster outside. #875
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

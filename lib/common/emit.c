@@ -3931,8 +3931,10 @@ void emit_clusters(GVJ_t * job, Agraph_t * g, int flags)
 	if (flags & EMIT_PREORDER) {
 	    for (n = agfstnode(sg); n; n = agnxtnode(sg, n)) {
 		emit_node(job, n);
-		for (e = agfstout(sg, n); e; e = agnxtout(sg, e))
-		    emit_edge(job, e);
+		for (e = agfstout(sg, n); e; e = agnxtout(sg, e)) {
+		    if (agcontains(sg, agtail(e)) && agcontains(sg, aghead(e)))
+			emit_edge(job, e);
+		}
 	    }
 	}
 	emit_end_cluster(job);
@@ -4364,4 +4366,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
