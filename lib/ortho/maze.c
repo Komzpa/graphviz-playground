@@ -507,9 +507,12 @@ maze *mkMaze(graph_t *g) {
 
 void freeMaze (maze* mp)
 {
-    if (mp->cells != NULL) {
-	free(mp->cells[0].sides);
-    }
+    if (!mp)
+        return;
+
+    if (mp->cells && mp->ncells > 0)
+        free (mp->cells[0].sides);
+
     free (mp->cells);
     for (size_t i = 0; i < mp->ngcells; ++i) {
 	free(mp->gcells[i].sides);
@@ -524,4 +527,3 @@ void freeMaze (maze* mp)
     }
     free (mp);
 }
-
