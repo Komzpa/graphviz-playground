@@ -748,6 +748,7 @@ static int64_t mincross(graph_t *g, int startpass) {
     transpose(g, false);
     best_cross = ncross();
   }
+  flat_reorder(g);
 
   return best_cross;
 }

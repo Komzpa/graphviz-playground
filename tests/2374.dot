@@ -1,0 +1,99 @@
+digraph {
+    graph [compound=true, outputorder=nodesfirst, rankdir=TB ranksep=0.4, splines=true]
+    node [fontname="Courier New", label="\N"]
+    edge [fontname="Courier New"]
+    subgraph A {
+        graph [rank=same, splines=false]
+        edge [arrowhead=none, dir=none, minlen=2, style=solid]
+        A0 [label=A, shape=cds]
+        A1 [label=1, shape=circle]
+        A2 [label=2, shape=circle]
+        A3 [label=3, shape=circle]
+        A4 [label=4, shape=circle]
+        A0:e -> A1:w [weight=0.1]
+        A1:e -> A2:w [weight=1000000]
+        A2:e -> A3:w [weight=1000000]
+        A3:e -> A4:w [weight=1000000]
+    }
+    subgraph B {
+        graph [rank=same, splines=false]
+        edge [arrowhead=none, dir=none, minlen=2, style=solid]
+        B0 [label=B, shape=cds]
+        B1 [label=1, shape=circle]
+        B2 [label=2, shape=circle]
+        B0:e -> B1:w [weight=0.1]
+        B1:e -> B2:w [weight=1000000]
+    }
+    subgraph C {
+        graph [rank=same, splines=false]
+        edge [arrowhead=none, dir=none, minlen=2, style=solid]
+        C0 [label=C, shape=cds]
+        C1 [label=1, shape=circle]
+        C2 [label=2, shape=circle]
+        C0:e -> C1:w [weight=0.1]
+        C1:e -> C2:w [weight=1000000]
+    }
+    subgraph D {
+        graph [rank=same, splines=false]
+        edge [arrowhead=none, dir=none, minlen=2, style=solid]
+        D0 [label=D, shape=cds]
+        D1 [label=1, shape=circle]
+        D2 [label=2, shape=circle]
+        D3 [label=3, shape=circle]
+        D4 [label=4, shape=circle]
+        D0:e -> D1:w [weight=0.1]
+        D1:e -> D2:w [weight=1000000]
+        D2:e -> D3:w [weight=1000000]
+        D3:e -> D4:w [weight=1000000]
+    }
+    subgraph E {
+        graph [rank=same, splines=false]
+        edge [arrowhead=none, dir=none, minlen=2, style=solid]
+        E0 [label=E, shape=cds]
+        E1 [label=1, shape=circle]
+        E2 [label=2, shape=circle]
+        E3 [label=3, shape=circle]
+        E0:e -> E1:w [weight=0.1]
+        E1:e -> E2:w [weight=1000000]
+        E2:e -> E3:w [weight=1000000]
+    }
+    subgraph F {
+        graph [rank=same, splines=false]
+        edge [arrowhead=none, dir=none, minlen=2, style=solid]
+        F0 [label=F, shape=cds]
+        F1 [label=1, shape=circle]
+        F2 [label=2, shape=circle]
+        F3 [label=3, shape=circle]
+        F0:e -> F1:w [weight=0.1]
+        F1:e -> F2:w [weight=1000000]
+        F2:e -> F3:w [weight=1000000]
+    }
+    subgraph closed {
+        graph [rank=same]
+        X [shape=rectangle, style=rounded]
+        Y [shape=rectangle, style=rounded]
+    }
+    A0:s -> B0:n [len=0.1, style=invis, weight=10000]
+    B0:s -> C0:n [len=0.1, style=invis, weight=10000]
+    C0:s -> D0:n [len=0.1, style=invis, weight=10000]
+    D0:s -> E0:n [len=0.1, style=invis, weight=10000]
+    E0:s -> F0:n [len=0.1, style=invis, weight=10000]
+    A1 -> B1 [style=dashed]
+    A2 -> Y [style=dashed, weight=0.1]
+    A3 -> E2 [style=dashed]
+    A4 -> E3
+    B1 -> C1 [style=dashed]
+    B2 -> C2
+    C1 -> D3 [style=dashed]
+    C2 -> D4
+    D1 -> E1 [style=dashed]
+    D2 -> Y [style=dashed, weight=0.1]
+    D3 -> Y [style=dashed, weight=0.1]
+    D4 -> A4
+    E1 -> F1 [style=dashed]
+    E2 -> F2 [style=dashed]
+    E3 -> F3
+    F1 -> X [style=dashed, weight=0.1]
+    F2 -> Y [style=dashed, weight=0.1]
+    F3 -> Y [weight=0.1]
+}

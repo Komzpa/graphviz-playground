@@ -1246,6 +1246,77 @@ def test_1585():
     assert c < d, "clustering altered nodes’ horizontal ordering"
 
 
+def test_1953():
+    """
+    rankdir=LR should preserve same-rank weighted-edge node ordering
+    https://gitlab.com/graphviz/graphviz/-/issues/1953
+    """
+
+    input = Path(__file__).parent / "1953.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    plain = dot("plain", input).decode("utf-8")
+    ys = {}
+    for line in plain.splitlines():
+        parts = line.split()
+        if len(parts) >= 4 and parts[0] == "node":
+            ys[parts[1]] = float(parts[3])
+
+    ingest = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+    onprem = ["M1", "M2", "M3", "M4", "M5"]
+    assert all(n in ys for n in ingest + onprem)
+    assert all(ys[a] > ys[b] for a, b in zip(ingest, ingest[1:]))
+    assert all(ys[a] > ys[b] for a, b in zip(onprem, onprem[1:]))
+
+
+def test_2374():
+    """
+    final positioning should preserve same-rank flat-edge ordering
+    https://gitlab.com/graphviz/graphviz/-/issues/2374
+    """
+
+    input = Path(__file__).parent / "2374.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    plain = dot("plain", input).decode("utf-8")
+    xs = {}
+    for line in plain.splitlines():
+        parts = line.split()
+        if (
+            len(parts) >= 4
+            and parts[0] == "node"
+            and re.fullmatch(r"D[0-4]", parts[1])
+        ):
+            xs[parts[1]] = float(parts[2])
+
+    assert sorted(xs) == ["D0", "D1", "D2", "D3", "D4"]
+    assert xs["D0"] < xs["D1"] < xs["D2"] < xs["D3"] < xs["D4"]
+
+
+def test_2208():
+    """
+    final positioning should preserve invisible same-rank flat-edge ordering
+    https://gitlab.com/graphviz/graphviz/-/issues/2208
+    """
+
+    input = Path(__file__).parent / "2208.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    plain = dot("plain", input).decode("utf-8")
+    xs = {}
+    for line in plain.splitlines():
+        parts = line.split()
+        if (
+            len(parts) >= 4
+            and parts[0] == "node"
+            and parts[1] in {"rc", "KornShell", "Perl"}
+        ):
+            xs[parts[1]] = float(parts[2])
+
+    assert sorted(xs) == ["KornShell", "Perl", "rc"]
+    assert xs["rc"] < xs["KornShell"] < xs["Perl"]
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
 def test_1594():
     """

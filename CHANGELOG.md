@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The dot layout engine now preserves explicit same-rank flat-edge ordering
+  before final x-coordinate assignment. #2374
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
