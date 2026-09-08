@@ -732,9 +732,6 @@ def test_1318():
 
 
 @pytest.mark.parametrize("testcase", ("1323.dot", "1323_1.dot"))
-@pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1323"
-)
 def test_1323(testcase: str):
     """
     these graphs should not generate triangulation warnings/errors
@@ -771,6 +768,69 @@ def test_1328():
     )
 
     assert proc.returncode in (0, 1), "multiple rank constraints caused a crash"
+
+
+def test_1592():
+    """
+    Record-shaped same-rank edges should not flip the visible columns.
+    https://gitlab.com/graphviz/graphviz/-/issues/1592
+    """
+
+    source = """
+            digraph G {
+              newrank = true;
+              node [shape=record, style="rounded,filled", color="#5F6368",
+                    fillcolor="#F7F7F7", fontname="Arial", fontsize=10];
+              graph [fontname = "Arial"]; edge [fontname = "Arial"];
+              style = "dashed";
+
+              subgraph cluster0 {
+                color="#34A853";
+                a; a1; b; b1; c; c1; d; d1;
+              }
+
+              subgraph cluster1 {
+                color="#EA4335";
+                e1; f1;
+
+                subgraph cluster2 {
+                  color="#FBBC05";
+                  e; f; g; h; i;
+                }
+              }
+
+              a -> b -> c -> d [color="#34A853"];
+              a1 -> b1 -> c1 -> d1 [color="#4285F4"];
+
+              edge[style=invis];
+              {rank="same"; a -> a1 [constraint=false]}
+              {rank="same"; b -> b1 [constraint=false]}
+              {rank="same"; c -> c1 [constraint=false]}
+              {rank="same"; d -> d1 [constraint=false]}
+              {rank="same"; e -> e1 [constraint=false]}
+              {rank="same"; f -> f1 [constraint=false]}
+
+              d -> e -> f -> g -> h -> i;
+              d1 -> e1 -> f1;
+            }
+            """
+
+    output = dot("plain", source=source).decode("utf-8")
+    xs = {}
+    for line in output.splitlines():
+        parts = line.split()
+        if parts and parts[0] == "node":
+            xs[parts[1]] = float(parts[2])
+
+    for left, right in (
+        ("a", "a1"),
+        ("b", "b1"),
+        ("c", "c1"),
+        ("d", "d1"),
+        ("e", "e1"),
+        ("f", "f1"),
+    ):
+        assert xs[left] < xs[right], f"{left} should be left of {right}"
 
 
 def test_1332():
@@ -4259,6 +4319,44 @@ def test_2416():
 
     # assuming the graph is vertical, these should not be too close
     assert abs(y_1 - y_2) > 1, "edge arrows appear to be drawn next to the same node"
+
+
+def test_2248():
+    """
+    A flat edge between adjacent record nodes should not be omitted.
+    https://gitlab.com/graphviz/graphviz/-/issues/2248
+    """
+
+    input = "graph { node [shape=record]; { rank=same C -- B [color=red] } }"
+
+    output = dot("json", source=input)
+    data = json.loads(output)
+
+    assert len(data["edges"]) == 1, "unexpected number of edges"
+    edge = data["edges"][0]
+    assert edge["color"] == "red"
+    assert "pos" in edge
+
+
+def test_2791():
+    """
+    A flat edge from a record node to a box node should not be omitted.
+    https://gitlab.com/graphviz/graphviz/-/issues/2791
+    """
+
+    input = """
+            strict digraph MissingEdge {
+              {rank=same; B; A;}
+              A [label="{text1|text2}", shape=record];
+              A -> B;
+            }
+            """
+
+    output = dot("json", source=input)
+    data = json.loads(output)
+
+    assert len(data["edges"]) == 1, "unexpected number of edges"
+    assert "pos" in data["edges"][0]
 
 
 @pytest.mark.skipif(which("gvpr") is None, reason="GVPR not available")
