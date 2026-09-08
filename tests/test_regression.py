@@ -4011,6 +4011,106 @@ def test_2377():
     assert svg1 == svg2, "3 letter hex colors were not translated correctly"
 
 
+def test_2380():
+    """
+    edge labels should honor shape attributes
+    https://gitlab.com/graphviz/graphviz/-/issues/2380
+    """
+
+    # an edge with an HTML-like label and a label shape request
+    source = """\
+digraph state_diagram {
+  rankdir=LR
+  A [shape=plain]
+  B [shape=plain]
+  A -> B [label=<This should<br/>be in a box>, shape=box]
+}
+"""
+
+    # process it as JSON so label drawing operations can be inspected
+    output = dot("json", source=source)
+    graph = json.loads(output)
+    edge = graph["edges"][0]
+
+    # sanity check the label still contains both expected lines
+    label_text = [
+        cmd["text"] for cmd in edge.get("_ldraw_", []) if cmd.get("op") == "T"
+    ]
+    assert label_text == ["This should", "be in a box"]
+
+    # shape=box draws one unfilled rectangle behind the primary label
+    rectangles = [
+        cmd
+        for cmd in edge.get("_ldraw_", [])
+        if cmd.get("op") == "p" and len(cmd.get("points", [])) == 4
+    ]
+    assert len(rectangles) == 1
+    assert edge["_ldraw_"].index(rectangles[0]) < next(
+        i for i, cmd in enumerate(edge["_ldraw_"]) if cmd.get("op") == "T"
+    ), "label box should be drawn behind its text"
+    points = rectangles[0]["points"]
+    left = min(point[0] for point in points)
+    right = max(point[0] for point in points)
+    bottom = min(point[1] for point in points)
+    top = max(point[1] for point in points)
+    for text in (cmd for cmd in edge["_ldraw_"] if cmd.get("op") == "T"):
+        x, y = text["pt"]
+        if text["align"] == "l":
+            text_left, text_right = x, x + text["width"]
+        elif text["align"] == "c":
+            text_left = x - text["width"] / 2
+            text_right = x + text["width"] / 2
+        else:
+            assert text["align"] == "r"
+            text_left, text_right = x - text["width"], x
+        assert left <= text_left <= text_right <= right
+        assert bottom <= y <= top
+
+    # without shape, the same primary label remains plain text
+    unshaped = json.loads(dot("json", source=source.replace(", shape=box", "")))
+    unshaped_edge = unshaped["edges"][0]
+    assert edge["_ldraw_"][edge["_ldraw_"].index(rectangles[0]) + 1 :] == (
+        unshaped_edge["_ldraw_"]
+    )
+
+    def draw_streams(rendered_edge):
+        return {
+            key: value
+            for key, value in rendered_edge.items()
+            if key.startswith("_") and key.endswith("draw_")
+        }
+
+    assert {
+        key: value for key, value in draw_streams(edge).items() if key != "_ldraw_"
+    } == {
+        key: value
+        for key, value in draw_streams(unshaped_edge).items()
+        if key != "_ldraw_"
+    }
+
+    # unsupported edge shapes remain a no-op
+    unsupported = json.loads(
+        dot("json", source=source.replace("shape=box", "shape=ellipse"))
+    )
+    assert draw_streams(unsupported["edges"][0]) == draw_streams(unshaped_edge)
+
+    # shape=box does not apply to xlabel, headlabel, or taillabel
+    auxiliary_source = """\
+digraph {
+  rankdir=LR
+  A [shape=plain]
+  B [shape=plain]
+  A -> B [shape=box, xlabel=<x>, headlabel=<head>, taillabel=<tail>]
+}
+"""
+    auxiliary = json.loads(dot("json", source=auxiliary_source))
+    auxiliary_edge = auxiliary["edges"][0]
+    plain_auxiliary = json.loads(
+        dot("json", source=auxiliary_source.replace("shape=box, ", ""))
+    )
+    assert draw_streams(auxiliary_edge) == draw_streams(plain_auxiliary["edges"][0])
+
+
 def test_2390():
     """
     using an out of range `xdotversion` should not crash Graphviz

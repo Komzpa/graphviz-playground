@@ -337,7 +337,7 @@
 								<xsl:variable name="attributeName" select="@name" />
 								<xsl:for-each select="/xsd:schema/xsd:complexType">
 									<span class="comp">
-										<xsl:attribute name="class">comp <xsl:if test="not(xsd:attribute[@ref=$attributeName])">missing</xsl:if></xsl:attribute>
+										<xsl:attribute name="class">comp <xsl:if test="not(xsd:attribute[@ref=$attributeName or @name=$attributeName])">missing</xsl:if></xsl:attribute>
 										<xsl:value-of select="@name" />
 									</span>
 									<xsl:text> </xsl:text>

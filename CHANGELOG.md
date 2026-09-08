@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Added
+
+- Edge `shape=box` now draws an unfilled rectangle around the primary edge
+  label. #2380
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

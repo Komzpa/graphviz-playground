@@ -324,6 +324,12 @@
 			<xsd:enumeration value="component" />
 		</xsd:restriction>
 	</xsd:simpleType>
+
+	<xsd:simpleType name="edgeLabelShape">
+		<xsd:restriction base="xsd:string">
+			<xsd:enumeration value="box" />
+		</xsd:restriction>
+	</xsd:simpleType>
 	
 	<!--
 		splineType
@@ -2073,7 +2079,11 @@
 		<xsd:annotation>
 			<xsd:documentation>
 				<html:p>
-					Set the shape of a node.
+					Set the shape of a node. On an edge, <html:code>shape=box</html:code>
+					draws an unfilled rectangle around the primary <html:a rel="attr">label</html:a>.
+					It does not affect <html:a rel="attr">xlabel</html:a>,
+					<html:a rel="attr">headlabel</html:a>, or
+					<html:a rel="attr">taillabel</html:a>.
 				</html:p>
 			</xsd:documentation>
 		</xsd:annotation>
@@ -2498,6 +2508,7 @@
 		<xsd:attribute ref="samehead" />
 		<xsd:attribute ref="sametail" />
 		<xsd:attribute ref="showboxes" default="0" />
+		<xsd:attribute name="shape" type="edgeLabelShape" />
 		<xsd:attribute ref="style" />
 		<xsd:attribute ref="tailURL" />
 		<xsd:attribute ref="tailclip" default="true" />

@@ -2878,8 +2878,28 @@ static void emit_begin_edge(GVJ_t *job, edge_t *e, char **styles) {
     gvrender_begin_anchor(job, obj->url, obj->tooltip, obj->target, obj->id);
 }
 
+static bool edge_label_has_box_shape(edge_t *e)
+{
+    const char *const shape = agget(e, "shape");
+    return shape && streq(shape, "box");
+}
+
+static void emit_edge_label_box(GVJ_t *job, edge_t *e,
+                                const textlabel_t *lbl)
+{
+    if (!edge_label_has_box_shape(e))
+        return;
+
+    boxf label_box;
+    label_box.LL.x = lbl->pos.x - lbl->dimen.x / 2.0;
+    label_box.LL.y = lbl->pos.y - lbl->dimen.y / 2.0;
+    label_box.UR.x = lbl->pos.x + lbl->dimen.x / 2.0;
+    label_box.UR.y = lbl->pos.y + lbl->dimen.y / 2.0;
+    gvrender_box(job, label_box, 0);
+}
+
 static void
-emit_edge_label(GVJ_t* job, textlabel_t* lbl, emit_state_t lkind, int explicit,
+emit_edge_label(GVJ_t* job, edge_t *e, textlabel_t* lbl, emit_state_t lkind, int explicit,
     char* url, char* tooltip, char* target, char *id, splines* spl)
 {
     int flags = job->flags;
@@ -2914,6 +2934,8 @@ emit_edge_label(GVJ_t* job, textlabel_t* lbl, emit_state_t lkind, int explicit,
 	map_label(job, lbl);
 	gvrender_begin_anchor(job, url, tooltip, target, newid);
     }
+    if (lkind == EMIT_ELABEL && e != NULL)
+        emit_edge_label_box(job, e, lbl);
     emit_label(job, lkind, lbl);
     if (spl) emit_attachment(job, lbl, spl);
     if (url || explicit) {
@@ -3007,19 +3029,19 @@ static void emit_end_edge(GVJ_t * job)
 	              obj->explicit_headtooltip != 0);
     }
 
-    emit_edge_label(job, ED_label(e), EMIT_ELABEL,
+    emit_edge_label(job, e, ED_label(e), EMIT_ELABEL,
 	obj->explicit_labeltooltip, 
 	obj->labelurl, obj->labeltooltip, obj->labeltarget, obj->id, 
 	((mapbool(late_string(e, E_decorate, "false")) && ED_spl(e)) ? ED_spl(e) : 0));
-    emit_edge_label(job, ED_xlabel(e), EMIT_ELABEL,
+    emit_edge_label(job, NULL, ED_xlabel(e), EMIT_ELABEL,
 	obj->explicit_labeltooltip, 
 	obj->labelurl, obj->labeltooltip, obj->labeltarget, obj->id, 
 	((mapbool(late_string(e, E_decorate, "false")) && ED_spl(e)) ? ED_spl(e) : 0));
-    emit_edge_label(job, ED_head_label(e), EMIT_HLABEL, 
+    emit_edge_label(job, NULL, ED_head_label(e), EMIT_HLABEL,
 	obj->explicit_headtooltip,
 	obj->headurl, obj->headtooltip, obj->headtarget, obj->id,
 	0);
-    emit_edge_label(job, ED_tail_label(e), EMIT_TLABEL, 
+    emit_edge_label(job, NULL, ED_tail_label(e), EMIT_TLABEL,
 	obj->explicit_tailtooltip,
 	obj->tailurl, obj->tailtooltip, obj->tailtarget, obj->id,
 	0);
@@ -4364,4 +4386,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
