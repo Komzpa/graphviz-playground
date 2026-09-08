@@ -437,21 +437,23 @@ static int betweenclust(edge_t *e) {
   return ND_clust(agtail(e)) != ND_clust(aghead(e));
 }
 
+static bool orderable_pair(node_t *u, node_t *v) {
+  return ND_rank(u) == ND_rank(v) && ND_clust(u) == ND_clust(v);
+}
+
 static void do_ordering_node(graph_t *g, node_t *n, bool outflag) {
   int i, ne;
   node_t *u, *v;
   edge_t *e, *f, *fe;
   edge_t **sortlist = TE_list;
 
-  if (ND_clust(n))
-    return;
   if (outflag) {
     for (i = ne = 0; (e = ND_out(n).list[i]); i++)
-      if (!betweenclust(e))
+      if (!ND_clust(n) || !betweenclust(e))
         sortlist[ne++] = e;
   } else {
     for (i = ne = 0; (e = ND_in(n).list[i]); i++)
-      if (!betweenclust(e))
+      if (!ND_clust(n) || !betweenclust(e))
         sortlist[ne++] = e;
   }
   if (ne <= 1)
@@ -468,11 +470,56 @@ static void do_ordering_node(graph_t *g, node_t *n, bool outflag) {
       u = agtail(e);
       v = agtail(f);
     }
+    if (!orderable_pair(u, v))
+      continue;
     if (find_flat_edge(u, v))
       return;
     fe = new_virtual_edge(u, v, NULL);
     ED_edge_type(fe) = FLATORDER;
-    flat_edge(g, fe);
+    flat_edge(ND_clust(u) ? ND_clust(u) : g, fe);
+  }
+}
+
+static void do_original_ordering_node(graph_t *g, node_t *n, bool outflag) {
+  int ne = 0;
+  edge_t *e, *f, *fe;
+  edge_t **sortlist = TE_list;
+
+  if (outflag) {
+    for (e = agfstout(g, n); e; e = agnxtout(g, e))
+      sortlist[ne++] = e;
+  } else {
+    for (e = agfstin(g, n); e; e = agnxtin(g, e))
+      sortlist[ne++] = e;
+  }
+  if (ne <= 1)
+    return;
+  sortlist[ne] = 0;
+  qsort(sortlist, ne, sizeof(sortlist[0]), edgeidcmpf);
+
+  for (ne = 1; (f = sortlist[ne]); ne++) {
+    e = sortlist[ne - 1];
+    node_t *const u = outflag ? aghead(e) : agtail(e);
+    node_t *const v = outflag ? aghead(f) : agtail(f);
+    if (!orderable_pair(u, v))
+      continue;
+    if (find_flat_edge(u, v))
+      continue;
+    fe = new_virtual_edge(u, v, NULL);
+    ED_edge_type(fe) = FLATORDER;
+    flat_edge(ND_clust(u) ? ND_clust(u) : g, fe);
+  }
+}
+
+static void do_original_ordering_for_nodes(graph_t *g) {
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    const char *const ordering = late_string(n, N_ordering, NULL);
+    if (!ordering)
+      continue;
+    if (streq(ordering, "out"))
+      do_original_ordering_node(g, n, true);
+    else if (streq(ordering, "in"))
+      do_original_ordering_node(g, n, false);
   }
 }
 
@@ -1022,6 +1069,9 @@ static void init_mincross(graph_t *g) {
   mincross_options(g);
   if (GD_flags(g) & NEW_RANK)
     fillRanks(g);
+  mark_clusters(g);
+  if (N_ordering)
+    do_original_ordering_for_nodes(g);
   class2(g);
   decompose(g, 1);
   allocate_ranks(g);
@@ -1682,10 +1732,16 @@ static int nodeposcmpf(const void *x, const void *y) {
 static int edgeidcmpf(const void *x, const void *y) {
   edge_t *const *const e0 = x;
   edge_t *const *const e1 = y;
-  if (AGSEQ(*e0) < AGSEQ(*e1)) {
+  edge_t *orig0 = *e0;
+  edge_t *orig1 = *e1;
+  while (ED_to_orig(orig0))
+    orig0 = ED_to_orig(orig0);
+  while (ED_to_orig(orig1))
+    orig1 = ED_to_orig(orig1);
+  if (AGSEQ(orig0) < AGSEQ(orig1)) {
     return -1;
   }
-  if (AGSEQ(*e0) > AGSEQ(*e1)) {
+  if (AGSEQ(orig0) > AGSEQ(orig1)) {
     return 1;
   }
   return 0;
