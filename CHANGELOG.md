@@ -13,6 +13,8 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- PIC output now emits drawing coordinates in consistent inch units. #2487
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

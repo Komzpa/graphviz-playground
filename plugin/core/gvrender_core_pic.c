@@ -167,13 +167,16 @@ static const char *picfontname(strview_t psname) {
 static void picptarray(GVJ_t *job, pointf *A, size_t n, int close) {
     for (size_t i = 0; i < n; i++) {
         if (i == 0) {
-            gvprintf(job, "move to (%.0f, %.0f)", A[i].x, A[i].y);
+            gvprintf(job, "move to (%.5f, %.5f)", PS2INCH(A[i].x),
+                     PS2INCH(A[i].y));
         } else {
-            gvprintf(job, "; line to (%.0f, %.0f)", A[i].x, A[i].y);
+            gvprintf(job, "; line to (%.5f, %.5f)", PS2INCH(A[i].x),
+                     PS2INCH(A[i].y));
         }
     }
     if (close) {
-        gvprintf(job, "; line to (%.0f, %.0f)", A[0].x, A[0].y);
+        gvprintf(job, "; line to (%.5f, %.5f)", PS2INCH(A[0].x),
+                 PS2INCH(A[0].y));
     }
     gvputs(job, "\n");
 }
@@ -351,8 +354,8 @@ static void pic_textspan(GVJ_t * job, pointf p, textspan_t * span)
         break;
     }
     /* Why on earth would we do this. But it works. SCN 2/26/2002 */
-    p.y += span->font->size / (3.0 * POINTS_PER_INCH);
-    p.x += span->size.x / (2.0 * POINTS_PER_INCH);
+    const double x = PS2INCH(p.x) + span->size.x / (2.0 * POINTS_PER_INCH);
+    const double y = PS2INCH(p.y) + span->font->size / (3.0 * POINTS_PER_INCH);
 
     if (span->font->name && !font_name_eq(job->window, span->font->name)) {
         gvprintf(job, ".ft %s\n", picfontname(strview(span->font->name, '\0')));
@@ -385,7 +388,7 @@ static void pic_textspan(GVJ_t * job, pointf p, textspan_t * span)
     }
     gvputc(job, '"');
     gvputs_nonascii(job, span->str);
-    gvprintf(job, "\" at (%.5f,%.5f);\n", p.x, p.y);
+    gvprintf(job, "\" at (%.5f,%.5f);\n", x, y);
 }
 
 static void pic_ellipse(GVJ_t * job, pointf * A, int filled)
@@ -409,7 +412,8 @@ static void pic_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
     V[3].x = A[0].x;
     V[3].y = A[0].y;
     /* Write first point in line */
-    gvprintf(job, "move to (%.0f, %.0f)", A[0].x, A[0].y);
+    gvprintf(job, "move to (%.5f, %.5f)", PS2INCH(A[0].x),
+             PS2INCH(A[0].y));
     /* write subsequent points */
     for (size_t i = 0; i + 3 < n; i += 3) {
         V[0] = V[3];
@@ -419,7 +423,8 @@ static void pic_bezier(GVJ_t *job, pointf *A, size_t n, int filled) {
         }
         for (int step = 1; step <= BEZIERSUBDIVISION; step++) {
             pointf pf = Bezier(V, (double)step / BEZIERSUBDIVISION, NULL, NULL);
-            gvprintf(job, "; spline to (%.0f, %.0f)", pf.x, pf.y);
+            gvprintf(job, "; spline to (%.5f, %.5f)", PS2INCH(pf.x),
+                     PS2INCH(pf.y));
         }
     }
 
