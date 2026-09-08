@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Processing a large graph no longer overflows the stack in the network simplex
+  tree-rank adjustment step in Debug builds. #2812
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
