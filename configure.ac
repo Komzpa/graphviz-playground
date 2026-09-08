@@ -1613,34 +1613,45 @@ AS_IF([test "$with_qt" != "no"], [
   AC_CHECK_PROGS([QMAKE], [qmake6 qmake-qt5 qmake5 qmake], [false])
   AS_IF([test "$QMAKE" = "qmake6"], [
     # Qt6
-    AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_HEADERS)/QtCore/QtCore, [
-      QTCORE_CFLAGS="-I$(${QMAKE} -query QT_INSTALL_HEADERS) -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtCore"
-      AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_LIBS)/libQt6Core.so, [
-        QTCORE_LIBS="-L$(${QMAKE} -query QT_INSTALL_LIBS) -lQt6Core"
-        AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_HEADERS)/QtWidgets/QtWidgets, [
-          AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_HEADERS)/QtPrintSupport/QtPrintSupport, [
-            QTGUI_CFLAGS="-I$(${QMAKE} -query QT_INSTALL_HEADERS) -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtWidgets -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtPrintSupport -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtGui"
-            AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_LIBS)/libQt6Widgets.so, [
-              AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_LIBS)/libQt6PrintSupport.so, [
-                QTGUI_LIBS="-L$(${QMAKE} -query QT_INSTALL_LIBS) -lQt6Widgets -lQt6PrintSupport -lQt6Gui -lQt6Core"
-                use_qt="Yes"
-              ], [
-                use_qt="No (Qt6PrintSupport library not available)"
-              ])
-            ], [
-              use_qt="No (Qt6Widgets library not available)"
-            ])
-          ], [
-            use_qt="No (Qt6PrintSupport header not available)"
-          ])
-        ], [
-          use_qt="No (Qt6Widgets header not available)"
-        ])
+    PKG_CHECK_MODULES([QTCORE], [Qt6Core >= 6.3.1], [
+      PKG_CHECK_MODULES([QTGUI], [Qt6Widgets Qt6PrintSupport], [
+        use_qt="Yes"
       ], [
-        use_qt="No (Qt6Core library not available)"
+        use_qt="No (Qt6Widgets or Qt6PrintSupport not available via pkg-config)"
       ])
     ], [
-      use_qt="No (Qt6Core header not available)"
+      use_qt="No (Qt6Core >= 6.3.1 not available via pkg-config)"
+    ])
+    AS_IF([test "$use_qt" != "Yes"], [
+      AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_HEADERS)/QtCore/QtCore, [
+        QTCORE_CFLAGS="-I$(${QMAKE} -query QT_INSTALL_HEADERS) -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtCore"
+        AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_LIBS)/libQt6Core.so, [
+          QTCORE_LIBS="-L$(${QMAKE} -query QT_INSTALL_LIBS) -lQt6Core"
+          AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_HEADERS)/QtWidgets/QtWidgets, [
+            AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_HEADERS)/QtPrintSupport/QtPrintSupport, [
+              QTGUI_CFLAGS="-I$(${QMAKE} -query QT_INSTALL_HEADERS) -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtWidgets -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtPrintSupport -I$(${QMAKE} -query QT_INSTALL_HEADERS)/QtGui"
+              AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_LIBS)/libQt6Widgets.so, [
+                AC_CHECK_FILE($(${QMAKE} -query QT_INSTALL_LIBS)/libQt6PrintSupport.so, [
+                  QTGUI_LIBS="-L$(${QMAKE} -query QT_INSTALL_LIBS) -lQt6Widgets -lQt6PrintSupport -lQt6Gui -lQt6Core"
+                  use_qt="Yes"
+                ], [
+                  use_qt="No (Qt6PrintSupport library not available)"
+                ])
+              ], [
+                use_qt="No (Qt6Widgets library not available)"
+              ])
+            ], [
+              use_qt="No (Qt6PrintSupport header not available)"
+            ])
+          ], [
+            use_qt="No (Qt6Widgets header not available)"
+          ])
+        ], [
+          use_qt="No (Qt6Core library not available)"
+        ])
+      ], [
+        use_qt="No (Qt6Core header not available)"
+      ])
     ])
   ], [
     # Qt5
@@ -1666,6 +1677,12 @@ AS_IF([test "$with_qt" != "no"], [
   use_qt="No (disabled)"
 ])
 AM_CONDITIONAL([WITH_QT], [test "$use_qt" = "Yes"])
+AS_IF([test "$QMAKE" = "qmake6"], [
+  QMAKE_QT_SELECT=
+], [
+  QMAKE_QT_SELECT="QT_SELECT=5"
+])
+AC_SUBST([QMAKE_QT_SELECT])
 
 dnl -----------------------------------
 dnl INCLUDES and LIBS for QUARTZ

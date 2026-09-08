@@ -61,9 +61,8 @@ $(MOCABLES): mocables
 mocables qrc_mdi.cpp ui_settings.h: qMakefile
 	$(MAKE) -f qMakefile prefix=${prefix} exec_prefix=${exec_prefix} mocables compiler_rcc_make_all
 
-# in case the user has both Qt4 and Qt5 installed, set QT_SELECT to force Qt5
 qMakefile: gvedit.pro
-	QT_SELECT=5 $(QMAKE) -o qMakefile gvedit.pro
+	$(QMAKE_QT_SELECT) $(QMAKE) -o qMakefile gvedit.pro
 
 .1.1.pdf:
 	rm -f $@; pdffile=$@; psfile=$${pdffile%pdf}ps; \
@@ -81,4 +80,3 @@ clean-local:
 
 distclean-local:
 	-$(MAKE) -f qMakefile distclean
-

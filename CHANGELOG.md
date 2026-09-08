@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The Autotools build now discovers Qt 6.3.1 and newer through pkg-config
+  before falling back to qmake-based probing. #2580
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855
