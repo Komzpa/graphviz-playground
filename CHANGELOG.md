@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Processing `concentrate=true` graphs no longer crashes when a concentrated
+  node only has incoming or outgoing concentrated edges. #2764
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

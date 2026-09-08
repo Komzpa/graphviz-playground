@@ -6203,6 +6203,57 @@ def test_2727():
     dot("svg", input)
 
 
+@pytest.mark.parametrize(
+    "concentrate", (False, True), ids=("ordinary-edges", "concentrated-edges")
+)
+def test_2764_no_crash(concentrate: bool):
+    """
+    a one-sided concentrated virtual node should not crash spline routing;
+    the ordinary-edge control confirms the input itself is valid
+    https://gitlab.com/graphviz/graphviz/-/issues/2764
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2764.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # Keep the same graph as an ordinary-edge control. Only concentration
+    # creates the one-sided virtual node that previously triggered the crash.
+    source = input.read_text().replace(
+        "concentrate=true", f"concentrate={str(concentrate).lower()}"
+    )
+    dot("dot", source=source)
+
+
+def test_2764_output_has_pos():
+    """
+    concentrated one-sided virtual-node graphs should retain spline edge positions
+    https://gitlab.com/graphviz/graphviz/-/issues/2764
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2764.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # only concentrated mode exercises the one-sided conc_slope path
+    source = input.read_text()
+    layout = dot("dot", source=source)
+    edge_attrs = {}
+    for line in layout.splitlines():
+        line = line.strip()
+        if "->" not in line:
+            continue
+        match = re.match(r"(?P<edge>.+?)(?:\s+\[(?P<attrs>.*)\])?;$", line)
+        assert match is not None, f"unexpected edge line in dot output: {line}"
+        edge_attrs[match.group("edge")] = match.group("attrs") or ""
+
+    for edge in ("left -> sink:p", "top:p -> sink:p", "top -> t", "t -> sink:p"):
+        assert edge in edge_attrs, f"missing routed edge in concentrated output: {edge}"
+        assert "pos=" in edge_attrs[edge], (
+            f"one-sided slope should still route concentrated output edge: {edge}"
+        )
+
+
 @pytest.mark.skipif(which("gvpr") is None, reason="gvpr is not available")
 def test_2731():
     """

@@ -1,0 +1,17 @@
+digraph {
+  graph [concentrate=true]
+  node [shape=record]
+
+  subgraph cluster_c {
+    left [label="<p> left"]
+    top [label="<p> top"]
+  }
+
+  sink [label="<p> sink"]
+  t [label="<p> t"]
+
+  left -> sink:p
+  top:p -> sink:p
+  top -> sink:p
+  top -> t -> sink:p
+}
