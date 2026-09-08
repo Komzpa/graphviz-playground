@@ -523,6 +523,38 @@ def test_517():
     ), "regular label missing"
 
 
+def test_2344():
+    """
+    copied GXL converter aliases should choose their mode from the executable name
+    even when invoked by absolute path
+    https://gitlab.com/graphviz/graphviz/-/issues/2344
+    """
+
+    source = "digraph { a -> b }\n"
+    gxl2gv = which("gxl2gv")
+    if gxl2gv is None:
+        dot_exe = which("dot")
+        if dot_exe is not None:
+            candidate = dot_exe.parent.parent / "tools" / "gxl2gv"
+            if candidate.exists():
+                gxl2gv = candidate
+    if gxl2gv is None:
+        pytest.skip("GXL tools not available")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpdir = Path(tmp)
+        gv2gxl_copy = tmpdir / "gv2gxl.EXE"
+        gxl2gv_copy = tmpdir / "gxl2gv.EXE"
+        shutil.copy2(gxl2gv, gv2gxl_copy)
+        shutil.copy2(gxl2gv, gxl2gv_copy)
+
+        gxl = run(gv2gxl_copy, input=source)
+        dot_output = run(gxl2gv_copy, input=gxl)
+
+    assert gxl.startswith("<?xml"), "gv2gxl alias did not emit GXL"
+    assert "a -> b" in dot_output, "gxl2gv alias did not emit DOT"
+
+
 def test_793():
     """
     Graphviz should not crash when using VRML output with a non-writable current
