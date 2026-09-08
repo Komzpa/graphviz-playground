@@ -13,6 +13,12 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+
+### Changed
+
+- PostScript user shape files are now read in binary mode, avoiding text-mode
+  newline translation in Windows builds.
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

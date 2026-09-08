@@ -79,7 +79,8 @@ TESTS: list[Case] = [
         Path("ps_user_shapes.gv"),
         "dot",
         "ps",
-        ["-Nshapefile=graphs/dice.ps"],
+        [f"-Nshapefile={GRAPHDIR / 'dice.ps'}"],
+        xfail=False,
     ),
     Case("colorscheme", Path("colorscheme.gv"), "dot", "ps", []),
     Case("colorscheme", Path("colorscheme.gv"), "dot", "png", []),
@@ -449,13 +450,5 @@ def test_graph(
     OUTFILE = genOutname(name, algorithm, format, index)
     OUTPATH = tmp_path / OUTFILE
     testcmd = ["dot", f"-K{algorithm}", f"-T{format}"] + flags + ["-o", OUTPATH, INFILE]
-    # FIXME: Remove when https://gitlab.com/graphviz/graphviz/-/issues/1790 is
-    # fixed
-    if platform.system() == "Windows" and name == "ps_user_shapes":
-        pytest.skip(
-            f"Skipping test {name}: using PostScript shapefile "
-            "because it fails with Windows builds (#1790)"
-        )
-
     run(*testcmd)
     doDiff(OUTPATH, REFDIR / OUTFILE, format)

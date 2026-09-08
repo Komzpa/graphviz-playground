@@ -50,7 +50,7 @@ static usershape_t *user_init(const char *str)
     if (us)
 	return us;
 
-    if (!(fp = gv_fopen(str, "r"))) {
+    if (!(fp = gv_fopen(str, "rb"))) {
 	agwarningf("couldn't open epsf file %s\n", str);
 	return NULL;
     }
@@ -77,7 +77,8 @@ static usershape_t *user_init(const char *str)
 	fstat(fileno(fp), &statbuf);
 	char *contents = us->data = gv_calloc((size_t)statbuf.st_size + 1, sizeof(char));
 	if (fseek(fp, 0, SEEK_SET) == 0 &&
-	    fread(contents, (size_t)statbuf.st_size, 1, fp) == 1) {
+	    fread(contents, 1, (size_t)statbuf.st_size, fp) ==
+		(size_t)statbuf.st_size) {
             contents[statbuf.st_size] = '\0';
             dtinsert(EPSF_contents, us);
             us->must_inline = must_inline;
@@ -160,7 +161,7 @@ void cat_libfile(GVJ_t * job, const char **arglib, const char **stdlib)
 	    if (!safepath) {
 		agwarningf("can't find library file %s\n", p);
 	    }
-            else if ((fp = gv_fopen(safepath, "r"))) {
+            else if ((fp = gv_fopen(safepath, "rb"))) {
                 while (true) {
                     char bp[BUFSIZ] = {0};
                     size_t r = fread(bp, 1, sizeof(bp), fp);
