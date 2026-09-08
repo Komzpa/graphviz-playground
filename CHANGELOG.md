@@ -7,6 +7,11 @@ and this project adheres to
 
 ## [Unreleased (16.1.1)]
 
+### Changed
+
+- The Autotools build system can now build the experimental C++ API libraries
+  using `--with-cxx-api=yes`. #2826
+
 ### Fixed
 
 - `nop` no longer reorders edges. #2855

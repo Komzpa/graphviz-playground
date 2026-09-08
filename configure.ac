@@ -278,6 +278,20 @@ AC_PROG_CXX
 AX_CXX_COMPILE_STDCXX_17(noext,mandatory)
 AC_PROG_OBJC
 
+dnl -----------------------------------
+dnl C++ API libraries
+
+AC_ARG_WITH(cxx-api,
+  [AS_HELP_STRING([--with-cxx-api=yes],[C++ API libraries])],
+  [], [with_cxx_api=no])
+
+if test "$with_cxx_api" = "yes"; then
+  use_cxx_api="Yes"
+else
+  use_cxx_api="No (disabled)"
+fi
+AM_CONDITIONAL(WITH_CXX_API, [test "$use_cxx_api" = "Yes"])
+
 dnl ===========================================================================
 dnl Set GCC compiler flags
 
@@ -2081,6 +2095,7 @@ AC_CONFIG_FILES(Makefile
 	lib/cdt/libcdt.pc
 	lib/cgraph/Makefile
 	lib/cgraph/libcgraph.pc
+	lib/cgraph++/Makefile
 	lib/rbtree/Makefile
 	lib/pathplan/Makefile
 	lib/pathplan/libpathplan.pc
@@ -2108,6 +2123,7 @@ AC_CONFIG_FILES(Makefile
 	lib/vpsc/Makefile
 	lib/gvc/Makefile
 	lib/gvc/libgvc.pc
+	lib/gvc++/Makefile
 	lib/xdot/Makefile
 	lib/xdot/libxdot.pc
 	lib/topfish/Makefile
@@ -2202,6 +2218,7 @@ echo "graphviz-$VERSION will be compiled with the following:"
 echo ""
 echo "options:"
 echo "  cgraph:        Yes (always enabled)"
+echo "  c++ api:       $use_cxx_api"
 echo "  digcola:       $use_digcola"
 echo "  expat:         $use_expat"
 echo "  freetype:      $use_freetype"
