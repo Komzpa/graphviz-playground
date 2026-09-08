@@ -4576,6 +4576,41 @@ def test_2502():
     dot("dot", input)
 
 
+def test_2523():
+    """
+    per-edge splines=line should render the selected dot edge as a line
+    https://gitlab.com/graphviz/graphviz/-/issues/2523
+    """
+
+    graph = """\
+        digraph {
+          a -> b;
+          a -> c;
+          b -> d;
+          c -> d;
+          d -> a [splines=line];
+        }
+    """
+
+    xdot = dot("xdot", source=graph)
+
+    def edge_draw(tail: str, head: str) -> str:
+        edge = re.search(
+            rf"\b{tail} -> {head}\s+\[.*?_draw_=\"([^\"]+)\"",
+            xdot,
+            re.DOTALL,
+        )
+        assert edge is not None, f"missing {tail} -> {head} xdot draw commands"
+        return edge.group(1)
+
+    local_line_edge = edge_draw("d", "a")
+    assert re.search(r"\bL 2\b", local_line_edge) is not None
+    assert re.search(r"\bB\b", local_line_edge) is None
+
+    default_edge = edge_draw("a", "b")
+    assert re.search(r"\bB\b", default_edge) is not None
+
+
 @pytest.mark.xfail(
     strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/2516"
 )

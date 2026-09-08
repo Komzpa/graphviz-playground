@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
@@ -2347,6 +2348,16 @@ static void draw_ortho_corner_markers(GVJ_t *job, const corners_t *corners,
     }
 }
 
+static bool edge_wants_straight_line(edge_t *e) {
+    const char *const splines_attr = agget(e, "splines");
+
+    return splines_attr != NULL &&
+           (strcasecmp(splines_attr, "line") == 0 ||
+            strcasecmp(splines_attr, "false") == 0 ||
+            strcasecmp(splines_attr, "no") == 0 ||
+            strcmp(splines_attr, "0") == 0);
+}
+
 static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 {
     int cnum, numsemi = 0;
@@ -2549,6 +2560,7 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 	    }
 	    for (size_t i = 0; i < ED_spl(e)->size; i++) {
 		bz = ED_spl(e)->list[i];
+		const bool straight_line = edge_wants_straight_line(e);
 
 		/* Check if this edge has orthogonal routing and wants rounded corners */
 		char *splines_attr = agget(agraphof(aghead(e)), "splines");
@@ -2580,7 +2592,10 @@ static void emit_edge_graphics(GVJ_t * job, edge_t * e, char** styles)
 		    radius = fmax(12.0, penwidth * 8.0);
 		}
 
-		if (is_ortho && want_rounded && radius > 0) {
+		if (straight_line && bz.size >= 2) {
+		    pointf line[] = {bz.list[0], bz.list[bz.size - 1]};
+		    gvrender_polyline(job, line, ARRAY_SIZE(line));
+		} else if (is_ortho && want_rounded && radius > 0) {
 		    /* Truncate edge at corners and draw arcs */
 		    corners_t corners = {0};
 		    LIST_RESERVE(&corners, bz.size);
@@ -4364,4 +4379,3 @@ bool findStopColor(const char *colorlist, char *clrs[2], double *frac) {
     LIST_FREE(&segs);
     return true;
 }
-
