@@ -799,6 +799,52 @@ def test_1332():
     ), "warnings were printed when processing graph involving triangulation"
 
 
+@pytest.mark.skipif(which("neato") is None, reason="neato not available")
+@pytest.mark.xfail(strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1098")
+def test_1098():
+    """
+    neato should not place an arrowhead inside the tail node when nodes are close
+    https://gitlab.com/graphviz/graphviz/-/issues/1098
+    """
+
+    source = "digraph G { layout=neato; abc -> def [len=0.40]; }"
+
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+    namespace = "{http://www.w3.org/2000/svg}"
+
+    tail_ellipse = None
+    arrowhead = None
+    for group in root.findall(f".//{namespace}g"):
+        title = group.find(f"{namespace}title")
+        if title is None:
+            continue
+
+        if title.text == "abc":
+            tail_ellipse = group.find(f"{namespace}ellipse")
+        elif title.text == "abc->def":
+            arrowhead = group.find(f"{namespace}polygon")
+
+    assert tail_ellipse is not None, "missing tail node ellipse"
+    assert arrowhead is not None, "missing edge arrowhead polygon"
+
+    cx = float(tail_ellipse.get("cx"))
+    cy = float(tail_ellipse.get("cy"))
+    rx = float(tail_ellipse.get("rx"))
+    ry = float(tail_ellipse.get("ry"))
+
+    def inside_tail_ellipse(point: tuple[float, float]) -> bool:
+        x, y = point
+        return ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1
+
+    arrowhead_points = [
+        tuple(float(coord) for coord in point.split(","))
+        for point in arrowhead.get("points").split()
+    ]
+
+    assert not any(inside_tail_ellipse(point) for point in arrowhead_points)
+
+
 def test_1367():
     """
     this graph should not generate a null pointer dereference
