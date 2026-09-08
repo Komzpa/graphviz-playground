@@ -64,13 +64,18 @@ typedef struct {
 
 typedef struct {
   pointf pt;
-  int vnext[4];         /* next vertices for the 4 chains */
-  int vpos[4];          /* position of v in the 4 chains */
-  int nextfree;
+  int *vnext;           /* next vertices for the active chains */
+  int *vpos;            /* position of v in the active chains */
+  size_t nextfree;
+  size_t capacity;
 } vertexchain_t;
 
 static int chain_idx;
 static size_t mon_idx;
+static size_t mon_capacity;
+static size_t chain_capacity;
+static size_t vert_size;
+static bool partition_inconsistent;
 	/* contains position of any vertex in */
 	/* the monotone chain for the polygon */
 static int* mon;
@@ -79,6 +84,27 @@ static int* mon;
 #define newmon() (++mon_idx)
 /* return a new chain element from the table */
 #define new_chain_element() (++chain_idx)
+
+static bool is_valid_vertex_index(int v) {
+  return v > 0 && (size_t)v < vert_size;
+}
+
+static void vertexchain_reserve(vertexchain_t *vc, size_t need) {
+  assert(vc != NULL);
+
+  if (need <= vc->capacity)
+    return;
+
+  size_t capacity = vc->capacity > 0 ? vc->capacity : 4;
+  while (capacity < need)
+    capacity *= 2;
+
+  vc->vnext =
+      gv_recalloc(vc->vnext, vc->capacity, capacity, sizeof(vc->vnext[0]));
+  vc->vpos =
+      gv_recalloc(vc->vpos, vc->capacity, capacity, sizeof(vc->vpos[0]));
+  vc->capacity = capacity;
+}
 
 static void
 convert (boxf bb, int flip, int ccw, pointf* pts)
@@ -243,21 +269,45 @@ static void get_vertex_positions(const vertexchain_t *vert, int v0, int v1,
 static size_t make_new_monotone_poly(vertexchain_t *vert, monchain_t *chain,
                                      size_t mcur, int v0, int v1) {
   int p, q, ip, iq;
-  const size_t mnew = newmon();
+  size_t mnew;
   int i, j, nf0, nf1;
   vertexchain_t *vp0, *vp1;
+
+  if (!is_valid_vertex_index(v0) || !is_valid_vertex_index(v1)) {
+    partition_inconsistent = true;
+    return mcur;
+  }
   
   vp0 = &vert[v0];
   vp1 = &vert[v1];
 
+  if (vp0->nextfree == 0 || vp1->nextfree == 0 || vp0->vnext == NULL ||
+      vp0->vpos == NULL || vp1->vnext == NULL || vp1->vpos == NULL) {
+    partition_inconsistent = true;
+    return mcur;
+  }
+
   get_vertex_positions(vert, v0, v1, &ip, &iq);
+
+  if (ip < 0 || iq < 0 || (size_t)ip >= vp0->nextfree ||
+      (size_t)iq >= vp1->nextfree) {
+    partition_inconsistent = true;
+    return mcur;
+  }
 
   p = vp0->vpos[ip];
   q = vp1->vpos[iq];
 
+  if (p <= 0 || q <= 0 || (size_t)chain_idx + 2 >= chain_capacity ||
+      mon_idx + 1 >= mon_capacity) {
+    partition_inconsistent = true;
+    return mcur;
+  }
+
   /* At this stage, we have got the positions of v0 and v1 in the */
   /* desired chain. Now modify the linked lists */
 
+  mnew = newmon();
   i = new_chain_element();	/* for the new list */
   j = new_chain_element();
 
@@ -274,8 +324,11 @@ static size_t make_new_monotone_poly(vertexchain_t *vert, monchain_t *chain,
   chain[p].next = q;
   chain[q].prev = p;
 
-  nf0 = vp0->nextfree;
-  nf1 = vp1->nextfree;
+  nf0 = (int)vp0->nextfree;
+  nf1 = (int)vp1->nextfree;
+
+  vertexchain_reserve(vp0, vp0->nextfree + 1);
+  vertexchain_reserve(vp1, vp1->nextfree + 1);
 
   vp0->vnext[ip] = v1;
 
@@ -573,13 +626,16 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
 
     // Table to hold all the monotone polygons. Each monotone polygon is a
     // circularly linked list
-    monchain_t *const mchain = gv_calloc(LIST_SIZE(tr), sizeof(monchain_t));
+    chain_capacity = (size_t)nsegs + 2 * LIST_SIZE(tr) + 1;
+    monchain_t *const mchain = gv_calloc(chain_capacity, sizeof(monchain_t));
 
     // Chain initial information. This is used to decide which monotone polygon
     // to split if there are several other polygons touching the same vertex.
-    vertexchain_t *const vert = gv_calloc(nsegs + 1, sizeof(vertexchain_t));
+    vert_size = (size_t)nsegs + 1;
+    vertexchain_t *const vert = gv_calloc(vert_size, sizeof(vertexchain_t));
 
-    mon = gv_calloc(nsegs, sizeof(int));
+    mon_capacity = LIST_SIZE(tr) + 1;
+    mon = gv_calloc(mon_capacity, sizeof(int));
 
   /* First locate a trapezoid which lies inside the polygon */
   /* and which is triangular */
@@ -596,6 +652,7 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
 	mchain[i].next = seg[i].next;
 	mchain[i].vnum = i;
 	vert[i].pt = seg[i].v0;
+	vertexchain_reserve(&vert[i], 1);
 	vert[i].vnext[0] = seg[i].next; /* next vertex */
 	vert[i].vpos[0] = i;	/* locn. of next vertex */
 	vert[i].nextfree = 1;
@@ -616,6 +673,10 @@ monotonate_trapezoids(int nsegs, segment_t *seg, traps_t *tr,
   
     bitarray_reset(&visited);
     free (mchain);
+    for (int k = 0; k <= nsegs; ++k) {
+	free(vert[k].vnext);
+	free(vert[k].vpos);
+    }
     free (vert);
     free (mon);
 }
@@ -667,6 +728,7 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
     const size_t nsegs = 4 * (ncells + 1);
     segment_t* segs = gv_calloc(nsegs + 1, sizeof(segment_t));
     int* permute = gv_calloc(nsegs, sizeof(int));
+    partition_inconsistent = false;
 
     if (DEBUG) {
 	fprintf(stderr, "cells = %" PRISIZE_T " segs = %" PRISIZE_T
@@ -723,6 +785,11 @@ boxf *partition(cell *cells, size_t ncells, size_t *nrects, boxf bb) {
 	                      LIST_GET(&hor_decomp, j)))
 		LIST_APPEND(&rs, newbox);
 	}
+
+    if (partition_inconsistent) {
+	LIST_FREE(&rs);
+	LIST_APPEND(&rs, bb);
+    }
 
     free (segs);
     free (permute);
