@@ -121,6 +121,23 @@ static void initnode(Agraph_t * g, Agnode_t * n)
     agmethod_init(g, n);
 }
 
+static void apply_local_node_defaults(Agraph_t *g, Agnode_t *n)
+{
+    Agraph_t *const parent = agparent(g);
+    if (!parent || !g->desc.has_attrs)
+	return;
+
+    for (Agsym_t *sym = agnxtattr(g, AGNODE, NULL); sym;
+	 sym = agnxtattr(g, AGNODE, sym)) {
+	if (sym->owner != g)
+	    continue;
+
+	if (!agnodeattr_is_explicit(n, sym) &&
+	    agnodeattr_set_default(n, sym) == FAILURE)
+	    break;
+    }
+}
+
 /* external node constructor - create by id */
 Agnode_t *agidnode(Agraph_t * g, IDTYPE id, int cflag)
 {
@@ -263,6 +280,7 @@ Agnode_t *agsubnode(Agraph_t * g, Agnode_t * n0, int cflag)
 	if ((par = agparent(g))) {
 	    n = agsubnode(par, n0, cflag);
 	    installnode(g, n);
+	    apply_local_node_defaults(g, n);
 	    /* no callback for existing node insertion in subgraph (?) */
 	}
 	/* else impossible that <n> doesn't belong to <g> */

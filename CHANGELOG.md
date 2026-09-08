@@ -13,6 +13,10 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Subgraph node defaults are now applied consistently, regardless of statement
+  ordering, and explicit node attributes are no longer overwritten by nested
+  defaults. #2264
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

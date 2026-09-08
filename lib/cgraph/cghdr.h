@@ -92,6 +92,8 @@ void agraphattr_init(Agraph_t * g);
 int agraphattr_delete(Agraph_t * g);
 void agnodeattr_init(Agraph_t *g, Agnode_t * n);
 void agnodeattr_delete(Agnode_t * n);
+bool agnodeattr_is_explicit(Agnode_t *n, Agsym_t *sym);
+int agnodeattr_set_default(Agnode_t *n, Agsym_t *sym);
 void agedgeattr_init(Agraph_t *g, Agedge_t * e);
 void agedgeattr_delete(Agedge_t * e);
 /// @}
