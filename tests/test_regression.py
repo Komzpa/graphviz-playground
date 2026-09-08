@@ -1040,6 +1040,33 @@ def test_1453():
     dot("svg", input)
 
 
+def test_806():
+    """
+    `splines=false` should render edge stems as line segments
+    https://gitlab.com/graphviz/graphviz/-/issues/806
+    """
+
+    source = "digraph { graph [splines=false]; A -> B; A -> C; B -> C; }"
+
+    svg = dot("svg", source=source)
+    root = ET.fromstring(svg)
+    edges = root.findall(".//{http://www.w3.org/2000/svg}g[@class='edge']")
+    assert len(edges) == 3
+    for edge in edges:
+        assert edge.find("{http://www.w3.org/2000/svg}polyline") is not None
+        assert edge.find("{http://www.w3.org/2000/svg}path") is None
+
+    default_svg = dot("svg", source=source.replace("graph [splines=false]; ", ""))
+    default_root = ET.fromstring(default_svg)
+    default_edges = default_root.findall(
+        ".//{http://www.w3.org/2000/svg}g[@class='edge']"
+    )
+    assert any(
+        edge.find("{http://www.w3.org/2000/svg}path") is not None
+        for edge in default_edges
+    )
+
+
 def test_1472():
     """
     processing a malformed graph found by Google Autofuzz should not crash
