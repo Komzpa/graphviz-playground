@@ -194,6 +194,10 @@ void free_textspan(textspan_t *tl, size_t cnt) {
     if (!tl) return;
     for (size_t i = 0; i < cnt; i++) {
 	free(tlp->str);
+	free(tlp->href);
+	free(tlp->tooltip);
+	free(tlp->target);
+	free(tlp->id);
 	if (tlp->layout && tlp->free_layout)
 	    tlp->free_layout (tlp->layout);
 	tlp++;

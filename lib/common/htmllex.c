@@ -170,6 +170,11 @@ static int idfn(htmldata_t *p, const char *v) {
   return 0;
 }
 
+static int namefn(htmldata_t *p, const char *v) {
+  p->id = strdup(v);
+  return 0;
+}
+
 /* doInt:
  * Scan v for integral value. Check that
  * the value is >= min and <= max. Return value in ul.
@@ -483,6 +488,15 @@ static const html_item_t cell_items[] = {
     {"width", widthfn},
 };
 
+static const html_item_t anchor_items[] = {
+    {"href", hreffn},
+    {"id", idfn},
+    {"name", namefn},
+    {"target", targetfn},
+    {"title", titlefn},
+    {"tooltip", titlefn},
+};
+
 typedef struct {
   char *name; ///< attribute name
   int (*action)(textfont_t *,
@@ -605,6 +619,15 @@ static htmltbl_t *mkTbl(htmllexstate_t *ctx, const char **atts) {
   return tbl;
 }
 
+static htmldata_t *mkAnchor(htmllexstate_t *ctx, const char **atts) {
+  htmldata_t *anchor = gv_alloc(sizeof(htmldata_t));
+
+  doAttrs(ctx, anchor, anchor_items,
+          sizeof(anchor_items) / sizeof(anchor_items[0]), atts, "<A>");
+
+  return anchor;
+}
+
 static void startElement(void *user, const char *name, const char **atts) {
   htmllexstate_t *ctx = user;
 
@@ -622,6 +645,9 @@ static void startElement(void *user, const char *name, const char **atts) {
   } else if (strcasecmp(name, "FONT") == 0) {
     ctx->htmllval->font = mkFont(ctx, atts, 0);
     ctx->tok = T_font;
+  } else if (strcasecmp(name, "A") == 0) {
+    ctx->htmllval->data = mkAnchor(ctx, atts);
+    ctx->tok = T_anchor;
   } else if (strcasecmp(name, "B") == 0) {
     ctx->htmllval->font = mkFont(ctx, 0, HTML_BF);
     ctx->tok = T_bold;
@@ -675,6 +701,8 @@ static void endElement(void *user, const char *name) {
     ctx->tok = T_end_html;
   } else if (strcasecmp(name, "FONT") == 0) {
     ctx->tok = T_end_font;
+  } else if (strcasecmp(name, "A") == 0) {
+    ctx->tok = T_end_anchor;
   } else if (strcasecmp(name, "B") == 0) {
     ctx->tok = T_n_bold;
   } else if (strcasecmp(name, "U") == 0) {

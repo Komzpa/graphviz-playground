@@ -173,6 +173,10 @@ emit_htextspans(GVJ_t *job, size_t nspans, htextspan_t *spans, pointf p,
 
 	    tl.str = ti->str;
 	    tl.font = &tf;
+	    tl.href = ti->href;
+	    tl.tooltip = ti->tooltip;
+	    tl.target = ti->target;
+	    tl.id = ti->id;
 	    tl.yoffset_layout = ti->yoffset_layout;
 	    if (simple)
 		tl.yoffset_centerline = ti->yoffset_centerline;
@@ -185,7 +189,11 @@ emit_htextspans(GVJ_t *job, size_t nspans, htextspan_t *spans, pointf p,
 	    tl.just = 'l';
 
 	    p_.x = p.x;
+	    if (tl.href || tl.tooltip || tl.target || tl.id)
+		gvrender_begin_anchor(job, tl.href, tl.tooltip, tl.target, tl.id);
 	    gvrender_textspan(job, p_, &tl);
+	    if (tl.href || tl.tooltip || tl.target || tl.id)
+		gvrender_end_anchor(job);
 	    p.x += ti->size.x;
 	    ti++;
 	}
@@ -812,6 +820,10 @@ void free_html_text(htmltxt_t * t)
 	textspan_t *const ti = tl[i].items;
 	for (size_t j = 0; j < tl[i].nitems; j++) {
 	    free(ti[j].str);
+	    free(ti[j].href);
+	    free(ti[j].tooltip);
+	    free(ti[j].target);
+	    free(ti[j].id);
 	    if (ti[j].layout && ti[j].free_layout)
 		ti[j].free_layout(ti[j].layout);
 	}
