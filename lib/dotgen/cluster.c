@@ -101,7 +101,7 @@ map_path(node_t * from, node_t * to, edge_t * orig, edge_t * ve, int type)
 	    e = virtual_edge(u, v, orig);
 	    ED_edge_type(e) = type;
 	    u = v;
-	    ED_count(ve)--;
+	    dot_bundle_load_adjust_legacy_count(ve, -1);
 	    ve = ND_out(aghead(ve)).list[0];
 	}
     } else {
@@ -110,7 +110,7 @@ map_path(node_t * from, node_t * to, edge_t * orig, edge_t * ve, int type)
 		/*ED_to_orig(ve) = orig; */
 		ED_to_virt(orig) = ve;
 		ED_edge_type(ve) = type;
-		ED_count(ve)++;
+		dot_bundle_load_adjust_legacy_count(ve, 1);
 		if (ND_node_type(from) == NORMAL && ND_node_type(to) == NORMAL)
 		    other_edge(orig);
 	    } else {
@@ -153,7 +153,7 @@ static void make_interclust_chain(node_t * from, node_t * to, edge_t * orig) {
 
 /* 
  * attach and install edges between clusters.
- * essentially, class2() for interclust edges.
+ * essentially, build_edge_chains() for interclust edges.
  */
 static void interclexp(graph_t * subg)
 {
@@ -171,6 +171,8 @@ static void interclexp(graph_t * subg)
 
 	    /* canonicalize edge */
 	    e = AGMKOUT(e);
+	    if (ED_edge_type(e) == IGNORED)
+		continue;
 	    /* short/flat multi edges */
 	    if (mergeable(prev, e)) {
 		if (ND_rank(agtail(e)) == ND_rank(aghead(e)))
@@ -180,7 +182,7 @@ static void interclexp(graph_t * subg)
 		if (ED_to_virt(prev) == NULL)
 		    continue;	/* internal edge */
 		ED_to_virt(e) = NULL;
-		merge_chain(subg, e, ED_to_virt(prev), false);
+		merge_chain(subg, e, ED_to_virt(prev), DOT_BUNDLE_ALIAS);
 		safe_other_edge(e);
 		continue;
 	    }
@@ -279,7 +281,7 @@ remove_rankleaders(graph_t * g)
 /* delete virtual nodes of a cluster, and install real nodes or sub-clusters */
 int expand_cluster(graph_t *subg) {
     /* build internal structure of the cluster */
-    class2(subg);
+    build_edge_chains(subg);
     GD_comp(subg).size = 1;
     GD_comp(subg).list[0] = GD_nlist(subg);
     allocate_ranks(subg);
@@ -317,7 +319,7 @@ void mark_clusters(graph_t * g)
 	    if (ND_ranktype(n) != NORMAL) {
 		agwarningf(
 		      "%s was already in a rankset, deleted from cluster %s\n",
-		      agnameof(n), agnameof(g));
+		      agnameof(n), agnameof(clust));
 		agdelete(clust,n);
 		continue;
 	    }

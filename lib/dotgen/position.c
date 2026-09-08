@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <common/edgeattr.h>
 #include <common/geomprocs.h>
 #include <dotgen/dot.h>
 #include <dotgen/aspect.h>
@@ -135,6 +136,7 @@ int dot_position(graph_t *g) {
 	    return rc;
 	}
     }
+    dot_bundle_load_dump(g, "after-concentrate");
     expand_leaves(g);
     if (flat_edges(g))
 	set_ycoords(g);
@@ -237,10 +239,14 @@ make_LR_constraints(graph_t * g)
     }
     /* make edges to constrain left-to-right ordering */
     for (i = GD_minrank(g); i <= GD_maxrank(g); i++) {
+	if (rank[i].n == 0 || rank[i].v[0] == NULL)
+	    continue;
 	double last = ND_rank(rank[i].v[0]) = 0;
 	nodesep = sep[i & 1];
 	for (j = 0; j < rank[i].n; j++) {
 	    u = rank[i].v[j];
+	    if (u == NULL)
+		continue;
 	    ND_mval(u) = ND_rw(u);	/* keep it somewhere safe */
 	    if (ND_other(u).size > 0) {	/* compute self size */
 		/* FIX: dot assumes all self-edges go to the right. This
@@ -774,13 +780,19 @@ static void set_ycoords(graph_t * g)
     /* make the initial assignment of ycoords to leftmost nodes by ranks */
     double maxht = 0;
     int r = GD_maxrank(g);
-    ND_coord(rank[r].v[0]).y = rank[r].ht1;
+    while (r >= GD_minrank(g) && (rank[r].n == 0 || rank[r].v[0] == NULL))
+	r--;
+    if (r < GD_minrank(g))
+	return;
+    double y = rank[r].ht1;
+    ND_coord(rank[r].v[0]).y = y;
     while (--r >= GD_minrank(g)) {
 	const double d0 = rank[r + 1].pht2 + rank[r].pht1 + GD_ranksep(g); // prim node sep
 	const double d1 = rank[r + 1].ht2 + rank[r].ht1 + CL_OFFSET; // cluster sep
 	const double delta = fmax(d0, d1);
-	if (rank[r].n > 0)	/* this may reflect some problem */
-		ND_coord(rank[r].v[0]).y = ND_coord(rank[r + 1].v[0]).y + delta;
+	y += delta;
+	if (rank[r].n > 0 && rank[r].v[0] != NULL)	/* this may reflect some problem */
+		ND_coord(rank[r].v[0]).y = y;
 #ifdef DEBUG
 	else
 	    fprintf(stderr, "dot set_ycoords: rank %d is empty\n",
@@ -799,11 +811,19 @@ static void set_ycoords(graph_t * g)
 	if (GD_exact_ranksep(g)) {  /* recompute maxht */
 	    maxht = 0;
 	    r = GD_maxrank(g);
+	    while (r >= GD_minrank(g) && (rank[r].n == 0 || rank[r].v[0] == NULL))
+		r--;
+	    if (r < GD_minrank(g))
+		return;
+	    int last_nonempty_rank = r;
 	    double d0 = ND_coord(rank[r].v[0]).y;
 	    while (--r >= GD_minrank(g)) {
+		if (rank[r].n == 0 || rank[r].v[0] == NULL)
+		    continue;
 		const double d1 = ND_coord(rank[r].v[0]).y;
-		const double delta = d1 - d0;
+		const double delta = (d1 - d0) / (last_nonempty_rank - r);
 		maxht = fmax(maxht, delta);
+		last_nonempty_rank = r;
 		d0 = d1;
 	    }
 	}
@@ -811,14 +831,23 @@ static void set_ycoords(graph_t * g)
 
     /* re-assign if ranks are equally spaced */
     if (GD_exact_ranksep(g)) {
-	for (r = GD_maxrank(g) - 1; r >= GD_minrank(g); r--)
-	    if (rank[r].n > 0)	/* this may reflect the same problem :-() */
-			ND_coord(rank[r].v[0]).y = ND_coord(rank[r + 1].v[0]).y + maxht;
+	r = GD_maxrank(g);
+	while (r >= GD_minrank(g) && (rank[r].n == 0 || rank[r].v[0] == NULL))
+	    r--;
+	if (r < GD_minrank(g))
+	    return;
+	y = ND_coord(rank[r].v[0]).y;
+	while (--r >= GD_minrank(g)) {
+	    y += maxht;
+	    if (rank[r].n > 0 && rank[r].v[0] != NULL)	/* this may reflect the same problem :-() */
+		ND_coord(rank[r].v[0]).y = y;
+	}
     }
 
     /* copy ycoord assignment from leftmost nodes to others */
     for (node_t *n = GD_nlist(g); n; n = ND_next(n))
-	ND_coord(n).y = ND_coord(rank[ND_rank(n)].v[0]).y;
+	if (rank[ND_rank(n)].v[0] != NULL)
+	    ND_coord(n).y = ND_coord(rank[ND_rank(n)].v[0]).y;
 }
 
 /* Compute bounding box of g.
@@ -1003,13 +1032,9 @@ static void make_leafslots(graph_t * g)
 
 int ports_eq(edge_t * e, edge_t * f)
 {
-    return ED_head_port(e).defined == ED_head_port(f).defined
-	    && ((ED_head_port(e).p.x == ED_head_port(f).p.x &&
-		 ED_head_port(e).p.y == ED_head_port(f).p.y)
-		|| !ED_head_port(e).defined)
-	    && ((ED_tail_port(e).p.x == ED_tail_port(f).p.x &&
-		 ED_tail_port(e).p.y == ED_tail_port(f).p.y)
-		|| !ED_tail_port(e).defined);
+    edge_t *const e0 = ED_to_orig(e) != NULL ? ED_to_orig(e) : e;
+    edge_t *const f0 = ED_to_orig(f) != NULL ? ED_to_orig(f) : f;
+    return gv_edge_ports_are_equal(e0, f0);
 }
 
 static void expand_leaves(graph_t * g)

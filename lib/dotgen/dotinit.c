@@ -10,12 +10,14 @@
 
 #include "config.h"
 
+#include <common/concentrate_plan.h>
 #include <assert.h>
 #include <limits.h>
 #include <time.h>
 #include <dotgen/dot.h>
 #include <pack/pack.h>
 #include <dotgen/aspect.h>
+#include <dotgen/bundle_load.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -83,6 +85,7 @@ dot_init_edge(edge_t * e)
 	ED_showboxes(e) = (unsigned char)showboxes;
     }
     ED_minlen(e) = late_int(e, E_minlen, 1, 0);
+    dot_bundle_load_init_original(e);
 }
 
 void 
@@ -301,6 +304,7 @@ static int dotLayout(Agraph_t *g) {
 
     dot_init_subg(g,g);
     dot_init_node_edge(g);
+    gv_concentration_plan_diagnose_if_enabled(g);
 
     GV_INFO("Starting phase 1 [dot_rank]");
     dot_rank(g);

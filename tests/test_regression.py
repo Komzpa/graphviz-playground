@@ -8,6 +8,7 @@ of these indicates that a past bug has been reintroduced.
 import dataclasses
 import hashlib
 import io
+import itertools
 import json
 import math
 import os
@@ -4370,6 +4371,190 @@ def test_2470():
     dot("ps", input)
 
 
+def _box_gap(
+    first: tuple[float, float, float, float],
+    second: tuple[float, float, float, float],
+) -> float:
+    """Measure the shortest distance between two axis-aligned boxes."""
+
+    dx = max(first[0] - second[2], second[0] - first[2], 0.0)
+    dy = max(first[1] - second[3], second[1] - first[3], 0.0)
+    return math.hypot(dx, dy)
+
+
+def test_2814():
+    """
+    routing around edge labels should not emit triangulation errors or lose edges
+    https://gitlab.com/graphviz/graphviz/-/issues/2814
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "2814.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    output = run("dot", "-Tdot", input, stderr=subprocess.STDOUT)
+
+    assert "triangulation failed" not in output, "triangulation warnings were produced"
+    assert "Pshortestpath failed" not in output, "pathplan error was produced"
+    assert "Error: lost" not in output, "edges were lost"
+    assert '"n.2" -> "n.19"' in output
+    assert '"n.2" -> "n.20"' in output
+
+    layout = json.loads(dot("json", input))
+    labels = {}
+    for edge in layout["edges"]:
+        for stream in ("_hldraw_", "_tldraw_"):
+            font_size = 14.0
+            for operation in edge.get(stream, []):
+                if operation["op"] == "F":
+                    font_size = float(operation.get("size", font_size))
+                if operation["op"] != "T" or operation["text"] not in {
+                    "Edg2",
+                    "Edg3",
+                    "Edg4",
+                    "Edg5",
+                }:
+                    continue
+                x, y = operation["pt"]
+                width = float(operation.get("width", 0.0))
+                labels[operation["text"]] = (
+                    x - width / 2,
+                    y - 0.3 * font_size,
+                    x + width / 2,
+                    y + 0.9 * font_size,
+                )
+    assert set(labels) == {"Edg2", "Edg3", "Edg4", "Edg5"}
+    for first, second in itertools.combinations(labels.values(), 2):
+        assert _box_gap(first, second) >= 2.0
+
+
+def test_shortestpath_rejects_uncontained_straight_fallback(tmp_path: Path):
+    """
+    failed triangulation must not silently return a line outside the polygon
+    """
+
+    c_src = tmp_path / "shortestpath-uncontained-fallback.c"
+    c_src.write_text(
+        r"""
+        #include <pathplan/pathplan.h>
+        #include <stdio.h>
+
+        int main(void) {
+          Ppoint_t points[] = {
+            {0.0, 0.0},
+            {4.0, 0.0},
+            {0.0, 0.0},
+            {4.0, 4.0},
+            {3.0, 4.0},
+            {3.0, 1.0},
+            {1.0, 1.0},
+            {1.0, 4.0},
+            {0.0, 4.0},
+          };
+          Ppoly_t poly = {.ps = points, .pn = sizeof(points) / sizeof(points[0])};
+          Ppoint_t endpoints[] = {{0.5, 3.5}, {3.5, 3.5}};
+          Ppolyline_t output = {0};
+          const int rc = Pshortestpath(&poly, endpoints, &output);
+          if (rc != 0 || output.pn <= 2) {
+            fprintf(stderr, "unexpected rc=%d pn=%zu\n", rc, output.pn);
+            return 1;
+          }
+          return 0;
+        }
+        """,
+        encoding="utf-8",
+    )
+    run_c(
+        c_src,
+        tmp_path,
+        cflags=["-Ilib"],
+        link=[Path("build/lib/pathplan/libpathplan.so.4.0.8").resolve()],
+    )
+
+
+def _edge_label_draw_streams(edge: dict, include_endpoint: bool = False) -> list[list[dict]]:
+    """Read main and endpoint edge label xdot streams."""
+
+    streams = ("_ldraw_", "_hldraw_", "_tldraw_") if include_endpoint else ("_ldraw_",)
+    return [edge.get(stream, []) for stream in streams if stream in edge]
+
+
+def _edge_label_boxes_from_layout(
+    layout: dict, include_endpoint: bool = False
+) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """Read approximate edge-label boxes from a parsed JSON xdot layout."""
+
+    boxes = []
+    for edge in layout["edges"]:
+        for stream in _edge_label_draw_streams(edge, include_endpoint):
+            font_size = 14.0
+            for operation in stream:
+                if operation["op"] == "F":
+                    font_size = float(operation.get("size", font_size))
+                if operation["op"] != "T":
+                    continue
+                x, y = operation["pt"]
+                width = float(operation.get("width", 0.0))
+                align = operation.get("align", "c")
+                if align == "l":
+                    left = x
+                elif align == "r":
+                    left = x - width
+                else:
+                    left = x - width / 2
+                boxes.append(
+                    (
+                        operation["text"],
+                        (left, y - 0.3 * font_size, left + width, y + 0.9 * font_size),
+                    )
+                )
+    return boxes
+
+
+def _boxes_overlap(
+    first: tuple[float, float, float, float],
+    second: tuple[float, float, float, float],
+) -> bool:
+    """Return whether two axis-aligned boxes overlap or touch."""
+
+    return max(first[0], second[0]) <= min(first[2], second[2]) and max(
+        first[1], second[1]
+    ) <= min(first[3], second[3])
+
+
+def _node_boxes(layout: dict) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """Read node boxes from dot JSON coordinates."""
+
+    boxes = []
+    for node in layout["objects"]:
+        x, y = (float(value) for value in node["pos"].split(","))
+        width = float(node["width"]) * 72.0
+        height = float(node["height"]) * 72.0
+        boxes.append(
+            (node["name"], (x - width / 2, y - height / 2, x + width / 2, y + height / 2))
+        )
+    return boxes
+
+
+def test_2814_grouped_endpoint_labels_sit_clear_of_nodes():
+    """Grouped flat endpoint labels should not be separated into node boxes."""
+
+    source = (Path(__file__).parent / "2814.dot").read_text()
+    layout = json.loads(dot("json", source=source))
+    boxes = [
+        (text, box)
+        for text, box in _edge_label_boxes_from_layout(layout, include_endpoint=True)
+        if text in {"Edg2", "Edg3", "Edg4", "Edg5"}
+    ]
+    assert {text for text, _ in boxes} == {"Edg2", "Edg3", "Edg4", "Edg5"}
+
+    for text, box in boxes:
+        for node_name, node_box in _node_boxes(layout):
+            assert not _boxes_overlap(box, node_box), (text, node_name)
+    for (_, first), (_, second) in itertools.combinations(boxes, 2):
+        assert _box_gap(first, second) >= 2.0
+
+
 @pytest.mark.xfail(
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2471",
     strict=True,
@@ -6189,6 +6374,60 @@ def test_2723():
     dot("png", input)
 
 
+def test_2758():
+    """
+    malformed layout separation should not create an INT_MAX-sized canvas
+    https://gitlab.com/graphviz/graphviz/-/issues/2758
+    """
+
+    input = Path(__file__).parent / "2758.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    p = subprocess.run(
+        ["dot", "-Kdot", "-Txdot", input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert p.returncode == 1, "out-of-range nodesep was not rejected"
+    assert b"nodesep" in p.stderr, "missing nodesep diagnostic"
+    assert (
+        re.search(rb"\bAddressSanitizer: heap-buffer-overflow\b", p.stderr) is None
+    ), "malformed input caused a buffer overflow"
+
+    bb_match = re.search(rb'\bbb="([^"]+)"', p.stdout)
+    assert bb_match is not None, "layout output has no bounding box"
+    bb = [float(v) for v in bb_match.group(1).split(b",")]
+    assert bb[2] - bb[0] < 10000, "malformed nodesep produced an oversized width"
+    assert bb[3] - bb[1] < 10000, "malformed nodesep produced an oversized height"
+
+
+@pytest.mark.parametrize("attribute", ("nodesep", "ranksep"))
+def test_layout_separations_reject_out_of_range_values(attribute: str):
+    """
+    Dot layout separations are stored as integer points and must reject overflow.
+    """
+
+    source = f'digraph {{ graph [{attribute}="40000000d"]; a -> b }}'
+    proc = subprocess.run(
+        ["dot", "-Kdot", "-Txdot"],
+        input=source,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 1, f"out-of-range {attribute} was not rejected"
+    assert attribute in proc.stderr, f"missing {attribute} diagnostic"
+    bb_match = re.search(r'\bbb="([^"]+)"', proc.stdout)
+    assert bb_match is not None, "layout output has no bounding box"
+    bb = [float(v) for v in bb_match.group(1).split(",")]
+    assert bb[2] - bb[0] < 10000, f"{attribute} produced an oversized width"
+    assert bb[3] - bb[1] < 10000, f"{attribute} produced an oversized height"
+
+
 def test_2727():
     """
     the label “<>” should be accepted
@@ -6282,7 +6521,6 @@ def test_2734():
 
     # look at each path
     for path in root.findall(".//{http://www.w3.org/2000/svg}path"):
-
         # get the definition and make it slightly easier to parse
         d = path.get("d")
         points_str = d.replace("C", " ").replace("M", " ")
@@ -6327,6 +6565,88 @@ def test_2743():
     dot("dot", src)
 
 
+def test_2757():
+    """
+    Graphviz should not crash when processing this graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2757
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2757.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz and inspect geometry to prove layout was produced
+    # (not just that process did not crash)
+    layout = dot("json", src)
+    data = json.loads(layout)
+
+    # Ensure the output contains positioned graph objects.
+    node_positions = [obj["pos"] for obj in data["objects"] if "pos" in obj]
+    assert node_positions, "layout output has no node coordinates"
+
+    for pos in node_positions:
+        x, y = (float(v) for v in pos.split(","))
+        assert math.isfinite(x), "non-finite node x coordinate"
+        assert math.isfinite(y), "non-finite node y coordinate"
+
+    # Ensure at least one edge has an actual polyline with finite points.
+    edge_points = [
+        segment["points"]
+        for edge in data["edges"]
+        for segment in edge["_draw_"]
+        if "points" in segment
+    ]
+    assert edge_points, "layout output has no routed edges"
+
+    for points in edge_points:
+        for x, y in points:
+            assert math.isfinite(float(x)), "non-finite edge x coordinate"
+            assert math.isfinite(float(y)), "non-finite edge y coordinate"
+
+    # The bounding box should be non-empty.
+    bb = [float(v) for v in data["bb"].split(",")]
+    assert bb[2] > bb[0], "invalid or collapsed bounding box (x)"
+    assert bb[3] > bb[1], "invalid or collapsed bounding box (y)"
+
+
+def test_2760():
+    """
+    Graphviz should successfully lay out this graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2760
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2760.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # run this through Graphviz
+    output = dot("dot", src)
+
+    # a successful result must include a completed layout
+    assert "pos=" in output
+
+
+@pytest.mark.parametrize("issue", [2759, 2762, 2766])
+def test_rankset_cluster_malformed_no_crash(issue: int):
+    """
+    Malformed ranksets inside clusters should fail gracefully rather than
+    dereferencing empty cluster or rank structures.
+    https://gitlab.com/graphviz/graphviz/-/issues/2759
+    https://gitlab.com/graphviz/graphviz/-/issues/2762
+    https://gitlab.com/graphviz/graphviz/-/issues/2766
+    """
+
+    src = Path(__file__).parent / f"{issue}.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    try:
+        dot("dot", src)
+    except subprocess.CalledProcessError as e:
+        # allow a diagnostic failure for malformed input; only fail on a crash
+        if e.returncode != 1:
+            raise
+
+
 @pytest.mark.xfail(
     raises=subprocess.CalledProcessError,
     reason="https://gitlab.com/graphviz/graphviz/-/issues/2778",
@@ -6349,6 +6669,51 @@ def test_2778():
         # only fail if we crashed, not exited with failure
         if e.returncode != 1:
             raise
+
+
+def test_2781():
+    """
+    Graphviz should not crash when processing this graph
+    https://gitlab.com/graphviz/graphviz/-/issues/2781
+    """
+
+    # locate our associated test case in this directory
+    src = Path(__file__).parent / "2781.dot"
+    assert src.exists(), "unexpectedly missing test case"
+
+    # malformed input should be rejected without overflowing while processing
+    proc = subprocess.run(["dot", "-Tdot", "-o", os.devnull, src], stderr=subprocess.PIPE)
+
+    assert proc.returncode == 1, "invalid input was not rejected"
+    assert (
+        re.search(rb"\bAddressSanitizer: heap-buffer-overflow\b", proc.stderr) is None
+    ), "malformed input caused a buffer overflow"
+
+
+def test_2781_negative_control():
+    """
+    Well-formed adjacent flat splines should still lay out normally
+    """
+
+    src = """
+    digraph {
+      graph [rankdir=LR]
+      { rank=same; a; b }
+      a -> b [label="x"]
+      b -> a [label="y"]
+    }
+    """
+
+    proc = subprocess.run(
+        ["dot", "-Tdot", "-o", os.devnull],
+        input=textwrap.dedent(src),
+        text=True,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+    stderr = remove_asan_summary(remove_xtype_warnings(proc.stderr)).strip()
+    assert stderr == "", "legal adjacent flat splines produced warnings"
 
 
 def test_2782():
@@ -7395,7 +7760,6 @@ def test_changelog():
 
     with open(changelog, "rt", encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
-
             ignore_h2 = False
 
             # an exception for an old heading
@@ -7407,7 +7771,6 @@ def test_changelog():
                 ignore_h2 = True
 
             if (m := re.match("##(?P<remainder>[^#].*)$", line)) and not ignore_h2:
-
                 expected_format = r" \[\d+\.\d+\.\d+\] [\-–] \d{4}-\d{2}-\d{2}$"
                 assert re.match(expected_format, m.group("remainder")), (
                     f"CHANGELOG.md:{lineno}: second-level heading did not match "
