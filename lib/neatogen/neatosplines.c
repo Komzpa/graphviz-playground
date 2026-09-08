@@ -223,7 +223,7 @@ void makeSelfArcs(edge_t * e, int stepx)
     if (cnt == 1 || Concentrate) {
 	edge_t *edges1[1];
 	edges1[0] = e;
-	makeSelfEdge(edges1, 1, stepx, stepx, &sinfo);
+        makeSelfEdge(edges1, 1, stepx, stepx, EDGETYPE_SPLINE, &sinfo);
 	if (ED_label(e))
 	    updateBB(agraphof(agtail(e)), ED_label(e));
 	makePortLabels(e);
@@ -233,7 +233,7 @@ void makeSelfArcs(edge_t * e, int stepx)
 	    edges[i] = e;
 	    e = ED_to_virt(e);
 	}
-	makeSelfEdge(edges, cnt, stepx, stepx, &sinfo);
+        makeSelfEdge(edges, cnt, stepx, stepx, EDGETYPE_SPLINE, &sinfo);
 	for (size_t i = 0; i < cnt; i++) {
 	    e = edges[i];
 	    if (ED_label(e))
@@ -1121,4 +1121,3 @@ bool neato_set_aspect(graph_t * g)
     }
     return moved;
 }
-

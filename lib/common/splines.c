@@ -21,6 +21,7 @@
 #include <math.h>
 #include <common/geomprocs.h>
 #include <common/render.h>
+#include <pathplan/pathplan.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -804,8 +805,25 @@ else
   return pair_a[tail_i][head_i];
 }
 
+static void clip_and_install_self(edge_t *e, pointf *points, size_t pointn,
+                                  int edgetype, splineInfo *sinfo) {
+    if (edgetype == EDGETYPE_LINE) {
+	pointf line[] = {points[0], points[0], points[pointn - 1],
+	                 points[pointn - 1]};
+	clip_and_install(e, aghead(e), line, sizeof(line) / sizeof(line[0]),
+	                 sinfo);
+    } else if (edgetype == EDGETYPE_PLINE) {
+	Ppolyline_t line = {.pn = pointn, .ps = points};
+	Ppolyline_t polyline;
+	make_polyline(line, &polyline);
+	clip_and_install(e, aghead(e), polyline.ps, polyline.pn, sinfo);
+    } else {
+	clip_and_install(e, aghead(e), points, pointn, sinfo);
+    }
+}
+
 static void selfBottom(edge_t *edges[], size_t cnt, double sizex, double stepy,
-                       splineInfo *sinfo) {
+                       int edgetype, splineInfo *sinfo) {
     pointf tp, hp, np;
     node_t *n;
     edge_t *e;
@@ -866,7 +884,7 @@ static void selfBottom(edge_t *edges[], size_t cnt, double sizex, double stepy,
     	    dy += height - stepy;
         }
         const size_t pointn = sizeof(points) / sizeof(points[0]);
-        clip_and_install(e, aghead(e), points, pointn, sinfo);
+        clip_and_install_self(e, points, pointn, edgetype, sinfo);
 #ifdef DEBUG
         if (debugleveln(e,1))
 	    showPoints (points, pointn);
@@ -875,7 +893,7 @@ static void selfBottom(edge_t *edges[], size_t cnt, double sizex, double stepy,
 }
 
 static void selfTop(edge_t *edges[], size_t cnt, double sizex, double stepy,
-                    splineInfo *sinfo) {
+                    int edgetype, splineInfo *sinfo) {
     int sgn, point_pair;
     double hy, ty,  stepx, dx, dy, height;
     pointf tp, hp, np;
@@ -973,7 +991,7 @@ static void selfTop(edge_t *edges[], size_t cnt, double sizex, double stepy,
 		dy += height - stepy;
         }
         const size_t pointn = sizeof(points) / sizeof(points[0]);
-       clip_and_install(e, aghead(e), points, pointn, sinfo);
+       clip_and_install_self(e, points, pointn, edgetype, sinfo);
 #ifdef DEBUG
         if (debugleveln(e,1))
 	    showPoints (points, pointn);
@@ -982,7 +1000,7 @@ static void selfTop(edge_t *edges[], size_t cnt, double sizex, double stepy,
 }
 
 static void selfRight(edge_t *edges[], size_t cnt, double stepx, double sizey,
-                      splineInfo *sinfo) {
+                      int edgetype, splineInfo *sinfo) {
     int sgn, point_pair;
     double hx, tx, stepy, dx, dy, width;
     pointf tp, hp, np;
@@ -1044,7 +1062,7 @@ static void selfRight(edge_t *edges[], size_t cnt, double stepx, double sizey,
 		dx += width - stepx;
         }
         const size_t pointn = sizeof(points) / sizeof(points[0]);
-	clip_and_install(e, aghead(e), points, pointn, sinfo);
+	clip_and_install_self(e, points, pointn, edgetype, sinfo);
 #ifdef DEBUG
         if (debugleveln(e,1))
 	    showPoints (points, pointn);
@@ -1053,7 +1071,7 @@ static void selfRight(edge_t *edges[], size_t cnt, double stepx, double sizey,
 }
 
 static void selfLeft(edge_t *edges[], size_t cnt, double stepx, double sizey,
-                     splineInfo *sinfo) {
+                     int edgetype, splineInfo *sinfo) {
     int sgn,point_pair;
     double hx, tx, stepy, dx, dy, width;
     pointf tp, hp, np;
@@ -1119,7 +1137,7 @@ static void selfLeft(edge_t *edges[], size_t cnt, double stepx, double sizey,
         }
 
         const size_t pointn = sizeof(points) / sizeof(points[0]);
-        clip_and_install(e, aghead(e), points, pointn, sinfo);
+        clip_and_install_self(e, points, pointn, edgetype, sinfo);
 #ifdef DEBUG
         if (debugleveln(e,1))
 	    showPoints (points, pointn);
@@ -1160,7 +1178,7 @@ double selfRightSpace(edge_t *e) {
  * Perhaps for self-edges, the label should be centered.
  */
 void makeSelfEdge(edge_t *edges[], size_t cnt, double sizex, double sizey,
-                  splineInfo *sinfo) {
+                  int edgetype, splineInfo *sinfo) {
     edge_t *e = *edges;
 
     /* self edge without ports or
@@ -1173,7 +1191,7 @@ void makeSelfEdge(edge_t *edges[], size_t cnt, double sizex, double sizey,
          !(ED_head_port(e).side & LEFT) &&
           (ED_tail_port(e).side != ED_head_port(e).side ||
           !(ED_tail_port(e).side & (TOP|BOTTOM))))) {
-	selfRight(edges, cnt, sizex, sizey, sinfo);
+	selfRight(edges, cnt, sizex, sizey, edgetype, sinfo);
     }
 
     /* self edge with port on left side */
@@ -1181,19 +1199,19 @@ void makeSelfEdge(edge_t *edges[], size_t cnt, double sizex, double sizey,
 
 	/* handle L-R specially */
 	if ((ED_tail_port(e).side & RIGHT) || (ED_head_port(e).side & RIGHT)) {
-	    selfTop(edges, cnt, sizex, sizey, sinfo);
+	    selfTop(edges, cnt, sizex, sizey, edgetype, sinfo);
 	}
 	else {
-	    selfLeft(edges, cnt, sizex, sizey, sinfo);
+	    selfLeft(edges, cnt, sizex, sizey, edgetype, sinfo);
 	}
     }
 
     /* self edge with both ports on top side */
     else if (ED_tail_port(e).side & TOP) {
-	selfTop(edges, cnt, sizex, sizey, sinfo);
+	selfTop(edges, cnt, sizex, sizey, edgetype, sinfo);
     }
     else if (ED_tail_port(e).side & BOTTOM) {
-	selfBottom(edges, cnt, sizex, sizey, sinfo);
+	selfBottom(edges, cnt, sizex, sizey, edgetype, sinfo);
     }
 
     else assert(0);
@@ -1370,4 +1388,3 @@ splines *getsplinepoints(edge_t * e)
 	    agnameof(agtail(e)), agnameof(aghead(e)));
     return sp;
 }
-

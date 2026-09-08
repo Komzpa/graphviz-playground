@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- Self-edges between HTML-like label ports now honor `splines=line` and
+  `splines=polyline` instead of always using spline-style routing. #100
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
