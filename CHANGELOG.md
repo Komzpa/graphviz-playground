@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- The `rounded` and `striped` node styles can now be combined for box-like
+  shapes. #1732
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
