@@ -52,6 +52,7 @@
 #include <util/strcasecmp.h>
 #include <util/streq.h>
 #include <util/unreachable.h>
+#include <util/unused.h>
 
 #define DEFAULT_BORDER    1
 #define DEFAULT_CELLPADDING  2
@@ -1723,24 +1724,24 @@ static char *nameOf(void *obj, agxbuf * xb)
 }
 
 #ifdef DEBUG
-void indent(int i)
+static void indent(int i)
 {
     while (i--)
 	fprintf(stderr, "  ");
 }
 
-void printBox(boxf b)
+static void printBox(boxf b)
 {
     fprintf(stderr, "(%f,%f)(%f,%f)", b.LL.x, b.LL.y, b.UR.x, b.UR.y);
 }
 
-void printImage(htmlimg_t * ip, int ind)
+static void printImage(htmlimg_t * ip, int ind)
 {
     indent(ind);
     fprintf(stderr, "img: %s\n", ip->src);
 }
 
-void printTxt(htmltxt_t * txt, int ind)
+static void printTxt(htmltxt_t * txt, int ind)
 {
     indent(ind);
     fprintf(stderr, "txt spans = %" PRISIZE_T " \n", txt->nspans);
@@ -1765,7 +1766,7 @@ void printTxt(htmltxt_t * txt, int ind)
     }
 }
 
-void printData(htmldata_t * dp)
+static void printData(htmldata_t * dp)
 {
     unsigned char flags = dp->flags;
     char c;
@@ -1800,7 +1801,7 @@ void printData(htmldata_t * dp)
     printBox(dp->box);
 }
 
-void printTbl(htmltbl_t * tbl, int ind)
+static void printTbl(htmltbl_t * tbl, int ind)
 {
     htmlcell_t **cells = tbl->cells;
     indent(ind);
@@ -1814,7 +1815,7 @@ void printTbl(htmltbl_t * tbl, int ind)
 static void printCell(htmlcell_t * cp, int ind)
 {
     indent(ind);
-    fprintf(stderr, "cell %" PRIu16 " %" PRIu16 " %" PRIu16 " %" PRIu16 " ", cp->colspan,
+    fprintf(stderr, "cell %" PRIu16 " %" PRIu16 " %" PRIu16 " %" PRIu16 " %" PRIu16 " ", cp->colspan,
             cp->colspan, cp->rowspan, cp->col, cp->row);
     printData(&cp->data);
     fputs("\n", stderr);
@@ -1833,7 +1834,7 @@ static void printCell(htmlcell_t * cp, int ind)
     }
 }
 
-void printLbl(htmllabel_t * lbl)
+static UNUSED void printLbl(htmllabel_t * lbl)
 {
     if (lbl->kind == HTML_TBL)
 	printTbl(lbl->u.tbl, 0);

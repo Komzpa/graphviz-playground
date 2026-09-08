@@ -13,6 +13,11 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- DEBUG builds no longer warn about the HTML-like table dump helpers lacking
+  prototypes or using a mismatched debug format string, and ordinary DEBUG=1
+  graph rendering no longer emits Pango font-list or ortho-routing trace dumps
+  to stderr. #2837
+
 ## [16.1.0] – 2026-09-03
 
 ### Added

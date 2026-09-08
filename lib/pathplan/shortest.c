@@ -147,7 +147,7 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	}
     }
 
-#if defined(DEBUG) && DEBUG >= 1
+#if defined(DEBUG) && DEBUG >= 2
     fprintf(stderr, "points\n%" PRISIZE_T "\n", pnll);
     for (size_t pnli = 0; pnli < pnll; pnli++)
 	fprintf(stderr, "%f %f\n", pnls[pnli].pp->x, pnls[pnli].pp->y);
@@ -287,7 +287,7 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	    }
     }
 
-#if defined(DEBUG) && DEBUG >= 1
+#if defined(DEBUG) && DEBUG >= 2
     fprintf(stderr, "polypath");
     for (pnlp = &epnls[1]; pnlp; pnlp = pnlp->link)
 	fprintf(stderr, " %f %f", pnlp->pp->x, pnlp->pp->y);

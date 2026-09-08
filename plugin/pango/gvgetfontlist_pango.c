@@ -290,7 +290,7 @@ static int get_faces(PangoFontFamily *family) {
   return availfaces;
 }
 
-#ifdef DEBUG
+#if DEBUG > 1
 static void display_available_fonts(availfonts_t gv_af_p) {
   int faces;
 
@@ -403,7 +403,7 @@ static availfonts_t gv_get_ps_fontlist(PangoFontMap *fontmap) {
     }
   }
   g_free(families);
-#ifdef DEBUG
+#if DEBUG > 1
   display_available_fonts(gv_af_p);
 #endif
   return gv_af_p;
