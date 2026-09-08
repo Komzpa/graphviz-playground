@@ -13,6 +13,9 @@ and this project adheres to
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
 
+- `neato -n3` no longer repositions edges that already provide clipped spline
+  endpoints in their input `pos` data. #2845
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
