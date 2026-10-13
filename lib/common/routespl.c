@@ -610,10 +610,9 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline,
       route_spline_metadata_free(metadata);
       free(route_corridor);
       free(polypoints);
-      if (mapbool(agget(agroot(realedge), "_concentrate_junction_clustered_fallback")))
-        agwarningf("in routesplines, Pshortestpath failed\n");
-      else
-        agerrorf("in routesplines, Pshortestpath failed\n");
+      /* The edge is dropped (NULL below) in every graph, clustered fallback
+       * included, so this must count as an error and fail the layout status. */
+      agerrorf("in routesplines, Pshortestpath failed\n");
       return NULL;
     }
     if (metadata != NULL) {

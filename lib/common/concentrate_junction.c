@@ -11,6 +11,39 @@
 #include "config.h"
 
 #include <common/concentrate_junction.h>
+#include <stdlib.h>
+#include <util/alloc.h>
+
+static const concentrate_junction_state_t zero_state;
+
+const concentrate_junction_state_t *concentrate_junction_state(const void *obj) {
+  const Agobj_t *hdr = obj;
+  /* Virtual edges and nodes carry a hand-allocated layout block whose record
+   * header is zero, so a NULL name means "not a cgraph record list". */
+  if (hdr->data == NULL || hdr->data->name == NULL) {
+    return &zero_state;
+  }
+  const concentrate_junction_state_t *state =
+      (const concentrate_junction_state_t *)aggetrec(
+          (void *)obj, CONCENTRATE_JUNCTION_RECORD, 0);
+  return state == NULL ? &zero_state : state;
+}
+
+concentrate_junction_state_t *concentrate_junction_state_bind(void *obj) {
+  return agbindrec(obj, CONCENTRATE_JUNCTION_RECORD,
+                   sizeof(concentrate_junction_state_t), false);
+}
+
+void concentrate_junction_state_release(void *obj) {
+  concentrate_junction_state_t *state =
+      (concentrate_junction_state_t *)concentrate_junction_state(obj);
+  if (state == &zero_state) {
+    return;
+  }
+  free(state->info);
+  state->info = NULL;
+  agdelrec(obj, CONCENTRATE_JUNCTION_RECORD);
+}
 
 bool concentrate_junction_skip_node(const node_t *n) {
   (void)n;

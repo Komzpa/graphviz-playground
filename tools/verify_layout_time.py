@@ -222,7 +222,10 @@ def absent_ratio_report(
     ratios = []
     for mode, path, elapsed, rc, stderr in rows:
         mode_name, ranker = split_mode(mode)
-        if mode_name != "on":
+        # Attribute-absent gate: concentrate is not requested, so this measures
+        # the "off" rows against upstream's "off" rows of the same ranker. The
+        # cost of the feature itself is feature_cost_report()'s business.
+        if mode_name != "off":
             continue
         base_mode = f"off/{ranker}"
         base_row = upstream.get((base_mode, path))

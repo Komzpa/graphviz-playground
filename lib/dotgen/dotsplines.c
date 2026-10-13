@@ -227,8 +227,11 @@ static const char *label_endpoint_group(endpoint_label_t label) {
 static bool competing_endpoint_groups(endpoint_label_t a, endpoint_label_t b) {
   const char *const agroup = label_endpoint_group(a);
   const char *const bgroup = label_endpoint_group(b);
-  return a.head_p == b.head_p && agroup != NULL && bgroup != NULL &&
-         strcmp(agroup, bgroup) != 0;
+  /* Every overlapping pair of labels on one endpoint competes, grouped or not;
+   * the single exception is two edges of one samehead/sametail group, which
+   * deliberately share the port and its label. */
+  return a.head_p == b.head_p &&
+         !(agroup != NULL && bgroup != NULL && strcmp(agroup, bgroup) == 0);
 }
 static void separate_competing_endpoint_labels(graph_t *graph,
                                                endpoint_label_t *labels,
@@ -1038,7 +1041,10 @@ static int dot_splines_(graph_t *g, int normalize) {
 finish:
 #endif
   align_flat_arrow_tangents_in_graph(g);
-  dot_spread_coincident_polygon_arrowheads(g);
+  /* The pass moves only the last Bezier controls of an end. An orthogonal
+   * route's preceding point stays put, so moving them skews the final run. */
+  if (et != EDGETYPE_ORTHO)
+    dot_spread_coincident_polygon_arrowheads(g);
   dedupe_concentrated_edge_labels(g);
 
   /* place port labels */

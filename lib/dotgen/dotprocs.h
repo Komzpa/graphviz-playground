@@ -40,6 +40,8 @@ typedef LIST(Agnode_t *) node_queue_t;
     extern void dot_concentrate_junction(graph_t * g);
     extern void dot_concentrate_junction_save_rankleader(graph_t * g, int r);
     extern void dot_concentrate_junction_splines(graph_t * g);
+    extern void dot_concentrate_junction_restore(graph_t * g,
+                                                 void (*cleanup_node)(node_t *));
     extern void dot_scan_ranks(graph_t * g);
     extern void enqueue_neighbors(node_queue_t *q, node_t *n0, int pass);
     /// @return 0 on success

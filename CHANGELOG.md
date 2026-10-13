@@ -13,6 +13,9 @@ and this project adheres to
   `concentrate=true` knob now also inserts junction nodes for eligible incoming
   and outgoing edge fans, so existing drawings that use `concentrate=true` will
   differ when the junction transform applies.
+- The junction helper nodes and edges that `concentrate=true` adds are removed
+  again by `gvFreeLayout`, so laying out the same graph twice no longer treats
+  them as user input.
 
 ### Fixed
 

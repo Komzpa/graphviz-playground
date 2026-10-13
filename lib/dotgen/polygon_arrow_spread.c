@@ -55,6 +55,11 @@ typedef struct {
 } arrow_landing_t;
 
 static polygon_t *node_spread_outline(node_t *node) {
+  /* ND_shape_info() is a polygon_t only for polygon-family shapes; an epsf
+   * node keeps an epsf_t there, and records and custom shapes have their own. */
+  if (ND_shape(node) == NULL ||
+      (shapeOf(node) != SH_POLY && shapeOf(node) != SH_POINT))
+    return NULL;
   polygon_t *const polygon = ND_shape_info(node);
   if (polygon == NULL || polygon->vertices == NULL || polygon->peripheries == 0)
     return NULL;
@@ -172,6 +177,12 @@ static void append_arrow_landing(arrow_landing_t **landings, size_t *count,
       at_start ? spline->list[1] : spline->list[spline->size - 2];
   polygon_t *const outline = node_spread_outline(node);
   if (outline == NULL)
+    return;
+  /* An end the user pinned to a compass/record port, or asked not to clip
+   * (headclip/tailclip=false), is a requested position, not a coincidence to
+   * be spread: moving it would override the attribute. */
+  const port end_port = at_start ? ED_tail_port(main_edge) : ED_head_port(main_edge);
+  if (end_port.defined || !end_port.clip)
     return;
   if (at_start && E_sametail != NULL &&
       agxget(main_edge, E_sametail)[0] != '\0')
@@ -374,6 +385,36 @@ static pointf project_to_ellipse_outline(node_t *node, pointf target) {
                   .y = center.y + ray.y / scale_factor};
 }
 
+/// Put a spread target back on the real outline of a polygonal node. The
+/// target was displaced along a direction that need not follow a side, and a
+/// large group can run past the end of one; walk the ray from the node centre
+/// through the target and stop where the shape's own inside test flips, which
+/// is the same bisection the endpoint clipper uses and honours rankdir.
+static pointf project_to_polygon_outline(node_t *node, pointf target) {
+  const pointf center = ND_coord(node);
+  const pointf ray = sub_pointf(target, center);
+  const double length = hypot(ray.x, ray.y);
+  if (length <= MILLIPOINT || ND_shape(node) == NULL ||
+      ND_shape(node)->fns->insidefn == NULL)
+    return target;
+
+  inside_t context = {.s = {.n = node, .bp = NULL}};
+  const pointf direction = scale(1.0 / length, ray);
+  double low = 0.0;
+  double high = 2.0 * (ND_lw(node) + ND_rw(node) + ND_ht(node)) + length;
+  if (!ND_shape(node)->fns->insidefn(&context, (pointf){0})
+      || ND_shape(node)->fns->insidefn(&context, scale(high, direction)))
+    return target;
+  for (int step = 0; step < 40; step++) {
+    const double mid = (low + high) / 2.0;
+    if (ND_shape(node)->fns->insidefn(&context, scale(mid, direction)))
+      low = mid;
+    else
+      high = mid;
+  }
+  return add_pointf(center, scale(low, direction));
+}
+
 static double signed_polygon_area(const pointf *poly, size_t count) {
   double area = 0.0;
   for (size_t i = 0; i < count; i++) {
@@ -499,11 +540,20 @@ static bool target_would_create_neighbor_overlap(const arrow_landing_t *landings
                                                  size_t group_index,
                                                  pointf target) {
   const arrow_landing_t *const landing = &landings[group_start + group_index];
-  for (size_t i = 0; i < landing_count; i++) {
-    if (i >= group_start && i < group_end)
+  /* Landings are sorted by node, so the other landings of this node are the
+   * runs just before and after the group. Walking only those (and jumping over
+   * the group) keeps one big fan from rescanning itself for every member. */
+  size_t node_start = group_start;
+  while (node_start > 0 && landings[node_start - 1].node == landing->node)
+    node_start--;
+  size_t node_end = group_end;
+  while (node_end < landing_count && landings[node_end].node == landing->node)
+    node_end++;
+  for (size_t i = node_start; i < node_end; i++) {
+    if (i == group_start) {
+      i = group_end - 1;
       continue;
-    if (landings[i].node != landing->node)
-      continue;
+    }
     if (arrow_polygons_overlap(landing, target, &landings[i], landings[i].tip) &&
         !arrow_polygons_overlap(landing, landing->tip, &landings[i],
                                 landings[i].tip))
@@ -561,9 +611,11 @@ static bool spread_arrow_landing_group(arrow_landing_t *landings,
   if (count <= 1 || (count == 2 && !spread_pair))
     return false;
 
-  double spacing = HUGE_VAL;
+  /* The widest member sets the pitch: spacing by the smallest arrow would
+   * leave a larger neighbour still overlapping its peers. */
+  double spacing = 0.0;
   for (size_t i = 0; i < count; i++) {
-    spacing = MIN(spacing, group[i].spacing);
+    spacing = MAX(spacing, group[i].spacing);
   }
 
   pointf direction = sub_pointf(group[count - 1].tip, group[0].tip);
@@ -588,8 +640,9 @@ static bool spread_arrow_landing_group(arrow_landing_t *landings,
   for (size_t i = 0; i < count; i++) {
     pointf target = add_pointf(
         spread_anchor, scale((double)i * spacing - center_offset, direction));
-    if (group[i].curved_outline)
-      target = project_to_ellipse_outline(group[i].node, target);
+    target = group[i].curved_outline
+                 ? project_to_ellipse_outline(group[i].node, target)
+                 : project_to_polygon_outline(group[i].node, target);
     if (!Concentrate && group[i].smooth_curved_move &&
         target_would_create_neighbor_overlap(landings, landing_count,
                                              group_start, group_end, i, target))

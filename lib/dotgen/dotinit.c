@@ -187,6 +187,7 @@ void dot_cleanup(graph_t * g)
     edge_t *e;
 
     free_virtual_node_list(GD_nlist(g));
+    dot_concentrate_junction_restore(g, dot_cleanup_node);
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
 	    gv_cleanup_edge(e);

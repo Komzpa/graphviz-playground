@@ -10,6 +10,7 @@
 
 #include "config.h"
 
+#include <common/concentrate_junction.h>
 #include <common/concentrate_plan.h>
 #include <common/render.h>
 #include <common/utils.h>
@@ -24,6 +25,14 @@
 #include <util/alloc.h>
 #include <util/streq.h>
 
+enum {
+  GROUP_ATTR_COLOR = 1,
+  GROUP_ATTR_STYLE = 2,
+  GROUP_ATTR_LAYER = 13,
+  /* Room for group_attrs[] plus group_identity_attrs[]. */
+  GROUP_ATTR_CAPACITY = 48,
+};
+
 typedef struct junction_edge_s {
   edge_t *arm;
   edge_t *trunk;
@@ -36,7 +45,8 @@ typedef struct {
   node_t *anchor;
   char *sameport_id;
   bool sameport;
-  char *attrs[34];
+  char *attrs[GROUP_ATTR_CAPACITY];
+  const char *label_text;
   edge_t **edges;
   size_t size;
   size_t capacity;
@@ -47,12 +57,10 @@ typedef enum {
   JUNCTION_FANOUT,
 } junction_kind_t;
 
-enum {
-  GROUP_ATTR_COLOR = 1,
-};
 
 static node_t *group_anchor(edge_t *e, junction_kind_t kind);
 static bool edge_dir_is_both(edge_t *e);
+static bool edge_dir_is_none(edge_t *e);
 
 static char *group_attrs[] = {
     "label",       "color",        "style",        "penwidth",    "fontname",
@@ -63,6 +71,25 @@ static char *group_attrs[] = {
     "edgetooltip", "labeltooltip", "headtooltip",  "tailtooltip", "target",
     "edgetarget",  "labeltarget",  "headtarget",   "tailtarget",
 };
+
+/* Attributes that are only part of the group identity: two edges that differ
+ * here render differently, but the helper edges need not (or cannot) inherit
+ * them through copy_edge_attrs() as plain copies. */
+static char *group_identity_attrs[] = {
+    "headclip", "tailclip", "colorscheme", "fillcolor", "class", "labelfloat",
+};
+
+#define GROUP_IDENTITY_COUNT                                                   \
+  (ARRAY_SIZE(group_attrs) + ARRAY_SIZE(group_identity_attrs))
+_Static_assert(ARRAY_SIZE(group_attrs) + ARRAY_SIZE(group_identity_attrs) <=
+                   GROUP_ATTR_CAPACITY,
+               "junction_group_t::attrs is too small for the group identity");
+
+static char *group_identity_name(size_t i) {
+  return i < ARRAY_SIZE(group_attrs)
+             ? group_attrs[i]
+             : group_identity_attrs[i - ARRAY_SIZE(group_attrs)];
+}
 
 static char *attr(edge_t *e, attrsym_t *sym, char *fallback) {
   if (sym == NULL) {
@@ -95,8 +122,15 @@ static bool endpoint_has_explicit_port(edge_t *e) {
          attr(e, agfindedgeattr(agraphof(agtail(e)), "headport"), "")[0];
 }
 
+/* style=tapered draws only the first spline of an edge (emit_edge_graphics()),
+ * so a joined arm+trunk would lose the shared trunk and the head arrow. */
+static bool edge_is_tapered(edge_t *e) {
+  return strstr(attr(e, agfindedgeattr(agraphof(agtail(e)), "style"), ""),
+                "tapered") != NULL;
+}
+
 static bool eligible(edge_t *e) {
-  if (agtail(e) == aghead(e)) {
+  if (agtail(e) == aghead(e) || edge_is_tapered(e)) {
     return false;
   }
   if (nonconstraint_edge(e)) {
@@ -115,8 +149,8 @@ static bool eligible(edge_t *e) {
   return true;
 }
 
-static bool eligible_sameport(edge_t *e) {
-  if (agtail(e) == aghead(e)) {
+static bool eligible_sameport(edge_t *e, junction_kind_t kind) {
+  if (agtail(e) == aghead(e) || edge_is_tapered(e)) {
     return false;
   }
   if (nonconstraint_edge(e)) {
@@ -125,10 +159,19 @@ static bool eligible_sameport(edge_t *e) {
   if (ED_label(e) || ED_xlabel(e)) {
     return false;
   }
+  /* Only the label at the shared end is carried by the helper edges. A label
+   * at the outer end would stay on an original that has no spline when
+   * endpoint labels are placed, so such an edge is not fused. */
+  if (kind == JUNCTION_FANOUT ? ED_head_label(e) != NULL
+                              : ED_tail_label(e) != NULL) {
+    return false;
+  }
   if (endpoint_has_explicit_port(e)) {
     return false;
   }
   const char *dir = attr(e, agfindedgeattr(agraphof(agtail(e)), "dir"), "");
+  /* dir=none is fused too; make_group() then routes its helpers without an
+   * arrow so no arrowhead clearance is reserved at the shared end. */
   if (dir[0] != '\0' && !streq(dir, "forward") && !streq(dir, "none")) {
     return false;
   }
@@ -187,20 +230,6 @@ static bool edge_has_true_multiedge_peer(edge_t *e) {
   return false;
 }
 
-static bool edge_has_concentrated_peer(edge_t *e) {
-  for (node_t *n = agfstnode(agraphof(e)); n; n = agnxtnode(agraphof(e), n)) {
-    for (edge_t *other = agfstout(agraphof(e), n); other;
-         other = agnxtout(agraphof(e), other)) {
-      if (other != e && same_concentration_endpoints(e, other) &&
-          gv_concentration_edges_have_equal_rendered_identity(
-              e, other, GV_CONCENTRATION_SAME_DIRECTION)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 static bool graph_has_refused_concentrated_edge(edge_t *e) {
   graph_t *g = agraphof(agtail(e));
   if (!Concentrate) {
@@ -210,15 +239,16 @@ static bool graph_has_refused_concentrated_edge(edge_t *e) {
    * to one each is the demonstration. Refusing it to avoid a separate kink
    * defect throws away the working half, so the label alone is not grounds to
    * refuse. The kinks are their own class and get their own fix. */
-  return edge_has_concentrated_peer(e) && graph_uses_curved_splines(g) &&
-         edge_has_copied_junction_attribute(e);
+  /* Cheap attribute predicates first: the peer scan only visits the tail's own
+   * out-edges (a peer must share both endpoints), but is still the dearest. */
+  return graph_uses_curved_splines(g) && edge_has_copied_junction_attribute(e) &&
+         edge_has_true_multiedge_peer(e);
 }
 
 static bool refused_edge_kind(graph_t *g, edge_t *e) {
   return agtail(e) == aghead(e) || edge_has_record_endpoint_geometry(e) ||
-         endpoint_has_port(e) || edge_has_true_multiedge_peer(e) ||
-         graph_has_same_rank_edge(g, e) ||
-         graph_has_refused_concentrated_edge(e);
+         endpoint_has_port(e) || graph_has_refused_concentrated_edge(e) ||
+         graph_has_same_rank_edge(g, e) || edge_has_true_multiedge_peer(e);
 }
 
 static node_t *group_anchor(edge_t *e, junction_kind_t kind) {
@@ -252,6 +282,11 @@ static bool labelled_group_has_terminal_anchor(const junction_group_t *group,
                                  : !node_has_outgoing_edges(group->anchor);
 }
 
+static const char *edge_label_text(edge_t *e) {
+  return ED_label(e) == NULL || ED_label(e)->text == NULL ? ""
+                                                          : ED_label(e)->text;
+}
+
 static bool same_group(const junction_group_t *group, edge_t *e,
                        junction_kind_t kind) {
   if (group->anchor != group_anchor(e, kind)) {
@@ -262,13 +297,15 @@ static bool same_group(const junction_group_t *group, edge_t *e,
         agraphof(agtail(e)), kind == JUNCTION_FANOUT ? "sametail" : "samehead");
     return streq(group->sameport_id, attr(e, sym, ""));
   }
-  for (size_t i = 0; i < ARRAY_SIZE(group_attrs); ++i) {
-    attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), group_attrs[i]);
+  for (size_t i = 0; i < GROUP_IDENTITY_COUNT; ++i) {
+    attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), group_identity_name(i));
     if (!streq(group->attrs[i], attr(e, sym, ""))) {
       return false;
     }
   }
-  return true;
+  /* The raw label attribute is not the rendered label: "\\T" or "\\E" expand
+   * per edge, and only the representative's label is drawn on the trunk. */
+  return streq(group->label_text, edge_label_text(e));
 }
 
 static bool fanout_edge_shares_bidirectional_target(edge_t *e) {
@@ -301,10 +338,11 @@ static void append_edge(junction_group_t *group, edge_t *e) {
 
 static void snapshot_group_attrs(graph_t *g, junction_group_t *group,
                                  edge_t *e) {
-  for (size_t j = 0; j < ARRAY_SIZE(group_attrs); ++j) {
-    attrsym_t *sym = agfindedgeattr(g, group_attrs[j]);
+  for (size_t j = 0; j < GROUP_IDENTITY_COUNT; ++j) {
+    attrsym_t *sym = agfindedgeattr(g, group_identity_name(j));
     group->attrs[j] = attr(e, sym, "");
   }
+  group->label_text = edge_label_text(e);
 }
 
 static textlabel_t **endpoint_label_slot(edge_t *e, junction_kind_t kind) {
@@ -430,7 +468,9 @@ static bool trunk_label_has_single_owner(graph_t *g, edge_t *owner,
   size_t candidate_count = 0;
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (ED_spl(e) == NULL) {
+      /* The arm and trunk helpers draw the owner's own route; counting them
+       * would make every position near the owner look contested. */
+      if (ED_spl(e) == NULL || ED_concentrate_junction_internal(e)) {
         continue;
       }
       const double distance = trunk_distance_to_edge(pos, e);
@@ -446,7 +486,8 @@ static bool trunk_label_has_single_owner(graph_t *g, edge_t *owner,
   const double limit = 2.0 * nearest + 1.0;
   for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
     for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
-      if (ED_spl(e) != NULL && trunk_distance_to_edge(pos, e) < limit) {
+      if (ED_spl(e) != NULL && !ED_concentrate_junction_internal(e) &&
+          trunk_distance_to_edge(pos, e) < limit) {
         candidate_count++;
       }
     }
@@ -542,6 +583,13 @@ static const char *directed_dir(bool keep_head_arrow, bool keep_tail_arrow,
   return "none";
 }
 
+static void copy_named_edge_attr(edge_t *dst, edge_t *src, char *name) {
+  attrsym_t *sym = agfindedgeattr(agraphof(agtail(src)), name);
+  if (sym != NULL) {
+    agxset(dst, sym, attr(src, sym, ""));
+  }
+}
+
 static void copy_edge_attrs(edge_t *dst, edge_t *src, bool with_label,
                             bool keep_head_arrow, bool keep_tail_arrow,
                             bool reverse) {
@@ -565,6 +613,14 @@ static void copy_edge_attrs(edge_t *dst, edge_t *src, bool with_label,
   }
   if (E_label) {
     agxset(dst, E_label, with_label ? attr(src, E_label, "") : "");
+  }
+  copy_named_edge_attr(dst, src, "colorscheme");
+  copy_named_edge_attr(dst, src, "fillcolor");
+  copy_named_edge_attr(dst, src, "layer");
+  if (with_label) {
+    /* A floating label must stay floating on the trunk that now carries it,
+     * or rank spacing reserves room for it. */
+    copy_named_edge_attr(dst, src, "labelfloat");
   }
   attrsym_t *dir = agfindedgeattr(agraphof(agtail(src)), "dir");
   if (dir) {
@@ -613,8 +669,24 @@ static node_t *fresh_junction_node(graph_t *g, size_t *index) {
   char name[64];
   do {
     snprintf(name, sizeof(name), "_concentrate_junction_%zu", (*index)++);
-  } while (agnode(g, name, 0) != NULL);
+    /* A component subgraph (pack) only sees its own nodes; a same-named user
+     * node in another component would be adopted and rewired as the junction. */
+  } while (agnode(agroot(g), name, 0) != NULL);
   return agnode(g, name, 1);
+}
+
+static const char *group_identity_value(const junction_group_t *group,
+                                        const char *name) {
+  for (size_t i = 0; i < GROUP_IDENTITY_COUNT; ++i) {
+    if (streq(group_identity_name(i), name)) {
+      return group->attrs[i];
+    }
+  }
+  return "";
+}
+
+static bool junction_group_invisible(const junction_group_t *group) {
+  return strstr(group->attrs[GROUP_ATTR_STYLE], "invis") != NULL;
 }
 
 static const char *junction_marker_color(const junction_group_t *group) {
@@ -688,21 +760,26 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   agxset(jn, N_color, marker_color);
   agxset(jn, N_fillcolor, marker_color);
   agxset(jn, N_shape, "point");
-  agxset(jn, N_style, "");
+  /* A fan drawn with no ink must not leave its junction dot behind. */
+  agxset(jn, N_style, junction_group_invisible(group) ? "invis" : "");
   agxset(jn, N_width, "0.02");
   agxset(jn, N_height, "0.02");
   agsafeset(jn, "label", "", "");
   agsafeset(jn, "color", marker_color, "");
   agsafeset(jn, "fillcolor", marker_color, "");
   agsafeset(jn, "shape", "point", "");
-  agsafeset(jn, "style", "", "");
+  agsafeset(jn, "style", junction_group_invisible(group) ? "invis" : "", "");
+  /* Colour scheme and layer decide how the marker colour resolves and on which
+   * layers it is drawn; an unset layer would draw it on every layer. */
+  agsafeset(jn, "colorscheme", group_identity_value(group, "colorscheme"), "");
+  agsafeset(jn, "layer", group->attrs[GROUP_ATTR_LAYER], "");
   agsafeset(jn, "width", "0.02", "");
   agsafeset(jn, "height", "0.02", "");
   agsafeset(jn, "_concentrate_junction_node", "true", "");
   init_added_node(jn);
-  ND_concentrate_junction(jn) = true;
+  concentrate_junction_state_bind(jn)->junction_node = true;
 
-  int weight = 0;
+  int64_t weight = 0;
   edge_t *trunk = NULL;
   if (kind == JUNCTION_FANOUT) {
     trunk = reverse ? agedge(g, jn, group->anchor, NULL, 1)
@@ -712,17 +789,18 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
   } else {
     trunk = reverse ? agedge(g, group->anchor, jn, NULL, 1)
                     : agedge(g, jn, group->anchor, NULL, 1);
-    copy_edge_attrs(trunk, rep, true, true, false, reverse);
+    copy_edge_attrs(trunk, rep, true, !edge_dir_is_none(rep), false, reverse);
   }
   if (group->sameport && endpoint_label_text(rep, kind)[0]) {
     copy_endpoint_label_attrs(trunk, rep, kind);
   }
   agsafeset(trunk, "_concentrate_junction_internal", "true", "");
   init_added_edge(trunk);
-  ED_concentrate_junction_internal(trunk) = true;
+  concentrate_junction_state_bind(trunk)->internal = true;
   for (size_t i = 0; i < group->size; ++i) {
     edge_t *orig = group->edges[i];
     const int orig_weight = ED_weight(orig);
+    const int orig_minlen = ED_minlen(orig);
     if (group->sameport) {
       suppress_endpoint_label(orig, kind);
     }
@@ -734,7 +812,7 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     if (kind == JUNCTION_FANOUT) {
       arm = reverse ? agedge(g, aghead(orig), jn, NULL, 1)
                     : agedge(g, jn, aghead(orig), NULL, 1);
-      copy_edge_attrs(arm, orig, false, true, false, reverse);
+      copy_edge_attrs(arm, orig, false, !edge_dir_is_none(orig), false, reverse);
     } else {
       arm = reverse ? agedge(g, jn, agtail(orig), NULL, 1)
                     : agedge(g, agtail(orig), jn, NULL, 1);
@@ -743,9 +821,16 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     }
     agsafeset(arm, "_concentrate_junction_internal", "true", "");
     init_added_edge(arm);
-    ED_concentrate_junction_internal(arm) = true;
+    concentrate_junction_state_bind(arm)->internal = true;
+    /* The original rank distance must survive being split in two: the trunk
+     * keeps the default one rank, the arm takes the remainder. */
+    ED_minlen(arm) = orig_minlen > 1 ? orig_minlen - 1 : 1;
     dot_bundle_load_set_legacy_position(arm, orig_weight);
+    /* Saturate: summed weights may exceed INT_MAX. */
     weight += orig_weight;
+    if (weight > INT_MAX) {
+      weight = INT_MAX;
+    }
 
     junction_edge_t *info = gv_calloc(1, sizeof(junction_edge_t));
     info->arm = arm;
@@ -753,11 +838,12 @@ static void make_group(graph_t *g, const junction_group_t *group, size_t *index,
     info->draw_trunk = i == 0;
     info->reverse = reverse;
     info->fanout = kind == JUNCTION_FANOUT;
-    ED_concentrate_junction(orig) = info;
+    concentrate_junction_state_bind(orig)->info = info;
   }
 
   const int64_t trunk_scale = ED_label(trunk) ? (int64_t)group->size : 1;
-  const int64_t trunk_weight = (int64_t)weight * trunk_scale;
+  const int64_t trunk_weight =
+      weight > INT_MAX / trunk_scale ? INT_MAX : weight * trunk_scale;
   dot_bundle_load_set_legacy_position(
       trunk, trunk_weight > INT_MAX ? INT_MAX : (int)trunk_weight);
 }
@@ -772,7 +858,9 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
       if (refused_edge_kind(g, e)) {
         continue;
       }
-      if (!eligible(e) || ED_concentrate_junction(e)) {
+      /* Helper edges made by an earlier pass are never regrouped. */
+      if (!eligible(e) || ED_concentrate_junction(e) ||
+          ED_concentrate_junction_internal(e)) {
         continue;
       }
       if (kind == JUNCTION_FANOUT && fanout_edge_shares_bidirectional_target(e)) {
@@ -823,6 +911,30 @@ static void make_groups(graph_t *g, junction_kind_t kind, size_t *made) {
   free(groups);
 }
 
+/* Everything that makes one endpoint label render differently from another
+ * with the same text: its font, placement and link metadata. */
+static bool endpoint_labels_render_alike(edge_t *a, edge_t *b,
+                                         junction_kind_t kind) {
+  static char *const common[] = {
+      "labelfontsize", "labelfontname", "labelfontcolor", "labeldistance",
+      "labelangle",    "labelfloat",
+  };
+  static char *const head_only[] = {"headURL", "headhref", "headtooltip",
+                                          "headtarget"};
+  static char *const tail_only[] = {"tailURL", "tailhref", "tailtooltip",
+                                          "tailtarget"};
+  graph_t *g = agraphof(agtail(a));
+  char *const *own = kind == JUNCTION_FANOUT ? tail_only : head_only;
+  for (size_t i = 0; i < ARRAY_SIZE(common) + 4; ++i) {
+    char *name = i < ARRAY_SIZE(common) ? common[i] : own[i - ARRAY_SIZE(common)];
+    attrsym_t *sym = agfindedgeattr(g, name);
+    if (!streq(attr(a, sym, ""), attr(b, sym, ""))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool sameport_group_label_is_compatible(junction_group_t *group,
                                                junction_kind_t kind) {
   const char *label = "";
@@ -832,7 +944,10 @@ static bool sameport_group_label_is_compatible(junction_group_t *group,
     if (candidate[0] == '\0') {
       continue;
     }
-    if (label[0] != '\0' && !streq(label, candidate)) {
+    if (label[0] != '\0' &&
+        (!streq(label, candidate) ||
+         !endpoint_labels_render_alike(group->edges[representative],
+                                       group->edges[i], kind))) {
       return false;
     }
     label = candidate;
@@ -866,8 +981,9 @@ static void make_sameport_groups(graph_t *g, junction_kind_t kind,
           edge_has_record_endpoint_geometry(e) ||
           endpoint_has_explicit_port(e) || edge_has_true_multiedge_peer(e) ||
           graph_has_same_rank_edge(g, e) ||
-          graph_has_refused_concentrated_edge(e) || !eligible_sameport(e) ||
-          !samearrow_compatible(e, kind) || ED_concentrate_junction(e)) {
+          graph_has_refused_concentrated_edge(e) || !eligible_sameport(e, kind) ||
+          !samearrow_compatible(e, kind) || ED_concentrate_junction(e) ||
+          ED_concentrate_junction_internal(e)) {
         continue;
       }
       if (group_anchor(e, kind) !=
@@ -906,6 +1022,10 @@ static void make_sameport_groups(graph_t *g, junction_kind_t kind,
   free(groups);
 }
 
+static bool edge_dir_is_none(edge_t *e) {
+  return streq(attr(e, agfindedgeattr(agraphof(agtail(e)), "dir"), ""), "none");
+}
+
 static bool edge_dir_is_both(edge_t *e) {
   return streq(attr(e, agfindedgeattr(agraphof(agtail(e)), "dir"), ""), "both");
 }
@@ -940,6 +1060,18 @@ static bool has_cluster_subgraph(graph_t *g) {
   return false;
 }
 
+static bool graph_has_unfused_multiedge(graph_t *g) {
+  for (node_t *n = agfstnode(g); n; n = agnxtnode(g, n)) {
+    for (edge_t *e = agfstout(g, n); e; e = agnxtout(g, e)) {
+      if (!ED_concentrate_junction(e) && !ED_concentrate_junction_internal(e) &&
+          edge_has_true_multiedge_peer(e)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void dot_concentrate_junction(graph_t *g) {
   if (!Concentrate) {
     return;
@@ -963,7 +1095,12 @@ void dot_concentrate_junction(graph_t *g) {
   if (made > 0) {
     suppress_duplicate_bidirectional_edges(g);
     agsafeset(g, "_concentrate_junction_active", "true", "");
-    Concentrate = false;
+    /* The legacy pass stays on for the edges this transform refused to fuse
+     * (identical parallel edges): switching it off graph-wide would silently
+     * stop coalescing them just because an unrelated fan got a junction. */
+    if (!graph_has_unfused_multiedge(g)) {
+      Concentrate = false;
+    }
   }
 }
 
@@ -1090,8 +1227,9 @@ void dot_concentrate_junction_splines(graph_t *g) {
         ED_spl(e) = copy_joined_splines(ED_spl(info->arm), ED_spl(info->trunk),
                                         info->reverse, &arm_size);
       }
-      ED_concentrate_junction_draw_trunk(e) = info->draw_trunk;
-      ED_concentrate_junction_emit_splines(e) = arm_size;
+      concentrate_junction_state_t *state = concentrate_junction_state_bind(e);
+      state->draw_trunk = info->draw_trunk;
+      state->emit_splines = arm_size;
       uint32_t sflag = 0;
       uint32_t eflag = 0;
       arrow_flags(e, &sflag, &eflag);
@@ -1128,7 +1266,63 @@ void dot_concentrate_junction_splines(graph_t *g) {
         agxset(info->trunk, E_label, "");
       }
       free(info);
-      ED_concentrate_junction(e) = NULL;
+      state->info = NULL;
     }
+  }
+}
+
+/* Take the helpers out of the caller's graph. dot_cleanup() frees layout
+ * records only, and the arm/trunk edges and the junction nodes are real cgraph
+ * objects: left behind, a second layout of the same graph would treat them as
+ * user input and fuse them again. Must run after the virtual nodes are freed
+ * and before the per-object layout records are. */
+void dot_concentrate_junction_restore(graph_t *g,
+                                      void (*cleanup_node)(node_t *)) {
+  graph_t *root = agroot(g);
+  if (agattr(root, AGEDGE, "_concentrate_junction_original", NULL) == NULL) {
+    return;
+  }
+
+  size_t njunction = 0;
+  size_t capacity = 0;
+  node_t **junctions = NULL;
+  for (node_t *n = agfstnode(root); n; n = agnxtnode(root, n)) {
+    if (ND_concentrate_junction(n)) {
+      if (njunction == capacity) {
+        capacity = capacity == 0 ? 8 : capacity * 2;
+        junctions = gv_recalloc(junctions, njunction, capacity, sizeof(node_t *));
+      }
+      junctions[njunction++] = n;
+    }
+  }
+
+  for (node_t *n = agfstnode(root); n; n = agnxtnode(root, n)) {
+    for (edge_t *e = agfstout(root, n); e; e = agnxtout(root, e)) {
+      if (mapbool(agget(e, "_concentrate_junction_original"))) {
+        agsafeset(e, "_concentrate_junction_original", "", "");
+        agsafeset(e, "_concentrate_junction_arm_splines", "", "");
+        agsafeset(e, "_concentrate_junction_draw_trunk", "", "");
+      }
+      concentrate_junction_state_release(e);
+    }
+  }
+
+  for (size_t i = 0; i < njunction; ++i) {
+    node_t *jn = junctions[i];
+    for (edge_t *e = agfstedge(root, jn), *next; e; e = next) {
+      next = agnxtedge(root, e, jn);
+      gv_cleanup_edge(e);
+      agdeledge(root, e);
+    }
+    concentrate_junction_state_release(jn);
+    cleanup_node(jn);
+    agdelnode(root, jn);
+  }
+  free(junctions);
+
+  agsafeset(root, "_concentrate_junction_active", "", "");
+  agsafeset(root, "_concentrate_junction_clustered_fallback", "", "");
+  if (g != root) {
+    agsafeset(g, "_concentrate_junction_active", "", "");
   }
 }

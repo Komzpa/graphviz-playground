@@ -12,6 +12,7 @@
 
 #include "config.h"
 
+#include <common/concentrate_junction.h>
 #include <common/edgeattr.h>
 #include <common/utils.h>
 #include <dotgen/concentrate_plan.h>

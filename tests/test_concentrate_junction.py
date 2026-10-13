@@ -8,6 +8,9 @@ from pathlib import Path
 
 import pytest
 
+import subprocess
+
+from concentrate_helpers import _compile_concentrate_c_test, is_static_build
 from gvtest import dot, run
 
 
@@ -883,3 +886,255 @@ def test_concentrate_junction_oldarrows_samearrow_fan_renders():
         for edge in off_fan
         if "_hdraw_" in edge
     ]
+
+
+# --- review-driven regressions (PR 251) ----------------------------------
+
+
+def _plain(source):
+    out = dot("plain", source=source)
+    return (out.decode() if isinstance(out, bytes) else out).splitlines()
+
+
+def _junction_nodes(layout):
+    return [
+        obj
+        for obj in layout["objects"]
+        if obj.get("_concentrate_junction_node") == "true"
+    ]
+
+
+def _fan(attrs_a="", attrs_b="", attrs_c="", head="z"):
+    return (
+        "digraph { concentrate=true;"
+        f" a -> {head} [{attrs_a}]; b -> {head} [{attrs_b}]; c -> {head} [{attrs_c}]; }}"
+    )
+
+
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="dynamic libraries are unavailable to link against in static builds",
+)
+def test_concentrate_junction_helpers_are_removed_by_gvfreelayout(tmp_path):
+    exe, env = _compile_concentrate_c_test(
+        tmp_path, "concentrate_junction_relayout.c", "concentrate-junction-relayout"
+    )
+    subprocess.run((exe,), capture_output=True, env=env, check=True)
+
+
+def test_concentrate_junction_keeps_requested_minlen():
+    def rank_gap(concentrate):
+        source = (
+            f"digraph {{ concentrate={concentrate}; "
+            "a -> z [minlen=3]; b -> z [minlen=3]; }"
+        )
+        ys = {}
+        for line in _plain(source):
+            fields = line.split()
+            if fields[:1] == ["node"] and fields[1] in ("a", "z"):
+                ys[fields[1]] = float(fields[3])
+        return ys["a"] - ys["z"]
+
+    # Without the fix the split edge spans only two ranks (about 1.3in here,
+    # against 2.0in for three ranks).
+    assert rank_gap("true") >= rank_gap("false") - 0.1
+
+
+@pytest.mark.parametrize(
+    "attr_a,attr_b",
+    [
+        ("headclip=false", "headclip=true"),
+        ('colorscheme=blues9 color=3', 'colorscheme=reds9 color=3'),
+        ("fillcolor=red", "fillcolor=blue"),
+        ("class=one", "class=two"),
+        ('label="\\T"', 'label="\\T"'),
+    ],
+)
+def test_concentrate_junction_does_not_merge_distinct_edge_identity(attr_a, attr_b):
+    source = f"digraph {{ concentrate=true; a -> z [{attr_a}]; b -> z [{attr_b}]; }}"
+    layout = _layout(source)
+    assert not _junction_nodes(layout)
+
+
+def test_concentrate_junction_refuses_tapered_edges():
+    layout = _layout(_fan("style=tapered", "style=tapered", "style=tapered"))
+    assert not _junction_nodes(layout)
+
+
+def test_concentrate_junction_marker_follows_invis_style():
+    svg = _svg(_fan("style=invis", "style=invis", "style=invis"))
+    assert "<title>_concentrate_junction_" not in svg
+    # Negative control: the same fan with visible edges does draw the marker.
+    assert "<title>_concentrate_junction_" in _svg(_fan())
+
+
+def test_concentrate_junction_marker_follows_layer():
+    source = (
+        'digraph { concentrate=true; layers="one:two";'
+        " a -> z [layer=one]; b -> z [layer=one]; }"
+    )
+    junctions = _junction_nodes(_layout(source))
+    assert junctions
+    assert all(obj.get("layer") == "one" for obj in junctions)
+
+
+def test_concentrate_junction_marker_follows_colorscheme():
+    source = _fan("colorscheme=blues9 color=3", "colorscheme=blues9 color=3",
+                  "colorscheme=blues9 color=3")
+    junctions = _junction_nodes(_layout(source))
+    assert junctions
+    assert all(obj.get("colorscheme") == "blues9" for obj in junctions)
+
+
+def test_concentrate_junction_user_node_named_like_junction_survives_pack():
+    source = (
+        "digraph { concentrate=true; pack=true; _concentrate_junction_0;"
+        " a -> z; b -> z; }"
+    )
+    layout = _layout(source)
+    names = {int(obj["_gvid"]): obj["name"] for obj in layout["objects"]}
+    user = [gvid for gvid, name in names.items() if name == "_concentrate_junction_0"]
+    assert len(user) == 1
+    assert not [
+        edge
+        for edge in layout["edges"]
+        if user[0] in (int(edge["tail"]), int(edge["head"]))
+    ]
+
+
+def test_concentrate_junction_does_not_stop_legacy_concentration_elsewhere():
+    source = "digraph { concentrate=true; a -> z; b -> z; c -> z; p -> q; p -> q; }"
+    plain = _plain(source)
+    assert any(line.startswith("node _concentrate_junction_") for line in plain)
+    assert sum(1 for line in plain if line.startswith("edge p q ")) == 1
+
+
+def test_concentrate_junction_leaves_explicit_labeldistance_on_lone_edge():
+    def head_label_pos(concentrate):
+        source = (
+            f"digraph {{ concentrate={concentrate}; a -> b [headlabel=h labeldistance=2]; }}"
+        )
+        edge = _layout(source)["edges"][0]
+        return edge["head_lp"]
+
+    assert head_label_pos("true") == head_label_pos("false")
+
+
+def test_concentrate_junction_sameport_dir_none_helpers_carry_no_arrow():
+    source = (
+        "digraph { concentrate=true; edge [dir=none samearrowhead=1];"
+        ' a -> z [samehead=m]; b -> z [samehead=m]; }'
+    )
+    layout = _layout(source)
+    assert _junction_nodes(layout)
+    assert not [edge for edge in layout["edges"] if "_hdraw_" in edge]
+
+
+def test_concentrate_junction_sameport_outer_label_is_not_fused():
+    source = (
+        "digraph { concentrate=true; samehead=m;"
+        ' a -> z [samehead=m samearrowhead=1 taillabel=t];'
+        ' b -> z [samehead=m samearrowhead=1 taillabel=u]; }'
+    )
+    assert not _junction_nodes(_layout(source))
+
+
+def _arrow_tips_near(source, target_of_node, node="e"):
+    """Distance from each arrowhead polygon's nearest vertex to a node-relative target."""
+    layout = _layout(source)
+    obj = next(o for o in layout["objects"] if o["name"] == node)
+    px, py = (float(v) for v in obj["pos"].split(","))
+    width = float(obj["width"]) * 72.0
+    height = float(obj["height"]) * 72.0
+    tx, ty = target_of_node(px, py, width, height)
+    distances = []
+    for edge in layout["edges"]:
+        points = [
+            pt
+            for op in edge.get("_hdraw_", [])
+            if op.get("op") == "P"
+            for pt in op["points"]
+        ]
+        assert points
+        distances.append(min(math.hypot(x - tx, y - ty) for x, y in points))
+    return distances
+
+
+def test_arrow_spread_keeps_explicit_compass_port_tips_fixed():
+    source = "digraph { e [shape=ellipse]; a -> e:w; b -> e:w; c -> e:w; }"
+    distances = _arrow_tips_near(source, lambda x, y, w, h: (x - w / 2.0, y))
+    # Spreading would pull the three tips apart by several points.
+    assert max(distances) - min(distances) < 1.0
+
+
+def test_arrow_spread_keeps_unclipped_tips_inside_the_node():
+    source = (
+        "digraph { e [shape=ellipse];"
+        " a -> e [headclip=false]; b -> e [headclip=false]; c -> e [headclip=false]; }"
+    )
+    distances = _arrow_tips_near(source, lambda x, y, w, h: (x, y))
+    assert max(distances) - min(distances) < 1.0
+
+
+def test_arrow_spread_on_box_lands_on_the_outline():
+    source = "digraph { e [shape=box]; a -> e; b -> e; c -> e; d -> e; }"
+    layout = _layout(source)
+    obj = next(o for o in layout["objects"] if o["name"] == "e")
+    px, py = (float(v) for v in obj["pos"].split(","))
+    half_w = float(obj["width"]) * 36.0
+    half_h = float(obj["height"]) * 36.0
+    for edge in layout["edges"]:
+        points = [
+            pt
+            for op in edge.get("_hdraw_", [])
+            if op.get("op") == "P"
+            for pt in op["points"]
+        ]
+        tip = min(
+            points,
+            key=lambda p: min(abs(abs(p[0] - px) - half_w), abs(abs(p[1] - py) - half_h)),
+        )
+        on_vertical = abs(abs(tip[0] - px) - half_w) < 2.0 and abs(tip[1] - py) <= half_h + 2.0
+        on_horizontal = abs(abs(tip[1] - py) - half_h) < 2.0 and abs(tip[0] - px) <= half_w + 2.0
+        assert on_vertical or on_horizontal
+
+
+def test_arrow_spread_tolerates_epsf_nodes(tmp_path):
+    eps = tmp_path / "shape.eps"
+    eps.write_text(
+        "%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 20 20\n"
+        "newpath 0 0 moveto 20 20 lineto stroke\n"
+    )
+    source = (
+        f'digraph {{ e [shape=epsf shapefile="{eps}"]; a -> e; b -> e; c -> e; }}'
+    )
+    assert sum(line.startswith("edge ") for line in _plain(source)) == 3
+
+
+def test_arrow_spread_leaves_ortho_routes_axis_aligned():
+    source = (
+        "digraph { splines=ortho; e [shape=box]; a -> e; b -> e; c -> e; d -> e; }"
+    )
+    for edge in _layout(source)["edges"]:
+        for op in edge.get("_draw_", []):
+            if op.get("op") != "b":
+                continue
+            points = op["points"]
+            for p, q in zip(points, points[1:]):
+                assert abs(p[0] - q[0]) < 1e-3 or abs(p[1] - q[1]) < 1e-3
+
+
+def test_ordinary_overlapping_endpoint_labels_are_still_separated():
+    source = (
+        "digraph { a -> b [headlabel=XXXXXXXX]; a -> b [headlabel=YYYYYYYY]; }"
+    )
+    labels = [edge["head_lp"] for edge in _layout(source)["edges"]]
+    assert labels[0] != labels[1]
+
+
+def test_thick_record_port_edge_still_routes():
+    source = (
+        "digraph { node [shape=record]; a [label=\"<p>x\"]; b [label=\"<p>y\"];"
+        " a:p:s -> b:p:s [penwidth=60]; }"
+    )
+    assert len(_layout(source)["edges"]) == 1
