@@ -9,7 +9,7 @@ AM_CFLAGS = -DPATHPLAN_EXPORTS
 endif
 
 pkginclude_HEADERS = pathgeom.h pathplan.h
-noinst_HEADERS = pathutil.h solvers.h tri.h vis.h vispath.h
+noinst_HEADERS = pathutil.h route_internal.h solvers.h tri.h vis.h vispath.h
 
 noinst_LTLIBRARIES = libpathplan_C.la
 lib_LTLIBRARIES = libpathplan.la

@@ -12,12 +12,14 @@
 
 #include "config.h"
 #include <assert.h>
+#include <common/edgeattr.h>
 #include <common/geomprocs.h>
 #include <common/render.h>
 #include <float.h>
 #include <limits.h>
 #include <math.h>
 #include <pathplan/pathplan.h>
+#include <pathplan/route_internal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -276,6 +278,131 @@ static void limitBoxes(boxf *boxes, size_t boxn, const pointf *pps, size_t pn,
 #define INIT_DELTA 10 
 #define LOOP_TRIES 15  /* number of times to try to limiting boxes to regain space, using smaller divisions */
 
+static pointf route_box_center(boxf bounds) {
+  return (pointf){.x = (bounds.LL.x + bounds.UR.x) / 2.0,
+                  .y = (bounds.LL.y + bounds.UR.y) / 2.0};
+}
+
+static Pvector_t route_unit_vector(Pvector_t vector) {
+  const double length = hypot(vector.x, vector.y);
+  if (!isfinite(length) || length <= 1e-6)
+    return (Pvector_t){0};
+  return (Pvector_t){.x = vector.x / length, .y = vector.y / length};
+}
+
+static Pedge_t route_corridor_portal(boxf first, boxf second,
+                                     Pvector_t overall_direction) {
+  const boxf overlap = {
+      .LL = {.x = fmax(first.LL.x, second.LL.x),
+             .y = fmax(first.LL.y, second.LL.y)},
+      .UR = {.x = fmin(first.UR.x, second.UR.x),
+             .y = fmin(first.UR.y, second.UR.y)},
+  };
+  const pointf first_center = route_box_center(first);
+  const pointf second_center = route_box_center(second);
+  Pvector_t transition = {.x = second_center.x - first_center.x,
+                          .y = second_center.y - first_center.y};
+  if (hypot(transition.x, transition.y) <= 1e-6)
+    transition = overall_direction;
+  if (fabs(transition.y) >= fabs(transition.x)) {
+    const double y = (overlap.LL.y + overlap.UR.y) / 2.0;
+    return (Pedge_t){.a = {.x = overlap.LL.x, .y = y},
+                     .b = {.x = overlap.UR.x, .y = y}};
+  }
+  const double x = (overlap.LL.x + overlap.UR.x) / 2.0;
+  return (Pedge_t){.a = {.x = x, .y = overlap.LL.y},
+                   .b = {.x = x, .y = overlap.UR.y}};
+}
+
+static double route_point_segment_distance_squared(Ppoint_t query,
+                                                   Pedge_t segment) {
+  const Pvector_t direction = {.x = segment.b.x - segment.a.x,
+                               .y = segment.b.y - segment.a.y};
+  const double length_squared =
+      direction.x * direction.x + direction.y * direction.y;
+  if (length_squared <= 1e-18) {
+    const double dx = query.x - segment.a.x;
+    const double dy = query.y - segment.a.y;
+    return dx * dx + dy * dy;
+  }
+  const Pvector_t offset = {.x = query.x - segment.a.x,
+                            .y = query.y - segment.a.y};
+  const double t =
+      fmax(0.0, fmin(1.0, (offset.x * direction.x + offset.y * direction.y) /
+                              length_squared));
+  const double dx = query.x - (segment.a.x + t * direction.x);
+  const double dy = query.y - (segment.a.y + t * direction.y);
+  return dx * dx + dy * dy;
+}
+
+static Pvector_t route_portal_direction(boxf first, boxf second, Pedge_t portal,
+                                        Pvector_t overall_direction) {
+  const pointf first_center = route_box_center(first);
+  const pointf second_center = route_box_center(second);
+  Pvector_t transition =
+      route_unit_vector((Pvector_t){.x = second_center.x - first_center.x,
+                                    .y = second_center.y - first_center.y});
+  if (hypot(transition.x, transition.y) <= 1e-6)
+    transition = overall_direction;
+
+  Pvector_t direction = route_unit_vector((Pvector_t){
+      .x = -(portal.b.y - portal.a.y), .y = portal.b.x - portal.a.x});
+  if (hypot(direction.x, direction.y) <= 1e-6)
+    return transition;
+  if (direction.x * transition.x + direction.y * transition.y < 0.0) {
+    direction.x = -direction.x;
+    direction.y = -direction.y;
+  }
+  return direction;
+}
+
+static Pvector_t *route_corridor_fallbacks(const boxf *boxes, size_t boxn,
+                                           Ppolyline_t template,
+                                           Ppoint_t endpoints[2]) {
+  Pvector_t *const fallbacks = gv_calloc(template.pn, sizeof(Pvector_t));
+  const Pvector_t overall =
+      route_unit_vector((Pvector_t){.x = endpoints[1].x - endpoints[0].x,
+                                    .y = endpoints[1].y - endpoints[0].y});
+  if (boxn < 2) {
+    for (size_t point_index = 0; point_index < template.pn; point_index++)
+      fallbacks[point_index] = overall;
+    return fallbacks;
+  }
+
+  const size_t portal_count = boxn - 1;
+  Pedge_t *const portals = gv_calloc(portal_count, sizeof(Pedge_t));
+  for (size_t portal_index = 0; portal_index < portal_count; portal_index++) {
+    portals[portal_index] = route_corridor_portal(
+        boxes[portal_index], boxes[portal_index + 1], overall);
+  }
+
+  for (size_t point_index = 0; point_index < template.pn; point_index++) {
+    size_t portal_index = SIZE_MAX;
+    double best_distance = INFINITY;
+    bool ambiguous = false;
+    for (size_t candidate = 0; candidate < portal_count; candidate++) {
+      const double distance = route_point_segment_distance_squared(
+          template.ps[point_index], portals[candidate]);
+      if (portal_index == SIZE_MAX ||
+          distance < best_distance - 1e-12 * fmax(1.0, fabs(best_distance))) {
+        best_distance = distance;
+        portal_index = candidate;
+        ambiguous = false;
+      } else if (fabs(distance - best_distance) <=
+                 1e-12 * fmax(1.0, fabs(best_distance))) {
+        ambiguous = true;
+      }
+    }
+    if (portal_index == SIZE_MAX || ambiguous)
+      continue;
+    fallbacks[point_index] =
+        route_portal_direction(boxes[portal_index], boxes[portal_index + 1],
+                               portals[portal_index], overall);
+  }
+  free(portals);
+  return fallbacks;
+}
+
 /** Route a path using the path info in pp. This includes start and end points
  * plus a collection of contiguous boxes containing the terminal points. The
  * boxes are converted into a containing polygon. A shortest path is constructed
@@ -291,34 +418,37 @@ static void limitBoxes(boxf *boxes, size_t boxn, const pointf *pps, size_t pn,
  *
  * If a catastrophic error, return NULL and npoints is 0.
  */
-static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
-    Ppoly_t poly;
-    Ppolyline_t pl, spl;
-    Ppoint_t eps[2];
-    int prev, next;
-    boxf *boxes;
-    edge_t* realedge;
-    bool flip;
-    int loopcnt;
-    bool unbounded;
+static pointf *routesplines_(path *pp, size_t *npoints, int polyline,
+                             route_spline_metadata_t *metadata) {
+  Ppoly_t poly;
+  Ppolyline_t pl, spl;
+  Ppoint_t eps[2];
+  int prev, next;
+  boxf *boxes;
+  edge_t *realedge;
+  bool flip;
+  int loopcnt;
+  bool unbounded;
 
-    *npoints = 0;
-    nedges++;
-    nboxes += pp->nbox;
+  *npoints = 0;
+  if (metadata != NULL)
+    *metadata = (route_spline_metadata_t){0};
+  nedges++;
+  nboxes += pp->nbox;
 
-    for (realedge = pp->data;
-	 realedge && ED_edge_type(realedge) != NORMAL;
-	 realedge = ED_to_orig(realedge));
-    if (!realedge) {
-	agerrorf("in routesplines, cannot find NORMAL edge\n");
-	return NULL;
-    }
+  for (realedge = pp->data; realedge && ED_edge_type(realedge) != NORMAL;
+       realedge = ED_to_orig(realedge))
+    ;
+  if (!realedge) {
+    agerrorf("in routesplines, cannot find NORMAL edge\n");
+    return NULL;
+  }
 
-    boxes = pp->boxes;
-    const size_t boxn = pp->nbox;
+  boxes = pp->boxes;
+  const size_t boxn = pp->nbox;
 
-    if (checkpath(boxn, boxes, pp))
-	return NULL;
+  if (checkpath(boxn, boxes, pp))
+    return NULL;
 
 #ifdef DEBUG
     if (debugleveln(realedge, 1))
@@ -439,6 +569,34 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
 	    polypoints[i].y *= -1;
     }
 
+    boxf *const route_corridor = gv_calloc(boxn, sizeof(boxf));
+    memcpy(route_corridor, boxes, boxn * sizeof(boxf));
+
+    if (metadata != NULL) {
+      const Pvector_t overall_direction = {
+          .x = pp->end.p.x - pp->start.p.x,
+          .y = pp->end.p.y - pp->start.p.y,
+      };
+      metadata->corridor = gv_calloc(boxn, sizeof(boxf));
+      memcpy(metadata->corridor, route_corridor, boxn * sizeof(boxf));
+      metadata->corridor_count = boxn;
+      metadata->barriers = gv_calloc(pi, sizeof(Pedge_t));
+      metadata->barrier_count = pi;
+      for (size_t edgei = 0; edgei < pi; edgei++) {
+        metadata->barriers[edgei].a = polypoints[edgei];
+        metadata->barriers[edgei].b = polypoints[(edgei + 1) % pi];
+      }
+      if (boxn > 1) {
+        metadata->portals = gv_calloc(boxn - 1, sizeof(Pedge_t));
+        metadata->portal_count = boxn - 1;
+        for (size_t portali = 0; portali + 1 < boxn; portali++) {
+          metadata->portals[portali] = route_corridor_portal(
+              route_corridor[portali], route_corridor[portali + 1],
+              overall_direction);
+        }
+      }
+    }
+
     static const double INITIAL_LLX = DBL_MAX;
     static const double INITIAL_URX = -DBL_MAX;
     for (size_t bi = 0; bi < boxn; bi++) {
@@ -449,9 +607,16 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
     eps[0].x = pp->start.p.x, eps[0].y = pp->start.p.y;
     eps[1].x = pp->end.p.x, eps[1].y = pp->end.p.y;
     if (Pshortestpath(&poly, eps, &pl) < 0) {
-	free(polypoints);
-	agerrorf("in routesplines, Pshortestpath failed\n");
-	return NULL;
+      route_spline_metadata_free(metadata);
+      free(route_corridor);
+      free(polypoints);
+      agerrorf("in routesplines, Pshortestpath failed\n");
+      return NULL;
+    }
+    if (metadata != NULL) {
+      metadata->template_points = gv_calloc(pl.pn, sizeof(Ppoint_t));
+      memcpy(metadata->template_points, pl.ps, pl.pn * sizeof(Ppoint_t));
+      metadata->template_point_count = pl.pn;
     }
 #ifdef DEBUG
     if (debugleveln(realedge, 3)) {
@@ -479,13 +644,20 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
 	    evs[1].y = -sin(pp->end.theta);
 	}
 
-	if (Proutespline(edges, poly.pn, pl, evs, &spl) < 0) {
-	    free(edges);
-	    free(polypoints);
-	    agerrorf("in routesplines, Proutespline failed\n");
-	    return NULL;
-	}
-	free(edges);
+        Pvector_t *const split_fallbacks =
+            route_corridor_fallbacks(route_corridor, boxn, pl, eps);
+        const int route_status = Proutespline_with_fallbacks(
+            edges, poly.pn, pl, evs, split_fallbacks, &spl);
+        free(split_fallbacks);
+        if (route_status < 0) {
+          free(edges);
+          route_spline_metadata_free(metadata);
+          free(route_corridor);
+          free(polypoints);
+          agerrorf("in routesplines, Proutespline failed\n");
+          return NULL;
+        }
+        free(edges);
 #ifdef DEBUG
 	if (debugleveln(realedge, 3)) {
 	    psprintspline(spl);
@@ -495,9 +667,11 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
     }
     pointf *ps = calloc(spl.pn, sizeof(ps[0]));
     if (ps == NULL) {
-	free(polypoints);
-	agerrorf("cannot allocate ps\n");
-	return NULL;  /* Bailout if no memory left */
+      route_spline_metadata_free(metadata);
+      free(route_corridor);
+      free(polypoints);
+      agerrorf("cannot allocate ps\n");
+      return NULL; /* Bailout if no memory left */
     }
 
     unbounded = true;
@@ -591,16 +765,32 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
 	printboxes(boxn, boxes);
 #endif
 
+    free(route_corridor);
     free(polypoints);
     return ps;
 }
 
 pointf *routesplines(path *pp, size_t *npoints) {
-  return routesplines_(pp, npoints, 0);
+  return routesplines_(pp, npoints, 0, NULL);
+}
+
+pointf *routesplines_with_metadata(path *pp, size_t *npoints,
+                                   route_spline_metadata_t *metadata) {
+  return routesplines_(pp, npoints, 0, metadata);
 }
 
 pointf *routepolylines(path *pp, size_t *npoints) {
-  return routesplines_(pp, npoints, 1);
+  return routesplines_(pp, npoints, 1, NULL);
+}
+
+void route_spline_metadata_free(route_spline_metadata_t *metadata) {
+  if (metadata == NULL)
+    return;
+  free(metadata->barriers);
+  free(metadata->corridor);
+  free(metadata->portals);
+  free(metadata->template_points);
+  *metadata = (route_spline_metadata_t){0};
 }
 
 static double overlap(double i0, double i1, double j0, double j1) {
@@ -972,18 +1162,75 @@ makeStraightEdge(graph_t * g, edge_t * e, int et, splineInfo* sinfo)
     free(edge_list);
 }
 
+static edge_t *rendered_attribute_edge(edge_t *edge) {
+    while (edge != NULL && ED_edge_type(edge) != NORMAL)
+	edge = ED_to_orig(edge);
+    return edge;
+}
+
 void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
                        splineInfo *sinfo) {
     pointf dumb[4];
     bool curved = et == EDGETYPE_CURVED;
     pointf del;
 
+    if (Concentrate) {
+	for (size_t i = 0; i < e_cnt; i++) {
+	    edge_t *const retained = edge_list[i];
+	    if (ED_edge_type(retained) == IGNORED)
+		continue;
+	    for (size_t j = i + 1; j < e_cnt; j++) {
+		edge_t *const candidate = edge_list[j];
+		if (ED_edge_type(candidate) == IGNORED)
+		    continue;
+		edge_t *const retained_attribute_edge =
+		    rendered_attribute_edge(retained);
+			edge_t *const candidate_attribute_edge =
+			    rendered_attribute_edge(candidate);
+			if (retained_attribute_edge == NULL ||
+			    candidate_attribute_edge == NULL)
+			    continue;
+			const bool candidate_is_opposite_direction =
+			    agtail(retained_attribute_edge) !=
+			        aghead(retained_attribute_edge) &&
+			    agtail(retained_attribute_edge) ==
+			        aghead(candidate_attribute_edge) &&
+			    aghead(retained_attribute_edge) ==
+			        agtail(candidate_attribute_edge);
+			const bool attributes_are_mergeable =
+			    candidate_is_opposite_direction
+			        ? gv_opposite_edge_attributes_are_equal(
+			              retained_attribute_edge, candidate_attribute_edge)
+			        : gv_edge_attributes_are_equal(retained_attribute_edge,
+			                                       candidate_attribute_edge);
+			const bool arrows_are_mergeable =
+			    candidate_is_opposite_direction
+			        ? opposite_direction_edge_arrow_decorations_are_mergeable(
+			              retained_attribute_edge, candidate_attribute_edge)
+			        : same_direction_edge_arrow_decorations_are_mergeable(
+			              retained_attribute_edge, candidate_attribute_edge);
+			if (attributes_are_mergeable && arrows_are_mergeable) {
+				    fold_concentrated_edge_arrow_decorations(
+					retained_attribute_edge, candidate_attribute_edge,
+					candidate_is_opposite_direction);
+			    ED_edge_type(candidate) = IGNORED;
+			}
+	    }
+	}
+	size_t kept = 0;
+	for (size_t i = 0; i < e_cnt; i++) {
+	    if (ED_edge_type(edge_list[i]) != IGNORED)
+		edge_list[kept++] = edge_list[i];
+	}
+	e_cnt = kept;
+    }
+
     edge_t *e = edge_list[0];
     node_t *n = agtail(e);
     node_t *head = aghead(e);
     dumb[1] = dumb[0] = add_pointf(ND_coord(n), ED_tail_port(e).p);
     dumb[2] = dumb[3] = add_pointf(ND_coord(head), ED_head_port(e).p);
-    if (e_cnt == 1 || Concentrate) {
+    if (e_cnt == 1) {
 	if (curved) bend(dumb,get_cycle_centroid(g, edge_list[0]));
 	clip_and_install(e, aghead(e), dumb, 4, sinfo);
 	addEdgeLabels(e);
