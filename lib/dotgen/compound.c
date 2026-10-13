@@ -22,6 +22,8 @@
 #include	<util/alloc.h>
 #include	<util/gv_math.h>
 
+#define NOMINAL_ARROW_LENGTH 10.0
+
 /* Return point where line segment [pp,cp] intersects
  * the box bp. Assume cp is outside the box, and pp is
  * on or in the box. 
@@ -74,6 +76,22 @@ static pointf boxIntersectf(pointf pp, pointf cp, boxf * bp)
 /// returns true if p is on or in box bb
 static bool inBoxf(pointf p, boxf *bb) {
     return INSIDE(p, *bb);
+}
+
+static bool same_pointf(pointf a, pointf b) {
+    return a.x == b.x && a.y == b.y;
+}
+
+static void regularize_collapsed_bezier_joins(bezier *bez) {
+    for (size_t joint = 3; joint + 1 < bez->size; joint += 3) {
+	if (same_pointf(bez->list[joint - 1], bez->list[joint]) &&
+	    same_pointf(bez->list[joint], bez->list[joint + 1])) {
+	    bez->list[joint - 1] =
+		mid_pointf(bez->list[joint - 2], bez->list[joint]);
+	    bez->list[joint + 1] =
+		mid_pointf(bez->list[joint], bez->list[joint + 2]);
+	}
+    }
 }
 
 /* Returns subgraph with given name.
@@ -320,8 +338,11 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    agwarningf(
 			  "%s -> %s: tail is inside head cluster %s\n",
 			  agnameof(agtail(e)), agnameof(aghead(e)), agget(e, "lhead"));
-		} else if (!inBoxf(bez->sp, bb)) {
-		    assert(bez->sflag);	/* must be arrowhead on tail */
+		} else if (bez->sflag && !inBoxf(bez->sp, bb)) {
+		    /* bez->sp is only initialized when a tail arrow exists
+		     * (sflag). A concentrated representative may legally
+		     * carry no tail arrow; its drawn spline then starts at
+		     * list[0] and there is nothing to re-aim at the box. */
 		    pointf p = boxIntersectf(bez->list[0], bez->sp, bb);
 		    bez->list[3] = p;
 		    bez->list[1] = mid_pointf(p, bez->sp);
@@ -329,7 +350,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    bez->list[2] = mid_pointf(bez->list[1], p);
 		    if (bez->eflag)
 			endi = arrowEndClip(e, bez->list,
-					 starti, 0, &nbez, bez->eflag);
+					 starti, 0, &nbez, bez->eflag,
+					 edge_arrow_arrowsize(e, EDGE_ARROW_END));
 		    endi += 3;
 		    fixed = true;
 		}
@@ -339,13 +361,18 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 			break;
 		}
 		if (endi == size - 1) {	/* no intersection */
-		    assert(bez->eflag);
-		    nbez.ep = boxIntersectf(bez->ep, bez->list[endi], bb);
+		    /* Only the head-arrow segment (ep, set iff eflag) can
+		     * cross the box here. An arrowless concentrated
+		     * representative ends at its last control point and
+		     * needs no end re-clip. */
+		    if (bez->eflag)
+			nbez.ep = boxIntersectf(bez->ep, bez->list[endi], bb);
 		} else {
 		    if (bez->eflag)
 			endi =
 			    arrowEndClip(e, bez->list,
-					 starti, endi, &nbez, bez->eflag);
+					 starti, endi, &nbez, bez->eflag,
+					 edge_arrow_arrowsize(e, EDGE_ARROW_END));
 		    endi += 3;
 		}
 		fixed = true;
@@ -389,7 +416,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    bez->list[starti + 1] = mid_pointf(bez->list[starti + 2], p);
 		    if (bez->sflag)
 			starti = arrowStartClip(e, bez->list, starti,
-				endi - 3, &nbez, bez->sflag);
+				endi - 3, &nbez, bez->sflag,
+				edge_arrow_arrowsize(e, EDGE_ARROW_START));
 		    fixed = true;
 		}
 	    } else {
@@ -409,7 +437,8 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 		    starti -= 3;
 		    if (bez->sflag)
 			starti = arrowStartClip(e, bez->list, starti,
-				endi - 3, &nbez, bez->sflag);
+				endi - 3, &nbez, bez->sflag,
+				edge_arrow_arrowsize(e, EDGE_ARROW_START));
 		}
 		fixed = true;
 	    }
@@ -421,12 +450,22 @@ static void makeCompoundEdge(edge_t *e, Dt_t *clustMap) {
 	    nbez.sp = bez->sp;
     }
 
+    if (lt && lh && ED_conc_opp_flag(e) && nbez.sflag && nbez.eflag) {
+	const double tail_arrow =
+	    NOMINAL_ARROW_LENGTH * edge_arrow_arrowsize(e, EDGE_ARROW_START);
+	const double head_arrow =
+	    NOMINAL_ARROW_LENGTH * edge_arrow_arrowsize(e, EDGE_ARROW_END);
+	if (DIST(nbez.sp, nbez.ep) <= tail_arrow + head_arrow)
+	    nbez.sflag = ARR_NONE;
+    }
+
     /* complete Bézier, free garbage and attach new Bézier to edge 
      */
     nbez.size = endi - starti + 1;
     nbez.list = gv_calloc(nbez.size, sizeof(pointf));
     for (size_t i = 0, j = starti; i < nbez.size; i++, j++)
 	nbez.list[i] = bez->list[j];
+    regularize_collapsed_bezier_joins(&nbez);
     free(bez->list);
     *ED_spl(e)->list = nbez;
 }

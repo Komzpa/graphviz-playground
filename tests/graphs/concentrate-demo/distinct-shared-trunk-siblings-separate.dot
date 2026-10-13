@@ -1,0 +1,14 @@
+digraph {
+  graph [concentrate=true]
+  edge [penwidth=3]
+
+  { rank=min; a; b }
+  a -> c
+  c -> e
+  e -> d
+
+  a -> d [color=blue]
+  b -> d [color=red]
+  a -> d
+  b -> d
+}
