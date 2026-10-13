@@ -47,6 +47,14 @@ kind<TAB>endpoint<TAB>label<TAB>size
 refused:reason<TAB>kind<TAB>endpoint<TAB>label<TAB>size
 ```
 
+Field values escape backslash, tab, newline and carriage return as `\\`, `\t`,
+`\n` and `\r`, so one record is always one line with a fixed column count.
+
+The tests under `tests/test_junction_prototype.py` need PyGraphviz (it is not in
+`requirements.txt` because it needs the Graphviz development headers); they are
+skipped when it is not installed. `fixtures/baseline_junctionize.py` is the
+reference implementation that `verify_skewer_order.py` compares against.
+
 ## Options
 
 - `--fan-in` / `--no-fan-in`, on by default.

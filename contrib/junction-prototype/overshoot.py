@@ -34,18 +34,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def is_plain_header(line: str) -> bool:
+    """True for a `graph <scale> <width> <height>` line of dot -Tplain output."""
+    fields = line.split()
+    if len(fields) != 4 or fields[0] != "graph":
+        return False
+    try:
+        for field in fields[1:]:
+            float(field)
+    except ValueError:
+        return False
+    return True
+
+
 def dot_plain(path: str, dot: str) -> str:
-    text = open(path, encoding="utf-8").read()
+    # Read bytes: DOT sources may use a non-UTF-8 charset (e.g. Latin-1) that dot
+    # itself understands, so the input is only decoded for the plain-header test.
+    with open(path, "rb") as handle:
+        text = handle.read().decode("utf-8", "replace")
     for line in text.splitlines():
-        fields = line.split(None, 3)
-        if len(fields) == 4 and fields[0] == "graph":
-            return text
-        if fields:
+        if line.split():
+            if is_plain_header(line):
+                return text
             break
     return subprocess.run(
         [dot, "-Tplain", path],
         check=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     ).stdout

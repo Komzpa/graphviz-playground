@@ -17,7 +17,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "contrib" / "junction-prototype" / "junctionize.py"
+# Label of the reference implementation (the former commit b835b3ffa). Its
+# source ships in-tree so a clean checkout can run the comparison.
 BASELINE = "b835b3ffa"
+BASELINE_TOOL = ROOT / "contrib" / "junction-prototype" / "fixtures" / "baseline_junctionize.py"
 # The DRBD state graph is not in the tree. Point SKEWER_DRBD at a local copy to
 # include it; without it the in-tree fixtures still run.
 DRBD_ENV = "SKEWER_DRBD"
@@ -89,11 +92,8 @@ def junctionize(path: Path, *, skewer: bool) -> subprocess.CompletedProcess[byte
 
 
 def baseline_tool(tmpdir: Path) -> Path:
-    proc = run(["git", "show", f"{BASELINE}:contrib/junction-prototype/junctionize.py"])
-    if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.decode("utf-8", "replace"))
     tool = tmpdir / "junctionize-baseline.py"
-    tool.write_bytes(proc.stdout)
+    tool.write_bytes(BASELINE_TOOL.read_bytes())
     tool.chmod(0o755)
     return tool
 
@@ -141,6 +141,57 @@ def edge_points(pos: str) -> list[tuple[float, float]]:
     return [point(token) for token in pos.split() if "," in token]
 
 
+def bezier_polyline(
+    pts: list[tuple[float, float]], start: tuple[float, float] | None, end: tuple[float, float] | None, steps: int = 16
+) -> list[tuple[float, float]]:
+    """Flatten the cubic B-spline pieces of one `pos` spline into a polyline.
+
+    `pts` holds 3n+1 control points; consecutive groups of four are cubic Bezier
+    segments. Arrow tips (`s,`/`e,` points) extend the curve with a straight run.
+    """
+    line: list[tuple[float, float]] = []
+    if start is not None:
+        line.append(start)
+    if len(pts) >= 4 and (len(pts) - 1) % 3 == 0:
+        line.append(pts[0])
+        for i in range(0, len(pts) - 1, 3):
+            p0, p1, p2, p3 = pts[i : i + 4]
+            for step in range(1, steps + 1):
+                t = step / steps
+                u = 1.0 - t
+                line.append(
+                    (
+                        u**3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t**3 * p3[0],
+                        u**3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t**3 * p3[1],
+                    )
+                )
+    else:
+        line.extend(pts)
+    if end is not None:
+        line.append(end)
+    return line
+
+
+def edge_polylines(pos: str) -> list[list[tuple[float, float]]]:
+    """Rendered curve of an edge: every `;`-separated spline, flattened."""
+    lines: list[list[tuple[float, float]]] = []
+    for piece in pos.split(";"):
+        start = end = None
+        pts: list[tuple[float, float]] = []
+        for token in piece.split():
+            if "," not in token:
+                continue
+            if token.startswith("s,"):
+                start = point(token)
+            elif token.startswith("e,"):
+                end = point(token)
+            else:
+                pts.append(point(token))
+        if pts:
+            lines.append(bezier_polyline(pts, start, end))
+    return lines
+
+
 def segment_hits_box(a: tuple[float, float], b: tuple[float, float], box: Box) -> bool:
     ax, ay = a
     bx, by = b
@@ -174,25 +225,45 @@ def box_text(box: Box) -> str:
     return f"{box.x0:.2f},{box.y0:.2f}..{box.x1:.2f},{box.y1:.2f}"
 
 
-def label_box(edge: dict, *, expand: float = 0.0) -> Box | None:
-    for op in edge.get("_ldraw_", []):
-        if op.get("op") == "T":
+DEFAULT_FONT_SIZE = 14.0
+# Edge label kinds and the xdot attribute that draws each.
+LABEL_DRAW_KEYS = (("label", "_ldraw_"), ("headlabel", "_hldraw_"), ("taillabel", "_tldraw_"))
+
+
+def label_boxes_for(edge: dict, draw_key: str = "_ldraw_", *, expand: float = 0.0) -> list[Box]:
+    """One box per rendered text run (`T`), sized by the active `F` font size.
+
+    xlabel text is emitted into `_ldraw_` by dot, so it is covered here too.
+    """
+    boxes: list[Box] = []
+    size = DEFAULT_FONT_SIZE
+    for op in edge.get(draw_key, []):
+        if op.get("op") == "F":
+            size = float(op.get("size", DEFAULT_FONT_SIZE))
+        elif op.get("op") == "T":
             x, y = op["pt"]
             width = float(op["width"])
-            height = 14.0
-            return Box(
-                x - width / 2 - expand,
-                y - height / 2 - expand,
-                x + width / 2 + expand,
-                y + height / 2 + expand,
-            )
-    return None
+            align = op.get("align", "c")
+            x0 = x if align == "l" else x - width if align == "r" else x - width / 2
+            boxes.append(Box(x0 - expand, y - size / 2 - expand, x0 + width + expand, y + size / 2 + expand))
+    return boxes
+
+
+def label_box(edge: dict, *, expand: float = 0.0) -> Box | None:
+    boxes = label_boxes_for(edge, expand=expand)
+    return boxes[0] if boxes else None
+
+
+def is_invisible(obj: dict) -> bool:
+    return "invis" in str(obj.get("style", "")).replace(" ", "").split(",")
 
 
 def node_boxes(data: dict) -> dict[int, Box]:
     boxes: dict[int, Box] = {}
     for obj in data.get("objects", []):
-        if "pos" not in obj:
+        # Invisible nodes (the generated junctions) are never drawn, so nothing
+        # can visually collide with them.
+        if "pos" not in obj or is_invisible(obj):
             continue
         x, y = (float(v) for v in obj["pos"].split(",", 1))
         width = float(obj.get("width", 0.0)) * 72.0
@@ -239,9 +310,8 @@ def metrics(dot_bytes: bytes) -> Metrics:
     rank_axis = "x" if rankdir in {"LR", "RL"} else "y"
     rows: list[EdgeRow] = []
     labels: list[tuple[int, str, Box]] = []
-    expanded_labels: list[tuple[int, Box]] = []
     label_boxes: list[LabelBox] = []
-    splines: list[tuple[int, list[tuple[float, float]]]] = []
+    splines: list[tuple[int, list[list[tuple[float, float]]]]] = []
 
     for index, edge in enumerate(data.get("edges", [])):
         pts = edge_points(edge.get("pos", ""))
@@ -254,32 +324,33 @@ def metrics(dot_bytes: bytes) -> Metrics:
         label = edge.get("label", "")
         name = edge_name(index, tail_name, head_name, label)
         rows.append(EdgeRow(index, tail_name, head_name, label, kind, mean_x))
-        splines.append((index, pts))
-        box = label_box(edge)
-        if box is not None and label:
-            expanded = label_box(edge, expand=PAD)
-            assert expanded is not None
-            labels.append((index, name, expanded))
-            expanded_labels.append((index, expanded))
-            label_boxes.append(LabelBox(name, label, expanded))
+        splines.append((index, edge_polylines(edge.get("pos", ""))))
+        for label_kind, draw_key in LABEL_DRAW_KEYS:
+            suffix = "" if label_kind == "label" else f" [{label_kind}]"
+            for box in label_boxes_for(edge, draw_key, expand=PAD):
+                labels.append((index, name + suffix, box))
+                label_boxes.append(LabelBox(name + suffix, label, box))
 
     forward_x = [row.mean_x for row in rows if row.kind == "forward"]
     median = statistics.median(forward_x) if forward_x else None
     left = sum(1 for row in rows if row.kind == "reversed" and median is not None and row.mean_x <= median)
 
     crossed_labels = set()
-    for label_index, box in expanded_labels:
-        for spline_index, pts in splines:
+    for label_index, label_name, box in labels:
+        for spline_index, polylines in splines:
             if spline_index == label_index:
                 continue
-            if any(segment_hits_box(a, b, box) for a, b in zip(pts, pts[1:], strict=False)):
-                crossed_labels.add(label_index)
+            if any(
+                segment_hits_box(a, b, box) for line in polylines for a, b in zip(line, line[1:], strict=False)
+            ):
+                crossed_labels.add((label_index, label_name))
                 break
 
     label_label_pairs: list[tuple[str, str]] = []
     for i, (_, a_name, a) in enumerate(labels):
         for _, b_name, b in labels[i + 1 :]:
-            if boxes_overlap(a, b):
+            # Lines of one label touch by construction; only distinct labels collide.
+            if a_name != b_name and boxes_overlap(a, b):
                 label_label_pairs.append((a_name, b_name))
 
     label_node = 0

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 import shlex
 import subprocess
 import sys
@@ -37,6 +38,17 @@ IDENTITY_ATTRS = (
 EDGE_LABEL_ATTRS = {"label", "xlabel"}
 ENDPOINT_LABEL_ATTRS = {"taillabel", "headlabel"}
 LABEL_ATTRS = EDGE_LABEL_ATTRS | ENDPOINT_LABEL_ATTRS
+# Attribute pairs bound to one physical endpoint; reversing an edge must swap them.
+FLIP_MARK = "junctionize_flipped"
+ENDPOINT_PAIRED_ATTRS = (
+    ("headlabel", "taillabel"),
+    ("headclip", "tailclip"),
+    ("headURL", "tailURL"),
+    ("headhref", "tailhref"),
+    ("headtarget", "tailtarget"),
+    ("headtooltip", "tailtooltip"),
+    ("samehead", "sametail"),
+)
 ROUTING_ATTRS = {"pos", "lp", "head_lp", "tail_lp", "_draw_", "_hdraw_", "_tdraw_", "_ldraw_"}
 
 
@@ -101,12 +113,37 @@ def edge_attrs(edge) -> dict[str, str]:
     return {str(k): str(v) for k, v in edge.attr.items()}
 
 
+def map_bool(value: str | None, default: bool) -> bool:
+    """Mirror Graphviz mapBool: yes/true/non-zero integer is true, no/false/0 is false."""
+    if value is None or value == "":
+        return default
+    lowered = value.strip().lower()
+    if lowered in {"false", "no"}:
+        return False
+    if lowered in {"true", "yes"}:
+        return True
+    if lowered[:1].isdigit():
+        digits = ""
+        for ch in lowered:
+            if not ch.isdigit():
+                break
+            digits += ch
+        return int(digits) != 0
+    return default
+
+
+def is_cluster_subgraph(subgraph: pgv.AGraph) -> bool:
+    """Mirror lib/common/utils.c:is_a_cluster: case-insensitive "cluster" prefix or cluster=true."""
+    name = subgraph.name or ""
+    return name.lower().startswith("cluster") or map_bool(subgraph.graph_attr.get("cluster"), False)
+
+
 def node_clusters(graph: pgv.AGraph) -> dict[str, str]:
     result: dict[str, str] = {}
 
     def walk(subgraph: pgv.AGraph, current: str = "") -> None:
         name = subgraph.name or ""
-        cluster = name if name.startswith("cluster") else current
+        cluster = name if is_cluster_subgraph(subgraph) else current
         for node in subgraph.nodes():
             result[str(node)] = cluster
         for child in subgraph.subgraphs():
@@ -121,12 +158,19 @@ def has_port(attrs: dict[str, str]) -> bool:
     return any(attrs.get(name) for name in ("headport", "tailport"))
 
 
+def tsv_field(value: object) -> str:
+    """Escape one tab-separated census field so it cannot add records or columns."""
+    text = str(value).replace("\\", "\\\\")
+    return text.replace("\t", "\\t").replace("\n", "\\n").replace("\r", "\\r")
+
+
 def refusal(kind: str, endpoint: str, label: str, size: int, reason: str) -> None:
-    print(f"refused:{reason}\t{kind}\t{endpoint}\t{label}\t{size}", file=sys.stderr)
+    fields = (f"refused:{reason}", kind, endpoint, label, size)
+    print("\t".join(tsv_field(f) for f in fields), file=sys.stderr)
 
 
 def census(kind: str, endpoint: str, label: str, size: int) -> None:
-    print(f"{kind}\t{endpoint}\t{label}\t{size}", file=sys.stderr)
+    print("\t".join(tsv_field(f) for f in (kind, endpoint, label, size)), file=sys.stderr)
 
 
 def copy_without(attrs: dict[str, str], names: set[str]) -> dict[str, str]:
@@ -248,7 +292,10 @@ def add_junction(graph: pgv.AGraph, name: str, visible: bool) -> None:
 
 def trunk_attrs(candidate: Candidate, args: argparse.Namespace) -> dict[str, str]:
     source = candidate.edges[0].attrdict()
-    attrs = copy_without(source, LABEL_ATTRS)
+    # A trunk is a generated segment shared by several original edges: it must
+    # not repeat the first edge's unique id, and its minlen is the dot default so
+    # the arm (which keeps the original minlen, less this trunk's rank) carries it.
+    attrs = copy_without(source, LABEL_ATTRS | {"id", "minlen"})
     shared_endpoint_label = "taillabel" if candidate.kind == "fan-out" else "headlabel"
     attrs.update(
         (name, value)
@@ -267,6 +314,13 @@ def arm_attrs(candidate: Candidate, edge: EdgeInfo) -> dict[str, str]:
     attrs = copy_without(source, LABEL_ATTRS)
     distinct_endpoint_label = "headlabel" if candidate.kind == "fan-out" else "taillabel"
     attrs.update((name, value) for name, value in source.items() if name == distinct_endpoint_label)
+    try:
+        minlen = int(float(attrs["minlen"]))
+    except (KeyError, ValueError):
+        return attrs
+    if minlen > 1:
+        # trunk + arm together must still span the original minimum rank distance.
+        attrs["minlen"] = str(minlen - 1)
     return attrs
 
 
@@ -285,13 +339,26 @@ def reversed_attrs(attrs: dict[str, str]) -> dict[str, str]:
         out["arrowtail"] = head
     if tail is not None:
         out["arrowhead"] = tail
-    head_label = out.pop("headlabel", None)
-    tail_label = out.pop("taillabel", None)
-    if head_label is not None:
-        out["taillabel"] = head_label
-    if tail_label is not None:
-        out["headlabel"] = tail_label
+    for head_name, tail_name in ENDPOINT_PAIRED_ATTRS:
+        head_value = out.pop(head_name, None)
+        tail_value = out.pop(tail_name, None)
+        if head_value is not None:
+            out[tail_name] = head_value
+        if tail_value is not None:
+            out[head_name] = tail_value
     return out
+
+
+def add_reversed_edge(graph: pgv.AGraph, tail: str, head: str, attrs: dict[str, str]) -> None:
+    """Add an edge whose endpoints were swapped to keep it rank-forward.
+
+    The swap is recorded with a private marker attribute: `dir` only places
+    arrowheads, and a (tail, head) pair can also be a genuine forward edge, so
+    neither can tell a reversed edge apart. The marker is stripped before output.
+    """
+    out = reversed_attrs(attrs)
+    out[FLIP_MARK] = "1"
+    graph.add_edge(tail, head, **out)
 
 
 def endpoint_arrows(attrs: dict[str, str], *, keep_head: bool, keep_tail: bool) -> dict[str, str]:
@@ -362,9 +429,9 @@ def add_group_preserving(
             for edge in candidate.edges:
                 graph.add_edge(node, edge.head, **logical_arm_attrs(candidate, edge))
         else:
-            graph.add_edge(node, tail, **reversed_attrs(logical_trunk_attrs(candidate, args)))
+            add_reversed_edge(graph, node, tail, logical_trunk_attrs(candidate, args))
             for edge in candidate.edges:
-                graph.add_edge(edge.head, node, **reversed_attrs(logical_arm_attrs(candidate, edge)))
+                add_reversed_edge(graph, edge.head, node, logical_arm_attrs(candidate, edge))
     else:
         head = candidate.endpoint
         if relation > 0:
@@ -372,9 +439,9 @@ def add_group_preserving(
                 graph.add_edge(edge.tail, node, **logical_arm_attrs(candidate, edge))
             graph.add_edge(node, head, **logical_trunk_attrs(candidate, args))
         else:
-            graph.add_edge(head, node, **reversed_attrs(logical_trunk_attrs(candidate, args)))
+            add_reversed_edge(graph, head, node, logical_trunk_attrs(candidate, args))
             for edge in candidate.edges:
-                graph.add_edge(node, edge.tail, **reversed_attrs(logical_arm_attrs(candidate, edge)))
+                add_reversed_edge(graph, node, edge.tail, logical_arm_attrs(candidate, edge))
     return True
 
 
@@ -384,7 +451,11 @@ def delete_original_edges(graph: pgv.AGraph, candidate: Candidate) -> None:
 
 
 def orient_remaining_edges(
-    graph: pgv.AGraph, edges: list[EdgeInfo], ranks: dict[str, NodeRank], skewer_order: bool, rankdir: str
+    graph: pgv.AGraph,
+    edges: list[EdgeInfo],
+    ranks: dict[str, NodeRank],
+    skewer_order: bool,
+    rankdir: str,
 ) -> None:
     if not skewer_order:
         for edge in edges:
@@ -392,9 +463,9 @@ def orient_remaining_edges(
             head = ranks.get(edge.head)
             if tail is None or head is None or not is_backward_edge(tail, head, rankdir):
                 continue
-            attrs = reversed_attrs(copy_without(edge.attrdict(), set()))
+            attrs = copy_without(edge.attrdict(), set())
             graph.delete_edge(edge.tail, edge.head)
-            graph.add_edge(edge.head, edge.tail, **attrs)
+            add_reversed_edge(graph, edge.head, edge.tail, attrs)
         return
 
     forward: list[EdgeInfo] = []
@@ -412,10 +483,10 @@ def orient_remaining_edges(
         graph.add_edge(edge.tail, edge.head, **copy_without(edge.attrdict(), set()))
 
     for edge in backward:
-        attrs = reversed_attrs(copy_without(edge.attrdict(), set()))
+        attrs = copy_without(edge.attrdict(), set())
         attrs.setdefault("weight", "10")
         graph.delete_edge(edge.tail, edge.head)
-        graph.add_edge(edge.head, edge.tail, **attrs)
+        add_reversed_edge(graph, edge.head, edge.tail, attrs)
         graph.get_node(edge.head).attr["ordering"] = "out"
 
 
@@ -431,7 +502,16 @@ def is_node_statement(line: str) -> bool:
     return keyword not in {"graph", "node", "edge"}
 
 
-def ordered_dot(text: str) -> str:
+QUOTED_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
+NAME_PATTERN = r'"(?:[^"\\]|\\.)*"|[^\s\[\];{}]+'
+EDGE_ENDS_RE = re.compile(rf"^\s*({NAME_PATTERN})\s*->\s*({NAME_PATTERN})")
+
+
+def unquote(name: str) -> str:
+    return name[1:-1] if len(name) >= 2 and name[0] == name[-1] == '"' else name
+
+
+def split_statements(text: str) -> list[list[str]]:
     blocks: list[list[str]] = []
     current: list[str] = []
     for line in text.splitlines(keepends=True):
@@ -449,45 +529,93 @@ def ordered_dot(text: str) -> str:
             blocks.append([line])
     if current:
         blocks.append(current)
+    return blocks
 
-    edges: list[tuple[int, list[str]]] = []
-    ordering_nodes: list[tuple[int, list[str]]] = []
-    for index, block in enumerate(blocks):
-        if is_edge_statement(block[0]):
-            edges.append((index, block))
-        elif is_node_statement(block[0]) and "ordering=out" in "".join(block):
-            ordering_nodes.append((index, block))
-    if not edges:
+
+def strip_flip_mark(text: str) -> str:
+    text = re.sub(rf"\s*\[\s*{FLIP_MARK}=1\s*\]", "", text)
+    text = re.sub(rf"{FLIP_MARK}=1,\s*", "", text)
+    return re.sub(rf",\s*{FLIP_MARK}=1", "", text)
+
+
+def ordered_dot(text: str) -> str:
+    """Declare forward edges before the structurally flipped edges of the same tail.
+
+    Every reordering stays inside the brace scope (root graph, cluster, or other
+    subgraph) the statement came from, so cluster membership never changes.
+    Flipped edges are recognised by FLIP_MARK; `dir` is not consulted because it
+    only places arrowheads.
+    """
+    blocks = split_statements(text)
+
+    # Brace scope of every block: scopes[i] is the scope the block starts in.
+    scopes: list[int] = []
+    stack = [0]
+    next_scope = 1
+    for block in blocks:
+        scopes.append(stack[-1])
+        cleaned = QUOTED_RE.sub('""', "".join(block))
+        for ch in cleaned:
+            if ch == "{":
+                stack.append(next_scope)
+                next_scope += 1
+            elif ch == "}" and len(stack) > 1:
+                stack.pop()
+
+    edge_scopes = {scopes[i] for i, block in enumerate(blocks) if is_edge_statement(block[0])}
+    if not edge_scopes:
         return text
 
-    ordering_node_indices = {index for index, _ in ordering_nodes}
-    ordered_node_blocks = [block for _, block in ordering_nodes]
-    out: list[str] = []
-    inserted = False
-    seen_forward_tail: set[str] = set()
-    pending_back: dict[str, list[list[str]]] = defaultdict(list)
+    ordering_by_scope: dict[int, list[list[str]]] = defaultdict(list)
+    moved: set[int] = set()
     for index, block in enumerate(blocks):
-        if index in ordering_node_indices:
+        if (
+            is_node_statement(block[0])
+            and "ordering=out" in "".join(block)
+            and scopes[index] in edge_scopes
+        ):
+            ordering_by_scope[scopes[index]].append(block)
+            moved.add(index)
+
+    out: list[str] = []
+    inserted: set[int] = set()
+    seen_forward_tail: set[tuple[int, str]] = set()
+    pending_back: dict[tuple[int, str], list[list[str]]] = defaultdict(list)
+
+    def flush_scope(scope: int) -> None:
+        for key in [key for key in pending_back if key[0] == scope]:
+            for edge_block in pending_back.pop(key):
+                out.extend(edge_block)
+
+    for index, block in enumerate(blocks):
+        if index in moved:
             continue
+        scope = scopes[index]
         if is_edge_statement(block[0]):
-            if not inserted:
-                for node_block in ordered_node_blocks:
+            if scope not in inserted:
+                for node_block in ordering_by_scope[scope]:
                     out.extend(node_block)
-                inserted = True
-            tail = block[0].split(" -> ", 1)[0].strip()
-            if "dir=back" in "".join(block) and tail not in seen_forward_tail:
-                pending_back[tail].append(block)
+                inserted.add(scope)
+            match = EDGE_ENDS_RE.match(block[0])
+            if match is None:
+                out.extend(block)
+                continue
+            tail = unquote(match.group(1))
+            key = (scope, tail)
+            is_flipped = FLIP_MARK in "".join(block)
+            if is_flipped and key not in seen_forward_tail:
+                pending_back[key].append(block)
                 continue
             out.extend(block)
-            if "dir=back" not in "".join(block):
-                seen_forward_tail.add(tail)
-                for edge_block in pending_back.pop(tail, []):
+            if not is_flipped:
+                seen_forward_tail.add(key)
+                for edge_block in pending_back.pop(key, []):
                     out.extend(edge_block)
             continue
+        if "}" in QUOTED_RE.sub('""', "".join(block)):
+            # Deferred edges must land inside the scope they came from.
+            flush_scope(scope)
         out.extend(block)
-    for blocks_for_tail in pending_back.values():
-        for edge_block in blocks_for_tail:
-            out.extend(edge_block)
     return "".join(out)
 
 
@@ -548,7 +676,7 @@ def main() -> int:
             reason = "self-loop"
         elif has_port(attrs):
             reason = "port"
-        elif attrs.get("constraint", "").lower() == "false":
+        elif not map_bool(attrs.get("constraint"), True):
             reason = "constraint-false"
         elif clusters.get(edge.tail, "") != clusters.get(edge.head, ""):
             reason = "different-clusters"
@@ -622,6 +750,7 @@ def main() -> int:
     text = out.string()
     if args.skewer_order:
         text = ordered_dot(text)
+    text = strip_flip_mark(text)
     print(text, end="")
     return 0
 
