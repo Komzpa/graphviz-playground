@@ -733,7 +733,11 @@ vgpanecmd(ClientData clientData, Tcl_Interp * interp, int argc,
 	    make_barriers(vgp, pp, qp, &barriers, &n_barriers);
 	    slopes[0].x = slopes[0].y = 0.0;
 	    slopes[1].x = slopes[1].y = 0.0;
-	    Proutespline(barriers, n_barriers, line, slopes, &spline);
+	    if (Proutespline(barriers, n_barriers, line, slopes, &spline) < 0) {
+		/* Proutespline refuses a cusp or a missing corridor direction */
+		Tcl_AppendResult(interp, "could not route a spline", NULL);
+		return TCL_ERROR;
+	    }
 
 	    for (size_t i = 0; i < spline.pn; i++) {
 		appendpoint(interp, spline.ps[i]);

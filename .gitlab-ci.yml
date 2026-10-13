@@ -1384,6 +1384,21 @@ lint_clang_format:
       - runner_system_failure
       - job_execution_timeout
 
+lint_source_hygiene:
+  stage: test
+  needs: [] # no dependencies
+  script:
+    - python3 ci/source_length_check.py
+    - python3 ci/concentrate_function_comments.py
+  except:
+    - tags
+  retry:
+    max: 1
+    when:
+      - stuck_or_timeout_failure
+      - runner_system_failure
+      - job_execution_timeout
+
 lint_cpplint:
   stage: test
   needs: [] # no dependencies

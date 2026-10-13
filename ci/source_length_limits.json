@@ -1,0 +1,16 @@
+{
+  "default_limit": 2000,
+  "paths": {
+    "cmd/gvmap/make_map.c": 1439,
+    "lib/common/edgeattr.c": 2373,
+    "lib/common/emit.c": 4405,
+    "lib/common/shapes.c": 4342,
+    "lib/dotgen/dotsplines.c": 3582,
+    "lib/dotgen/mincross.c": 1783,
+    "lib/edgepaint/lab_gamut.c": 10751,
+    "lib/expr/exeval.c": 1978,
+    "lib/gvpr/compile.c": 2516,
+    "lib/sparse/color_palette.c": 7622,
+    "tests/test_regression.py": 8154
+  }
+}

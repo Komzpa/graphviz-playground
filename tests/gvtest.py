@@ -18,6 +18,35 @@ from pexpect.popen_spawn import PopenSpawn
 ROOT = Path(__file__).resolve().parent.parent
 """absolute path to the root of the repository"""
 
+BUILT_DOT_DIR = ROOT / "build" / "cmd" / "dot"
+BUILT_DOT = BUILT_DOT_DIR / "dot_builtins"
+if not BUILT_DOT.exists():
+    BUILT_DOT = BUILT_DOT_DIR / "dot"
+# Testing the in-tree build instead of the installed Graphviz is an explicit
+# choice: a stale build/ directory must not silently replace the installation
+# under test or change $PATH for every test process.
+USE_BUILD_TREE = os.environ.get("GRAPHVIZ_TEST_USE_BUILD_TREE", "") not in (
+    "",
+    "0",
+)
+if not USE_BUILD_TREE or not BUILT_DOT.exists():
+    BUILT_DOT = BUILT_DOT_DIR / "__unused__"
+if BUILT_DOT.exists():
+    os.environ["PATH"] = f"{BUILT_DOT_DIR}{os.pathsep}{os.environ['PATH']}"
+
+_BUILT_NEATO_DIR: Optional[Path] = None
+
+
+def _built_neato() -> Path:
+    """A `neato` command for `dot_builtins`, which selects engines with -K."""
+    global _BUILT_NEATO_DIR
+    if _BUILT_NEATO_DIR is None:
+        _BUILT_NEATO_DIR = Path(tempfile.mkdtemp(prefix="gvtest-neato-"))
+        wrapper = _BUILT_NEATO_DIR / "neato"
+        wrapper.write_text(f'#!/bin/sh\nexec "{BUILT_DOT}" -Kneato "$@"\n')
+        wrapper.chmod(0o755)
+    return _BUILT_NEATO_DIR / "neato"
+
 
 def pexpect_spawn_tclsh(
     env: collections.abc.Mapping, timeout: Optional[int]
@@ -72,6 +101,9 @@ def run_raw(*args: Union[Path, str], **kwargs) -> Optional[Union[bytes, str]]:
     Return:
         The command’s stdout output.
     """
+
+    if args and args[0] == "dot" and BUILT_DOT.exists():
+        args = (BUILT_DOT, *args[1:])
 
     # dump the command being run for the user to observe if the test fails
     print(f"+ {shlex.join(str(x) for x in args)}", flush=True)
@@ -261,7 +293,7 @@ def dot(
         kwargs["encoding"] = "utf-8"
         kwargs["text"] = True
 
-    args = ["dot", f"-T{T}"]
+    args = [which("dot") or "dot", f"-T{T}"]
 
     if source_file is not None:
         args += [source_file]
@@ -551,6 +583,11 @@ def which(cmd: str) -> Optional[Path]:
     testing, as this older `mingle` will then load shared libraries from the
     installation you just created, most likely crashing.
     """
+
+    if cmd == "dot" and BUILT_DOT.exists():
+        return BUILT_DOT
+    if cmd == "neato" and BUILT_DOT.name == "dot_builtins":
+        return _built_neato()
 
     # try a straightforward lookup of the command
     abs_cmd = shutil.which(cmd)
