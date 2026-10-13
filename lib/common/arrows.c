@@ -1877,7 +1877,7 @@ static double arrow_length_tee(double lenfact, double arrowsize,
 
   const double polygon_extend_over_polyline_at_end =
       penwidth / 2 - 0.2 * nominal_length;
-  if (polygon_extend_over_polyline_at_start > 0) {
+  if (polygon_extend_over_polyline_at_end > 0) {
     length += polygon_extend_over_polyline_at_end;
   }
 

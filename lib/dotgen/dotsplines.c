@@ -2446,7 +2446,7 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
   // With edge labels, an auxiliary rank sits immediately below each node rank.
   // There may be no preceding node rank.
   const int prev_rank = r - ((GD_has_labels(g->root) & EDGE_LABEL) ? 2 : 1);
-  if (prev_rank >= 0) {
+  if (prev_rank >= GD_minrank(g) && GD_rank(g)[prev_rank].n > 0) {
     rank_t *const prevr = GD_rank(g) + prev_rank;
     vspace = ND_coord(prevr->v[0]).y - prevr->ht1 - ND_coord(tn).y -
              GD_rank(g)[r].ht2;

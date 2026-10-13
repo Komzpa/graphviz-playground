@@ -4428,6 +4428,39 @@ def test_2814():
         assert _box_gap(first, second) >= 2.0
 
 
+def test_tee_arrow_clip_includes_end_side_pen_overhang():
+    """
+    a tee arrow whose pen overhangs only at the end side must still clip the
+    edge stem by that overhang
+    """
+
+    def stem_end_y(penwidth: int) -> float:
+        source = f"digraph {{ a -> b [arrowhead=tee penwidth={penwidth}]; }}"
+        out = subprocess.check_output([which("dot"), "-Tdot"], input=source, text=True)
+        pos = re.findall(r'pos="e,[^ ]+ ([^"]*)"', out)[-1]
+        return float(pos.split()[-1].split(",")[1])
+
+    # penwidth 1 has no overhang; penwidth 3 is in the range where only the
+    # end-side term is positive (nominal tee length 5)
+    assert stem_end_y(3) > stem_end_y(1)
+
+
+def test_concentrate_color_list_trailing_blank_does_not_overrun():
+    """
+    colour lists ending in blanks after a separator must not scan past the NUL
+    """
+
+    source = (
+        'digraph { concentrate=true; a [label=<<table bgcolor="red: ">'
+        '<tr><td bgcolor=":\t">x</td></tr></table>>]; '
+        'a -> b [color="red: "]; a -> b [color="red: "]; }'
+    )
+    proc = subprocess.run(
+        [which("dot"), "-Tsvg"], input=source, text=True, capture_output=True
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_shortestpath_rejects_uncontained_straight_fallback(tmp_path: Path):
     """
     failed triangulation must not silently return a line outside the polygon
@@ -4455,7 +4488,9 @@ def test_shortestpath_rejects_uncontained_straight_fallback(tmp_path: Path):
           Ppoint_t endpoints[] = {{0.5, 3.5}, {3.5, 3.5}};
           Ppolyline_t output = {0};
           const int rc = Pshortestpath(&poly, endpoints, &output);
-          if (rc != 0 || output.pn <= 2) {
+          // Either an explicit rejection (rc != 0) or a detour route is
+          // acceptable; a successful 2-point straight line is the bug.
+          if (rc == 0 && output.pn <= 2) {
             fprintf(stderr, "unexpected rc=%d pn=%zu\n", rc, output.pn);
             return 1;
           }
@@ -4467,8 +4502,8 @@ def test_shortestpath_rejects_uncontained_straight_fallback(tmp_path: Path):
     run_c(
         c_src,
         tmp_path,
-        cflags=["-Ilib"],
-        link=[Path("build/lib/pathplan/libpathplan.so.4.0.8").resolve()],
+        cflags=[f"-I{Path(__file__).resolve().parent.parent / 'lib'}"],
+        link=["pathplan"],
     )
 
 

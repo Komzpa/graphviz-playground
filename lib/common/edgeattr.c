@@ -681,6 +681,9 @@ static bool color_may_use_colorscheme(const char *color) {
       while (*item == ' ' || *item == '\t') {
         item++;
       }
+      if (*item == '\0') {
+        break; // trailing blanks: do not let the loop increment step past NUL
+      }
       if (*item >= '0' && *item <= '9') {
         return true;
       }

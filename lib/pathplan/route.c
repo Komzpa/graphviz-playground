@@ -171,6 +171,10 @@ static int reallyroutespline(Pedge_t *edges, size_t edgen, Ppoint_t *inps,
   }
   free(tnas);
   const int spliti = maxi;
+  if (spliti < 1) {
+    // no interior template point to split on
+    return -1;
+  }
   Pvector_t splitv;
   const Pvector_t corridor_direction =
       split_fallbacks == NULL ? (Pvector_t){0} : split_fallbacks[spliti];

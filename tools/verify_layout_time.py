@@ -117,9 +117,13 @@ def corpus_inputs() -> list[Path]:
     corpus = Path(env_path("GRAPHVIZ_LAYOUT_TIME_CORPUS", required=True))
     if not corpus.is_dir():
         sys.exit(f"corpus directory not found: {corpus}")
-    return sorted(
+    inputs = sorted(
         p for p in corpus.rglob("*") if p.suffix in {".dot", ".gv"} and p.is_file()
     )
+    if not inputs:
+        # An empty corpus yields no timing rows, which would pass every gate.
+        sys.exit(f"corpus directory contains no .dot or .gv files: {corpus}")
+    return inputs
 
 
 def run_one(item: tuple[str, tuple[str, ...], str, Path, float]):
@@ -321,7 +325,7 @@ def spicy_0734_report(upstream_rows, trunk_rows, head_rows) -> None:
                 print(f"{label}\t{elapsed:.3f}\t{elapsed / upstream_time:.3f}\t{path.name}")
 
 
-def byte_identity_sample(current_dot: str, before_dot: str) -> int:
+def byte_identity_sample(current_dot: str, before_dot: str, timeout: float) -> int:
     base_ref = os.environ.get("GRAPHVIZ_LAYOUT_TIME_BASE_REF", BYTE_IDENTITY_BASE_REF)
     paths = subprocess.check_output(
         ["git", "ls-tree", "-r", "--name-only", base_ref, "--", "tests", "graphs"],
@@ -339,14 +343,35 @@ def byte_identity_sample(current_dot: str, before_dot: str) -> int:
         fixtures.append(rel)
         if len(fixtures) == 60:
             break
+    if not fixtures:
+        # 0/0 matches must not count as byte-identical.
+        print(f"byte_identity_sample\tbase={base_ref}\tfixtures=0\tno comparable fixtures")
+        return 1
     failures_by_mode = {mode: 0 for mode, _ in MODES}
     root = Path.cwd()
     before_root = Path(env_path("GRAPHVIZ_LAYOUT_TIME_BEFORE_ROOT", required=True))
     for rel in fixtures:
         for mode, flags in MODES:
-            old = subprocess.run([before_dot, *flags, "-Txdot", str(before_root / rel)], stdout=subprocess.PIPE)
-            new = subprocess.run([current_dot, *flags, "-Txdot", str(root / rel)], stdout=subprocess.PIPE)
-            failures_by_mode[mode] += old.returncode != new.returncode or old.stdout != new.stdout
+            try:
+                old = subprocess.run(
+                    [before_dot, *flags, "-Txdot", str(before_root / rel)],
+                    stdout=subprocess.PIPE,
+                    timeout=timeout,
+                )
+                new = subprocess.run(
+                    [current_dot, *flags, "-Txdot", str(root / rel)],
+                    stdout=subprocess.PIPE,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired:
+                failures_by_mode[mode] += 1
+                continue
+            # A run that fails on both sides compared no layout output.
+            failures_by_mode[mode] += (
+                old.returncode != 0
+                or new.returncode != 0
+                or old.stdout != new.stdout
+            )
     print(f"byte_identity_sample\tbase={base_ref}\tfixtures={len(fixtures)}")
     print("mode\tmatched\ttotal")
     for mode, _ in MODES:
@@ -431,7 +456,7 @@ def main() -> int:
     )
     feature_cost_report(head_rows)
     print_profile_report()
-    rc |= byte_identity_sample(head_dot, identity_dot)
+    rc |= byte_identity_sample(head_dot, identity_dot, timeout)
     print_buildability_report()
     return rc
 

@@ -1223,6 +1223,8 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
 		edge_list[kept++] = edge_list[i];
 	}
 	e_cnt = kept;
+	if (e_cnt == 0)
+	    return; // every edge was folded away; nothing left to route
     }
 
     edge_t *e = edge_list[0];

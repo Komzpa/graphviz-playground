@@ -34,18 +34,30 @@ int main(void) {
                 "b -> a [arrowhead=normal]; }");
   assert(graph != NULL);
 
-  assert(gvLayout(gvc, graph, "dot") == 0);
-  assert(gvFreeLayout(gvc, graph) == 0);
+  const int first_layout = gvLayout(gvc, graph, "dot");
+  assert(first_layout == 0);
+  const int first_free = gvFreeLayout(gvc, graph);
+  assert(first_free == 0);
 
   Agedge_t *const reverse =
       agedge(graph, agnode(graph, "b", 0), agnode(graph, "a", 0), NULL, 0);
   assert(reverse != NULL);
-  assert(agset(reverse, "arrowhead", "vee") == 0);
+  const int set_status = agset(reverse, "arrowhead", "vee");
+  assert(set_status == 0);
 
-  assert(gvLayout(gvc, graph, "dot") == 0);
-  assert(gvRender(gvc, graph, "json", stdout) == 0);
-  assert(gvFreeLayout(gvc, graph) == 0);
-  assert(agclose(graph) == 0);
-  assert(gvFreeContext(gvc) == 0);
+  const int second_layout = gvLayout(gvc, graph, "dot");
+  assert(second_layout == 0);
+  const int render_status = gvRender(gvc, graph, "json", stdout);
+  assert(render_status == 0);
+  const int second_free = gvFreeLayout(gvc, graph);
+  assert(second_free == 0);
+  const int close_status = agclose(graph);
+  assert(close_status == 0);
+  const int context_status = gvFreeContext(gvc);
+  assert(context_status == 0);
+  // Under NDEBUG the asserts vanish; keep the statuses used.
+  (void)first_layout, (void)first_free, (void)set_status, (void)second_layout,
+      (void)render_status, (void)second_free, (void)close_status,
+      (void)context_status;
   return 0;
 }

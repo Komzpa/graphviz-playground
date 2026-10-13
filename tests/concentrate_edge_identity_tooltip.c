@@ -34,7 +34,9 @@ static bool compare_edges(const char *source) {
 
   Agraph_t *graph = agmemread(source);
   assert(graph != NULL);
-  assert(gvLayout(gvc, graph, "dot") == 0);
+  const int layout_status = gvLayout(gvc, graph, "dot");
+  assert(layout_status == 0);
+  (void)layout_status;
 
   Agnode_t *tail = agnode(graph, "a", false);
   assert(tail != NULL);
@@ -69,7 +71,9 @@ static bool ortho_duplicate_is_ignored(void) {
                        "}";
   Agraph_t *graph = agmemread(source);
   assert(graph != NULL);
-  assert(gvLayout(gvc, graph, "dot") == 0);
+  const int layout_status = gvLayout(gvc, graph, "dot");
+  assert(layout_status == 0);
+  (void)layout_status;
 
   Agnode_t *tail = agnode(graph, "a", false);
   assert(tail != NULL);
@@ -87,15 +91,19 @@ static bool ortho_duplicate_is_ignored(void) {
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 2);
+  if (argc != 2) {
+    fprintf(stderr, "usage: %s scenario\n", argv[0]);
+    return 2;
+  }
 
   if (strcmp(argv[1], "parsed-label-fallback") == 0) {
     const char *source = "digraph {"
                          "  a -> b [URL=\"u\" label=\"\\T\"];"
                          "  a -> b [URL=\"u\" label=\"a\" tooltip=\"a\"];"
                          "}";
-    assert(compare_edges(source));
-    return 0;
+    const bool equal = compare_edges(source);
+    assert(equal);
+    return equal ? 0 : 1;
   }
 
   if (strcmp(argv[1], "xlabel-no-fallback") == 0) {
@@ -103,13 +111,15 @@ int main(int argc, char **argv) {
                          "  a -> b [URL=\"u\" xlabel=\"x\"];"
                          "  a -> b [URL=\"u\" xlabel=\"x\" tooltip=\"x\"];"
                          "}";
-    assert(!compare_edges(source));
-    return 0;
+    const bool equal = compare_edges(source);
+    assert(!equal);
+    return equal ? 1 : 0;
   }
 
   if (strcmp(argv[1], "ortho-duplicate-ignored") == 0) {
-    assert(ortho_duplicate_is_ignored());
-    return 0;
+    const bool ignored = ortho_duplicate_is_ignored();
+    assert(ignored);
+    return ignored ? 0 : 1;
   }
 
   fprintf(stderr, "unknown scenario: %s\n", argv[1]);
