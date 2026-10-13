@@ -896,6 +896,12 @@ def test_1425_1():
     assert re.search(r"\btable tip\b", svg) is not None, "tooltip not propagated to SVG"
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/1435: the only straight "
+    "fallback for this polygon leaves it (passes through an obstacle), so the "
+    "failed triangulation is still reported",
+)
 def test_1435():
     """
     triangulation paths should be findable on this graph
@@ -910,6 +916,24 @@ def test_1435():
     err = run("dot", "-Tpng", "-o", os.devnull, input, stderr=subprocess.STDOUT)
 
     assert err.strip() == "", "errors were printed"
+
+
+def test_1435_2(tmp_path: Path):
+    """
+    a straight-line fallback for a failed triangulation must not leave the polygon
+    https://gitlab.com/graphviz/graphviz/-/issues/1435
+    """
+
+    # find co-located test source
+    c_src = (Path(__file__).parent / "1435.c").resolve()
+    assert c_src.exists(), "missing test case"
+
+    # run it
+    link = ["pathplan"]
+    if is_static_build():
+        # in static builds, we also need transitive dependencies
+        link += ["cdt"]
+    _, _ = run_c(c_src, tmp_path, link=link)
 
 
 def test_1436():

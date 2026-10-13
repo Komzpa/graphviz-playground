@@ -79,6 +79,41 @@ static int straight_path(Ppoint_t eps[2], Ppolyline_t *output) {
     return 0;
 }
 
+/// is a point inside or on the boundary of a polygon? (even-odd ray casting)
+static bool point_in_polygon(const Ppoly_t *polyp, Ppoint_t p) {
+    bool inside = false;
+    for (size_t i = 0, j = polyp->pn - 1; i < polyp->pn; j = i++) {
+	const Ppoint_t a = polyp->ps[i], b = polyp->ps[j];
+	if (ccw(a, b, p) == ISON &&
+	    p.x >= fmin(a.x, b.x) && p.x <= fmax(a.x, b.x) &&
+	    p.y >= fmin(a.y, b.y) && p.y <= fmax(a.y, b.y))
+	    return true;
+	if ((a.y > p.y) != (b.y > p.y) &&
+	    p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x)
+	    inside = !inside;
+    }
+    return inside;
+}
+
+/// Can the segment eps[0]-eps[1] be used as a path inside the polygon? A
+/// fallback route must keep the API contract that successful paths remain in
+/// the polygon, so check both endpoints, the midpoint and edge crossings.
+static bool segment_in_polygon(const Ppoly_t *polyp, Ppoint_t eps[2]) {
+    const Ppoint_t mid = {(eps[0].x + eps[1].x) / 2, (eps[0].y + eps[1].y) / 2};
+    if (!point_in_polygon(polyp, eps[0]) || !point_in_polygon(polyp, eps[1]) ||
+	!point_in_polygon(polyp, mid))
+	return false;
+    for (size_t i = 0, j = polyp->pn - 1; i < polyp->pn; j = i++) {
+	const Ppoint_t a = polyp->ps[i], b = polyp->ps[j];
+	const int s0 = ccw(eps[0], eps[1], a), s1 = ccw(eps[0], eps[1], b);
+	const int t0 = ccw(a, b, eps[0]), t1 = ccw(a, b, eps[1]);
+	if (s0 != ISON && s1 != ISON && s0 != s1 &&
+	    t0 != ISON && t1 != ISON && t0 != t1)
+	    return false; // proper crossing of a polygon edge
+    }
+    return true;
+}
+
 static Ppoint_t point_indexer(void *base, size_t index) {
   pointnlink_t **b = base;
   return *b[index]->pp;
@@ -173,6 +208,13 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
+	/* Triangulation is incomplete (e.g. degenerate input). A straight line
+	 * is only acceptable if it provably stays inside the polygon; otherwise
+	 * this is a real failure and must be reported. */
+	if (!segment_in_polygon(polyp, eps)) {
+	    prerror("triangulation failed");
+	    return -1;
+	}
 	return straight_path(eps, output);
     }
 
