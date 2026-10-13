@@ -9794,6 +9794,15 @@ def test_concentrate_issue_2764_public_repro_renders_edge_splines():
     _assert_public_concentrate_crash_repro_renders(2764)
 
 
+def test_regression_dot_inputs_are_shipped_in_extra_dist():
+    """Source tarballs must carry every top-level .dot input this file reads."""
+
+    makefile_am = Path(__file__).resolve().parent / "Makefile.am"
+    shipped = set(re.findall(r"^\t(\S+\.dot) ", makefile_am.read_text(), re.M))
+    for issue in (2757, 2758, 2759, 2760, 2762, 2764, 2765, 2766, 2781, 2814):
+        assert f"{issue}.dot" in shipped
+
+
 def test_concentrate_issue_2765_public_repro_renders_edge_splines():
     """GitLab #2765: raw public straight_len crash repro still renders edges."""
 
