@@ -1255,10 +1255,19 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 	    fabs(tail_dy) > MILLIPOINT && fabs(head_dy) > MILLIPOINT &&
 	    tail_dy * head_dy < 0;
 	if (opposite_vertical_ports) {
-	    const double outside_y_tail =
-		p1.y + copysign(ORTHO_PORT_CLEARANCE, tail_dy);
-	    const double outside_y_head =
-		q1.y + copysign(ORTHO_PORT_CLEARANCE, head_dy);
+	    /* Turn beyond the whole endpoint box on the port's side, not just a
+	     * fixed step from the port: a named port deep inside a tall record or
+	     * HTML node would otherwise turn inside the node. */
+	    const double outside_y_tail = tail_dy > 0
+		? MAX(p1.y, ND_coord(agtail(e)).y + ND_ht(agtail(e)) / 2) +
+		      ORTHO_PORT_CLEARANCE
+		: MIN(p1.y, ND_coord(agtail(e)).y - ND_ht(agtail(e)) / 2) -
+		      ORTHO_PORT_CLEARANCE;
+	    const double outside_y_head = head_dy > 0
+		? MAX(q1.y, ND_coord(aghead(e)).y + ND_ht(aghead(e)) / 2) +
+		      ORTHO_PORT_CLEARANCE
+		: MIN(q1.y, ND_coord(aghead(e)).y - ND_ht(aghead(e)) / 2) -
+		      ORTHO_PORT_CLEARANCE;
 	    const double outside_x = tail_dy > 0
 		? MAX(ND_coord(agtail(e)).x + ND_rw(agtail(e)),
 		      ND_coord(aghead(e)).x + ND_rw(aghead(e))) +
@@ -1315,6 +1324,11 @@ static void attachOrthoEdges(maze *mp, size_t n_edges, route* route_list,
 		}
 
 finish_edge:
+		/* Consecutive near-equal points were dropped above. A route that
+		 * collapsed to one point still needs a drawable cubic, and
+		 * clip_and_install() cannot take fewer than four points. */
+		if (LIST_SIZE(&vertices) < 2)
+		    LIST_APPEND(&vertices, LIST_FRONT(&vertices)[0]);
 		LIST_APPEND(&ispline, LIST_FRONT(&vertices)[0]);
 	for (size_t i = 1; i < LIST_SIZE(&vertices); i++) {
 	    const pointf previous = LIST_GET(&vertices, i - 1);
@@ -1432,6 +1446,10 @@ int orthoEdges(Agraph_t *g, bool useLbls) {
     for (Agnode_t *n = agfstnode (g); n; n = agnxtnode(g, n)) {
 	for (Agedge_t *e = agfstout(g, n); e; e = agnxtout(g,e)) {
 	    if (Nop == 2 && ED_spl(e)) continue;
+	    /* IGNORED here means suppressed earlier in this layout (by dot or by
+	     * this function's concentrate fold). A relayout starts from fresh edge
+	     * info (gvFreeLayout drops it), so a stale ortho suppression can not
+	     * survive into a second routing pass; do not reset foreign IGNORED. */
 	    if (ED_edge_type(e) == IGNORED) continue;
 	    if (Concentrate) {
 		const bool is_distinct =

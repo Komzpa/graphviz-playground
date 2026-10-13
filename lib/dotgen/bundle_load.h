@@ -31,6 +31,10 @@ typedef enum {
   DOT_BUNDLE_ACCUMULATE,
   /// Add a separately drawable member while preserving legacy route weights.
   DOT_BUNDLE_SHARE_ROUTE,
+  /// Like DOT_BUNDLE_ACCUMULATE, but the legacy crossing count of the route is
+  /// left alone: penalties, weights and lane widths are still carried. Used for
+  /// intercluster multi-edges, which are not counted until clusters expand.
+  DOT_BUNDLE_ACCUMULATE_UNCOUNTED,
 } dot_bundle_merge_t;
 
 dot_bundle_load_t dot_bundle_load_get(const struct Agedge_s *edge);

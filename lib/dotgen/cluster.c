@@ -182,7 +182,10 @@ static void interclexp(graph_t * subg)
 		if (ED_to_virt(prev) == NULL)
 		    continue;	/* internal edge */
 		ED_to_virt(e) = NULL;
-		merge_chain(subg, e, ED_to_virt(prev), DOT_BUNDLE_ALIAS);
+		/* Intercluster multi-edges are not counted yet, but their penalty,
+		 * weight and width still count. */
+		merge_chain(subg, e, ED_to_virt(prev),
+			    DOT_BUNDLE_ACCUMULATE_UNCOUNTED);
 		safe_other_edge(e);
 		continue;
 	    }

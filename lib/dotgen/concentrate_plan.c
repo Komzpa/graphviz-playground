@@ -13,6 +13,7 @@
 #include <common/render.h>
 #include <dotgen/concentrate_plan.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <util/alloc.h>
@@ -51,6 +52,10 @@ struct gv_concentration_transaction_s {
   node_t **new_virtual_nodes;
   size_t new_virtual_node_count;
   size_t new_virtual_node_capacity;
+  /* Open-addressed index over memory[]: slot holds memory position + 1, 0 is
+   * empty. Only the first snapshot of each (address, size) is kept. */
+  size_t *memory_index;
+  size_t memory_index_capacity;
 };
 
 void gv_concentration_plan_context_init(gv_concentration_plan_context_t *ctx) {
@@ -114,8 +119,60 @@ begin_transaction(const gv_concentration_candidate_t *candidate) {
   return transaction;
 }
 
+static size_t memory_slot_hash(const void *address, size_t size) {
+  uintptr_t h = (uintptr_t)address;
+  h ^= (uintptr_t)size * 0x9e3779b97f4a7c15ULL;
+  h ^= h >> 17;
+  h *= 0xff51afd7ed558ccdULL;
+  h ^= h >> 29;
+  return (size_t)h;
+}
+
+/// Find the slot for (address, size); returns the slot index. A slot whose
+/// value is 0 is free, otherwise it names the matching or colliding record.
+static size_t memory_index_find(const gv_concentration_transaction_t *t,
+                                const void *address, size_t size) {
+  const size_t mask = t->memory_index_capacity - 1;
+  size_t slot = memory_slot_hash(address, size) & mask;
+  while (t->memory_index[slot] != 0) {
+    const memory_undo_t *const undo = &t->memory[t->memory_index[slot] - 1];
+    if (undo->address == address && undo->size == size) {
+      break;
+    }
+    slot = (slot + 1) & mask;
+  }
+  return slot;
+}
+
+static void memory_index_grow(gv_concentration_transaction_t *t) {
+  const size_t capacity =
+      t->memory_index_capacity == 0 ? 64 : t->memory_index_capacity * 2;
+  free(t->memory_index);
+  t->memory_index = gv_calloc(capacity, sizeof(*t->memory_index));
+  t->memory_index_capacity = capacity;
+  for (size_t i = 0; i < t->memory_count; i++) {
+    const size_t slot =
+        memory_index_find(t, t->memory[i].address, t->memory[i].size);
+    t->memory_index[slot] = i + 1;
+  }
+}
+
 void gv_concentration_transaction_record(
     gv_concentration_transaction_t *transaction, void *address, size_t size) {
+  /*
+   * Rollback replays snapshots newest-first, so the oldest snapshot of a
+   * region decides the restored bytes and later ones for the same region are
+   * redundant. Keeping only the first one bounds memory by the number of
+   * distinct regions, not by edges times rank span.
+   */
+  if (transaction->memory_index_capacity == 0 ||
+      (transaction->memory_count + 1) * 2 > transaction->memory_index_capacity) {
+    memory_index_grow(transaction);
+  }
+  const size_t slot = memory_index_find(transaction, address, size);
+  if (transaction->memory_index[slot] != 0) {
+    return;
+  }
   if (transaction->memory_count == transaction->memory_capacity) {
     const size_t capacity = transaction->memory_capacity == 0
                                 ? 16
@@ -130,6 +187,7 @@ void gv_concentration_transaction_record(
   undo->size = size;
   undo->before = gv_alloc(size);
   memcpy(undo->before, address, size);
+  transaction->memory_index[slot] = transaction->memory_count;
 }
 
 void gv_concentration_transaction_record_elist(
@@ -216,6 +274,7 @@ free_transaction_storage(gv_concentration_transaction_t *transaction) {
     free_concentrated_edge_arrow_snapshot(transaction->arrows[i].before);
   }
   free(transaction->memory);
+  free(transaction->memory_index);
   free(transaction->elists);
   free(transaction->arrows);
   free(transaction->new_virtual_edges);
@@ -311,6 +370,14 @@ void gv_concentration_plan_context_commit(
     gv_concentration_plan_context_t *ctx) {
   if (ctx->transaction != NULL) {
     commit_transaction(ctx->transaction);
+    ctx->transaction = NULL;
+  }
+}
+
+void gv_concentration_plan_context_rollback(
+    gv_concentration_plan_context_t *ctx) {
+  if (ctx->transaction != NULL) {
+    rollback_transaction(ctx->transaction);
     ctx->transaction = NULL;
   }
 }

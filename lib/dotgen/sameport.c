@@ -135,7 +135,6 @@ static void sameport(node_t *u, edge_list_t l)
 */
 {
     node_t *v;
-    edge_t *f;
     double x = 0, y = 0, x1, y1, x2, y2, r;
 
     /* Compute the direction vector (x,y) of the average direction. We compute
@@ -193,31 +192,5 @@ static void sameport(node_t *u, edge_list_t l)
     prt.name = NULL;
 
     /* assign one of the ports to every edge */
-    for (size_t i = 0; i < LIST_SIZE(&l); i++) {
-	edge_t *e = LIST_GET(&l, i);
-	for (; e; e = ED_to_virt(e)) {	/* assign to all virt edges of e */
-	    for (f = e; f;
-		 f = ED_edge_type(f) == VIRTUAL &&
-		 ND_node_type(aghead(f)) == VIRTUAL &&
-		 ND_out(aghead(f)).size == 1 ?
-		 ND_out(aghead(f)).list[0] : NULL) {
-		if (aghead(f) == u)
-		    ED_head_port(f) = prt;
-		if (agtail(f) == u)
-		    ED_tail_port(f) = prt;
-	    }
-	    for (f = e; f;
-		 f = ED_edge_type(f) == VIRTUAL &&
-		 ND_node_type(agtail(f)) == VIRTUAL &&
-		 ND_in(agtail(f)).size == 1 ?
-		 ND_in(agtail(f)).list[0] : NULL) {
-		if (aghead(f) == u)
-		    ED_head_port(f) = prt;
-		if (agtail(f) == u)
-		    ED_tail_port(f) = prt;
-	    }
-	}
-    }
-
-    ND_has_port(u) = true;	/* kinda pointless, because mincross is already done */
+    apply_same_port(u, l, prt);
 }

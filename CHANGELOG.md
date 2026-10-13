@@ -33,6 +33,11 @@ and this project adheres to
   distinct fields keep distinct routes.
 - Equivalent parallel edges separated by distinct same-endpoint siblings are
   now concentrated without increasing crossings.
+- `concentrate=true` no longer draws a second lane for an exact duplicate of an
+  edge whose arrow was folded in from an earlier reverse edge, and `neato`
+  draws every distinct parallel edge that concentration retains. Flat
+  `dir=both` edges with outward-facing ports keep their detour, and
+  `splines=ortho` turns outside tall endpoint nodes.
 - An out-of-bounds read while routing certain flat labeled edges no longer
   causes a crash. #2757
   Example: a malformed flat labeled edge used to read beyond route storage; now

@@ -344,17 +344,34 @@ def byte_identity_sample(current_dot: str, before_dot: str) -> int:
     before_root = Path(env_path("GRAPHVIZ_LAYOUT_TIME_BEFORE_ROOT", required=True))
     for rel in fixtures:
         for mode, flags in MODES:
-            old = subprocess.run([before_dot, *flags, "-Txdot", str(before_root / rel)], stdout=subprocess.PIPE)
-            new = subprocess.run([current_dot, *flags, "-Txdot", str(root / rel)], stdout=subprocess.PIPE)
-            failures_by_mode[mode] += old.returncode != new.returncode or old.stdout != new.stdout
+            old = identity_render(before_dot, flags, before_root / rel)
+            new = identity_render(current_dot, flags, root / rel)
+            failures_by_mode[mode] += old is None or new is None or old != new
     print(f"byte_identity_sample\tbase={base_ref}\tfixtures={len(fixtures)}")
     print("mode\tmatched\ttotal")
     for mode, _ in MODES:
         failures = failures_by_mode[mode]
         print(f"{mode}\t{len(fixtures) - failures}\t{len(fixtures)}")
-    total = len(fixtures) * len(MODES)
     failures = sum(failures_by_mode.values())
     return 1 if failures else 0
+
+
+IDENTITY_RENDER_TIMEOUT_SECONDS = 60
+
+
+def identity_render(dot: str, flags: tuple[str, ...], graph: Path) -> tuple[int, bytes] | None:
+    """Render one fixture; None means the render timed out (counted as a mismatch)."""
+    try:
+        proc = subprocess.run(
+            [dot, *flags, "-Txdot", str(graph)],
+            stdout=subprocess.PIPE,
+            timeout=IDENTITY_RENDER_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"identity_render_timeout\t{graph}\t{' '.join(flags)}")
+        return None
+    return proc.returncode, proc.stdout
 
 
 def print_buildability_report() -> None:

@@ -434,6 +434,10 @@ static bool nearest_cluster_rank_orders(graph_t *g, int r, int *left, int *right
  * This is done by adding constraints to make sure such nodes have
  * a gap of margin from the left or right bounding box node ln or rn.
  * 
+ * Cost: one aux edge per eligible outside node and cluster rank, which is
+ * linear in the nodes sharing the cluster's ranks. Each such node is tied to
+ * exactly one side (nearer one), so ln/rn are not over-constrained.
+ *
  * We could probably reduce some of these constraints by checking if
  * the node is in a cluster, since elsewhere we make constrain a
  * separate between clusters. Also, we should be able to skip the
@@ -455,7 +459,9 @@ static void keepout_othernodes(graph_t * g)
 	    /* can't use "is_a_vnode_of" because elists are swapped */
 	    if (!cluster_outside_node(g, u))
 		continue;
-	    if (i < left || (i <= right && i - left <= right - i))
+	    /* left and right are ND_order values, not root rank indices */
+	    const int order = ND_order(u);
+	    if (order < left || (order <= right && order - left <= right - order))
 		make_aux_edge(u, GD_ln(g), margin + ND_rw(u), 0);
 	    else
 		make_aux_edge(GD_rn(g), u, margin + ND_lw(u), 0);
@@ -1087,7 +1093,10 @@ static void expand_leaves(graph_t * g)
 		if ((d = ND_rank(aghead(e)) - ND_rank(aghead(e))) == 0)
 		    continue;
 		f = ED_to_orig(e);
-		if (!ports_eq(e, f)) {
+		/* Compare e itself, not its original: ports_eq() normalizes
+		 * both sides to their originals, which hides a difference
+		 * between a virtual segment and its original edge. */
+		if (!gv_edge_ports_are_equal(e, f)) {
 		    zapinlist(&(ND_other(n)), e);
 		    if (d == 1)
 			fast_edge(e);

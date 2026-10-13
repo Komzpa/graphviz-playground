@@ -13,6 +13,7 @@ from pathlib import Path
 CONCENTRATE_RE = re.compile(r"\bconcentrate\s*=\s*\"?true\"?", re.IGNORECASE)
 RANKERS = (("default", ()), ("newrank=true", ("-Gnewrank=true",)))
 POINT_EPSILON = 0.02
+RENDER_TIMEOUT_SECONDS = 10
 
 
 def tracked_graphs() -> list[Path]:
@@ -29,12 +30,20 @@ def tracked_graphs() -> list[Path]:
 
 
 def render(dot: str, path: Path, extra_args: tuple[str, ...]) -> dict | None:
-    proc = subprocess.run(
-        [dot, "-Kdot", "-Tjson", *extra_args, path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [dot, "-Kdot", "-Tjson", *extra_args, path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=RENDER_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"{path} [{' '.join(extra_args) or 'default'}] skipped: "
+            f"dot timed out after {RENDER_TIMEOUT_SECONDS}s"
+        )
+        return None
     if proc.returncode != 0:
         diagnostic = proc.stderr.decode("utf-8", errors="replace").splitlines()
         print(
@@ -43,7 +52,14 @@ def render(dot: str, path: Path, extra_args: tuple[str, ...]) -> dict | None:
         )
         return None
     output = proc.stdout.decode("utf-8", errors="replace")
-    return json.loads(output)
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError as error:
+        print(
+            f"{path} [{' '.join(extra_args) or 'default'}] skipped: "
+            f"invalid JSON layout: {error}"
+        )
+        return None
 
 
 def node_box(node: dict) -> tuple[float, float, float, float]:

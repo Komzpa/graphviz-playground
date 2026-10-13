@@ -417,6 +417,8 @@ def test_concentrate_short_compound_arrows_do_not_overlap():
         for operation in edge.get(stream, [])
         if operation["op"] == "P"
     ]
+    # Without this, an empty or one-arrow edge makes the pair loop vacuous.
+    assert len(arrows) >= 1
     boxes = [_point_box(arrow) for arrow in arrows]
     for first, second in itertools.combinations(boxes, 2):
         assert _boxes_are_disjoint(first, second)

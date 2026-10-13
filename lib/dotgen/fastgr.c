@@ -252,9 +252,13 @@ basic_merge(edge_t * e, edge_t * rep, dot_bundle_merge_t merge)
       const int legacy_position =
           saturated_int_add(ED_weight(rep), ED_weight(e));
       dot_bundle_load_merge(rep, e, merge);
-      dot_bundle_load_set_legacy_count(rep, legacy_count);
-      dot_bundle_load_set_legacy_xpenalty(rep, legacy_xpenalty);
-      dot_bundle_load_set_legacy_position(rep, legacy_position);
+      /* Only accumulation projects the summed legacy fields; the other modes
+       * keep the route values dot_bundle_load_merge preserved. */
+      if (merge == DOT_BUNDLE_ACCUMULATE) {
+        dot_bundle_load_set_legacy_count(rep, legacy_count);
+        dot_bundle_load_set_legacy_xpenalty(rep, legacy_xpenalty);
+        dot_bundle_load_set_legacy_position(rep, legacy_position);
+      }
       rep = ED_to_virt(rep);
     }
 }

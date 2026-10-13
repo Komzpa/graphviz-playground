@@ -4468,7 +4468,7 @@ def test_shortestpath_rejects_uncontained_straight_fallback(tmp_path: Path):
         c_src,
         tmp_path,
         cflags=["-Ilib"],
-        link=[Path("build/lib/pathplan/libpathplan.so.4.0.8").resolve()],
+        link=["pathplan"],
     )
 
 

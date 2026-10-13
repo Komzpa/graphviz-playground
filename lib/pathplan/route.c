@@ -177,6 +177,10 @@ static int reallyroutespline(Pedge_t *edges, size_t edgen, Ppoint_t *inps,
   const split_tangent_result_t split_result =
       split_tangent(inps, spliti, corridor_direction, &splitv);
   if (split_result != SPLIT_TANGENT_OK) {
+    /* pathplan is a standalone library without a diagnostics hook (it follows
+     * the stderr convention of shortest.c); the -1 status is the contract.
+     * Every caller checks it and fails its route: routesplines, neatosplines,
+     * multispline, simpleSplineRoute and the Tcl binding. */
     if (split_result == SPLIT_TANGENT_TRUE_REVERSAL) {
       fprintf(stderr,
               "warning: Proutespline: true 180-degree reversal at "

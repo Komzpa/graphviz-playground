@@ -76,6 +76,9 @@ void gv_concentration_candidate_set_free(gv_concentration_candidate_set_t *set);
 bool gv_concentration_apply(gv_concentration_plan_context_t *ctx,
                             gv_concentration_candidate_set_t *set);
 void gv_concentration_plan_context_commit(gv_concentration_plan_context_t *ctx);
+/// Undo every edit held by the shared transaction (after a failed probe the
+/// shared transaction still holds earlier accepted concentration edits).
+void gv_concentration_plan_context_rollback(gv_concentration_plan_context_t *ctx);
 
 void gv_concentration_transaction_record(
     gv_concentration_transaction_t *transaction, void *address, size_t size);

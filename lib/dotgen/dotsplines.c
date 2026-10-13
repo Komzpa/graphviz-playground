@@ -309,7 +309,10 @@ static void separate_endpoint_labels(graph_t *graph, endpoint_label_t *labels,
     return;
   }
 
-  for (size_t pass = 0; pass < label_count * 10; pass++) {
+  /* Each pass is quadratic in the label count, so the pass count is capped
+   * rather than scaled with it; separation converges in a few passes. */
+  const size_t max_passes = MIN(label_count * 10, (size_t)64);
+  for (size_t pass = 0; pass < max_passes; pass++) {
     bool moved = false;
     for (size_t i = 0; i < label_count; i++) {
       for (size_t j = i + 1; j < label_count; j++) {
@@ -724,7 +727,8 @@ static void edge_normalize(graph_t *g) {
           if (!atomic_flag_test_and_set(&warned)) {
             agwarningf("dropping malformed spline\n");
           }
-          ED_spl(e) = NULL;
+          /* free the rejected spline instead of leaking its storage */
+          gv_free_splines(e);
           continue;
         }
         swap_spline(ED_spl(e));
@@ -1042,6 +1046,11 @@ finish:
   dedupe_concentrated_edge_labels(g);
 
   /* place port labels */
+  /* dot places every endpoint label here, with or without labelangle and
+   * labeldistance: the default placement is deliberate (it is what
+   * endpoint_label_uses_default_placement() detects), so dot calls
+   * place_portlabel() directly and does not use the makePortLabels() guard
+   * that defers to external-label placement for the other engines. */
   /* FIX: head and tail labels are not part of cluster bbox */
   if (E_headlabel || E_taillabel) {
     endpoint_label_t *const endpoint_labels =
@@ -1726,6 +1735,53 @@ static void straighten_flat_port_progression(bezier *spline) {
   }
 }
 
+/// Does the segment p-q pass through the interior of the node's box? The box
+/// is shrunk by one point so a chord that merely starts on the boundary, at a
+/// port, is not counted.
+static bool chord_crosses_node_interior(pointf p, pointf q, node_t *node) {
+  const double left = ND_coord(node).x - ND_lw(node) + 1;
+  const double right = ND_coord(node).x + ND_rw(node) - 1;
+  const double bottom = ND_coord(node).y - ND_ht(node) / 2 + 1;
+  const double top = ND_coord(node).y + ND_ht(node) / 2 - 1;
+  if (left >= right || bottom >= top)
+    return false;
+
+  double t0 = 0, t1 = 1;
+  const double d[2] = {q.x - p.x, q.y - p.y};
+  const double lo[2] = {left, bottom};
+  const double hi[2] = {right, top};
+  const double o[2] = {p.x, p.y};
+  for (int axis = 0; axis < 2; ++axis) {
+    if (d[axis] == 0) {
+      if (o[axis] <= lo[axis] || o[axis] >= hi[axis])
+        return false;
+      continue;
+    }
+    double near_t = (lo[axis] - o[axis]) / d[axis];
+    double far_t = (hi[axis] - o[axis]) / d[axis];
+    if (near_t > far_t) {
+      const double swap = near_t;
+      near_t = far_t;
+      far_t = swap;
+    }
+    t0 = fmax(t0, near_t);
+    t1 = fmin(t1, far_t);
+    if (t0 >= t1)
+      return false;
+  }
+  return true;
+}
+
+/// A direct chord between the shaft ends is only a valid replacement for the
+/// routed controls when it clears both endpoint nodes. Ports on the outer
+/// sides of the nodes need the routed detour to depart outward.
+static bool flat_port_chord_is_clear(edge_t *edge, const bezier *spline) {
+  const pointf start = spline->list[0];
+  const pointf end = spline->list[spline->size - 1];
+  return !chord_crosses_node_interior(start, end, agtail(edge)) &&
+         !chord_crosses_node_interior(start, end, aghead(edge));
+}
+
 static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   const pointf tail_center = ND_coord(agtail(edge));
   const pointf head_center = ND_coord(aghead(edge));
@@ -1757,9 +1813,10 @@ static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip &&
       ED_head_port(edge).defined && !ED_head_port(edge).clip && !grouped_tail &&
       !grouped_head) {
-    if (draws_both_arrows)
-      flat_edge_straighten_port_line(spline);
-    else
+    if (draws_both_arrows) {
+      if (flat_port_chord_is_clear(edge, spline))
+        flat_edge_straighten_port_line(spline);
+    } else
       straighten_flat_port_progression(spline);
   }
 }
@@ -2440,7 +2497,7 @@ static int make_flat_edge(graph_t *g, const spline_info_t sp, path *P,
   // With edge labels, an auxiliary rank sits immediately below each node rank.
   // There may be no preceding node rank.
   const int prev_rank = r - ((GD_has_labels(g->root) & EDGE_LABEL) ? 2 : 1);
-  if (prev_rank >= 0) {
+  if (prev_rank >= GD_minrank(g) && GD_rank(g)[prev_rank].n > 0) {
     rank_t *const prevr = GD_rank(g) + prev_rank;
     vspace = ND_coord(prevr->v[0]).y - prevr->ht1 - ND_coord(tn).y -
              GD_rank(g)[r].ht2;
@@ -3071,6 +3128,11 @@ static void make_regular_edge(graph_t *g, spline_info_t *sp, path *P,
     if (et == EDGETYPE_SPLINE)
       record_route_piece(route_pieces, route_junctions, e, prior_spline_count,
                          route_start, route_end, &local_plans, offset);
+    /* Deliberately not gated on Concentrate, unlike the single-edge path:
+     * members of a multi-edge group (samehead/sametail included) need their
+     * final control arms aligned to the arrow direction, and
+     * test_concentrate_mixed_samehead_backward_route_approaches_outward[False]
+     * pins this for non-concentrated layouts. */
     align_arrow_tangents(g, e);
   }
   LIST_FREE(&pointfs);

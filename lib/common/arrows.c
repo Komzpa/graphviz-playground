@@ -203,15 +203,6 @@ static bool arrow_shape_uses_fillcolor(uint32_t shape_flags) {
   return false;
 }
 
-/* Report whether fillcolor was explicitly set on this edge, not inherited. */
-static bool explicit_edge_fillcolor(Agedge_t *edge) {
-  Agraph_t *const root_graph = agroot(agraphof(edge));
-  Agsym_t *const fillcolor_attribute = agfindedgeattr(root_graph, "fillcolor");
-  if (fillcolor_attribute == NULL) {
-    return false;
-  }
-  return agxget(edge, fillcolor_attribute)[0] != '\0';
-}
 /*
  * Remove a weighted color-list suffix in-place and return its parsed fraction.
  * The caller only needs the first explicit fraction to decide endpoint color.
@@ -460,21 +451,29 @@ static edge_arrow_endpoint_t candidate_endpoint_matching_retained_endpoint(
                                                : EDGE_ARROW_START;
 }
 
+static bool arrow_decoration_sets_are_equal(
+    const arrow_decoration_t *first, const arrow_decoration_t *second) {
+  return arrow_decorations_are_equal(&first[EDGE_ARROW_START],
+                                     &second[EDGE_ARROW_START]) &&
+         arrow_decorations_are_equal(&first[EDGE_ARROW_END],
+                                     &second[EDGE_ARROW_END]);
+}
+
 bool same_direction_edge_arrow_decorations_are_mergeable(
     Agedge_t *retained_edge, Agedge_t *candidate_edge) {
   arrow_decoration_t retained[EDGE_ARROW_ENDPOINT_COUNT];
   arrow_decoration_t candidate[EDGE_ARROW_ENDPOINT_COUNT];
   accumulated_edge_arrow_decorations(retained_edge, retained);
   own_edge_arrow_decorations(candidate_edge, candidate);
-
-  for (edge_arrow_endpoint_t endpoint = EDGE_ARROW_START;
-       endpoint < EDGE_ARROW_ENDPOINT_COUNT; endpoint++) {
-    if (!arrow_decorations_are_equal(&retained[endpoint],
-                                     &candidate[endpoint])) {
-      return false;
-    }
+  if (arrow_decoration_sets_are_equal(retained, candidate)) {
+    return true;
   }
-  return true;
+  /* A retained edge may carry an arrow borrowed from an opposite edge that
+   * Cgraph order folded first; an exact duplicate of its own pre-fold
+   * decoration must still merge rather than become a second lane. */
+  arrow_decoration_t original[EDGE_ARROW_ENDPOINT_COUNT];
+  own_edge_arrow_decorations(retained_edge, original);
+  return arrow_decoration_sets_are_equal(original, candidate);
 }
 
 bool opposite_direction_edge_arrow_decorations_are_mergeable(
@@ -1881,7 +1880,7 @@ static double arrow_length_tee(double lenfact, double arrowsize,
 
   const double polygon_extend_over_polyline_at_end =
       penwidth / 2 - 0.2 * nominal_length;
-  if (polygon_extend_over_polyline_at_start > 0) {
+  if (polygon_extend_over_polyline_at_end > 0) {
     length += polygon_extend_over_polyline_at_end;
   }
 

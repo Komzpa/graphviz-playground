@@ -369,9 +369,11 @@ void dot_bundle_load_set_position_scale(edge_t *edge, uint64_t scale) {
   const dot_bundle_load_t load = dot_bundle_load_get(edge);
   if (load.logical_count == 0 || load.membership_id == 0) {
     const uint64_t current_weight = (uint64_t)MAX(ED_weight(edge), 0);
-    ED_weight(edge) = current_weight > (uint64_t)INT_MAX / bounded_scale
-                          ? INT_MAX
-                          : (int)(current_weight * bounded_scale);
+    /* The stored weight is already multiplied by old_scale; rescale it
+     * instead of multiplying again so repeated calls stay idempotent. */
+    const uint64_t rescaled_weight =
+        current_weight * bounded_scale / old_scale;
+    ED_weight(edge) = (int)MIN(rescaled_weight, (uint64_t)INT_MAX);
   }
   info->bundle_legacy_bias[LEGACY_POSITION_BIAS] = scaled_bias(
       info->bundle_legacy_bias[LEGACY_POSITION_BIAS], old_scale, bounded_scale);

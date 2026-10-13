@@ -26,6 +26,7 @@ from concentrate_helpers import (
     math,
     operator,
     run,
+    which,
 )
 
 @pytest.mark.parametrize("splines", ("", "splines=ortho"))
@@ -1628,6 +1629,7 @@ def test_concentrate_preserves_reverse_arrow_after_no_arrow_duplicate(splines: s
     assert _arrow_polygon_point_count(drawn_edges[0], "t") == 3
 
 
+@pytest.mark.skipif(which("neato") is None, reason="neato not available")
 def test_neato_concentrate_straight_opposite_edge_keeps_borrowed_arrow():
     """Straight neato folds compare opposite physical endpoints."""
 

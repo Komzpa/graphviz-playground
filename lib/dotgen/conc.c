@@ -308,38 +308,44 @@ static bool rank_reorder_nodes_mergeable(node_t *left, node_t *right,
                            : bothupcandidates(left, right);
 }
 
-static node_t *node_at_reordered_rank_position(graph_t *graph, int rank,
-                                               int position, node_t **reordered,
-                                               int *positions,
-                                               int candidate_count) {
+/// Materialize the rank with the candidate reordering applied, once, so that
+/// counting merges is linear in the rank width instead of scanning the
+/// candidate list for every position.
+static node_t **materialize_reordered_rank(graph_t *graph, int rank,
+                                           node_t **reordered, int *positions,
+                                           int candidate_count) {
+  const int rank_size = GD_rank(graph)[rank].n;
+  node_t **const view = gv_calloc((size_t)rank_size, sizeof(*view));
+  for (int i = 0; i < rank_size; i++) {
+    view[i] = GD_rank(graph)[rank].v[i];
+  }
   for (int i = 0; i < candidate_count; i++) {
-    if (positions[i] == position) {
-      return reordered[i];
+    if (positions[i] >= 0 && positions[i] < rank_size) {
+      view[positions[i]] = reordered[i];
     }
   }
-  return GD_rank(graph)[rank].v[position];
+  return view;
 }
 
 static int rank_reorder_merge_count(graph_t *graph, int rank, int direction,
                                     node_t **reordered, int *positions,
                                     int candidate_count) {
   const int rank_size = GD_rank(graph)[rank].n;
+  node_t **const view =
+      reordered == NULL
+          ? NULL
+          : materialize_reordered_rank(graph, rank, reordered, positions,
+                                       candidate_count);
   int merge_count = 0;
   for (int i = 0; i + 1 < rank_size; i++) {
-    node_t *const left =
-        reordered == NULL
-            ? GD_rank(graph)[rank].v[i]
-            : node_at_reordered_rank_position(graph, rank, i, reordered,
-                                              positions, candidate_count);
+    node_t *const left = view == NULL ? GD_rank(graph)[rank].v[i] : view[i];
     node_t *const right =
-        reordered == NULL
-            ? GD_rank(graph)[rank].v[i + 1]
-            : node_at_reordered_rank_position(graph, rank, i + 1, reordered,
-                                              positions, candidate_count);
+        view == NULL ? GD_rank(graph)[rank].v[i + 1] : view[i + 1];
     if (rank_reorder_nodes_mergeable(left, right, direction)) {
       merge_count++;
     }
   }
+  free(view);
   return merge_count;
 }
 
@@ -925,6 +931,10 @@ int dot_concentrate(graph_t *g) {
                                 &payload);
     if (!gv_concentration_apply(&concentration_context, &set)) {
       agwarningf("concentrate=true fell back to an unconcentrated layout.\n");
+      /* A failed probe leaves earlier accepted edits in the shared
+       * transaction; the warning is only true if they are undone too. A
+       * failed non-probe execution already rolled back and cleared it. */
+      gv_concentration_plan_context_rollback(&concentration_context);
       gv_concentration_plan_context_commit(&concentration_context);
       return 0;
     }

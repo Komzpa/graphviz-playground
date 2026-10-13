@@ -1334,6 +1334,15 @@ static bool repair_route_junction(route_cubic_index_t *index, graph_t *graph,
   } else {
     update_bb_bz(&GD_bb(graph), &left->list[left->size - 4]);
     update_bb_bz(&GD_bb(graph), &right->list[0]);
+    /*
+     * The accepted repair moved two control points, so the index entries for
+     * these cubics hold stale bounds and cached flattened points. The index
+     * is sorted by those bounds, so patching them in place could break its
+     * ordering; rebuild it so later junctions validate against current
+     * geometry.
+     */
+    route_cubic_index_free(index);
+    route_cubic_index_build(graph, index);
   }
 
   LIST_FREE(&original_crossings);

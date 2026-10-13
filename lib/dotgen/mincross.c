@@ -1760,7 +1760,8 @@ void check_vlists(graph_t *g) {
       j = ND_order(u);
       assert(GD_rank(Root)[r].v[j] == u);
     }
-    if (GD_rankleader(g)) {
+    if (GD_rankleader(g) && GD_rankleader(g)[r] != NULL) {
+      /* an emptied cluster rank has a NULL leader (see rec_reset_vlists) */
       u = GD_rankleader(g)[r];
       j = ND_order(u);
       assert(GD_rank(Root)[r].v[j] == u);

@@ -482,6 +482,7 @@ def test_concentrate_shared_trunk_keeps_visible_lanes_for_distinct_edges():
         "#0000ff",
         "#ff0000",
     }
+    assert len(colored) == 2
     stroke_width = max(float(edge.get("penwidth", 1)) for edge in colored)
     assert _max_pointwise_route_distance(*colored) > stroke_width
 

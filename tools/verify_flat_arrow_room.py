@@ -87,7 +87,7 @@ def baseline_dot() -> Path:
 
 def capped_dot_command(dot: str | Path, output_format: str, extra_args: tuple[str, ...], path: Path) -> list[str]:
     argv = [str(dot), "-Kdot", f"-T{output_format}", *extra_args, str(path)]
-    return ["bash", "-lc", f"ulimit -v {ULIMIT_V_KB}; exec \"$@\"", "dot-ulimit", *argv]
+    return ["bash", "-c", f"ulimit -v {ULIMIT_V_KB}; exec \"$@\"", "dot-ulimit", *argv]
 
 
 def render_json(dot: str | Path, path: Path, extra_args: tuple[str, ...]) -> dict[str, Any] | None:

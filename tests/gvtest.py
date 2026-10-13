@@ -22,8 +22,30 @@ BUILT_DOT_DIR = ROOT / "build" / "cmd" / "dot"
 BUILT_DOT = BUILT_DOT_DIR / "dot_builtins"
 if not BUILT_DOT.exists():
     BUILT_DOT = BUILT_DOT_DIR / "dot"
+# Testing the in-tree build instead of the installed Graphviz is an explicit
+# choice: a stale build/ directory must not silently replace the installation
+# under test or change $PATH for every test process.
+USE_BUILD_TREE = os.environ.get("GRAPHVIZ_TEST_USE_BUILD_TREE", "") not in (
+    "",
+    "0",
+)
+if not USE_BUILD_TREE or not BUILT_DOT.exists():
+    BUILT_DOT = BUILT_DOT_DIR / "__unused__"
 if BUILT_DOT.exists():
     os.environ["PATH"] = f"{BUILT_DOT_DIR}{os.pathsep}{os.environ['PATH']}"
+
+_BUILT_NEATO_DIR: Optional[Path] = None
+
+
+def _built_neato() -> Path:
+    """A `neato` command for `dot_builtins`, which selects engines with -K."""
+    global _BUILT_NEATO_DIR
+    if _BUILT_NEATO_DIR is None:
+        _BUILT_NEATO_DIR = Path(tempfile.mkdtemp(prefix="gvtest-neato-"))
+        wrapper = _BUILT_NEATO_DIR / "neato"
+        wrapper.write_text(f'#!/bin/sh\nexec "{BUILT_DOT}" -Kneato "$@"\n')
+        wrapper.chmod(0o755)
+    return _BUILT_NEATO_DIR / "neato"
 
 
 def pexpect_spawn_tclsh(
@@ -565,7 +587,7 @@ def which(cmd: str) -> Optional[Path]:
     if cmd == "dot" and BUILT_DOT.exists():
         return BUILT_DOT
     if cmd == "neato" and BUILT_DOT.name == "dot_builtins":
-        return None
+        return _built_neato()
 
     # try a straightforward lookup of the command
     abs_cmd = shutil.which(cmd)

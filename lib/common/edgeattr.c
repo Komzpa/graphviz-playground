@@ -590,7 +590,10 @@ static void append_html_table_identity_slots(agxbuf *signature, Agedge_t *edge,
       agxbclear(&rendered_number);
       agxbprint(&rendered_number, "%u:%u:%d:%d", (*cell)->rowspan,
                 (*cell)->colspan, (*cell)->hruled, (*cell)->vruled);
-      agxbput(&field, ":span");
+      /* agxbuse() above emptied field; rebuild the whole slot name. */
+      agxbclear(&field);
+      agxbprint(&field, "%s:cell:%u:%u:span", slot_prefix, (*cell)->row,
+                (*cell)->col);
       append_plain_signature_slot(signature, agxbuse(&field),
                                   agxbuse(&rendered_number));
 
@@ -850,7 +853,10 @@ static void append_html_table_hyperlink_slots(agxbuf *signature, Agedge_t *edge,
     append_html_data_hyperlink_slots(signature, edge, agxbuse(&field),
                                      &(*cell)->data, table_anchor_open,
                                      anchor_index);
-    agxbput(&field, ":child");
+    /* agxbuse() above emptied field; rebuild the whole slot name. */
+    agxbclear(&field);
+    agxbprint(&field, "%s:cell:%u:%u:child", slot_prefix, (*cell)->row,
+              (*cell)->col);
     append_html_label_hyperlink_slots(signature, edge, agxbuse(&field),
                                       &(*cell)->child, cell_anchor_open,
                                       anchor_index);

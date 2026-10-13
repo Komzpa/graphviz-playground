@@ -195,9 +195,11 @@ static void merge_bundle_load_chain(graph_t *graph, edge_t *original_edge,
   edge_t *representative_edge = first_virtual_edge;
   bool is_endpoint_segment = true;
   do {
-    const bool add_legacy_load = merge == DOT_BUNDLE_ACCUMULATE;
-    const int legacy_count = ED_count(representative_edge) +
-                             (add_legacy_load ? ED_count(original_edge) : 0);
+    const bool add_legacy_load = merge == DOT_BUNDLE_ACCUMULATE ||
+                                 merge == DOT_BUNDLE_ACCUMULATE_UNCOUNTED;
+    const int legacy_count =
+        ED_count(representative_edge) +
+        (merge == DOT_BUNDLE_ACCUMULATE ? ED_count(original_edge) : 0);
     const int legacy_xpenalty =
         ED_xpenalty(representative_edge) +
         (add_legacy_load ? ED_xpenalty(original_edge) : 0);
@@ -214,7 +216,7 @@ static void merge_bundle_load_chain(graph_t *graph, edge_t *original_edge,
     if (ND_rank(aghead(representative_edge)) == last_rank) {
       break;
     }
-    if (merge == DOT_BUNDLE_ACCUMULATE) {
+    if (add_legacy_load) {
       widen_virtual_node(graph, aghead(representative_edge));
     }
     representative_edge = ND_out(aghead(representative_edge)).list[0];
@@ -277,8 +279,7 @@ static void transactional_merge_chain(gv_concentration_transaction_t *handle,
                                       dot_bundle_merge_t merge) {
   gv_concentration_transaction_record(handle, &ED_to_virt(original_edge),
                                       sizeof(ED_to_virt(original_edge)));
-  if (merge == DOT_BUNDLE_ACCUMULATE || merge == DOT_BUNDLE_COALESCE ||
-      merge == DOT_BUNDLE_SHARE_ROUTE) {
+  if (merge != DOT_BUNDLE_ALIAS) {
     const int last_rank =
         MAX(ND_rank(agtail(original_edge)), ND_rank(aghead(original_edge)));
     for (edge_t *representative = first_virtual_edge; representative != NULL;
@@ -287,7 +288,8 @@ static void transactional_merge_chain(gv_concentration_transaction_t *handle,
       if (ND_rank(aghead(representative)) == last_rank) {
         break;
       }
-      if (merge == DOT_BUNDLE_ACCUMULATE) {
+      if (merge == DOT_BUNDLE_ACCUMULATE ||
+          merge == DOT_BUNDLE_ACCUMULATE_UNCOUNTED) {
         gv_concentration_transaction_record(
             handle, &ND_lw(aghead(representative)),
             sizeof(ND_lw(aghead(representative))));
@@ -424,6 +426,12 @@ execute_edge_chain_candidate(const gv_concentration_candidate_t *candidate,
 static edge_t *find_prior_concentrated_representative(graph_t *graph,
                                                       edge_t *edge) {
   /*
+   * Cost: this walks the tail's earlier out-edges, so a node of out-degree d
+   * pays O(d) comparisons per edge. The cheap structural tests (head, chain
+   * ownership, labels) run before the attribute and arrow comparisons, which
+   * are only reached for a same-head sibling that already owns a chain.
+   */
+  /*
    * build_edge_chains() visits a node's outgoing edges in Cgraph order. Only
    * an earlier edge can already own the virtual chain that this edge would
    * duplicate, so stop at the current edge and never let later input affect
@@ -476,7 +484,17 @@ static void transactional_suppress_later_same_direction_duplicates(
     const bool both_edges_are_unlabeled =
         edge_has_no_labels(representative) && edge_has_no_labels(edge);
 
-    if (same_endpoints && ED_edge_type(edge) != IGNORED &&
+    /* Cgraph order is not rank order: a later duplicate can already own a
+     * virtual chain (through an opposite-edge representative). Hiding it
+     * would leave that chain attached to an IGNORED edge. */
+    /* Cgraph order is not rank order: a later duplicate can already own a
+     * virtual chain of its own (through an opposite-edge representative).
+     * Hiding it would leave that chain attached to an IGNORED edge, so only
+     * edges without a chain, or aliasing the representative's, are hidden. */
+    const bool owns_other_chain =
+        ED_to_virt(edge) != NULL &&
+        ED_to_virt(edge) != ED_to_virt(representative);
+    if (same_endpoints && ED_edge_type(edge) != IGNORED && !owns_other_chain &&
         both_edges_are_unlabeled && ports_eq(representative, edge) &&
         gv_edge_attributes_are_equal(representative, edge) &&
         same_direction_edge_arrow_decorations_are_mergeable(representative,

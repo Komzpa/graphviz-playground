@@ -7,6 +7,7 @@ import contextlib
 import filecmp
 import json
 import math
+import os
 import re
 import subprocess
 import tempfile
@@ -17,10 +18,26 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+def _comparison_dots() -> dict[str, Path]:
+    """Reference dot builds come from the environment; absent ones are skipped.
+
+    WOBBLE_DOT_UPSTREAM, WOBBLE_DOT_BEFORE and WOBBLE_DOT_AFTER name the
+    dot_builtins binaries of the upstream, pre-fix and cluster-box baselines.
+    """
+    found: dict[str, Path] = {}
+    for name in ("upstream", "before", "after"):
+        value = os.environ.get(f"WOBBLE_DOT_{name.upper()}")
+        if value:
+            path = Path(value)
+            if path.exists():
+                found[name] = path
+            else:
+                print(f"{name} comparison dot not found, skipping: {path}")
+    return found
+
+
 DOTS = {
-    "upstream": ROOT.parent.parent / "graphviz-fairtime-20260727/upstream/build/cmd/dot/dot_builtins",
-    "before": ROOT.parent.parent / "graphviz-port249-20260727/src/build/cmd/dot/dot_builtins",
-    "after": ROOT.parent.parent / "graphviz-clusterbox-20260727/src/build/cmd/dot/dot_builtins",
+    **_comparison_dots(),
     "fixed": ROOT / "build/cmd/dot/dot_builtins",
 }
 RANKERS = {"default": (), "newrank=true": ("-Gnewrank=true",)}
@@ -59,7 +76,7 @@ def capped_command(dot: Path, fmt: str, args: tuple[str, ...], graph: Path) -> l
     argv = [str(dot), "-Kdot", f"-T{fmt}", *args, str(graph)]
     return [
         "bash",
-        "-lc",
+        "-c",
         f"ulimit -v {ULIMIT_V_KB}; exec timeout {TIMEOUT}s \"$@\"",
         "dot-ulimit",
         *argv,
@@ -272,6 +289,8 @@ def verify_focus() -> int:
 
         print(f"1308 [{ranker}] cluster_border_clearance={BORDER_CLEARANCE:g}pt overlap threshold")
         for name in ("before", "after", "fixed"):
+            if name not in DOTS:
+                continue
             layout = render_json(DOTS[name], ROOT / "tests/1308.dot", args)
             min_distance, hit = border_hits(ROOT / "tests/1308.dot", ranker, layout)
             print(f"  {name}: min_edge_border_distance_pt={min_distance:.3f}")
@@ -409,6 +428,9 @@ def line_count(path: Path) -> int:
 
 
 def verify_identity() -> int:
+    if "after" not in DOTS:
+        print("identity skipped: set WOBBLE_DOT_AFTER to the cluster-box baseline dot")
+        return 0
     failures = 0
     attempted = 0
     stats: dict[tuple[str, str], IdentityStats] = defaultdict(IdentityStats)
@@ -488,9 +510,8 @@ def main() -> int:
     )
     print(f"fixed_dot={DOTS['fixed']}")
     print(f"clearance_rule=an edge is along a cluster border when a rendered control segment is within {BORDER_EPSILON:g}pt of the border and overlaps it by at least {BORDER_CLEARANCE:g}pt")
-    for name, dot in DOTS.items():
-        if not dot.exists():
-            raise SystemExit(f"{name} dot not found: {dot}")
+    if not DOTS["fixed"].exists():
+        raise SystemExit(f"fixed dot not found: {DOTS['fixed']}")
     failures = verify_focus()
     failures += verify_no_regressions()
     failures += verify_identity()

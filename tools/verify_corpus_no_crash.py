@@ -49,33 +49,42 @@ LEGACY_FAILURES = {
 }
 
 
-def tracked_graphs() -> list[Path]:
+def repo_root() -> Path:
+    return Path(
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    )
+
+
+def tracked_graphs(root: Path) -> list[Path]:
+    """Repo-root-relative paths, independent of the current directory."""
     output = subprocess.check_output(
-        ["git", "ls-files", "*.dot", "*.gv"], text=True
+        ["git", "-C", str(root), "ls-files", "*.dot", "*.gv"], text=True
     )
     return [Path(line) for line in output.splitlines()]
 
 
-def check_graph(dot: str, path: Path) -> tuple[str, str]:
+def check_graph(dot: str, root: Path, path: Path) -> tuple[str, Path, str]:
+    """Return (status, path, detail); the path travels as data, not in the text."""
     try:
         proc = subprocess.run(
-            [dot, "-Kdot", "-Tjson", path],
+            [dot, "-Kdot", "-Tjson", str(path)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             timeout=TIMEOUT_SECONDS,
             check=False,
+            cwd=root,
         )
     except subprocess.TimeoutExpired:
-        return "failure", f"{path}: timeout after {TIMEOUT_SECONDS}s"
+        return "failure", path, f"{path}: timeout after {TIMEOUT_SECONDS}s"
 
     stderr = proc.stderr.decode("utf-8", errors="replace")
     if proc.returncode < 0:
-        return "failure", f"{path}: terminated by signal {-proc.returncode}"
+        return "failure", path, f"{path}: terminated by signal {-proc.returncode}"
     if any(marker in stderr for marker in CRASH_MARKERS):
-        return "failure", f"{path}: crash marker in stderr"
+        return "failure", path, f"{path}: crash marker in stderr"
     if proc.returncode != 0:
-        return "ordinary_error", str(path)
-    return "ok", str(path)
+        return "ordinary_error", path, str(path)
+    return "ok", path, str(path)
 
 
 def main() -> None:
@@ -87,16 +96,16 @@ def main() -> None:
     ordinary_errors = 0
     legacy_failures = 0
     failures = []
-    paths = tracked_graphs()
+    root = repo_root()
+    paths = tracked_graphs(root)
     with ThreadPoolExecutor(max_workers=JOBS) as executor:
-        futures = [executor.submit(check_graph, dot, path) for path in paths]
+        futures = [executor.submit(check_graph, dot, root, path) for path in paths]
         for future in as_completed(futures):
-            status, detail = future.result()
+            status, path, detail = future.result()
             checked += 1
             if status == "ordinary_error":
                 ordinary_errors += 1
             elif status == "failure":
-                path = Path(detail.split(":", 1)[0])
                 if path in LEGACY_FAILURES:
                     legacy_failures += 1
                 else:

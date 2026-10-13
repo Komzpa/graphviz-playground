@@ -1223,6 +1223,9 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
 		edge_list[kept++] = edge_list[i];
 	}
 	e_cnt = kept;
+	/* every entry was already suppressed: nothing is left to draw */
+	if (e_cnt == 0)
+	    return;
     }
 
     edge_t *e = edge_list[0];
@@ -1230,7 +1233,10 @@ void makeStraightEdges(graph_t *g, edge_t **edge_list, size_t e_cnt, int et,
     node_t *head = aghead(e);
     dumb[1] = dumb[0] = add_pointf(ND_coord(n), ED_tail_port(e).p);
     dumb[2] = dumb[3] = add_pointf(ND_coord(head), ED_head_port(e).p);
-    if (e_cnt == 1 || Concentrate) {
+    /* Concentration has already folded rendered-equal edges above, so each
+     * entry still in the list is a distinct visible edge and takes its own lane
+     * below; only a lone entry is drawn as a single straight edge. */
+    if (e_cnt == 1) {
 	if (curved) bend(dumb,get_cycle_centroid(g, edge_list[0]));
 	clip_and_install(e, aghead(e), dumb, 4, sinfo);
 	addEdgeLabels(e);

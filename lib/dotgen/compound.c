@@ -83,7 +83,7 @@ static bool same_pointf(pointf a, pointf b) {
 }
 
 static void regularize_collapsed_bezier_joins(bezier *bez) {
-    for (size_t joint = 3; joint + 1 < bez->size; joint += 3) {
+    for (size_t joint = 3; joint + 2 < bez->size; joint += 3) {
 	if (same_pointf(bez->list[joint - 1], bez->list[joint]) &&
 	    same_pointf(bez->list[joint], bez->list[joint + 1])) {
 	    bez->list[joint - 1] =

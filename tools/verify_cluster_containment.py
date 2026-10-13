@@ -117,6 +117,12 @@ def commit_sha(repo: Path) -> str:
 
 
 def candidate_baseline_dot(repo: Path) -> Path | None:
+    """Locate the baseline dot_builtins.
+
+    Either set CLUSTER_CONTAINMENT_BASELINE_DOT, or build BASELINE_REF in the
+    in-repo directory build-clusterbox-baseline-<first 12 chars of BASELINE_REF>
+    (git worktree of that commit, then cmake/ninja into that directory).
+    """
     env = os.environ.get("CLUSTER_CONTAINMENT_BASELINE_DOT")
     if env:
         path = Path(env)
@@ -127,35 +133,18 @@ def candidate_baseline_dot(repo: Path) -> Path | None:
     if local.exists() and os.access(local, os.X_OK):
         return local
 
-    sibling = (
-        repo.parent.parent
-        / "graphviz-port249-20260727"
-        / "src"
-        / "build"
-        / "cmd"
-        / "dot"
-        / "dot_builtins"
-    )
-    if sibling.exists() and os.access(sibling, os.X_OK):
-        try:
-            sha = commit_sha(sibling.parents[3])
-        except (subprocess.CalledProcessError, IndexError):
-            return None
-        if sha == BASELINE_REF:
-            return sibling
     return None
 
 
-def cap_address_space() -> None:
-    limit = RENDER_LIMIT_KIB * 1024
-    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-
-
 def run_dot(dot: Path, graph: Path, newrank: bool, timeout: float) -> Rendered:
-    args = [str(dot), "-Kdot", "-Tjson"]
+    argv = [str(dot), "-Kdot", "-Tjson"]
     if newrank:
-        args.append("-Gnewrank=true")
-    args.append(str(graph))
+        argv.append("-Gnewrank=true")
+    argv.append(str(graph))
+    # ulimit in a wrapper shell, not preexec_fn: preexec_fn is unsafe next to
+    # the render thread pool (the forked child can inherit held locks). No -l,
+    # so no profile output can reach the captured stream.
+    args = ["bash", "-c", f'ulimit -v {RENDER_LIMIT_KIB}; exec "$@"', "dot-ulimit", *argv]
 
     output = tempfile.NamedTemporaryFile(prefix="cluster-layout-", suffix=".json", delete=False)
     output_path = Path(output.name)
@@ -168,7 +157,6 @@ def run_dot(dot: Path, graph: Path, newrank: bool, timeout: float) -> Rendered:
                     stderr=subprocess.PIPE,
                     check=False,
                     timeout=timeout,
-                    preexec_fn=cap_address_space,
                 )
             except subprocess.TimeoutExpired as exc:
                 stderr = (
@@ -571,7 +559,7 @@ def main() -> int:
     print(f"dot={dot}")
     print(f"baseline_ref={BASELINE_REF}")
     print(f"baseline_dot={baseline_dot if baseline_dot is not None else 'not_found'}")
-    print(f"render_concurrency=2")
+    print("render_concurrency=2")
     print(f"render_address_space_limit_kib={RENDER_LIMIT_KIB}")
     print(
         "invariant=for every cluster C and rendered node or descendant cluster n, "
