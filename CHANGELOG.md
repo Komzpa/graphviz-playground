@@ -34,6 +34,9 @@ and this project adheres to
 - Dot now keeps routing through incomplete pathplan triangulation instead of
   dropping affected edges. #2470 #2814
 
+- `concentrate=true` now concentrates equivalent reverse edges between nodes in
+  same-rank subgraphs. #150
+
 ## [16.1.0] – 2026-09-03
 
 ### Added
