@@ -394,10 +394,31 @@ static void suppress_endpoint_label(edge_t *e, junction_kind_t kind) {
     free_label(*slot);
     *slot = NULL;
   }
-  attrsym_t *sym = agfindedgeattr(
-      agraphof(agtail(e)), kind == JUNCTION_FANOUT ? "taillabel" : "headlabel");
+  char *name = kind == JUNCTION_FANOUT ? "taillabel" : "headlabel";
+  attrsym_t *sym = agfindedgeattr(agraphof(agtail(e)), name);
   if (sym != NULL) {
+    /* Remember the user's value: restore() runs at gvFreeLayout time, and a
+     * second layout of the same graph must see the original attributes. */
+    agsafeset(e, kind == JUNCTION_FANOUT
+                     ? "_concentrate_junction_saved_taillabel"
+                     : "_concentrate_junction_saved_headlabel",
+              attr(e, sym, ""), "");
     agxset(e, sym, "");
+  }
+}
+
+static void restore_suppressed_endpoint_label(edge_t *e) {
+  static const char *const saved[] = {
+      "_concentrate_junction_saved_headlabel",
+      "_concentrate_junction_saved_taillabel",
+  };
+  static const char *const live[] = {"headlabel", "taillabel"};
+  for (size_t i = 0; i < 2; ++i) {
+    const char *value = agget(e, saved[i]);
+    if (value != NULL && value[0] != '\0') {
+      agsafeset(e, live[i], value, "");
+    }
+    agsafeset(e, saved[i], "", "");
   }
 }
 
@@ -1302,6 +1323,7 @@ void dot_concentrate_junction_restore(graph_t *g,
         agsafeset(e, "_concentrate_junction_original", "", "");
         agsafeset(e, "_concentrate_junction_arm_splines", "", "");
         agsafeset(e, "_concentrate_junction_draw_trunk", "", "");
+        restore_suppressed_endpoint_label(e);
       }
       concentrate_junction_state_release(e);
     }

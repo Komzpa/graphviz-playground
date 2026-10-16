@@ -1819,7 +1819,7 @@ static void restore_flat_endpoints(edge_t *edge, bezier *spline) {
   if (ED_tail_port(edge).defined && !ED_tail_port(edge).clip &&
       ED_head_port(edge).defined && !ED_head_port(edge).clip && !grouped_tail &&
       !grouped_head) {
-10:     if (draws_both_arrows) {
+    if (draws_both_arrows) {
       if (flat_port_chord_is_clear(edge, spline))
         flat_edge_straighten_port_line(spline);
     } else if (!mapbool(agget(agraphof(edge), "concentrate")))
