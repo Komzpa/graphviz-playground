@@ -610,6 +610,8 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline,
       route_spline_metadata_free(metadata);
       free(route_corridor);
       free(polypoints);
+      /* The edge is dropped (NULL below) in every graph, clustered fallback
+       * included, so this must count as an error and fail the layout status. */
       agerrorf("in routesplines, Pshortestpath failed\n");
       return NULL;
     }

@@ -12,6 +12,7 @@
 
 #include "config.h"
 
+#include <common/concentrate_junction.h>
 #include <common/edgeattr.h>
 #include <common/utils.h>
 #include <dotgen/concentrate_plan.h>
@@ -1037,6 +1038,10 @@ void build_edge_chains(graph_t *graph) {
       /* A prior cluster operation has already attached this representation. */
       if (ED_to_virt(edge) != NULL) {
         previous_edge = edge;
+        continue;
+      }
+
+      if (ED_concentrate_junction(edge)) {
         continue;
       }
 

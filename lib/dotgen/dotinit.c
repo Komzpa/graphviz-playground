@@ -187,6 +187,7 @@ void dot_cleanup(graph_t * g)
     edge_t *e;
 
     free_virtual_node_list(GD_nlist(g));
+    dot_concentrate_junction_restore(g, dot_cleanup_node);
     for (n = agfstnode(g); n; n = agnxtnode(g, n)) {
 	for (e = agfstout(g, n); e; e = agnxtout(g, e)) {
 	    gv_cleanup_edge(e);
@@ -305,6 +306,7 @@ static int dotLayout(Agraph_t *g) {
     dot_init_subg(g,g);
     dot_init_node_edge(g);
     gv_concentration_plan_diagnose_if_enabled(g);
+    dot_concentrate_junction(g);
 
     GV_INFO("Starting phase 1 [dot_rank]");
     dot_rank(g);
@@ -339,6 +341,7 @@ static int dotLayout(Agraph_t *g) {
     if (r != 0) {
 	return r;
     }
+    dot_concentrate_junction_splines(g);
     if (mapbool(agget(g, "compound")))
 	dot_compoundEdges(g);
     return 0;
