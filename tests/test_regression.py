@@ -918,6 +918,11 @@ def test_1435():
     assert err.strip() == "", "errors were printed"
 
 
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="pathplan's private util archive is not installed, so a static "
+    "link cannot resolve its gv_list_* symbols from the install tree",
+)
 def test_1435_2(tmp_path: Path):
     """
     a straight-line fallback for a failed triangulation must not leave the polygon
@@ -929,11 +934,7 @@ def test_1435_2(tmp_path: Path):
     assert c_src.exists(), "missing test case"
 
     # run it
-    link = ["pathplan"]
-    if is_static_build():
-        # in static builds, we also need transitive dependencies
-        link += ["cdt"]
-    _, _ = run_c(c_src, tmp_path, link=link)
+    _, _ = run_c(c_src, tmp_path, link=["pathplan"])
 
 
 def test_1436():
