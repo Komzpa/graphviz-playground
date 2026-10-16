@@ -70,6 +70,76 @@ static int pointintri(size_t, Ppoint_t *);
 
 static int growops(size_t);
 
+static int straight_path(Ppoint_t eps[2], Ppolyline_t *output) {
+    if (growops(2) != 0)
+	return -2;
+    output->pn = 2;
+    ops[0] = eps[0], ops[1] = eps[1];
+    output->ps = ops;
+    return 0;
+}
+
+/// is a point inside or on the boundary of a polygon? (even-odd ray casting)
+static bool point_in_polygon(const Ppoly_t *polyp, Ppoint_t p) {
+    bool inside = false;
+    for (size_t i = 0, j = polyp->pn - 1; i < polyp->pn; j = i++) {
+	const Ppoint_t a = polyp->ps[i], b = polyp->ps[j];
+	if (ccw(a, b, p) == ISON &&
+	    p.x >= fmin(a.x, b.x) && p.x <= fmax(a.x, b.x) &&
+	    p.y >= fmin(a.y, b.y) && p.y <= fmax(a.y, b.y))
+	    return true;
+	if ((a.y > p.y) != (b.y > p.y) &&
+	    p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x)
+	    inside = !inside;
+    }
+    return inside;
+}
+
+/// Can the segment eps[0]-eps[1] be used as a path inside the polygon? A
+/// fallback route must keep the API contract that successful paths remain in
+/// the polygon, so check both endpoints, the midpoint and edge crossings.
+/// A polygon vertex lying on the segment is only harmless when the boundary
+/// merely touches it there: neighbours on opposite sides mean the segment
+/// passes through the boundary into the outside.
+static bool vertex_crosses_segment(Ppoint_t prev, Ppoint_t v, Ppoint_t next,
+                                   Ppoint_t eps[2]) {
+    if (ccw(eps[0], eps[1], v) != ISON)
+	return false;
+    if (v.x < fmin(eps[0].x, eps[1].x) || v.x > fmax(eps[0].x, eps[1].x) ||
+	v.y < fmin(eps[0].y, eps[1].y) || v.y > fmax(eps[0].y, eps[1].y))
+	return false; // collinear, but not on the segment itself
+    if ((v.x == eps[0].x && v.y == eps[0].y) ||
+	(v.x == eps[1].x && v.y == eps[1].y))
+	return false; // a crossing at a verified endpoint stays inside
+    const int s_prev = ccw(eps[0], eps[1], prev);
+    const int s_next = ccw(eps[0], eps[1], next);
+    return s_prev != ISON && s_next != ISON && s_prev != s_next;
+}
+
+static bool segment_in_polygon(const Ppoly_t *polyp, Ppoint_t eps[2]) {
+    const Ppoint_t mid = {(eps[0].x + eps[1].x) / 2, (eps[0].y + eps[1].y) / 2};
+    if (!point_in_polygon(polyp, eps[0]) || !point_in_polygon(polyp, eps[1]) ||
+	!point_in_polygon(polyp, mid))
+	return false;
+    for (size_t i = 0, j = polyp->pn - 1; i < polyp->pn; j = i++) {
+	const Ppoint_t a = polyp->ps[i], b = polyp->ps[j];
+	const int s0 = ccw(eps[0], eps[1], a), s1 = ccw(eps[0], eps[1], b);
+	const int t0 = ccw(a, b, eps[0]), t1 = ccw(a, b, eps[1]);
+	if (s0 != ISON && s1 != ISON && s0 != s1 &&
+	    t0 != ISON && t1 != ISON && t0 != t1)
+	    return false; // proper crossing of a polygon edge
+    }
+    if (polyp->pn > 0) {
+	for (size_t i = 0; i < polyp->pn; ++i) {
+	    if (vertex_crosses_segment(polyp->ps[(i + polyp->pn - 1) % polyp->pn],
+				       polyp->ps[i],
+				       polyp->ps[(i + 1) % polyp->pn], eps))
+		return false;
+	}
+    }
+    return true;
+}
+
 static Ppoint_t point_indexer(void *base, size_t index) {
   pointnlink_t **b = base;
   return *b[index]->pp;
@@ -154,11 +224,24 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 #endif
 
     /* generate list of triangles */
-    if (triangulate(pnlps, pnll)) {
+    const int triangulation = triangulate(pnlps, pnll);
+    if (triangulation < 0) {
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
 	return -2;
+    } else if (triangulation > 0) {
+	free(dq.pnlps);
+	free(pnlps);
+	free(pnls);
+	/* Triangulation is incomplete (e.g. degenerate input). A straight line
+	 * is only acceptable if it provably stays inside the polygon; otherwise
+	 * this is a real failure and must be reported. */
+	if (!segment_in_polygon(polyp, eps)) {
+	    prerror("triangulation failed");
+	    return -1;
+	}
+	return straight_path(eps, output);
     }
 
 #if defined(DEBUG) && DEBUG >= 2
@@ -200,17 +283,11 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 
     /* mark the strip of triangles from eps[0] to eps[1] */
     if (!marktripath(ftrii, ltrii)) {
-	prerror("cannot find triangle path");
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
 	/* a straight line is better than failing */
-	if (growops(2) != 0)
-		return -2;
-	output->pn = 2;
-	ops[0] = eps[0], ops[1] = eps[1];
-	output->ps = ops;
-	return 0;
+	return straight_path(eps, output);
     }
 
     /* if endpoints in same triangle, use a single line */
@@ -330,7 +407,7 @@ static int triangulate(pointnlink_t **points, size_t point_count) {
 				return triangulate(points, point_count - 1);
 			}
 		}
-		prerror("triangulation failed");
+		return 1;
     } 
 	else {
 		if (loadtriangle(points[0], points[1], points[2]) != 0)

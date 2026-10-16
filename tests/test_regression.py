@@ -897,7 +897,10 @@ def test_1425_1():
 
 
 @pytest.mark.xfail(
-    strict=True, reason="https://gitlab.com/graphviz/graphviz/-/issues/1435"
+    strict=True,
+    reason="https://gitlab.com/graphviz/graphviz/-/issues/1435: the only straight "
+    "fallback for this polygon leaves it (passes through an obstacle), so the "
+    "failed triangulation is still reported",
 )
 def test_1435():
     """
@@ -913,6 +916,25 @@ def test_1435():
     err = run("dot", "-Tpng", "-o", os.devnull, input, stderr=subprocess.STDOUT)
 
     assert err.strip() == "", "errors were printed"
+
+
+@pytest.mark.skipif(
+    is_static_build(),
+    reason="pathplan's private util archive is not installed, so a static "
+    "link cannot resolve its gv_list_* symbols from the install tree",
+)
+def test_1435_2(tmp_path: Path):
+    """
+    a straight-line fallback for a failed triangulation must not leave the polygon
+    https://gitlab.com/graphviz/graphviz/-/issues/1435
+    """
+
+    # find co-located test source
+    c_src = (Path(__file__).parent / "1435.c").resolve()
+    assert c_src.exists(), "missing test case"
+
+    # run it
+    _, _ = run_c(c_src, tmp_path, link=["pathplan"])
 
 
 def test_1436():
