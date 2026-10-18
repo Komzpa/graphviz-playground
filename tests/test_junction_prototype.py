@@ -83,12 +83,80 @@ def test_baseline_fixture_is_in_tree() -> None:
     assert verify.BASELINE_TOOL.is_relative_to(ROOT)
 
 
+
+
+def test_rank_probe_timeout_returns_original_bytes(tmp_path: Path, monkeypatch, capfdbinary) -> None:
+    path = tmp_path / "timeout.gv"
+    original = b"// preserve CRLF\r\ndigraph G { a -> b; a -> c; }\r\n"
+    path.write_bytes(original)
+
+    def run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr(jz.subprocess, "run", run)
+    monkeypatch.setattr(sys, "argv", [str(TOOL), str(path)])
+    assert jz.main() == 1
+    out = capfdbinary.readouterr()
+    assert out.out == original
+    assert out.err.startswith(b"refused:rank-read-failed")
+
+
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_refusal_oracle_compares_original_bytes_not_reference_output(
+    tmp_path: Path, monkeypatch, corrupt: bool
+) -> None:
+    directory = tmp_path / "graphs" / "directed"
+    directory.mkdir(parents=True)
+    record = directory / "record.gv"
+    record.write_bytes(b'digraph G { a [shape=record, label="{a|b}"]; a -> b; a -> c; }\n')
+    (directory / "eligible.gv").write_bytes(b"digraph G { a -> b; a -> c; }\n")
+    original_junctionize = verify.junctionize
+
+    def junctionize(path, *, skewer):
+        proc = original_junctionize(path, skewer=skewer)
+        if path == record:
+            assert proc.returncode == 0 and b"refused:record-endpoint" in proc.stderr
+            assert proc.stdout == record.read_bytes()
+            if corrupt:
+                proc.stdout = b"digraph G {}\n"
+        else:
+            assert b"fan-out" in proc.stderr and b"refused:" not in proc.stderr
+        return proc
+
+    def reference_must_not_run(*args):
+        pytest.fail("refusal identity must not depend on the reference transformer")
+
+    monkeypatch.setattr(verify, "ROOT", tmp_path)
+    monkeypatch.setattr(verify, "junctionize", junctionize)
+    monkeypatch.setattr(verify, "junctionize_with", reference_must_not_run)
+    assert verify.refusal_sample() == (0 if corrupt else 1, 1, 2)
+
 @pytest.mark.parametrize("value", ["0", "false", "No"])
 def test_constraint_false_spellings_refuse(tmp_path: Path, value: str) -> None:
     text = f"digraph G {{\n  a -> b [constraint={value}];\n  a -> c;\n}}\n"
     proc = run_tool(tmp_path, text)
     assert b"refused:constraint-false" in proc.stderr
     assert proc.stdout == text.encode()
+
+@pytest.mark.parametrize("value", ["0", "false"])
+def test_inherited_constraint_false_refuses_byte_identically(tmp_path: Path, value: str) -> None:
+    text = f"digraph G {{\n  edge [constraint={value}];\n  a -> b;\n  a -> c;\n}}\n"
+    proc = run_tool(tmp_path, text)
+    assert b"refused:constraint-false" in proc.stderr
+    assert proc.stdout == text.encode()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "digraph G {\n  edge [constraint=1];\n  a -> b;\n  a -> c;\n}\n",
+        "digraph G {\n  edge [constraint=0];\n  a -> b [constraint=1];\n  a -> c [constraint=1];\n}\n",
+    ],
+)
+def test_effective_constraint_true_still_transforms(tmp_path: Path, text: str) -> None:
+    proc = run_tool(tmp_path, text)
+    assert proc.returncode == 0 and b"fan-out" in proc.stderr and b"refused:" not in proc.stderr
+    assert proc.stdout != text.encode()
 
 
 @pytest.mark.parametrize(
@@ -121,6 +189,81 @@ def test_reversal_swaps_endpoint_paired_attributes() -> None:
     assert out["headURL"] == "u" and "tailURL" not in out
     assert out["taillabel"] == "h"
     assert out["dir"] == "back"
+
+
+@pytest.mark.parametrize("kind", ["fan-out", "fan-in"])
+@pytest.mark.parametrize("relation", [-1, 1])
+@pytest.mark.parametrize("direction", ["none", "back", "forward", "both"])
+def test_inherited_direction_keeps_arrows_on_real_endpoints(
+    tmp_path: Path, kind: str, relation: int, direction: str
+) -> None:
+    shared_rank, other_rank = ("source", "sink") if relation < 0 else ("sink", "source")
+    edges = "a -> b; a -> c;" if kind == "fan-out" else "b -> a; c -> a;"
+    text = (
+        f'digraph G {{ edge [dir={direction}]; '
+        f'{{rank={shared_rank}; a;}} {{rank={other_rank}; b; c;}} {edges} }}\n'
+    )
+    proc = run_tool(tmp_path, text)
+    assert proc.returncode == 0 and kind.encode() in proc.stderr
+    assert b"refused:" not in proc.stderr
+
+    def arrows(data: dict) -> Counter[str]:
+        names = {obj["_gvid"]: obj["name"] for obj in data["objects"]}
+        return Counter(
+            names[edge[endpoint]] for edge in data.get("edges", [])
+            for endpoint, draw_key in (("head", "_hdraw_"), ("tail", "_tdraw_"))
+            if edge.get(draw_key)
+        )
+
+    expected = arrows(render_json(text.encode()))
+    if "a" in expected:
+        expected["a"] = 1  # The shared endpoint has one concentrated arrow.
+    assert arrows(render_json(proc.stdout)) == expected
+
+
+@pytest.mark.parametrize(
+    "head,tail,value,opposite",
+    [
+        ("arrowhead", "arrowtail", "diamond", "normal"),
+        ("headclip", "tailclip", "false", "true"),
+        ("headlabel", "taillabel", "endpoint", ""),
+        ("headURL", "tailURL", "endpoint-url", ""),
+        ("headhref", "tailhref", "endpoint-href", ""),
+        ("headtarget", "tailtarget", "endpoint-target", ""),
+        ("headtooltip", "tailtooltip", "endpoint-tooltip", ""),
+        ("samehead", "sametail", "endpoint-group", ""),
+    ],
+)
+@pytest.mark.parametrize("at_head", [False, True])
+def test_reversal_materializes_both_sides_of_inherited_endpoint_defaults(
+    head: str, tail: str, value: str, opposite: str, at_head: bool
+) -> None:
+    name, other = (head, tail) if at_head else (tail, head)
+    graph = jz.pgv.AGraph(string=f'digraph G {{ edge [{name}="{value}"]; a -> b; }}')
+    attrs = jz.edge_attrs(graph.get_edge("a", "b"))
+    assert attrs[name] == value and attrs[other] == opposite
+    jz.add_reversed_edge(graph, "b", "a", attrs)
+    reversed_edge = graph.get_edge("b", "a")
+    assert reversed_edge.attr.get(other) == value
+    assert reversed_edge.attr.get(name) == opposite
+
+
+@pytest.mark.parametrize("extra,shared_weight", [((), "14"), (("--no-sum-weights",), "7"), (("--no-skewer-order",), "14")])
+def test_inherited_weights_survive_grouping_and_remaining_reversal(
+    tmp_path: Path, extra: tuple[str, ...], shared_weight: str
+) -> None:
+    text = (
+        'digraph G { edge [weight=7]; {rank=source; a; x;} {rank=sink; b; c; y;} '
+        'a -> b; a -> c; y -> x [label="reverse"]; }\n'
+    )
+    proc = run_tool(tmp_path, text, *extra)
+    assert proc.returncode == 0 and b"fan-out" in proc.stderr
+    graph = jz.pgv.AGraph(string=proc.stdout.decode())
+    assert graph.get_edge("a", "__junction0").attr.get("weight") == shared_weight
+    assert graph.get_edge("__junction0", "b").attr.get("weight") == "7"
+    assert graph.get_edge("__junction0", "c").attr.get("weight") == "7"
+    assert graph.get_edge("x", "y").attr.get("weight") == "7"
+    render_json(proc.stdout)
 
 
 @pytest.mark.parametrize("kind", ["fan-out", "fan-in"])
@@ -415,3 +558,24 @@ def test_verifier_distinguishes_label_kind_direction_and_equal_text_owners() -> 
     assert verify.edge_name("a", "b", "same", label_kind="headlabel") == verify.edge_name(
         "b", "a", "same", direction="back", label_kind="taillabel"
     )
+
+
+def test_verifier_gives_xlabel_its_own_overlap_owner_on_one_edge() -> None:
+    text = (
+        'digraph G { a -> b [label="ordinary ordinary ordinary", '
+        'xlabel="external external external", headlabel="head", taillabel="tail"]; }'
+    )
+    result = verify.metrics(text.encode())
+    owners = {json.loads(box.edge_name)[2]: box.label for box in result.label_boxes}
+    assert owners == {
+        "label": "ordinary ordinary ordinary",
+        "xlabel": "external external external",
+        "headlabel": "head",
+        "taillabel": "tail",
+    }
+    # The ordinary label and xlabel boxes of this edge collide; that collision
+    # is between two distinct owners, not lines of one physical label.
+    pair_kinds = {
+        tuple(sorted(json.loads(name)[2] for name in pair)) for pair in result.label_label_pairs
+    }
+    assert ("label", "xlabel") in pair_kinds

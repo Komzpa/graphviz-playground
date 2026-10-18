@@ -117,12 +117,21 @@ def parse_args() -> argparse.Namespace:
 
 def edge_attrs(edge) -> dict[str, str]:
     attrs = {str(k): str(v) for k, v in edge.attr.items()}
-    # items() omits inherited defaults; assign labels to their sole carrier and
-    # recognize inherited ports before deciding whether a rewrite is safe.
-    for name in LABEL_ATTRS | {"headport", "tailport"}:
+    # items() omits inherited defaults. Materialize attributes that the rewrite
+    # interprets, swaps, or overrides before making any explicit segment values.
+    inherited = LABEL_ATTRS | {"headport", "tailport", "dir", "arrowhead", "arrowtail", "weight", "constraint"}
+    inherited |= {name for pair in ENDPOINT_PAIRED_ATTRS for name in pair}
+    for name in inherited:
         value = edge.attr.get(name)
         if value is not None:
             attrs[name] = str(value)
+    # A missing opposite value must not inherit the old endpoint's default
+    # when the explicit pair is swapped and added back to the same graph.
+    for head, tail in (("arrowhead", "arrowtail"), *ENDPOINT_PAIRED_ATTRS):
+        if head in attrs or tail in attrs:
+            default = "normal" if head == "arrowhead" else "true" if head == "headclip" else ""
+            attrs.setdefault(head, default)
+            attrs.setdefault(tail, default)
     return attrs
 
 
@@ -253,6 +262,7 @@ def plain_ranks(path: str, dot: str) -> dict[str, NodeRank]:
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        timeout=60,
     )
     ranks: dict[str, NodeRank] = {}
     for line in proc.stdout.decode("utf-8", "replace").splitlines():
@@ -670,7 +680,7 @@ def main() -> int:
     if args.preserve_ranks:
         try:
             ranks = plain_ranks(args.input, args.dot)
-        except (OSError, subprocess.CalledProcessError) as exc:
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
             print(f"refused:rank-read-failed\t*\t\t0\t{exc}", file=sys.stderr)
             emit_original(original)
             return 1

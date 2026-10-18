@@ -38,11 +38,15 @@ A group is a set of edges that share an endpoint and have identical values for:
 `arrowhead`, `arrowtail`, `dir`, `fontname`, `fontsize`, `fontcolor`,
 `labelfontname`, `labelfontsize`, `labelfontcolor`, and `class`.
 
-Labels are read with their inherited edge defaults. Unescaped `\E`, `\H`, or
-`\T` in any of `label`, `xlabel`, `headlabel`, or `taillabel` cause a
-`label-substitution` refusal: evaluating them on a generated segment could
-change their text. Escaped backslashes and ordinary multiline labels remain
-eligible for grouping.
+Labels, direction, arrow shapes, endpoint-paired attributes, weights, and
+`constraint` are read with their inherited edge defaults before rewriting, so
+an inherited `edge [constraint=false]` (in any false spelling) refuses
+byte-identically just like an explicit per-edge value. Reversing an edge
+also materializes the opposite endpoint's default so asymmetric defaults do not
+leak back onto the wrong endpoint. Unescaped `\E`, `\H`, or `\T` in any of
+`label`, `xlabel`, `headlabel`, or `taillabel` cause a `label-substitution`
+refusal: evaluating them on a generated segment could change their text.
+Escaped backslashes and ordinary multiline labels remain eligible for grouping.
 
 Generated trunks explicitly use `minlen=0`; each arm retains the original
 edge's full `minlen`, including inherited defaults. Group `label` and `xlabel`
@@ -79,9 +83,15 @@ reference implementation that `verify_skewer_order.py` compares against.
 
 The verifier identifies overlap pairs by label text, label kind, and logical
 endpoints, not an edge's enumeration index or physical serialization direction.
+Ordinary `label` and `xlabel` are distinct owners even on the same edge: dot
+draws both into `_ldraw_` (label first, then xlabel), so the verifier splits
+those runs at the `lp`/`xlp` placed centers before naming them.
 It also canonicalizes the order of each pair. Reordering or reversing an edge
 therefore does not turn an existing collision into a new one; different label
 owners and genuinely new collision pairs remain distinguishable.
+
+The refusal oracle compares output directly with the original input bytes,
+independently of what the reference implementation transforms or refuses.
 
 ## Options
 
@@ -123,6 +133,10 @@ all parallel edge identities is a separate piece of machinery.
 `rankdir=LR` is reported as a non-TB case and left unchanged. The current rank
 preservation and overshoot predicate are y-axis checks tuned for top-to-bottom
 drawings.
+
+The original-rank `dot -Tplain` probe uses the same 60-second bound as the
+prototype's full-fixture consumer test. A timeout follows the rank-read failure
+path: emit the original bytes, report `refused:rank-read-failed`, and exit 1.
 
 ## Smoke Check
 

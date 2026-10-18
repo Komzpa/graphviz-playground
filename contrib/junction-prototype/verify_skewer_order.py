@@ -226,15 +226,13 @@ def box_text(box: Box) -> str:
 
 
 DEFAULT_FONT_SIZE = 14.0
-# Edge label kinds and the xdot attribute that draws each.
-LABEL_DRAW_KEYS = (("label", "_ldraw_"), ("headlabel", "_hldraw_"), ("taillabel", "_tldraw_"))
+# Head/tail labels get their own xdot draw attribute. Ordinary `label` and
+# `xlabel` share `_ldraw_`, split by `ldraw_label_boxes` below.
+ENDPOINT_LABEL_DRAW_KEYS = (("headlabel", "_hldraw_"), ("taillabel", "_tldraw_"))
 
 
 def label_boxes_for(edge: dict, draw_key: str = "_ldraw_", *, expand: float = 0.0) -> list[Box]:
-    """One box per rendered text run (`T`), sized by the active `F` font size.
-
-    xlabel text is emitted into `_ldraw_` by dot, so it is covered here too.
-    """
+    """One box per rendered text run (`T`), sized by the active `F` font size."""
     boxes: list[Box] = []
     size = DEFAULT_FONT_SIZE
     for op in edge.get(draw_key, []):
@@ -247,6 +245,48 @@ def label_boxes_for(edge: dict, draw_key: str = "_ldraw_", *, expand: float = 0.
             x0 = x if align == "l" else x - width if align == "r" else x - width / 2
             boxes.append(Box(x0 - expand, y - size / 2 - expand, x0 + width + expand, y + size / 2 + expand))
     return boxes
+
+
+def _label_anchor(edge: dict, key: str) -> tuple[float, float] | None:
+    raw = str(edge.get(key, ""))
+    if "," not in raw:
+        return None
+    x, y = raw.split(",", 1)
+    return float(x), float(y)
+
+
+def ldraw_label_boxes(edge: dict, *, expand: float = 0.0) -> list[tuple[str, Box]]:
+    """Attribute `_ldraw_` runs to `label` or `xlabel`, the two owners sharing it.
+
+    dot emits the ordinary label first, then the xlabel (lib/common/emit.c),
+    and records their placed centers in `lp`/`xlp`. With both present, the
+    run sequence is therefore split at the point that keeps the leading runs
+    nearest `lp` and the trailing runs nearest `xlp`.
+    """
+    boxes = label_boxes_for(edge, "_ldraw_", expand=expand)
+    has_label = bool(edge.get("label"))
+    has_xlabel = bool(edge.get("xlabel"))
+    if not has_xlabel:
+        return [("label", box) for box in boxes]
+    if not has_label:
+        return [("xlabel", box) for box in boxes]
+    lp = _label_anchor(edge, "lp")
+    xlp = _label_anchor(edge, "xlp")
+    if lp is None or xlp is None:
+        return [("label", box) for box in boxes]
+
+    def distance(box: Box, anchor: tuple[float, float]) -> float:
+        cx, cy = (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2
+        return (cx - anchor[0]) ** 2 + (cy - anchor[1]) ** 2
+
+    if len(boxes) == 1:
+        return [("label" if distance(boxes[0], lp) <= distance(boxes[0], xlp) else "xlabel", boxes[0])]
+    split = min(
+        range(1, len(boxes)),
+        key=lambda k: sum(distance(box, lp) for box in boxes[:k])
+        + sum(distance(box, xlp) for box in boxes[k:]),
+    )
+    return [("label", box) for box in boxes[:split]] + [("xlabel", box) for box in boxes[split:]]
 
 
 def label_box(edge: dict, *, expand: float = 0.0) -> Box | None:
@@ -330,15 +370,19 @@ def metrics(dot_bytes: bytes) -> Metrics:
         label = edge.get("label", "")
         rows.append(EdgeRow(index, tail_name, head_name, label, kind, mean_x))
         splines.append((index, edge_polylines(edge.get("pos", ""))))
-        for label_kind, draw_key in LABEL_DRAW_KEYS:
+        drawn = ldraw_label_boxes(edge, expand=PAD) + [
+            (label_kind, box)
+            for label_kind, draw_key in ENDPOINT_LABEL_DRAW_KEYS
+            for box in label_boxes_for(edge, draw_key, expand=PAD)
+        ]
+        for label_kind, box in drawn:
             label_text = edge.get(label_kind, "")
             name = edge_name(
                 tail_name, head_name, label_text,
                 direction=edge.get("dir", "forward"), label_kind=label_kind,
             )
-            for box in label_boxes_for(edge, draw_key, expand=PAD):
-                labels.append((index, name, box))
-                label_boxes.append(LabelBox(name, label_text, box))
+            labels.append((index, name, box))
+            label_boxes.append(LabelBox(name, label_text, box))
 
     forward_x = [row.mean_x for row in rows if row.kind == "forward"]
     median = statistics.median(forward_x) if forward_x else None
@@ -397,7 +441,7 @@ def print_metrics(name: str, side: str, m: Metrics) -> None:
         print(f"{name}\t{side}\tedge\t#{row.index}\t{row.tail}->{row.head}\t{row.kind}\tmean_x={row.mean_x:.2f}{label}")
 
 
-def refusal_sample(base_tool: Path) -> tuple[int, int, int]:
+def refusal_sample() -> tuple[int, int, int]:
     candidates = sorted(
         set(
             list((ROOT / "contrib" / "junction-prototype" / "fixtures" / "original").glob("*.gv"))
@@ -411,8 +455,7 @@ def refusal_sample(base_tool: Path) -> tuple[int, int, int]:
         proc = junctionize(path, skewer=True)
         if proc.stderr.startswith(b"refused:"):
             refused += 1
-            baseline = junctionize_with(base_tool, path)
-            if baseline.returncode == 0 and proc.stdout == baseline.stdout:
+            if proc.stdout == path.read_bytes():
                 matched += 1
     return matched, refused, len(candidates)
 
@@ -478,8 +521,8 @@ def main() -> int:
                 if by_label.get("ioctl_replicate", -math.inf) <= by_label.get("resync completed", math.inf):
                     failures.append("DRBD: ioctl_replicate is not right of resync completed")
 
-        matched, refused, sample = refusal_sample(base_tool)
-    print(f"refusal_byte_identity_vs_{BASELINE}\tmatched={matched}\trefused_total={refused}\tsample_total={sample}")
+        matched, refused, sample = refusal_sample()
+    print(f"refusal_byte_identity_vs_input\tmatched={matched}\trefused_total={refused}\tsample_total={sample}")
     if matched != refused:
         failures.append(f"refusal byte identity failed: {matched}/{refused}")
 
