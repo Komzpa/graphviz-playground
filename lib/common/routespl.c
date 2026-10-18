@@ -448,9 +448,16 @@ static pointf *routesplines_(path *pp, size_t *npoints, int polyline) {
     poly.ps = polypoints, poly.pn = pi;
     eps[0].x = pp->start.p.x, eps[0].y = pp->start.p.y;
     eps[1].x = pp->end.p.x, eps[1].y = pp->end.p.y;
-    if (Pshortestpath(&poly, eps, &pl) < 0) {
+    const int path_status = Pshortestpath(&poly, eps, &pl);
+    if (path_status < 0) {
 	free(polypoints);
-	agerrorf("in routesplines, Pshortestpath failed\n");
+	if (path_status != -1) {
+	    agerrorf("in routesplines, Pshortestpath failed\n");
+	} else {
+	    /* Pshortestpath already reported this failure; record it so the
+	     * layout still fails without printing the diagnostic twice */
+	    graphviz_errors++;
+	}
 	return NULL;
     }
 #ifdef DEBUG

@@ -12,6 +12,15 @@ and this project adheres to
 - `nop` no longer reorders edges. #2855
 - The canonical format (`-Tcanon`) produces output that is stable across
   multiple invocations. #2193
+- A `Pshortestpath` failure is now reported exactly once: its caller no longer
+  prints a second error for failures the library already reported. The failure
+  still makes the layout exit with a nonzero status.
+- `Pshortestpath` no longer returns a straight-line fallback that leaves the
+  polygon when a triangle strip cannot be marked, or when collinear boundary
+  vertices hide multiple exterior intervals. Boundary and tangent routes remain
+  valid.
+- Static builds install the private `util` archive so direct consumers of
+  `libpathplan` can link its transitive dependency.
 
 ## [16.1.0] – 2026-09-03
 
