@@ -951,7 +951,7 @@ def test_1435_3():
     dot_exe = which("dot")
     assert dot_exe is not None, "`dot` not found"
     p = subprocess.run(
-        [dot_exe, "-Tpng", "-o", os.devnull, input], capture_output=True, check=False
+        [dot_exe, "-Tsvg", "-o", os.devnull, input], capture_output=True, check=False
     )
     err = p.stderr.decode("utf-8", "replace")
 
