@@ -296,9 +296,15 @@ def edge_kind(edge: dict, positions: dict[int, tuple[float, float]], rankdir: st
     return "reversed" if delta > 1e-6 else "forward"
 
 
-def edge_name(index: int, tail: str, head: str, label: str) -> str:
-    suffix = f" label={label}" if label else ""
-    return f"#{index} {tail}->{head}{suffix}"
+def edge_name(
+    tail: str, head: str, label: str, *, direction: str = "forward", label_kind: str = "label"
+) -> str:
+    # Follow logical arrows, not serialization order. Bidirectional/unarrowed
+    # edges have no preferred orientation, so use their canonical endpoint order.
+    if direction == "back" or (direction in {"both", "none"} and head < tail):
+        tail, head = head, tail
+        label_kind = {"headlabel": "taillabel", "taillabel": "headlabel"}.get(label_kind, label_kind)
+    return json.dumps((tail, head, label_kind, label), ensure_ascii=False)
 
 
 def metrics(dot_bytes: bytes) -> Metrics:
@@ -322,14 +328,17 @@ def metrics(dot_bytes: bytes) -> Metrics:
         tail_name = names[edge["tail"]]
         head_name = names[edge["head"]]
         label = edge.get("label", "")
-        name = edge_name(index, tail_name, head_name, label)
         rows.append(EdgeRow(index, tail_name, head_name, label, kind, mean_x))
         splines.append((index, edge_polylines(edge.get("pos", ""))))
         for label_kind, draw_key in LABEL_DRAW_KEYS:
-            suffix = "" if label_kind == "label" else f" [{label_kind}]"
+            label_text = edge.get(label_kind, "")
+            name = edge_name(
+                tail_name, head_name, label_text,
+                direction=edge.get("dir", "forward"), label_kind=label_kind,
+            )
             for box in label_boxes_for(edge, draw_key, expand=PAD):
-                labels.append((index, name + suffix, box))
-                label_boxes.append(LabelBox(name + suffix, label, box))
+                labels.append((index, name, box))
+                label_boxes.append(LabelBox(name, label_text, box))
 
     forward_x = [row.mean_x for row in rows if row.kind == "forward"]
     median = statistics.median(forward_x) if forward_x else None
@@ -347,11 +356,12 @@ def metrics(dot_bytes: bytes) -> Metrics:
                 break
 
     label_label_pairs: list[tuple[str, str]] = []
-    for i, (_, a_name, a) in enumerate(labels):
-        for _, b_name, b in labels[i + 1 :]:
-            # Lines of one label touch by construction; only distinct labels collide.
-            if a_name != b_name and boxes_overlap(a, b):
-                label_label_pairs.append((a_name, b_name))
+    for i, (a_index, a_name, a) in enumerate(labels):
+        for b_index, b_name, b in labels[i + 1 :]:
+            # Lines of one physical label touch by construction; distinct labels
+            # must still collide even when their logical identities are equal.
+            if (a_index, a_name) != (b_index, b_name) and boxes_overlap(a, b):
+                label_label_pairs.append(tuple(sorted((a_name, b_name))))
 
     label_node = 0
     for _, _, label in labels:

@@ -38,6 +38,12 @@ IDENTITY_ATTRS = (
 EDGE_LABEL_ATTRS = {"label", "xlabel"}
 ENDPOINT_LABEL_ATTRS = {"taillabel", "headlabel"}
 LABEL_ATTRS = EDGE_LABEL_ATTRS | ENDPOINT_LABEL_ATTRS
+INTERACTION_ATTRS = {
+    "URL", "href", "edgeURL", "edgehref", "labelURL", "labelhref",
+    "headURL", "headhref", "tailURL", "tailhref",
+    "target", "edgetarget", "labeltarget", "headtarget", "tailtarget",
+    "tooltip", "edgetooltip", "labeltooltip", "headtooltip", "tailtooltip",
+}
 # Attribute pairs bound to one physical endpoint; reversing an edge must swap them.
 FLIP_MARK = "junctionize_flipped"
 ENDPOINT_PAIRED_ATTRS = (
@@ -110,7 +116,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def edge_attrs(edge) -> dict[str, str]:
-    return {str(k): str(v) for k, v in edge.attr.items()}
+    attrs = {str(k): str(v) for k, v in edge.attr.items()}
+    # items() omits inherited defaults; assign labels to their sole carrier and
+    # recognize inherited ports before deciding whether a rewrite is safe.
+    for name in LABEL_ATTRS | {"headport", "tailport"}:
+        value = edge.attr.get(name)
+        if value is not None:
+            attrs[name] = str(value)
+    return attrs
 
 
 def map_bool(value: str | None, default: bool) -> bool:
@@ -156,6 +169,21 @@ def node_clusters(graph: pgv.AGraph) -> dict[str, str]:
 
 def has_port(attrs: dict[str, str]) -> bool:
     return any(attrs.get(name) for name in ("headport", "tailport"))
+
+
+def has_label_substitution(attrs: dict[str, str]) -> bool:
+    for name in LABEL_ATTRS:
+        value = attrs.get(name, "")
+        index = 0
+        while index + 1 < len(value):
+            if value[index] != "\\":
+                index += 1
+                continue
+            if value[index + 1] in "EHT":
+                return True
+            # An escaped backslash is literal, not the start of a substitution.
+            index += 2
+    return False
 
 
 def tsv_field(value: object) -> str:
@@ -292,10 +320,11 @@ def add_junction(graph: pgv.AGraph, name: str, visible: bool) -> None:
 
 def trunk_attrs(candidate: Candidate, args: argparse.Namespace) -> dict[str, str]:
     source = candidate.edges[0].attrdict()
-    # A trunk is a generated segment shared by several original edges: it must
-    # not repeat the first edge's unique id, and its minlen is the dot default so
-    # the arm (which keeps the original minlen, less this trunk's rank) carries it.
-    attrs = copy_without(source, LABEL_ATTRS | {"id", "minlen"})
+    # Only the arms retain per-edge interaction metadata and rank distance.
+    # Explicit clears also override graph-level defaults on the shared segment.
+    attrs = copy_without(source, LABEL_ATTRS | INTERACTION_ATTRS | {"id"})
+    attrs.update((name, "") for name in LABEL_ATTRS | INTERACTION_ATTRS | {"id"})
+    attrs["minlen"] = "0"
     shared_endpoint_label = "taillabel" if candidate.kind == "fan-out" else "headlabel"
     attrs.update(
         (name, value)
@@ -312,15 +341,9 @@ def trunk_attrs(candidate: Candidate, args: argparse.Namespace) -> dict[str, str
 def arm_attrs(candidate: Candidate, edge: EdgeInfo) -> dict[str, str]:
     source = edge.attrdict()
     attrs = copy_without(source, LABEL_ATTRS)
+    attrs.update((name, "") for name in LABEL_ATTRS)
     distinct_endpoint_label = "headlabel" if candidate.kind == "fan-out" else "taillabel"
     attrs.update((name, value) for name, value in source.items() if name == distinct_endpoint_label)
-    try:
-        minlen = int(float(attrs["minlen"]))
-    except (KeyError, ValueError):
-        return attrs
-    if minlen > 1:
-        # trunk + arm together must still span the original minimum rank distance.
-        attrs["minlen"] = str(minlen - 1)
     return attrs
 
 
@@ -653,6 +676,11 @@ def main() -> int:
             return 1
 
     clusters = node_clusters(graph)
+    record_nodes = {
+        str(node)
+        for node in graph.nodes()
+        if str(graph.get_node(str(node)).attr.get("shape") or "").lower() in {"record", "mrecord"}
+    }
     raw_edges: list[EdgeInfo] = []
     for index, edge in enumerate(graph.edges()):
         raw_edges.append(
@@ -682,6 +710,8 @@ def main() -> int:
             reason = "different-clusters"
         elif pair_counts[(edge.tail, edge.head)] > 1:
             reason = "true-multiedge"
+        elif has_label_substitution(attrs):
+            reason = "label-substitution"
 
         if reason:
             skipped.add(edge.index)
@@ -710,6 +740,10 @@ def main() -> int:
     selected: list[Candidate] = []
     transformed: set[int] = set()
     for candidate in candidates:
+        if candidate.endpoint in record_nodes:
+            refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "record-endpoint")
+            refused = True
+            continue
         if args.preserve_ranks and endpoint_relation(candidate, ranks, rankdir) is None:
             refusal(candidate.kind, candidate.endpoint, candidate.label, len(candidate.edges), "rank-straddles-anchor")
             refused = True

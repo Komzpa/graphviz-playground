@@ -38,6 +38,28 @@ A group is a set of edges that share an endpoint and have identical values for:
 `arrowhead`, `arrowtail`, `dir`, `fontname`, `fontsize`, `fontcolor`,
 `labelfontname`, `labelfontsize`, `labelfontcolor`, and `class`.
 
+Labels are read with their inherited edge defaults. Unescaped `\E`, `\H`, or
+`\T` in any of `label`, `xlabel`, `headlabel`, or `taillabel` cause a
+`label-substitution` refusal: evaluating them on a generated segment could
+change their text. Escaped backslashes and ordinary multiline labels remain
+eligible for grouping.
+
+Generated trunks explicitly use `minlen=0`; each arm retains the original
+edge's full `minlen`, including inherited defaults. Group `label` and `xlabel`
+appear only on the trunk. The shared endpoint label also stays on the trunk,
+while each distinct endpoint label stays on its arm. All other label attributes
+are explicitly cleared on the generated segments so defaults cannot duplicate
+labels or move them onto a junction.
+Candidates whose shared endpoint is a record or Mrecord are refused as
+`record-endpoint`; dot can drop a zero-length flat edge against a record node.
+Record nodes at arm endpoints remain supported.
+
+The shared trunk has no original edge ID or URL/href, target, or tooltip
+metadata (including the edge/label/head/tail variants). Explicit empty values
+override inherited interaction defaults there; each arm retains its own
+interaction attributes. A shared segment must not navigate to the first edge's
+destination.
+
 Every group with size at least `--min-group` is either transformed, or the
 whole input is reported to stderr as refused and emitted byte-for-byte unchanged.
 The machine-readable census format is:
@@ -54,6 +76,12 @@ The tests under `tests/test_junction_prototype.py` need PyGraphviz (it is not in
 `requirements.txt` because it needs the Graphviz development headers); they are
 skipped when it is not installed. `fixtures/baseline_junctionize.py` is the
 reference implementation that `verify_skewer_order.py` compares against.
+
+The verifier identifies overlap pairs by label text, label kind, and logical
+endpoints, not an edge's enumeration index or physical serialization direction.
+It also canonicalizes the order of each pair. Reordering or reversing an edge
+therefore does not turn an existing collision into a new one; different label
+owners and genuinely new collision pairs remain distinguishable.
 
 ## Options
 
@@ -85,11 +113,12 @@ The checker accepts either source DOT or captured `dot -Tplain` output.
 
 ## Guard Rails
 
-The tool skips and reports self-loops, ported edges, `constraint=false` edges,
-edges crossing between different clusters, strict graphs, and true multi-edges
-between the same ordered endpoint pair. True multi-edges are skipped in this
-prototype because PyGraphviz can parse them, but safely deleting just one member
-while preserving all parallel edge identities is a separate piece of machinery.
+The tool skips and reports self-loops, ported edges, record shared endpoints,
+`constraint=false` edges, context-dependent labels, edges crossing between
+different clusters, strict graphs, and true multi-edges between the same
+ordered endpoint pair. True multi-edges are skipped in this prototype because
+PyGraphviz can parse them, but safely deleting just one member while preserving
+all parallel edge identities is a separate piece of machinery.
 
 `rankdir=LR` is reported as a non-TB case and left unchanged. The current rank
 preservation and overshoot predicate are y-axis checks tuned for top-to-bottom
