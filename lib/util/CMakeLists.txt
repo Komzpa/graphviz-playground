@@ -18,3 +18,12 @@ endif()
 if(APPLE)
   target_compile_options(util PRIVATE "-fno-common")
 endif()
+
+# static consumers of libpathplan must link this private archive themselves,
+# because static archives carry no dependency metadata
+if(NOT BUILD_SHARED_LIBS)
+  install(
+    TARGETS util
+    ARCHIVE DESTINATION ${LIBRARY_INSTALL_DIR}
+  )
+endif()

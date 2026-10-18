@@ -95,31 +95,13 @@ static bool point_in_polygon(const Ppoly_t *polyp, Ppoint_t p) {
     return inside;
 }
 
-/// Can the segment eps[0]-eps[1] be used as a path inside the polygon? A
-/// fallback route must keep the API contract that successful paths remain in
-/// the polygon, so check both endpoints, the midpoint and edge crossings.
-/// A polygon vertex lying on the segment is only harmless when the boundary
-/// merely touches it there: neighbours on opposite sides mean the segment
-/// passes through the boundary into the outside.
-static bool vertex_crosses_segment(Ppoint_t prev, Ppoint_t v, Ppoint_t next,
-                                   Ppoint_t eps[2]) {
-    if (ccw(eps[0], eps[1], v) != ISON)
-	return false;
-    if (v.x < fmin(eps[0].x, eps[1].x) || v.x > fmax(eps[0].x, eps[1].x) ||
-	v.y < fmin(eps[0].y, eps[1].y) || v.y > fmax(eps[0].y, eps[1].y))
-	return false; // collinear, but not on the segment itself
-    if ((v.x == eps[0].x && v.y == eps[0].y) ||
-	(v.x == eps[1].x && v.y == eps[1].y))
-	return false; // a crossing at a verified endpoint stays inside
-    const int s_prev = ccw(eps[0], eps[1], prev);
-    const int s_next = ccw(eps[0], eps[1], next);
-    return s_prev != ISON && s_next != ISON && s_prev != s_next;
-}
+/// Can the segment eps[0]-eps[1] be used as a path inside the polygon?
+/// Proper edge crossings are forbidden. Vertex contacts partition the segment
+/// into intervals that must each be inside or on the boundary; checking only
+/// the whole segment's midpoint misses exits along collinear boundary chains.
 
 static bool segment_in_polygon(const Ppoly_t *polyp, Ppoint_t eps[2]) {
-    const Ppoint_t mid = {(eps[0].x + eps[1].x) / 2, (eps[0].y + eps[1].y) / 2};
-    if (!point_in_polygon(polyp, eps[0]) || !point_in_polygon(polyp, eps[1]) ||
-	!point_in_polygon(polyp, mid))
+    if (!point_in_polygon(polyp, eps[0]) || !point_in_polygon(polyp, eps[1]))
 	return false;
     for (size_t i = 0, j = polyp->pn - 1; i < polyp->pn; j = i++) {
 	const Ppoint_t a = polyp->ps[i], b = polyp->ps[j];
@@ -129,13 +111,26 @@ static bool segment_in_polygon(const Ppoly_t *polyp, Ppoint_t eps[2]) {
 	    t0 != ISON && t1 != ISON && t0 != t1)
 	    return false; // proper crossing of a polygon edge
     }
-    if (polyp->pn > 0) {
+    const double dx = eps[1].x - eps[0].x, dy = eps[1].y - eps[0].y;
+    if (dx == 0 && dy == 0)
+	return true;
+    double start = 0;
+    while (start < 1) {
+	double end = 1;
 	for (size_t i = 0; i < polyp->pn; ++i) {
-	    if (vertex_crosses_segment(polyp->ps[(i + polyp->pn - 1) % polyp->pn],
-				       polyp->ps[i],
-				       polyp->ps[(i + 1) % polyp->pn], eps))
-		return false;
+	    const Ppoint_t v = polyp->ps[i];
+	    if (ccw(eps[0], eps[1], v) != ISON)
+		continue;
+	    const double t = fabs(dx) >= fabs(dy) ? (v.x - eps[0].x) / dx
+						: (v.y - eps[0].y) / dy;
+	    if (t > start && t < end)
+		end = t;
 	}
+	const double t = start + (end - start) / 2;
+	const Ppoint_t mid = {eps[0].x + t * dx, eps[0].y + t * dy};
+	if (!point_in_polygon(polyp, mid))
+	    return false;
+	start = end;
     }
     return true;
 }
@@ -148,7 +143,8 @@ static Ppoint_t point_indexer(void *base, size_t index) {
 /* Pshortestpath:
  * Find a shortest path contained in the polygon polyp going between the
  * points supplied in eps. The resulting polyline is stored in output.
- * Return 0 on success, -1 on bad input, -2 on memory allocation problem. 
+ * Return 0 on success, -1 on bad input, -2 on memory allocation problem.
+ * Failures are also reported to stderr, so callers must not re-report -1.
  */
 int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 {
@@ -286,7 +282,12 @@ int Pshortestpath(Ppoly_t * polyp, Ppoint_t eps[2], Ppolyline_t * output)
 	free(dq.pnlps);
 	free(pnlps);
 	free(pnls);
-	/* a straight line is better than failing */
+	/* a straight line is better than failing, but only when it provably
+	 * stays inside the polygon */
+	if (!segment_in_polygon(polyp, eps)) {
+	    prerror("cannot find triangle path");
+	    return -1;
+	}
 	return straight_path(eps, output);
     }
 

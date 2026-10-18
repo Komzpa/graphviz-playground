@@ -918,11 +918,6 @@ def test_1435():
     assert err.strip() == "", "errors were printed"
 
 
-@pytest.mark.skipif(
-    is_static_build(),
-    reason="pathplan's private util archive is not installed, so a static "
-    "link cannot resolve its gv_list_* symbols from the install tree",
-)
 def test_1435_2(tmp_path: Path):
     """
     a straight-line fallback for a failed triangulation must not leave the polygon
@@ -934,7 +929,39 @@ def test_1435_2(tmp_path: Path):
     assert c_src.exists(), "missing test case"
 
     # run it
-    _, _ = run_c(c_src, tmp_path, link=["pathplan"])
+    link = ["pathplan"]
+    if is_static_build() and is_cmake():
+        # in static builds, we also need transitive dependencies
+        link += ["util"]
+    _, _ = run_c(c_src, tmp_path, link=link)
+
+
+def test_1435_3():
+    """
+    a failed routing attempt must be reported once, not once by the pathplan
+    library and again by its caller, and must still fail the run
+    https://github.com/Komzpa/graphviz-playground/pull/104
+    """
+
+    # locate our associated test case in this directory
+    input = Path(__file__).parent / "1435.dot"
+    assert input.exists(), "unexpectedly missing test case"
+
+    # process it with Graphviz, capturing diagnostics and exit status
+    dot_exe = which("dot")
+    assert dot_exe is not None, "`dot` not found"
+    p = subprocess.run(
+        [dot_exe, "-Tpng", "-o", os.devnull, input], capture_output=True, check=False
+    )
+    err = p.stderr.decode("utf-8", "replace")
+
+    assert p.returncode == 1, "a failed routing attempt did not exit cleanly"
+    diagnostics = [line for line in err.splitlines() if line.startswith("lib/pathplan/")]
+    assert len(diagnostics) == 1, f"expected one pathplan diagnostic, got:\n{err}"
+    assert re.search(
+        r"lib/pathplan/.*:\d+: triangulation failed$", diagnostics[0]
+    ), f"unexpected routing diagnostic:\n{err}"
+    assert "Pshortestpath failed" not in err, f"caller repeated the failure:\n{err}"
 
 
 def test_1436():
